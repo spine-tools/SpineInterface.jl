@@ -1,0 +1,6 @@
+authors = ["Manuel Marin <manuelma@kth.se>"]
+name = "SpineInterface"
+uuid = "0cda1612-498a-11e9-3c92-77fa82595a4f"
+version = "0.1.0"
+
+[deps]
