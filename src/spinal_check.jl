@@ -148,7 +148,7 @@ function spinal_object_parameter_check(db_map::PyObject)
                         !haskey(object_parameter_value_dict, given_object_name) && return $parsed_default_value
                         value = object_parameter_value_dict[given_object_name]
                         result = try
-                            SpineModel.get_scalar(value, t)
+                            SpineInterface.get_scalar(value, t)
                         catch e
                             error(
                                 "unable to retrieve value of '$($parameter_name)' " *
@@ -312,7 +312,7 @@ function spinal_relationship_parameter_check(db_map::PyObject)
                     !haskey(relationship_parameter_value_dict, ordered_object_name_list) && return $default_value
                     value = relationship_parameter_value_dict[ordered_object_name_list]
                     result = try
-                        SpineModel.get_scalar(value, t)
+                        SpineInterface.get_scalar(value, t)
                     catch e
                         error(
                             "unable to retrieve value of '$($parameter_name)' " *

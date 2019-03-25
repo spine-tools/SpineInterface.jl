@@ -6,13 +6,16 @@ using Dates
 using Suppressor
 
 include("spinal_check.jl")
+include("write_results.jl")
 include("helpers.jl")
+include("butcher.jl")
 
 export spinal_check
+export write_results!
 export @butcher
 
 const db_api = PyNULL()
-const required_spinedatabase_api_version = "0.0.19"
+const required_spinedatabase_api_version = "0.0.20"
 
 function __init__()
     try
