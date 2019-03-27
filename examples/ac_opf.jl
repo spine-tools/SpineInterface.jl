@@ -206,11 +206,11 @@ result_url = "sqlite:///case30_m_result.sqlite"
 write_results!(
     result_url, url;
     upgrade=true,
-    voltage=voltage,
-    phase=phase,
-    real_power_generation=real_power_generation,
-    reactive_power_generation=reactive_power_generation,
-    real_power_flow_from_node=real_power_flow_from_node,
-    reactive_power_flow_from_node=reactive_power_flow_from_node,
-    real_power_flow_to_node=real_power_flow_to_node,
-    reactive_power_flow_to_node=reactive_power_flow_to_node)
+    voltage=Dict(k => JuMP.value(v) for (k, v) in voltage),
+    phase=Dict(k => JuMP.value(v) for (k, v) in phase),
+    real_power_generation=Dict(k => JuMP.value(v) for (k, v) in real_power_generation),
+    reactive_power_generation=Dict(k => JuMP.value(v) for (k, v) in reactive_power_generation),
+    real_power_flow_from_node=Dict(k => JuMP.value(v) for (k, v) in real_power_flow_from_node),
+    reactive_power_flow_from_node=Dict(k => JuMP.value(v) for (k, v) in reactive_power_flow_from_node),
+    real_power_flow_to_node=Dict(k => JuMP.value(v) for (k, v) in real_power_flow_to_node),
+    reactive_power_flow_to_node=Dict(k => JuMP.value(v) for (k, v) in reactive_power_flow_to_node))

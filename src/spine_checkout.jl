@@ -414,7 +414,7 @@ given by `db_url`. `db_url` is a database url composed according to
 See [`spine_checkout(db_map::PyObject)`](@ref) for more details.
 """
 function spine_checkout(db_url; upgrade=false)
-    # Create DatabaseMapping object using Python spinedatabase_api
+    # Create DatabaseMapping object using Python spinedb_api
     try
         db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
         spine_checkout(db_map)
@@ -444,7 +444,7 @@ end
 Generate and export convenience functions
 for each object class, relationship class, and parameter, in the
 database given by `db_map` (see usage below). `db_map` is an instance of `DiffDatabaseMapping`
-provided by [`spinedatabase_api`](https://github.com/Spine-project/Spine-Database-API).
+provided by [`spinedb_api`](https://github.com/Spine-project/Spine-Database-API).
 
 Usage:
 
