@@ -22,11 +22,16 @@
 
 """
 # TODO: handle n > 1 nicely
-function pack_var_dict(var::Dict, n::Int64=1)
+function pack_var_dict(var::Dict, n::Int64=0)
     left_var = Dict{Any,Any}()
     for (key, value) in var
-        left_key = key[1:end-n]
-        right_key = key[end-n+1:end]
+        tuple_key = if key isa Tuple
+            key
+        else
+            (key,)
+        end
+        left_key = tuple_key[1:end-n]
+        right_key = tuple_key[end-n+1:end]
         right_dict = get!(left_var, left_key, Dict())
         right_dict[right_key] = value
     end
@@ -89,6 +94,8 @@ function add_var_to_result!(
     relationship_kwargs_list = []
     parameter_value_kwargs_list = []
     for (object_name_tuple, json) in packed_var
+        @show object_name_tuple
+        @show typeof(json)
         object_name_list = PyVector(py"""[$result_object['name']]""")
         object_id_list = PyVector(py"""[$result_object['id']]""")
         for object_name in object_name_tuple
@@ -151,7 +158,6 @@ function write_results!(dest_url::String; upgrade=false, results...)
         result_object = py"""$db_map.add_objects($object_, return_dups=True)[0].one()._asdict()"""
         # Insert variable into spine database.
         for (name, var) in results
-            # dataframe = packed_var_dataframe(var)
             add_var_to_result!(db_map, name, var, result_class, result_object)
         end
         msg = string("Add ", join([string(k) for (k, v) in results], ", "), ", automatically from SpineInterface.jl.")
@@ -172,7 +178,7 @@ as well as new parameters given by `results`.
 """
 function write_results!(dest_url, source_url; upgrade=false, results...)
     if db_api.is_unlocked(dest_url)
-        create_results_database(dest_url, source_url; upgrade=upgrade)
+        create_results_database(dest_url, source_url)
         write_results!(dest_url; results...)
     else
         @warn string(
@@ -188,7 +194,7 @@ The operation will resume automatically if the lock is released within the next 
             timestamp = Dates.format(Dates.now(), "yyyymmdd_HH_MM_SS")
             alt_dest_url = "sqlite:///result_$timestamp.sqlite"
             info("The database $dest_url is locked. Saving results to $alt_dest_url instead.")
-            create_results_database(alt_dest_url, source_url; upgrade=upgrade)
+            create_results_database(alt_dest_url, source_url)
             write_results!(alt_dest_url; results...)
         end
     end

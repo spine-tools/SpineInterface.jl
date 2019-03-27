@@ -18,12 +18,12 @@
 #############################################################################
 
 """
-    spinal_object_parameter_check(db_map::PyObject)
+    spine_checkout_object_parameter(db_map::PyObject)
 
 Create convenience functions for accessing parameters of objects.
 Return a dictionary of object subsets.
 
-# Example using a convenience function created by calling spinal_object_check(db_map::PyObject)
+# Example using a convenience function created by calling spine_checkout_object(db_map::PyObject)
 ```julia
     julia> p_UnitCapacity()
     Dict{String,Int64} with 5 entries:
@@ -37,7 +37,7 @@ Return a dictionary of object subsets.
     400
 ```
 """
-function spinal_object_parameter_check(db_map::PyObject)
+function spine_checkout_object_parameter(db_map::PyObject)
     object_subset_dict = Dict{Symbol,Any}()
     value_list_dict = py"{x.id: x.value_list.split(',') for x in $db_map.wide_parameter_value_list_list()}"
     # Iterate through parameters as dictionaries
@@ -180,12 +180,12 @@ end
 
 
 """
-    spinal_object_check(db_map::PyObject)
+    spine_checkout_object(db_map::PyObject)
 
 Create convenience functions for accessing database
 objects e.g. units, nodes or connections
 
-# Example using a convenience function created by calling spinal_object_check(db_map::PyObject)
+# Example using a convenience function created by calling spine_checkout_object(db_map::PyObject)
 ```julia
 julia> unit()
 3-element Array{String,1}:
@@ -194,7 +194,7 @@ julia> unit()
  "CHPPlant"
 ```
 """
-function spinal_object_check(db_map::PyObject, object_subset_dict::Dict{Symbol,Any})
+function spine_checkout_object(db_map::PyObject, object_subset_dict::Dict{Symbol,Any})
     # Get all object classes
     object_class_list = py"$db_map.object_class_list()"
     for object_class in py"[x._asdict() for x in $object_class_list]"
@@ -253,12 +253,12 @@ end
 
 
 """
-    spinal_relationship_parameter_check(db_map::PyObject)
+    spine_checkout_relationship_parameter(db_map::PyObject)
 
 Create convenience functions for accessing parameters attached to relationships.
 Parameter values are accessed using the object names as inputs:
 
-# Example using a convenience function created by calling spinal_object_check(db_map::PyObject)
+# Example using a convenience function created by calling spine_checkout_object(db_map::PyObject)
 ```julia
 julia> p_TransLoss(connection="EL1", node1="LeuvenElectricity", node2="AntwerpElectricity")
 0.9
@@ -266,7 +266,7 @@ julia> p_TransLoss(connection="EL1", node1="AntwerpElectricity", node2="LeuvenEl
 0.88
 ```
 """
-function spinal_relationship_parameter_check(db_map::PyObject)
+function spine_checkout_relationship_parameter(db_map::PyObject)
     # Iterate through parameters as dictionaries
     for parameter in py"[x._asdict() for x in $db_map.relationship_parameter_list()]"
         parameter_name = parameter["parameter_name"]
@@ -329,13 +329,13 @@ end
 
 
 """
-    spinal_relationship_check(db_map::PyObject)
+    spine_checkout_relationship(db_map::PyObject)
 
 Create convenience functions for accessing relationships
 e.g. relationships between units and commodities (unit__commodity) or units and
 nodes (unit__node)
 
-# Example using a convenience function created by calling spinal_object_check(db_map::PyObject)
+# Example using a convenience function created by calling spine_checkout_object(db_map::PyObject)
 ```julia
 julia> unit_node()
 9-element Array{Array{String,1},1}:
@@ -349,7 +349,7 @@ julia> unit_node(node="LeuvenElectricity")
  "CoalPlant"
 ```
 """
-function spinal_relationship_check(db_map::PyObject)
+function spine_checkout_relationship(db_map::PyObject)
     # Get all relationship classes
     relationship_class_list = py"$db_map.wide_relationship_class_list()"
     # Iterate through relationship classes as dictionaries
@@ -405,19 +405,19 @@ end
 
 
 """
-    spinal_check(db_url)
+    spine_checkout(db_url)
 
 Generate and export convenience functions
 for each object class, relationship class, and parameter, in the database
 given by `db_url`. `db_url` is a database url composed according to
 [sqlalchemy rules](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
-See [`spinal_check(db_map::PyObject)`](@ref) for more details.
+See [`spine_checkout(db_map::PyObject)`](@ref) for more details.
 """
-function spinal_check(db_url; upgrade=false)
+function spine_checkout(db_url; upgrade=false)
     # Create DatabaseMapping object using Python spinedatabase_api
     try
         db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
-        spinal_check(db_map)
+        spine_checkout(db_map)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
             error(
@@ -425,7 +425,7 @@ function spinal_check(db_url; upgrade=false)
 The database at '$db_url' is from an older version of Spine
 and needs to be upgraded in order to be used with the current version.
 
-You can upgrade it by running `spinal_check(db_url; upgrade=true)`.
+You can upgrade it by running `spine_checkout(db_url; upgrade=true)`.
 
 WARNING: After the upgrade, the database may no longer be used
 with previous versions of Spine.
@@ -439,7 +439,7 @@ end
 
 
 """
-    spinal_check(db_map::PyObject)
+    spine_checkout(db_map::PyObject)
 
 Generate and export convenience functions
 for each object class, relationship class, and parameter, in the
@@ -460,7 +460,7 @@ Usage:
 
 # Example
 ```julia
-julia> spinal_check("sqlite:///examples/data/testsystem2_v2_multiD_out.sqlite")
+julia> spine_checkout("sqlite:///examples/data/testsystem2_v2_multiD.sqlite")
 julia> commodity()
 3-element Array{String,1}:
  "coal"
@@ -479,9 +479,9 @@ julia> trans_loss(connection="EL1", node1="LeuvenElectricity", node2="AntwerpEle
 0.9
 ```
 """
-function spinal_check(db_map::PyObject)
-    object_subset_dict = spinal_object_parameter_check(db_map)
-    spinal_object_check(db_map, object_subset_dict)
-    spinal_relationship_parameter_check(db_map)
-    spinal_relationship_check(db_map)
+function spine_checkout(db_map::PyObject)
+    object_subset_dict = spine_checkout_object_parameter(db_map)
+    spine_checkout_object(db_map, object_subset_dict)
+    spine_checkout_relationship_parameter(db_map)
+    spine_checkout_relationship(db_map)
 end
