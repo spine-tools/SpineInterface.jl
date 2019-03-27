@@ -5,13 +5,13 @@ using JSON
 using Dates
 using Suppressor
 
-include("spinal_check.jl")
+include("spine_checkout.jl")
 include("write_results.jl")
 include("helpers.jl")
 include("butcher.jl")
 
-export spinal_check
-export write_results!
+export spine_checkout
+export write_results
 export @butcher
 
 const db_api = PyNULL()

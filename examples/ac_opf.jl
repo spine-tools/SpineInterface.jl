@@ -180,7 +180,7 @@ end
 
 # Interface database
 url = "sqlite:///case30_m.sqlite"
-spinal_check(url)
+spine_checkout(url; upgrade=true)
 # Build model
 m = Model(with_optimizer(Ipopt.Optimizer))
 # Generate variables
@@ -203,7 +203,7 @@ println(m)
 optimize!(m)
 @show status = termination_status(m)
 result_url = "sqlite:///case30_m_result.sqlite"
-write_results!(
+write_results(
     result_url, url;
     upgrade=true,
     voltage=Dict(k => JuMP.value(v) for (k, v) in voltage),

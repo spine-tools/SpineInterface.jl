@@ -93,9 +93,7 @@ function add_var_to_result!(
     # Sweep packed variable to compute dictionaries of relationship and parameter value args
     relationship_kwargs_list = []
     parameter_value_kwargs_list = []
-    for (object_name_tuple, json) in packed_var
-        @show object_name_tuple
-        @show typeof(json)
+    for (object_name_tuple, value) in packed_var
         object_name_list = PyVector(py"""[$result_object['name']]""")
         object_id_list = PyVector(py"""[$result_object['id']]""")
         for object_name in object_name_tuple
@@ -123,7 +121,7 @@ function add_var_to_result!(
             parameter_value_kwargs_list,
             Dict(
                 "parameter_id" => py"parameter.id",
-                "json" => json
+                "value" => JSON.json(value)
             )
         )
     end
@@ -139,14 +137,14 @@ function add_var_to_result!(
 end
 
 """
-    write_results!(dest_url::String; results...)
+    write_results(dest_url::String; upgrade=false, results...)
 
 Update `dest_url` with new parameters given by `results`.
 `dest_url` is a database url composed according to
 [sqlalchemy rules](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
 """
-function write_results!(dest_url::String; upgrade=false, results...)
-    db_map = db_api.DiffDatabaseMapping(dest_url, "spine_interface"; upgrade=upgrade)
+function write_results(dest_url::String; upgrade=false, results...)
+    db_map = diff_database_mapping(dest_url)
     try
         result_class = py"""$db_map.add_object_classes(dict(name="result"), return_dups=True)[0].one()._asdict()"""
         timestamp = Dates.format(Dates.now(), "yyyymmdd_HH_MM_SS")
@@ -170,16 +168,16 @@ function write_results!(dest_url::String; upgrade=false, results...)
     end
 end
 
+
 """
-    write_results!(dest_url, source_url; results...)
+    write_results(dest_url, source_url; upgrade=false, results...)
 
 Update `dest_url` with classes and objects from `source_url`,
 as well as new parameters given by `results`.
 """
-function write_results!(dest_url, source_url; upgrade=false, results...)
-    if db_api.is_unlocked(dest_url)
-        create_results_database(dest_url, source_url)
-        write_results!(dest_url; results...)
+function write_results(dest_url, source_url; upgrade=false, results...)
+    url = if db_api.is_unlocked(dest_url)
+        dest_url
     else
         @warn string(
 """
@@ -188,35 +186,36 @@ The operation will resume automatically if the lock is released within the next 
 """
         )
         if db_api.is_unlocked(dest_url, timeout=120)
-            create_results_database(dest_url, source_url)
-            write_results!(dest_url; upgrade=upgrade, results...)
+            dest_url
         else
             timestamp = Dates.format(Dates.now(), "yyyymmdd_HH_MM_SS")
             alt_dest_url = "sqlite:///result_$timestamp.sqlite"
             info("The database $dest_url is locked. Saving results to $alt_dest_url instead.")
-            create_results_database(alt_dest_url, source_url)
-            write_results!(alt_dest_url; results...)
+            alt_dest_url
         end
     end
+    create_results_database(url, source_url; upgrade=upgrade)
+    write_results(url; results...)
 end
 
 
-function create_results_database(dest_url, source_url)
+function create_results_database(dest_url, source_url; upgrade=false)
     try
         db_api.copy_database(
-            dest_url, source_url; overwrite=false, skip_tables=["parameter", "parameter_value"])
+            dest_url, source_url; overwrite=false, upgrade=upgrade,
+            skip_tables=["parameter", "parameter_value"])
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
             error(
 """
-The database at '$(e.val.url)' is from an older version of Spine
+One of the databases at '$(dest_url)' and '$(source_url)' is from an older version of Spine
 and needs to be upgraded in order to be used with the current version.
 
 You can upgrade by passing the keyword argument `upgrade=true` to your function call, e.g.:
 
-    write_results!(dest_url, source_url; upgrade=true, results...)
+    write_results(dest_url, source_url; upgrade=true)
 
-WARNING: After the upgrade, the database may no longer be used
+WARNING: After the upgrade, the databases may no longer be used
 with previous versions of Spine.
 """
             )

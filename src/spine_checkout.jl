@@ -63,42 +63,22 @@ function spine_checkout_object_parameter(db_map::PyObject)
         else
             nothing
         end
-        # Check if it's constructor, and adjust function name
-        is_constructor = (parameter_name == object_class_name)
-        function_name = if is_constructor
-            Symbol("__" * parameter_name * "__")
-        else
-            Symbol(parameter_name)
-        end
         object_parameter_value_dict = Dict{Symbol,Any}()
-        object_names = Array{String,1}()  # To be filled with object names if parameter is a constructor
         object_parameter_value_list =
             py"[x._asdict() for x in $db_map.object_parameter_value_list(parameter_name=$parameter_name)]"
         # Loop through all object parameter values
         for object_parameter_value in object_parameter_value_list
             object_name = object_parameter_value["object_name"]
-            is_constructor && push!(object_names, object_name)
-            json = object_parameter_value["json"]
             value = object_parameter_value["value"]
             # Add entry to object_parameter_value_dict
-            new_value = if json != nothing
+            new_value = if value != nothing
                 try
-                    parse_json(json)
+                    parse_value(value)
                 catch e
                     error(
-                        "unable to parse JSON from '$object_name, $parameter_name': "
+                        "unable to parse value of '$parameter_name' for '$object_name': "
                         * "$(sprint(showerror, e))"
                     )
-                end
-            elseif value != nothing
-                try
-                    parse_time_pattern(value)
-                catch e
-                    "time_pattern_spec" in tag_list && error(
-                        "unable to parse time pattern from '$object_name, $parameter_name': "
-                        * "$(sprint(showerror, e))"
-                    )
-                    parse_value(value)
                 end
             else
                 parsed_default_value
@@ -121,12 +101,12 @@ function spine_checkout_object_parameter(db_map::PyObject)
             @eval begin
                 obj_str = $object_class_name * "object"
                 """
-                    $($function_name)(;$($object_class_name)::Symbol=$obj_str, t::Union{Int64,String,Nothing}=nothing)
+                    $($(Symbol(parameter_name)))(;$($object_class_name)::Symbol=$obj_str, t::Union{Int64,String,Nothing}=nothing)
 
                 The value of the parameter '$($parameter_name)' for `$obj_str`.
                 The argument `t` can be used, e.g., to retrieve a specific position in the returning array.
                 """
-                function $(function_name)(;t::Union{Int64,String,Nothing}=nothing, kwargs...)
+                function $(Symbol(parameter_name))(;t::Union{Int64,String,Nothing}=nothing, kwargs...)
                     object_parameter_value_dict = $(object_parameter_value_dict)
                     if length(kwargs) == 0
                         # Return dict if kwargs is empty
@@ -164,14 +144,6 @@ function spine_checkout_object_parameter(db_map::PyObject)
                     end
                 end
                 export $(Symbol(parameter_name))
-            end
-            # Create constructors
-            for object_name in object_names
-                kw = Symbol(object_class_name)
-                @eval begin
-                    $(Symbol(object_name))(;t=nothing) = $(function_name)(;t=t, $(kw)=Symbol($object_name))
-                    export $(Symbol(object_name))
-                end
             end
         end
     end
@@ -279,13 +251,21 @@ function spine_checkout_relationship_parameter(db_map::PyObject)
             py"$db_map.relationship_parameter_value_list(parameter_name=$parameter_name)"
         relationship_parameter_value_dict = Dict{Tuple{Symbol,Symbol,Vararg{Symbol}},Any}() # At least two Symbols
         # Loop through all relationship parameter values to create a Dict("obj1,obj2,.." => value, ... )
-        # where value is obtained from the json field if possible, else from the value field
         for relationship_parameter_value in py"[x._asdict() for x in $relationship_parameter_value_list]"
             object_name_list = Tuple(Symbol.(split(relationship_parameter_value["object_name_list"], ",")))
-            value = try
-                JSON.parse(relationship_parameter_value["json"])
-            catch LoadError
-                parse_value(relationship_parameter_value["value"])
+            value = relationship_parameter_value["value"]
+            # Add entry to object_parameter_value_dict
+            new_value = if value != nothing
+                try
+                    parse_value(value)
+                catch e
+                    error(
+                        "unable to parse value of '$parameter_name' for '$(join(object_name_list, "', '"))': "
+                        * "$(sprint(showerror, e))"
+                    )
+                end
+            else
+                parsed_default_value
             end
             relationship_parameter_value_dict[object_name_list] = value
         end

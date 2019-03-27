@@ -77,33 +77,6 @@ function matches(time_pattern::TimePattern, t::DateTime)
 end
 
 
-function parse_json(json)
-    parsed_json = JSON.parse(json)  # Let LoadError be thrown
-    # Do some validation, to advance work for the convenience function
-    if parsed_json isa Dict
-        haskey(parsed_json, "type") || error("'type' missing")
-        type_ = parsed_json["type"]
-        if type_ == "time_pattern"
-            haskey(parsed_json, "data") || error("'data' missing")
-            parsed_json["data"] isa Dict || error("'data' should be a dictionary (time_pattern: value)")
-            parsed_json["time_pattern_data"] = Dict{Union{TimePattern,String},Any}()
-            # Try and parse String keys as TimePatterns into a new dictionary
-            for (k, v) in pop!(parsed_json, "data")
-                new_k = try
-                    parse_time_pattern(k)
-                catch e
-                    k
-                end
-                parsed_json["time_pattern_data"][new_k] = v
-            end
-        else
-            error("unknown type '$type_'")
-        end
-    end
-    parsed_json
-end
-
-
 function parse_date_time_str(str::String)
     reg_exp = r"[ymdHMS]"
     keys = [m.match for m in eachmatch(reg_exp, str)]
@@ -121,8 +94,7 @@ function parse_date_time_str(str::String)
 end
 
 
-function parse_time_pattern(spec)
-    spec isa String || error("""invalid type, expected String, got $(typeof(spec)).""")
+function parse_time_pattern(spec::String)
     union_op = ","
     intersection_op = ";"
     range_op = "-"
@@ -159,23 +131,56 @@ end
 
 
 """
-    parse_value(str)
-
-An Int64 or Float64 from `str`, if possible.
+    parse_string(value::String)
 """
-function parse_value(str)
-    typeof(str) != String && return str
-    type_array = [
-        Int64,
-        Float64
-    ]
-    for T in type_array
+function parse_string(value::String)
+    try
+        parse(Int64, value)
+    catch
         try
-            return parse(T, str)
+            parse(Float64, value)
         catch
+            Symbol(value)
         end
     end
-    Symbol(str)
+end
+
+
+"""
+    parse_value(value)
+"""
+function parse_value(value)
+    parsed = JSON.parse(value)  # Let LoadError be thrown
+    if parsed isa String
+        try
+            parse_time_pattern(parsed)
+        catch e
+            parse_string(parsed)
+        end
+    elseif parsed isa Dict
+        # Advance work for the convenience function
+        haskey(parsed, "type") || error("'type' missing")
+        type_ = parsed["type"]
+        if type_ == "time_pattern"
+            haskey(parsed, "data") || error("'data' missing")
+            parsed["data"] isa Dict || error("'data' should be a dictionary (time_pattern: value)")
+            parsed["time_pattern_data"] = Dict{Union{TimePattern,String},Any}()
+            # Try and parse String keys as TimePatterns into a new dictionary
+            for (k, v) in pop!(parsed, "data")
+                new_k = try
+                    parse_time_pattern(k)
+                catch e
+                    k
+                end
+                parsed["time_pattern_data"][new_k] = v
+            end
+            parsed
+        else
+            error("unknown type '$type_'")
+        end
+    else
+        parsed
+    end
 end
 
 
@@ -237,37 +242,28 @@ function get_scalar(value::Any, t::Union{Int64,String,Nothing})
 end
 
 
+function diff_database_mapping(url::String; upgrade=false)
+    try
+        db_api.DiffDatabaseMapping(url, "SpineInterface.jl"; upgrade=upgrade)
+    catch e
+        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
+            error(
 """
-    as_dataframe(var::Dict{Tuple,Float64})
+The database at '$(url)' is from an older version of Spine
+and needs to be upgraded in order to be used with the current version.
 
-A DataFrame from a Dict, with keys in first N columns and value in the last column.
+You can upgrade by passing the keyword argument `upgrade=true` to your function call, e.g.:
+
+    diff_database_mapping(url; upgrade=true)
+
+WARNING: After the upgrade, the database may no longer be used
+with previous versions of Spine.
 """
-function as_dataframe(var::Dict{Tuple,Float64})
-    var_keys = keys(var)
-    first_key = first(var_keys)
-    column_types = vcat([typeof(x) for x in first_key], typeof(var[first_key...]))
-    key_count = length(first_key)
-    df = DataFrame(column_types, length(var))
-    for (i, key) in enumerate(var_keys)
-        for k in 1:key_count
-            df[i, k] = key[k]
+            )
+        else
+            rethrow()
         end
-        df[i, end] = var[key...]
     end
-    return df
-end
-
-
-function as_dataframe(var::Dict{Symbol,Float64})
-    var_keys = keys(var)
-    first_key = first(var_keys)
-    column_types = [typeof(first_key), typeof(var[first_key])]
-    df = DataFrame(column_types, length(var))
-    for (i, key) in enumerate(var_keys)
-        df[i, 1] = key
-        df[i, end] = var[key]
-    end
-    return df
 end
 
 
