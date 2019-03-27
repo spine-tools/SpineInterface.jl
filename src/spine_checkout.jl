@@ -267,7 +267,7 @@ function spine_checkout_relationship_parameter(db_map::PyObject)
             else
                 parsed_default_value
             end
-            relationship_parameter_value_dict[object_name_list] = value
+            relationship_parameter_value_dict[object_name_list] = new_value
         end
         @suppress_err begin
             # Create and export convenience function named as the parameter

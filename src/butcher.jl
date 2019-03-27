@@ -51,7 +51,7 @@ at unconvenient places -such as the body of a long for loop.
 # to indicate the number of passages to perform. Also, we can make it so if this
 # argument is Inf (or something) we keep going until there's nothing left to butcher.
 macro butcher(expression)
-    expression = macroexpand(Base.Main, esc(expression))
+    expression = esc(expression)
     call_location = Dict{Expr,Array{Dict{String,Any},1}}()
     assignment_location = Dict{Symbol,Array{Dict{String,Any},1}}()
     replacement_variable_location = Array{Any,1}()
