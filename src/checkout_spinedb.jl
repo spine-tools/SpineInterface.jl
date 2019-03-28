@@ -18,12 +18,12 @@
 #############################################################################
 
 """
-    spine_checkout_object_parameter(db_map::PyObject)
+    checkout_spinedb_object_parameter(db_map::PyObject)
 
 Create convenience functions for accessing parameters of objects.
 Return a dictionary of object subsets.
 
-# Example using a convenience function created by calling spine_checkout_object(db_map::PyObject)
+# Example using a convenience function created by calling checkout_spinedb_object(db_map::PyObject)
 ```julia
     julia> p_UnitCapacity()
     Dict{String,Int64} with 5 entries:
@@ -37,13 +37,19 @@ Return a dictionary of object subsets.
     400
 ```
 """
-function spine_checkout_object_parameter(db_map::PyObject)
-    object_subset_dict = Dict{Symbol,Any}()
+function checkout_spinedb_parameter(db_map::PyObject)
+    class_object_subset_dict = Dict{Symbol,Any}()
     value_list_dict = py"{x.id: x.value_list.split(',') for x in $db_map.wide_parameter_value_list_list()}"
     # Iterate through parameters as dictionaries
-    for parameter in py"[x._asdict() for x in $db_map.object_parameter_list()]"
+    parameter_dict = Dict()
+    parameter_list = vcat(
+        py"[x._asdict() for x in $db_map.object_parameter_list()]",
+        py"[x._asdict() for x in $db_map.relationship_parameter_list()]"
+    )
+    for parameter in parameter_list
         parameter_name = parameter["parameter_name"]
-        object_class_name = parameter["object_class_name"]
+        object_class_name = get(parameter, "object_class_name", nothing)
+        relationship_class_name = get(parameter, "relationship_class_name", nothing)
         parsed_default_value = parse_value(parameter["default_value"])
         tag_list_str = parameter["parameter_tag_list"]
         tag_list = if tag_list_str isa String
@@ -52,42 +58,56 @@ function spine_checkout_object_parameter(db_map::PyObject)
             []
         end
         value_list_id = parameter["value_list_id"]
-        mini_object_subset_dict = if value_list_id != nothing
-            d1 = get!(object_subset_dict, Symbol(object_class_name), Dict{Symbol,Any}())
-            mini_object_subset_dict = get!(d1, Symbol(parameter_name), Dict{Symbol,Any}())
+        object_subset_dict = if value_list_id != nothing && object_class_name != nothing
+            d1 = get!(class_object_subset_dict, Symbol(object_class_name), Dict{Symbol,Any}())
+            object_subset_dict = get!(d1, Symbol(parameter_name), Dict{Symbol,Any}())
             value_list = value_list_dict[value_list_id]
             for value in value_list
-                mini_object_subset_dict[Symbol(value)] = Array{Symbol,1}()
+                object_subset_dict[Symbol(value)] = Array{Symbol,1}()
             end
-            mini_object_subset_dict
+            object_subset_dict
         else
             nothing
         end
-        object_parameter_value_dict = Dict{Symbol,Any}()
-        object_parameter_value_list =
-            py"[x._asdict() for x in $db_map.object_parameter_value_list(parameter_name=$parameter_name)]"
+        local class_name
+        local parameter_value_list
+        local entity_name_fn
+        if object_class_name != nothing
+            class_name = object_class_name
+            parameter_value_list =
+                py"[x._asdict() for x in $db_map.object_parameter_value_list(parameter_name=$parameter_name)]"
+            entity_name_fn = x -> Symbol(x["object_name"])
+        elseif relationship_class_name != nothing
+            class_name = relationship_class_name
+            parameter_value_list =
+                py"[x._asdict() for x in $db_map.relationship_parameter_value_list(parameter_name=$parameter_name)]"
+            entity_name_fn = x -> Tuple(Symbol.(split(x["object_name_list"], ",")))
+        else
+            @warn("'$parameter_name' defined with no class, skipping...")
+            continue
+        end
+        class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Symbol,Any}())
+        parameter_value_dict = class_parameter_value_dict[Symbol(class_name)] = Dict{Union{Symbol,Tuple},Any}()
         # Loop through all object parameter values
-        for object_parameter_value in object_parameter_value_list
-            object_name = object_parameter_value["object_name"]
-            value = object_parameter_value["value"]
-            # Add entry to object_parameter_value_dict
-            new_value = if value != nothing
+        for parameter_value in parameter_value_list
+            entity_name = entity_name_fn(parameter_value)
+            value = parameter_value["value"]
+            parameter_value_dict[entity_name] = if value != nothing
                 try
                     parse_value(value)
                 catch e
                     error(
-                        "unable to parse value of '$parameter_name' for '$object_name': "
+                        "unable to parse value of '$parameter_name' for '$entity_name': "
                         * "$(sprint(showerror, e))"
                     )
                 end
             else
                 parsed_default_value
             end
-            object_parameter_value_dict[Symbol(object_name)] = new_value
-            # Add entry to object_subset_dict
-            mini_object_subset_dict == nothing && continue
-            if haskey(mini_object_subset_dict, Symbol(new_value))
-                arr = mini_object_subset_dict[Symbol(new_value)]
+            # Add entry to class_object_subset_dict
+            object_subset_dict == nothing && continue
+            if haskey(object_subset_dict, Symbol(new_value))
+                arr = object_subset_dict[Symbol(new_value)]
                 push!(arr, Symbol(object_name))
             else
                 @warn string(
@@ -96,68 +116,64 @@ function spine_checkout_object_parameter(db_map::PyObject)
                 )
             end
         end
+    end
+    for (parameter_name, class_parameter_value_dict) in parameter_dict
         @suppress_err begin
             # Create and export convenience functions
             @eval begin
-                obj_str = $object_class_name * "object"
                 """
-                    $($(Symbol(parameter_name)))(;$($object_class_name)::Symbol=$obj_str, t::Union{Int64,String,Nothing}=nothing)
+                    $($parameter_name)(;class=entity, t::Union{Int64,String,Nothing}=nothing)
 
-                The value of the parameter '$($parameter_name)' for `$obj_str`.
+                The value of the parameter '$($parameter_name)' for `entity`.
                 The argument `t` can be used, e.g., to retrieve a specific position in the returning array.
                 """
-                function $(Symbol(parameter_name))(;t::Union{Int64,String,Nothing}=nothing, kwargs...)
-                    object_parameter_value_dict = $(object_parameter_value_dict)
+                function $(parameter_name)(;t::Union{Int64,String,Nothing}=nothing, kwargs...)
+                    class_parameter_value_dict = $(class_parameter_value_dict)
                     if length(kwargs) == 0
                         # Return dict if kwargs is empty
-                        object_parameter_value_dict
+                        class_parameter_value_dict
                     elseif length(kwargs) == 1
-                        key, value = iterate(kwargs)[1]
-                        given_object_class_name = key
-                        object_class_name = Symbol($object_class_name)
-                        given_object_class_name != object_class_name && error(
-                            "invalid object class in call to '$($parameter_name)': "
-                            * "expected '$object_class_name', got '$given_object_class_name'"
+                        class_name, entity_name = iterate(kwargs)[1]
+                        haskey(class_parameter_value_dict, class_name) || error(
+                            "'$($parameter_name)' not defined for class '$class_name'"
                         )
-                        given_object_name = value
-                        object_names = eval(object_class_name)()
-                        !(given_object_name in object_names) && error(
-                            "unable to retrieve value of '$($parameter_name)' for '$given_object_name': "
-                            * "not a valid object of class '$object_class_name'"
+                        parameter_value_dict = class_parameter_value_dict[class_name]
+                        # TODO: return default if entity is still valid but not in dict
+                        haskey(parameter_value_dict, entity_name) || error(
+                            "'$($parameter_name)' not specified for '$entity_name'"
                         )
-                        !haskey(object_parameter_value_dict, given_object_name) && return $parsed_default_value
-                        value = object_parameter_value_dict[given_object_name]
+                        value = parameter_value_dict[entity_name]
                         result = try
                             SpineInterface.get_scalar(value, t)
                         catch e
                             error(
-                                "unable to retrieve value of '$($parameter_name)' " *
-                                "for '$given_object_name': $(sprint(showerror, e))"
+                                "can't get value of '$($parameter_name)' " *
+                                "for '$entity_name': $(sprint(showerror, e))"
                             )
                         end
                         return result
                     else # length of kwargs is > 1
                         error(
-                            "too many arguments in call to '$($parameter_name)': "
-                            * "expected 1, got $(length(kwargs))"
+                            "too many arguments in call to `$($parameter_name)`: "
+                            * "expected 2, got $(1 + length(kwargs))"
                         )
                     end
                 end
-                export $(Symbol(parameter_name))
+                export $(parameter_name)
             end
         end
     end
-    object_subset_dict
+    class_object_subset_dict
 end
 
 
 """
-    spine_checkout_object(db_map::PyObject)
+    checkout_spinedb_object(db_map::PyObject)
 
 Create convenience functions for accessing database
 objects e.g. units, nodes or connections
 
-# Example using a convenience function created by calling spine_checkout_object(db_map::PyObject)
+# Example using a convenience function created by calling checkout_spinedb_object(db_map::PyObject)
 ```julia
 julia> unit()
 3-element Array{String,1}:
@@ -166,7 +182,7 @@ julia> unit()
  "CHPPlant"
 ```
 """
-function spine_checkout_object(db_map::PyObject, object_subset_dict::Dict{Symbol,Any})
+function checkout_spinedb_object(db_map::PyObject, class_object_subset_dict::Dict{Symbol,Any})
     # Get all object classes
     object_class_list = py"$db_map.object_class_list()"
     for object_class in py"[x._asdict() for x in $object_class_list]"
@@ -176,7 +192,7 @@ function spine_checkout_object(db_map::PyObject, object_subset_dict::Dict{Symbol
         object_list = py"$db_map.object_list(class_id=$object_class_id)"
         object_names = py"[x.name for x in $object_list]"
         object_names = Symbol.(object_names)
-        object_subset_dict1 = get(object_subset_dict, Symbol(object_class_name), Dict())
+        object_subset_dict1 = get(class_object_subset_dict, Symbol(object_class_name), Dict())
         @suppress_err begin
             @eval begin
                 # Create convenience function named after the object class
@@ -225,12 +241,12 @@ end
 
 
 """
-    spine_checkout_relationship_parameter(db_map::PyObject)
+    checkout_spinedb_relationship_parameter(db_map::PyObject)
 
 Create convenience functions for accessing parameters attached to relationships.
 Parameter values are accessed using the object names as inputs:
 
-# Example using a convenience function created by calling spine_checkout_object(db_map::PyObject)
+# Example using a convenience function created by calling checkout_spinedb_object(db_map::PyObject)
 ```julia
 julia> p_TransLoss(connection="EL1", node1="LeuvenElectricity", node2="AntwerpElectricity")
 0.9
@@ -238,7 +254,7 @@ julia> p_TransLoss(connection="EL1", node1="AntwerpElectricity", node2="LeuvenEl
 0.88
 ```
 """
-function spine_checkout_relationship_parameter(db_map::PyObject)
+function checkout_spinedb_relationship_parameter(db_map::PyObject)
     # Iterate through parameters as dictionaries
     for parameter in py"[x._asdict() for x in $db_map.relationship_parameter_list()]"
         parameter_name = parameter["parameter_name"]
@@ -269,15 +285,17 @@ function spine_checkout_relationship_parameter(db_map::PyObject)
             end
             relationship_parameter_value_dict[object_name_list] = new_value
         end
+    end
+    for (parameter_name, parameter_value_dict) in parameter_dict
         @suppress_err begin
             # Create and export convenience function named as the parameter
             @eval begin
                 function $(Symbol(parameter_name))(;t::Union{Int64,Nothing}=nothing, kwargs...)
-                    relationship_parameter_value_dict = $(relationship_parameter_value_dict)
+                    parameter_value_dict = $(parameter_value_dict)
                     object_class_name_list = $(object_class_name_list)
                     # If no kwargs are provided a dict of all parameter values is returned
                     kwargs_length = length(kwargs)
-                    kwargs_length == 0 && return relationship_parameter_value_dict
+                    kwargs_length == 0 && return parameter_value_dict
                     # Call the relationship access function to check validity
                     relationship_class_name = Symbol($relationship_class_name)
                     header = eval(relationship_class_name)(;header_only=true, kwargs...)
@@ -309,13 +327,13 @@ end
 
 
 """
-    spine_checkout_relationship(db_map::PyObject)
+    checkout_spinedb_relationship(db_map::PyObject)
 
 Create convenience functions for accessing relationships
 e.g. relationships between units and commodities (unit__commodity) or units and
 nodes (unit__node)
 
-# Example using a convenience function created by calling spine_checkout_object(db_map::PyObject)
+# Example using a convenience function created by calling checkout_spinedb_object(db_map::PyObject)
 ```julia
 julia> unit_node()
 9-element Array{Array{String,1},1}:
@@ -329,7 +347,7 @@ julia> unit_node(node="LeuvenElectricity")
  "CoalPlant"
 ```
 """
-function spine_checkout_relationship(db_map::PyObject)
+function checkout_spinedb_relationship(db_map::PyObject)
     # Get all relationship classes
     relationship_class_list = py"$db_map.wide_relationship_class_list()"
     # Iterate through relationship classes as dictionaries
@@ -385,19 +403,19 @@ end
 
 
 """
-    spine_checkout(db_url)
+    checkout_spinedb(db_url)
 
 Generate and export convenience functions
 for each object class, relationship class, and parameter, in the database
 given by `db_url`. `db_url` is a database url composed according to
 [sqlalchemy rules](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
-See [`spine_checkout(db_map::PyObject)`](@ref) for more details.
+See [`checkout_spinedb(db_map::PyObject)`](@ref) for more details.
 """
-function spine_checkout(db_url; upgrade=false)
+function checkout_spinedb(db_url; upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
     try
         db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
-        spine_checkout(db_map)
+        checkout_spinedb(db_map)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
             error(
@@ -405,7 +423,7 @@ function spine_checkout(db_url; upgrade=false)
 The database at '$db_url' is from an older version of Spine
 and needs to be upgraded in order to be used with the current version.
 
-You can upgrade it by running `spine_checkout(db_url; upgrade=true)`.
+You can upgrade it by running `checkout_spinedb(db_url; upgrade=true)`.
 
 WARNING: After the upgrade, the database may no longer be used
 with previous versions of Spine.
@@ -419,7 +437,7 @@ end
 
 
 """
-    spine_checkout(db_map::PyObject)
+    checkout_spinedb(db_map::PyObject)
 
 Generate and export convenience functions
 for each object class, relationship class, and parameter, in the
@@ -440,7 +458,7 @@ Usage:
 
 # Example
 ```julia
-julia> spine_checkout("sqlite:///examples/data/testsystem2_v2_multiD.sqlite")
+julia> checkout_spinedb("sqlite:///examples/data/testsystem2_v2_multiD.sqlite")
 julia> commodity()
 3-element Array{String,1}:
  "coal"
@@ -459,9 +477,8 @@ julia> trans_loss(connection="EL1", node1="LeuvenElectricity", node2="AntwerpEle
 0.9
 ```
 """
-function spine_checkout(db_map::PyObject)
-    object_subset_dict = spine_checkout_object_parameter(db_map)
-    spine_checkout_object(db_map, object_subset_dict)
-    spine_checkout_relationship_parameter(db_map)
-    spine_checkout_relationship(db_map)
+function checkout_spinedb(db_map::PyObject)
+    class_object_subset_dict = checkout_spinedb_parameter(db_map)
+    checkout_spinedb_object(db_map, class_object_subset_dict)
+    checkout_spinedb_relationship(db_map)
 end
