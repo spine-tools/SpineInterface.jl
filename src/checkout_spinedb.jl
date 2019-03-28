@@ -109,12 +109,16 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
             # Create and export convenience functions
             @eval begin
                 """
-                    $($parameter_name)(;class=entity, t::Union{Int64,String,Nothing}=nothing)
+                    $($parameter_name)(;class=entity, t::Union{Int64,String,Nothing}=nothing, strict=false)
 
-                The value of the parameter '$($parameter_name)' for `entity`.
+                The value of the parameter '$($parameter_name)' for `entity`
+                (and object name in case of an object parameter, a tuple of related object names in case of
+                a relationship parameter).
                 The argument `t` can be used, e.g., to retrieve a specific position in the returning array.
+                If `lax` is `true`, return `nothing` if the parameter is not specified for the given entity.
+                Otherwise, throw an error.
                 """
-                function $(parameter_name)(;t::Union{Int64,String,Nothing}=nothing, kwargs...)
+                function $(parameter_name)(;lax=true, t::Union{Int64,String,Nothing}=nothing, kwargs...)
                     class_parameter_value_dict = $(class_parameter_value_dict)
                     if length(kwargs) == 0
                         # Return dict if kwargs is empty
@@ -125,9 +129,12 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
                             "'$($parameter_name)' not defined for class '$class_name'"
                         )
                         parameter_value_dict = class_parameter_value_dict[class_name]
-                        haskey(parameter_value_dict, entity_name) || error(
-                            "'$($parameter_name)' not specified for '$class_name' '$entity_name'"
-                        )
+                        if !haskey(parameter_value_dict, entity_name)
+                            lax && return nothing
+                            error(
+                                "'$($parameter_name)' not specified for '$class_name' '$entity_name'"
+                            )
+                        end
                         value = parameter_value_dict[entity_name]
                         result = try
                             SpineInterface.get_scalar(value, t)
@@ -213,7 +220,7 @@ function checkout_spinedb_relationship(db_map::PyObject, relationship_dict::Dict
         symbol_object_name_lists = [Symbol.(split(y, ",")) for y in object_name_lists]
         @suppress_err begin
             @eval begin
-                function $(Symbol(relationship_class_name))(;header_only=false, kwargs...)
+                function $(Symbol(relationship_class_name))(;kwargs...)
                     symbol_object_name_lists = $(symbol_object_name_lists)
                     symbol_object_class_name_list = $(symbol_object_class_name_list)
                     symbol_orig_object_class_name_list = $(symbol_orig_object_class_name_list)
@@ -235,7 +242,6 @@ function checkout_spinedb_relationship(db_map::PyObject, relationship_dict::Dict
                         push!(object_name_list, object_name)
                     end
                     slice = filter(i -> !(i in indexes), collect(1:length(symbol_object_class_name_list)))
-                    header_only && return symbol_object_class_name_list[slice]
                     result = filter(x -> x[indexes] == object_name_list, symbol_object_name_lists)
                     if length(slice) == 1
                         [x[slice][1] for x in result]
