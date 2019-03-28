@@ -5,12 +5,12 @@ using JSON
 using Dates
 using Suppressor
 
-include("spine_checkout.jl")
+include("checkout_spinedb.jl")
 include("write_results.jl")
 include("helpers.jl")
 include("butcher.jl")
 
-export spine_checkout
+export checkout_spinedb
 export write_results
 export @butcher
 
