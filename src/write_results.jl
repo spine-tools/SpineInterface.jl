@@ -22,7 +22,7 @@
 
 """
 # TODO: handle n > 1 nicely
-function pack_var_dict(var::Dict, n::Int64=0)
+function pack_var_dict(var::Dict, n::Int64=1)
     left_var = Dict{Any,Any}()
     for (key, value) in var
         tuple_key = if key isa Tuple
