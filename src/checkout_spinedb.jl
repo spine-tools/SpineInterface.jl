@@ -17,37 +17,22 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-"""
-    checkout_spinedb_object_parameter(db_map::PyObject)
 
-Create convenience functions for accessing parameters of objects.
-Return a dictionary of object subsets.
-
-# Example using a convenience function created by calling checkout_spinedb_object(db_map::PyObject)
-```julia
-    julia> p_UnitCapacity()
-    Dict{String,Int64} with 5 entries:
-    "ImportGas"  => 10000
-    "ImportCoal" => 1000
-    "GasPlant"   => 400
-    "CHPPlant"   => 200
-    "CoalPlant"  => 800
-
-    julia> p_UnitCapacity(unit="GasPlant")
-    400
-```
-"""
-function checkout_spinedb_parameter(db_map::PyObject)
-    class_object_subset_dict = Dict{Symbol,Any}()
-    value_list_dict = py"{x.id: x.value_list.split(',') for x in $db_map.wide_parameter_value_list_list()}"
-    # Iterate through parameters as dictionaries
+function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relationship_dict::Dict)
     parameter_dict = Dict()
+    class_object_subset_dict = Dict{Symbol,Any}()
     parameter_list = vcat(
         py"[x._asdict() for x in $db_map.object_parameter_list()]",
         py"[x._asdict() for x in $db_map.relationship_parameter_list()]"
     )
+    object_parameter_value_dict =
+        py"{(x.parameter_id, x.object_name): x.value for x in $db_map.object_parameter_value_list()}"
+    relationship_parameter_value_dict =
+        py"{(x.parameter_id, x.object_name_list): x.value for x in $db_map.relationship_parameter_value_list()}"
+    value_list_dict = py"{x.id: x.value_list.split(',') for x in $db_map.wide_parameter_value_list_list()}"
     for parameter in parameter_list
         parameter_name = parameter["parameter_name"]
+        parameter_id = parameter["id"]
         object_class_name = get(parameter, "object_class_name", nothing)
         relationship_class_name = get(parameter, "relationship_class_name", nothing)
         parsed_default_value = parse_value(parameter["default_value"])
@@ -70,29 +55,29 @@ function checkout_spinedb_parameter(db_map::PyObject)
             nothing
         end
         local class_name
-        local parameter_value_list
-        local entity_name_fn
+        local entity_name_list
+        local symbol_entity_name_fn
         if object_class_name != nothing
             class_name = object_class_name
-            parameter_value_list =
-                py"[x._asdict() for x in $db_map.object_parameter_value_list(parameter_name=$parameter_name)]"
-            entity_name_fn = x -> Symbol(x["object_name"])
+            entity_name_list = object_dict[class_name]
+            entity_parameter_value_dict = object_parameter_value_dict
+            symbol_entity_name_fn = x -> Symbol(x)
         elseif relationship_class_name != nothing
             class_name = relationship_class_name
-            parameter_value_list =
-                py"[x._asdict() for x in $db_map.relationship_parameter_value_list(parameter_name=$parameter_name)]"
-            entity_name_fn = x -> Tuple(Symbol.(split(x["object_name_list"], ",")))
+            entity_name_list = relationship_dict[class_name]["object_name_lists"]
+            entity_parameter_value_dict = relationship_parameter_value_dict
+            symbol_entity_name_fn = x -> Tuple(Symbol.(split(x, ",")))
         else
             @warn("'$parameter_name' defined with no class, skipping...")
             continue
         end
         class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Symbol,Any}())
         parameter_value_dict = class_parameter_value_dict[Symbol(class_name)] = Dict{Union{Symbol,Tuple},Any}()
-        # Loop through all object parameter values
-        for parameter_value in parameter_value_list
-            entity_name = entity_name_fn(parameter_value)
-            value = parameter_value["value"]
-            parameter_value_dict[entity_name] = if value != nothing
+        # Loop through all parameter values
+        for entity_name in entity_name_list
+            value = get(entity_parameter_value_dict, (parameter_id, entity_name), nothing)
+            symbol_entity_name = symbol_entity_name_fn(entity_name)
+            new_value = if value != nothing
                 try
                     parse_value(value)
                 catch e
@@ -104,14 +89,15 @@ function checkout_spinedb_parameter(db_map::PyObject)
             else
                 parsed_default_value
             end
+            parameter_value_dict[symbol_entity_name] = new_value
             # Add entry to class_object_subset_dict
             object_subset_dict == nothing && continue
             if haskey(object_subset_dict, Symbol(new_value))
                 arr = object_subset_dict[Symbol(new_value)]
-                push!(arr, Symbol(object_name))
+                push!(arr, symbol_entity_name)
             else
                 @warn string(
-                    "found value $new_value for '$object_name, $parameter_name', ",
+                    "found value $new_value for '$symbol_entity_name, $parameter_name', ",
                     "which is not a listed value."
                 )
             end
@@ -138,9 +124,8 @@ function checkout_spinedb_parameter(db_map::PyObject)
                             "'$($parameter_name)' not defined for class '$class_name'"
                         )
                         parameter_value_dict = class_parameter_value_dict[class_name]
-                        # TODO: return default if entity is still valid but not in dict
                         haskey(parameter_value_dict, entity_name) || error(
-                            "'$($parameter_name)' not specified for '$entity_name'"
+                            "'$($parameter_name)' not specified for '$class_name' '$entity_name'"
                         )
                         value = parameter_value_dict[entity_name]
                         result = try
@@ -167,46 +152,24 @@ function checkout_spinedb_parameter(db_map::PyObject)
 end
 
 
-"""
-    checkout_spinedb_object(db_map::PyObject)
-
-Create convenience functions for accessing database
-objects e.g. units, nodes or connections
-
-# Example using a convenience function created by calling checkout_spinedb_object(db_map::PyObject)
-```julia
-julia> unit()
-3-element Array{String,1}:
- "GasPlant"
- "CoalPlant"
- "CHPPlant"
-```
-"""
-function checkout_spinedb_object(db_map::PyObject, class_object_subset_dict::Dict{Symbol,Any})
-    # Get all object classes
-    object_class_list = py"$db_map.object_class_list()"
-    for object_class in py"[x._asdict() for x in $object_class_list]"
-        object_class_id = object_class["id"]
-        object_class_name = object_class["name"]
-        # Get all objects of object_class
-        object_list = py"$db_map.object_list(class_id=$object_class_id)"
-        object_names = py"[x.name for x in $object_list]"
-        object_names = Symbol.(object_names)
-        object_subset_dict1 = get(class_object_subset_dict, Symbol(object_class_name), Dict())
+function checkout_spinedb_object(db_map::PyObject, object_dict::Dict, class_object_subset_dict::Dict{Symbol,Any})
+    for (object_class_name, object_names) in object_dict
+        symbol_object_names = Symbol.(object_names)
+        object_subset_dict = get(class_object_subset_dict, Symbol(object_class_name), Dict())
         @suppress_err begin
             @eval begin
                 # Create convenience function named after the object class
                 function $(Symbol(object_class_name))(;kwargs...)
                     if length(kwargs) == 0
                         # Return all object names if kwargs is empty
-                        return $(object_names)
+                        return $(symbol_object_names)
                     else
                         object_class_name = $(object_class_name)
                         # Return the object subset at the intersection of all (parameter, value) pairs
                         # received as arguments
                         kwargs_arr = [par => val for (par, val) in kwargs]
                         par, val = kwargs_arr[1]
-                        dict1 = $(object_subset_dict1)
+                        dict1 = $(object_subset_dict)
                         !haskey(dict1, par) && error(
                             "unable to retrieve object subset of class '$object_class_name': "
                             * "'$par' is not a list-parameter for '$object_class_name'"
@@ -240,144 +203,28 @@ function checkout_spinedb_object(db_map::PyObject, class_object_subset_dict::Dic
 end
 
 
-"""
-    checkout_spinedb_relationship_parameter(db_map::PyObject)
-
-Create convenience functions for accessing parameters attached to relationships.
-Parameter values are accessed using the object names as inputs:
-
-# Example using a convenience function created by calling checkout_spinedb_object(db_map::PyObject)
-```julia
-julia> p_TransLoss(connection="EL1", node1="LeuvenElectricity", node2="AntwerpElectricity")
-0.9
-julia> p_TransLoss(connection="EL1", node1="AntwerpElectricity", node2="LeuvenElectricity")
-0.88
-```
-"""
-function checkout_spinedb_relationship_parameter(db_map::PyObject)
-    # Iterate through parameters as dictionaries
-    for parameter in py"[x._asdict() for x in $db_map.relationship_parameter_list()]"
-        parameter_name = parameter["parameter_name"]
-        relationship_class_name = parameter["relationship_class_name"]
-        default_value = parse_value(parameter["default_value"])
-        orig_object_class_name_list = [Symbol(x) for x in split(parameter["object_class_name_list"], ",")]
-        # Rename entries of this list by appending increasing integer values if entry occurs more than one time
-        object_class_name_list = fix_name_ambiguity(orig_object_class_name_list)
-        relationship_parameter_value_list =
-            py"$db_map.relationship_parameter_value_list(parameter_name=$parameter_name)"
-        relationship_parameter_value_dict = Dict{Tuple{Symbol,Symbol,Vararg{Symbol}},Any}() # At least two Symbols
-        # Loop through all relationship parameter values to create a Dict("obj1,obj2,.." => value, ... )
-        for relationship_parameter_value in py"[x._asdict() for x in $relationship_parameter_value_list]"
-            object_name_list = Tuple(Symbol.(split(relationship_parameter_value["object_name_list"], ",")))
-            value = relationship_parameter_value["value"]
-            # Add entry to object_parameter_value_dict
-            new_value = if value != nothing
-                try
-                    parse_value(value)
-                catch e
-                    error(
-                        "unable to parse value of '$parameter_name' for '$(join(object_name_list, "', '"))': "
-                        * "$(sprint(showerror, e))"
-                    )
-                end
-            else
-                parsed_default_value
-            end
-            relationship_parameter_value_dict[object_name_list] = new_value
-        end
-    end
-    for (parameter_name, parameter_value_dict) in parameter_dict
-        @suppress_err begin
-            # Create and export convenience function named as the parameter
-            @eval begin
-                function $(Symbol(parameter_name))(;t::Union{Int64,Nothing}=nothing, kwargs...)
-                    parameter_value_dict = $(parameter_value_dict)
-                    object_class_name_list = $(object_class_name_list)
-                    # If no kwargs are provided a dict of all parameter values is returned
-                    kwargs_length = length(kwargs)
-                    kwargs_length == 0 && return parameter_value_dict
-                    # Call the relationship access function to check validity
-                    relationship_class_name = Symbol($relationship_class_name)
-                    header = eval(relationship_class_name)(;header_only=true, kwargs...)
-                    # Check that header is empty
-                    !isempty(header) && error(
-                        """arguments missing in call to $($parameter_name): '$(join(header, "', '"))'"""
-                    )
-                    given_object_class_name_list = keys(kwargs)
-                    given_object_name_list = values(values(kwargs))
-                    indexes = indexin(given_object_class_name_list, object_class_name_list)
-                    ordered_object_name_list = given_object_name_list[indexes]
-                    !haskey(relationship_parameter_value_dict, ordered_object_name_list) && return $default_value
-                    value = relationship_parameter_value_dict[ordered_object_name_list]
-                    result = try
-                        SpineInterface.get_scalar(value, t)
-                    catch e
-                        error(
-                            "unable to retrieve value of '$($parameter_name)' " *
-                            "for ('$(join(given_object_name_list, "', '"))'): $(sprint(showerror, e))"
-                        )
-                    end
-                    return result
-                end
-                export $(Symbol(parameter_name))
-            end
-        end
-    end
-end
-
-
-"""
-    checkout_spinedb_relationship(db_map::PyObject)
-
-Create convenience functions for accessing relationships
-e.g. relationships between units and commodities (unit__commodity) or units and
-nodes (unit__node)
-
-# Example using a convenience function created by calling checkout_spinedb_object(db_map::PyObject)
-```julia
-julia> unit_node()
-9-element Array{Array{String,1},1}:
-String["CoalPlant", "BelgiumCoal"]
-String["CoalPlant", "LeuvenElectricity"]
-String["GasPlant", "BelgiumGas"]
-...
-
-julia> unit_node(node="LeuvenElectricity")
-1-element Array{String,1}:
- "CoalPlant"
-```
-"""
-function checkout_spinedb_relationship(db_map::PyObject)
-    # Get all relationship classes
-    relationship_class_list = py"$db_map.wide_relationship_class_list()"
-    # Iterate through relationship classes as dictionaries
-    for relationship_class in py"[x._asdict() for x in $relationship_class_list]"
-        relationship_class_id = relationship_class["id"]
-        relationship_class_name = relationship_class["name"]
-        # Generate Array of Strings of object class names in this relationship class
-        orig_object_class_name_list = [Symbol(x) for x in split(relationship_class["object_class_name_list"], ",")]
-        object_class_name_list = fix_name_ambiguity(orig_object_class_name_list)
-        relationship_list = py"$db_map.wide_relationship_list(class_id=$relationship_class_id)"
-        object_name_lists = Array{Array{Symbol,1},1}()
-        for relationship in py"[x._asdict() for x in $relationship_list]"
-            object_name_list = [Symbol(x) for x in split(relationship["object_name_list"], ",")]
-            push!(object_name_lists, object_name_list)
-        end
+function checkout_spinedb_relationship(db_map::PyObject, relationship_dict::Dict)
+    for (relationship_class_name, relationship_class_dict) in relationship_dict
+        object_name_lists = relationship_class_dict["object_name_lists"]
+        orig_object_class_name_list = relationship_class_dict["object_class_name_list"]
+        symbol_orig_object_class_name_list = [Symbol(x) for x in split(orig_object_class_name_list, ",")]
+        symbol_object_class_name_list = fix_name_ambiguity(symbol_orig_object_class_name_list)
+        symbol_object_name_lists = [Symbol.(split(y, ",")) for y in object_name_lists]
         @suppress_err begin
             @eval begin
                 function $(Symbol(relationship_class_name))(;header_only=false, kwargs...)
-                    object_name_lists = $(object_name_lists)
-                    object_class_name_list = $(object_class_name_list)
-                    orig_object_class_name_list = $(orig_object_class_name_list)
+                    symbol_object_name_lists = $(symbol_object_name_lists)
+                    symbol_object_class_name_list = $(symbol_object_class_name_list)
+                    symbol_orig_object_class_name_list = $(symbol_orig_object_class_name_list)
                     indexes = Array{Int64, 1}()
                     object_name_list = Array{Symbol, 1}()
                     for (object_class_name, object_name) in kwargs
-                        index = findfirst(x -> x == object_class_name, object_class_name_list)
+                        index = findfirst(x -> x == object_class_name, symbol_object_class_name_list)
                         index == nothing && error(
                             """invalid keyword '$object_class_name' in call to '$($relationship_class_name)': """
-                            * """valid keywords are '$(join(object_class_name_list, "', '"))'"""
+                            * """valid keywords are '$(join(symbol_object_class_name_list, "', '"))'"""
                         )
-                        orig_object_class_name = orig_object_class_name_list[index]
+                        orig_object_class_name = symbol_orig_object_class_name_list[index]
                         object_names = eval(orig_object_class_name)()
                         !(object_name in object_names) && error(
                             "unable to retrieve '$($relationship_class_name)' tuples for '$object_name': "
@@ -386,9 +233,9 @@ function checkout_spinedb_relationship(db_map::PyObject)
                         push!(indexes, index)
                         push!(object_name_list, object_name)
                     end
-                    slice = filter(i -> !(i in indexes), collect(1:length(object_class_name_list)))
-                    header_only && return object_class_name_list[slice]
-                    result = filter(x -> x[indexes] == object_name_list, object_name_lists)
+                    slice = filter(i -> !(i in indexes), collect(1:length(symbol_object_class_name_list)))
+                    header_only && return symbol_object_class_name_list[slice]
+                    result = filter(x -> x[indexes] == object_name_list, symbol_object_name_lists)
                     if length(slice) == 1
                         [x[slice][1] for x in result]
                     else
@@ -403,7 +250,7 @@ end
 
 
 """
-    checkout_spinedb(db_url)
+    checkout_spinedb(db_url::String)
 
 Generate and export convenience functions
 for each object class, relationship class, and parameter, in the database
@@ -411,7 +258,7 @@ given by `db_url`. `db_url` is a database url composed according to
 [sqlalchemy rules](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
 See [`checkout_spinedb(db_map::PyObject)`](@ref) for more details.
 """
-function checkout_spinedb(db_url; upgrade=false)
+function checkout_spinedb(db_url::String; upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
     try
         db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
@@ -478,7 +325,18 @@ julia> trans_loss(connection="EL1", node1="LeuvenElectricity", node2="AntwerpEle
 ```
 """
 function checkout_spinedb(db_map::PyObject)
-    class_object_subset_dict = checkout_spinedb_parameter(db_map)
-    checkout_spinedb_object(db_map, class_object_subset_dict)
-    checkout_spinedb_relationship(db_map)
+    py"""object_dict = {
+        x.name: [y.name for y in $db_map.object_list(class_id=x.id)] for x in $db_map.object_class_list()
+    }
+    relationship_dict = {
+        x.name: {
+            'object_class_name_list': x.object_class_name_list,
+            'object_name_lists': [y.object_name_list for y in $db_map.wide_relationship_list(class_id=x.id)]
+        } for x in $db_map.wide_relationship_class_list()
+    }"""
+    object_dict = py"object_dict"
+    relationship_dict = py"relationship_dict"
+    class_object_subset_dict = checkout_spinedb_parameter(db_map, object_dict, relationship_dict)
+    checkout_spinedb_object(db_map, object_dict, class_object_subset_dict)
+    checkout_spinedb_relationship(db_map, relationship_dict)
 end
