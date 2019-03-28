@@ -8,11 +8,9 @@ using Suppressor
 include("checkout_spinedb.jl")
 include("write_results.jl")
 include("helpers.jl")
-include("butcher.jl")
 
 export checkout_spinedb
 export write_results
-export @butcher
 
 const db_api = PyNULL()
 const required_spinedb_api_version = "0.0.21"

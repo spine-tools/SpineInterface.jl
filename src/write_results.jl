@@ -18,27 +18,6 @@
 #############################################################################
 
 """
-    pack_var_dict(var::Dict, n::Int64=1)
-
-"""
-# TODO: handle n > 1 nicely
-function pack_var_dict(var::Dict, n::Int64=1)
-    left_var = Dict{Any,Any}()
-    for (key, value) in var
-        tuple_key = if key isa Tuple
-            key
-        else
-            (key,)
-        end
-        left_key = tuple_key[1:end-n]
-        right_key = tuple_key[end-n+1:end]
-        right_dict = get!(left_var, left_key, Dict())
-        right_dict[right_key] = value
-    end
-    Dict(key => [v for (k, v) in sort(collect(value))] for (key, value) in left_var)
-end
-
-"""
     add_var_to_result!(db_map::PyObject, var_name::Symbol, dataframe::DataFrame, result_class::Dict, result_object::Dict)
 
 Update `db_map` with data for parameter `var_name` given in `dataframe`.
@@ -51,11 +30,10 @@ function add_var_to_result!(
         result_class::Dict,
         result_object::Dict
     )
-    packed_var = pack_var_dict(var)
     object_class_name_list = PyVector(py"""[$result_class['name']]""")
     object_class_id_list = PyVector(py"""[$result_class['id']]""")
     # Iterate over first keys in the packed variable to retrieve object classes
-    for object_name in first(keys(packed_var))
+    for object_name in first(keys(var))
         py"""object_ = $db_map.single_object(name=$object_name).one_or_none()
         """
         if py"object_" != nothing
@@ -93,7 +71,7 @@ function add_var_to_result!(
     # Sweep packed variable to compute dictionaries of relationship and parameter value args
     relationship_kwargs_list = []
     parameter_value_kwargs_list = []
-    for (object_name_tuple, value) in packed_var
+    for (object_name_tuple, value) in var
         object_name_list = PyVector(py"""[$result_object['name']]""")
         object_id_list = PyVector(py"""[$result_object['id']]""")
         for object_name in object_name_tuple

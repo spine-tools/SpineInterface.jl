@@ -1,5 +1,6 @@
 using Revise
 using SpineInterface
+using SpineModel
 using JuMP
 using Ipopt
 
@@ -177,10 +178,9 @@ function constraint_power_flow(
     )
 end
 
-
 # Interface database
-url = "sqlite:///case30_m.sqlite"
-spine_checkout(url; upgrade=true)
+url = "sqlite:///$(@__DIR__)/case30_m.sqlite"
+checkout_spinedb(url; upgrade=true)
 # Build model
 m = Model(with_optimizer(Ipopt.Optimizer))
 # Generate variables
@@ -202,15 +202,15 @@ objective_min_fuel_cost(m, real_power_generation)
 println(m)
 optimize!(m)
 @show status = termination_status(m)
-result_url = "sqlite:///case30_m_result.sqlite"
+result_url = "sqlite:///$(@__DIR__)/case30_m_result.sqlite"
 write_results(
     result_url, url;
     upgrade=true,
-    voltage=Dict(k => JuMP.value(v) for (k, v) in voltage),
-    phase=Dict(k => JuMP.value(v) for (k, v) in phase),
-    real_power_generation=Dict(k => JuMP.value(v) for (k, v) in real_power_generation),
-    reactive_power_generation=Dict(k => JuMP.value(v) for (k, v) in reactive_power_generation),
-    real_power_flow_from_node=Dict(k => JuMP.value(v) for (k, v) in real_power_flow_from_node),
-    reactive_power_flow_from_node=Dict(k => JuMP.value(v) for (k, v) in reactive_power_flow_from_node),
-    real_power_flow_to_node=Dict(k => JuMP.value(v) for (k, v) in real_power_flow_to_node),
-    reactive_power_flow_to_node=Dict(k => JuMP.value(v) for (k, v) in reactive_power_flow_to_node))
+    voltage=SpineModel.value(voltage),
+    phase=SpineModel.value(phase),
+    real_power_generation=SpineModel.value(real_power_generation),
+    reactive_power_generation=SpineModel.value(reactive_power_generation),
+    real_power_flow_from_node=SpineModel.value(real_power_flow_from_node),
+    reactive_power_flow_from_node=SpineModel.value(reactive_power_flow_from_node),
+    real_power_flow_to_node=SpineModel.value(real_power_flow_to_node),
+    reactive_power_flow_to_node=SpineModel.value(reactive_power_flow_to_node))

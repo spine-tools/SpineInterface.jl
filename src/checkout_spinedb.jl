@@ -57,6 +57,7 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
         local class_name
         local entity_name_list
         local symbol_entity_name_fn
+        local entity_parameter_value_dict
         if object_class_name != nothing
             class_name = object_class_name
             entity_name_list = object_dict[class_name]
