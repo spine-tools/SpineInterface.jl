@@ -29,12 +29,6 @@ To upgrade to the most recent version, enter the Pkg-REPL mode and run
 (v1.0) pkg> up SpineInterface
 ```
 
-After upgrading, a build step may be needed in order to get the latest version of `spinedb_api`.
-To rebuild SpineInterface, enter the Pkg-REPL mode and run
-
-```julia
-(v1.0) pkg> build SpineInterface
-```
 
 ### Usage
 
