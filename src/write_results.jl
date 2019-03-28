@@ -27,30 +27,24 @@ function add_var_to_result!(
         db_map::PyObject,
         var_name::Symbol,
         var::Dict,
+        object_class_dict::Dict,
+        object_dict::Dict,
         result_class::Dict,
         result_object::Dict
     )
     object_class_name_list = PyVector(py"""[$result_class['name']]""")
     object_class_id_list = PyVector(py"""[$result_class['id']]""")
     # Iterate over first keys in the packed variable to retrieve object classes
-    for object_name in first(keys(var))
-        py"""object_ = $db_map.single_object(name=$object_name).one_or_none()
-        """
-        if py"object_" != nothing
-            py"""object_class = $db_map.single_object_class(id=object_.class_id).one_or_none()
-            """
-            if py"object_class" != nothing
-                push!(object_class_name_list, py"object_class.name")
-                push!(object_class_id_list, py"object_class.id")
-                continue
-            end
-        end
-        # Object or class not found, add dummy object class named after the object
-        object_class_name = string(object_name, "_class")
-        py"""object_class = $db_map.add_object_classes(dict(name=$object_class_name), return_dups=True)[0].one()
-        """
+    object_names = first(keys(var))
+    object_names isa Tuple || (object_names = (object_names,))
+    for object_name in object_names
+        string_object_name = string(object_name)
+        haskey(object_class_dict, string_object_name) || error(
+            "Couldn't find object '$string_object_name'"
+        )
+        object_class_id, object_class_name = object_class_dict[string_object_name]
         push!(object_class_name_list, object_class_name)
-        push!(object_class_id_list, py"object_class.id")
+        push!(object_class_id_list, object_class_id)
     end
     # Get or add relationship class `result__object_class1__object_class2__...`
     relationship_class_name = join(object_class_name_list, "__")
@@ -74,15 +68,19 @@ function add_var_to_result!(
     for (object_name_tuple, value) in var
         object_name_list = PyVector(py"""[$result_object['name']]""")
         object_id_list = PyVector(py"""[$result_object['id']]""")
-        for object_name in object_name_tuple
-            py"""object_ = $db_map.single_object(name=$object_name).one_or_none()
-            """
-            if py"object_" == nothing
-                @warn "Couldn't find object '$object_name', skipping row..."
+        object_name_tuple isa Tuple || (object_name_tuple = (object_name_tuple,))
+        for (k, object_name) in enumerate(object_name_tuple)
+            object_class_id = object_class_id_list[k+1]
+            id_dict = object_dict[object_class_id]
+            string_object_name = string(object_name)
+            if haskey(id_dict, string_object_name)
+                object_id = id_dict[string_object_name]
+            else
+                @warn "Couldn't find object '$string_object_name', skipping row..."
                 break
             end
-            push!(object_name_list, object_name)
-            push!(object_id_list, py"object_.id")
+            push!(object_name_list, string_object_name)
+            push!(object_id_list, object_id)
         end
         # Add relationship `result_object__object1__object2__...
         relationship_name = join(object_name_list, "__")
@@ -124,19 +122,29 @@ Update `dest_url` with new parameters given by `results`.
 function write_results(dest_url::String; upgrade=false, results...)
     db_map = diff_database_mapping(dest_url)
     try
-        result_class = py"""$db_map.add_object_classes(dict(name="result"), return_dups=True)[0].one()._asdict()"""
+        py"""object_list = $db_map.object_list().all()
+        object_class_list = $db_map.object_class_list().all()
+        d = {x.id: (x.id, x.name) for x in object_class_list}
+        object_class_dict = {x.name: d[x.class_id] for x in $db_map.object_list()}
+        object_dict = {
+            x.id: {y.name: y.id for y in object_list if y.class_id == x.id} for x in object_class_list
+        }
+        """
+        object_class_dict = py"object_class_dict"
+        object_dict = py"object_dict"
+        result_class = py"$db_map.add_object_classes(dict(name='result'), return_dups=True)[0].one()._asdict()"
         timestamp = Dates.format(Dates.now(), "yyyymmdd_HH_MM_SS")
         result_name = join(["result", timestamp], "_")
         object_ = Dict(
             "name" => result_name,
             "class_id" => result_class["id"]
         )
-        result_object = py"""$db_map.add_objects($object_, return_dups=True)[0].one()._asdict()"""
+        result_object = py"$db_map.add_objects($object_, return_dups=True)[0].one()._asdict()"
         # Insert variable into spine database.
         for (name, var) in results
-            add_var_to_result!(db_map, name, var, result_class, result_object)
+            add_var_to_result!(db_map, name, var, object_class_dict, object_dict, result_class, result_object)
         end
-        msg = string("Add ", join([string(k) for (k, v) in results], ", "), ", automatically from SpineInterface.jl.")
+        msg = string("Add $(join([string(k) for (k, v) in results])), automatically from SpineInterface.jl.")
         db_map.commit_session(msg)
     catch err
         db_map.rollback_session()
