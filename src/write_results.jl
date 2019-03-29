@@ -162,13 +162,13 @@ end
 
 
 """
-    create_results_database(dest_url::String, source_url::String; upgrade=false)
+    create_results_db(dest_url::String, source_url::String; upgrade=false)
 
 Create a results db at `dest_url` with the same structure as `source_url`, but no parameters.
 Both `dest_url` and `source_url` are database urls composed according to
 [sqlalchemy rules](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
 """
-function create_results_database(dest_url, source_url; upgrade=false)
+function create_results_db(dest_url, source_url; upgrade=false)
     try
         db_api.copy_database(
             dest_url, source_url; upgrade=upgrade,
