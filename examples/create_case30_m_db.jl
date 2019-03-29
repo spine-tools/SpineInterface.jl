@@ -347,8 +347,6 @@ function create_db(url::String; username::String="")
         db_map.commit_session("First commit.")
     catch e
         db_map.rollback_session()
-    finally
-        db_map.close()
     end
 end
 

@@ -155,8 +155,6 @@ function write_results(db_map::PyObject; upgrade=false, results...)
     catch err
         db_map.rollback_session()
         rethrow()
-    finally
-        db_map.close()
     end
 end
 
