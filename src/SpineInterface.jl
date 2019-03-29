@@ -11,9 +11,10 @@ include("helpers.jl")
 
 export checkout_spinedb
 export write_results
+export create_results_database
 
 const db_api = PyNULL()
-const required_spinedb_api_version = "0.0.21"
+const required_spinedb_api_version = "0.0.22"
 
 function __init__()
     copy!(db_api, pyimport("spinedb_api"))

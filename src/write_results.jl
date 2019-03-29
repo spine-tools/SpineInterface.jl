@@ -18,9 +18,9 @@
 #############################################################################
 
 """
-    add_var_to_result!(db_map::PyObject, var_name::Symbol, dataframe::DataFrame, result_class::Dict, result_object::Dict)
+    add_var_to_result!(db_map, var_name, var, object_class_dict, object_dict, result_class, result_object)
 
-Update `db_map` with data for parameter `var_name` given in `dataframe`.
+Update `db_map` with data for parameter `var_name` given in `var`.
 Link the parameter to a `result_object` of class `result_class`.
 """
 function add_var_to_result!(
@@ -112,6 +112,7 @@ function add_var_to_result!(
     py"""$db_map.add_parameter_values(*$py_parameter_value_kwargs_list)"""
 end
 
+
 """
     write_results(dest_url::String; upgrade=false, results...)
 
@@ -121,6 +122,11 @@ Update `dest_url` with new parameters given by `results`.
 """
 function write_results(dest_url::String; upgrade=false, results...)
     db_map = diff_database_mapping(dest_url)
+    write_results(db_map; upgrade=upgrade, results...)
+end
+
+
+function write_results(db_map::PyObject; upgrade=false, results...)
     try
         py"""object_list = $db_map.object_list().all()
         object_class_list = $db_map.object_class_list().all()
@@ -156,52 +162,29 @@ end
 
 
 """
-    write_results(dest_url, source_url; upgrade=false, results...)
+    create_results_database(dest_url::String, source_url::String; upgrade=false)
 
-Update `dest_url` with classes and objects from `source_url`,
-as well as new parameters given by `results`.
+Create a results db at `dest_url` with the same structure as `source_url`, but no parameters.
+Both `dest_url` and `source_url` are database urls composed according to
+[sqlalchemy rules](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
 """
-function write_results(dest_url, source_url; upgrade=false, results...)
-    url = if db_api.is_unlocked(dest_url)
-        dest_url
-    else
-        @warn string(
-"""
-The current operation cannot proceed because the SQLite database '$dest_url' is locked.
-The operation will resume automatically if the lock is released within the next 2 minutes.
-"""
-        )
-        if db_api.is_unlocked(dest_url, timeout=120)
-            dest_url
-        else
-            timestamp = Dates.format(Dates.now(), "yyyymmdd_HH_MM_SS")
-            alt_dest_url = "sqlite:///result_$timestamp.sqlite"
-            info("The database $dest_url is locked. Saving results to $alt_dest_url instead.")
-            alt_dest_url
-        end
-    end
-    create_results_database(url, source_url; upgrade=upgrade)
-    write_results(url; results...)
-end
-
-
 function create_results_database(dest_url, source_url; upgrade=false)
     try
         db_api.copy_database(
-            dest_url, source_url; overwrite=false, upgrade=upgrade,
+            dest_url, source_url; upgrade=upgrade,
             skip_tables=["parameter", "parameter_value"])
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
             error(
 """
-One of the databases at '$(dest_url)' and '$(source_url)' is from an older version of Spine
+The database at '$(source_url)' is from an older version of Spine
 and needs to be upgraded in order to be used with the current version.
 
 You can upgrade by passing the keyword argument `upgrade=true` to your function call, e.g.:
 
-    write_results(dest_url, source_url; upgrade=true)
+    create_results_database(dest_url, source_url; upgrade=true)
 
-WARNING: After the upgrade, the databases may no longer be used
+WARNING: After the upgrade, the database may no longer be used
 with previous versions of Spine.
 """
             )
@@ -209,5 +192,4 @@ with previous versions of Spine.
             rethrow()
         end
     end
-
 end
