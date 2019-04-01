@@ -123,7 +123,7 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
                 a relationship parameter).
                 The argument `t` can be used, e.g., to retrieve a specific position in the returning array.
                 """
-                function $(parameter_name)(;lax=true, t::Union{Int64,String,Nothing}=nothing, kwargs...)
+                function $(parameter_name)(;t::Union{Int64,String,Nothing}=nothing, kwargs...)
                     class_parameter_value_dict = $(class_parameter_value_dict)
                     if length(kwargs) == 0
                         # Return dict if kwargs is empty
@@ -137,7 +137,6 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
                         haskey(parameter_value_dict, entity_name) || error(
                             "'$($parameter_name)' not specified for '$entity_name' of class '$class_name'"
                         )
-                        end
                         value = parameter_value_dict[entity_name]
                         result = try
                             SpineInterface.get_scalar(value, t)
