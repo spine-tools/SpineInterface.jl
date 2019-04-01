@@ -134,13 +134,20 @@ end
     parse_string(value::String)
 """
 function parse_string(value::String)
-    try
-        parse(Int64, value)
-    catch
+    format = dateformat"y-m-dTH:M:S"  # Let's use this, ISO 8601 I guess...
+    if any(startswith(value, x) for x in ("dt=", "date_time="))
+        DateTime(split(value, "=")[2], format)
+    elseif any(startswith(value, x) for x in ("tp=", "time_pattern="))
+        parse_time_pattern(split(value, "=")[2])
+    else
         try
-            parse(Float64, value)
+            parse(Int64, value)
         catch
-            Symbol(value)
+            try
+                parse(Float64, value)
+            catch
+                Symbol(value)
+            end
         end
     end
 end
@@ -152,11 +159,7 @@ end
 function parse_value(value)
     parsed = JSON.parse(value)  # Let LoadError be thrown
     if parsed isa String
-        try
-            parse_time_pattern(parsed)
-        catch e
-            parse_string(parsed)
-        end
+        parse_string(parsed)
     elseif parsed isa Dict
         # Advance work for the convenience function
         haskey(parsed, "type") || error("'type' missing")
@@ -200,8 +203,11 @@ Called by convenience functions for returning parameter values.
 """
 function get_scalar(value::Any, t::Union{Int64,String,Nothing})
     if value isa Array
-        t === nothing && error("argument `t` missing")
-        return value[t]
+        if t === nothing
+            value
+        else
+            value[t]
+        end
     elseif value isa Dict
         # Fun begins
         # NOTE: At this point we shouldn't be afraid of accessing keys or whatever,
@@ -231,13 +237,13 @@ function get_scalar(value::Any, t::Union{Int64,String,Nothing})
             error("unknown type '$type_'")
         end
     elseif value isa TimePattern
-        if t != nothing
-            return matches(value, t)
+        if t === nothing
+            value
         else
-            return value
+            matches(value, t)
         end
     else
-        return value
+        value
     end
 end
 

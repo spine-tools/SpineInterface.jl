@@ -35,7 +35,14 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
         parameter_id = parameter["id"]
         object_class_name = get(parameter, "object_class_name", nothing)
         relationship_class_name = get(parameter, "relationship_class_name", nothing)
-        parsed_default_value = parse_value(parameter["default_value"])
+        parsed_default_value = try
+            parse_value(parameter["default_value"])
+        catch e
+            error(
+                "unable to parse default value of '$parameter_name': "
+                * "$(sprint(showerror, e))"
+            )
+        end
         tag_list_str = parameter["parameter_tag_list"]
         tag_list = if tag_list_str isa String
             split(tag_list_str, ",")
@@ -109,14 +116,12 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
             # Create and export convenience functions
             @eval begin
                 """
-                    $($parameter_name)(;class=entity, t::Union{Int64,String,Nothing}=nothing, strict=false)
+                    $($parameter_name)(;class=entity, t::Union{Int64,String,Nothing}=nothing)
 
                 The value of the parameter '$($parameter_name)' for `entity`
                 (and object name in case of an object parameter, a tuple of related object names in case of
                 a relationship parameter).
                 The argument `t` can be used, e.g., to retrieve a specific position in the returning array.
-                If `lax` is `true`, return `nothing` if the parameter is not specified for the given entity.
-                Otherwise, throw an error.
                 """
                 function $(parameter_name)(;lax=true, t::Union{Int64,String,Nothing}=nothing, kwargs...)
                     class_parameter_value_dict = $(class_parameter_value_dict)
@@ -129,11 +134,9 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
                             "'$($parameter_name)' not defined for class '$class_name'"
                         )
                         parameter_value_dict = class_parameter_value_dict[class_name]
-                        if !haskey(parameter_value_dict, entity_name)
-                            lax && return nothing
-                            error(
-                                "'$($parameter_name)' not specified for '$class_name' '$entity_name'"
-                            )
+                        haskey(parameter_value_dict, entity_name) || error(
+                            "'$($parameter_name)' not specified for '$entity_name' of class '$class_name'"
+                        )
                         end
                         value = parameter_value_dict[entity_name]
                         result = try
