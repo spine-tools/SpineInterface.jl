@@ -35,14 +35,6 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
         parameter_id = parameter["id"]
         object_class_name = get(parameter, "object_class_name", nothing)
         relationship_class_name = get(parameter, "relationship_class_name", nothing)
-        parsed_default_value = try
-            parse_value(parameter["default_value"])
-        catch e
-            error(
-                "unable to parse default value of '$parameter_name': "
-                * "$(sprint(showerror, e))"
-            )
-        end
         tag_list_str = parameter["parameter_tag_list"]
         tag_list = if tag_list_str isa String
             split(tag_list_str, ",")
@@ -60,6 +52,14 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
             object_subset_dict
         else
             nothing
+        end
+        parsed_default_value = try
+            parse_value(parameter["default_value"], tag_list)
+        catch e
+            error(
+                "unable to parse default value of '$parameter_name': "
+                * "$(sprint(showerror, e))"
+            )
         end
         local class_name
         local entity_name_list
@@ -87,7 +87,7 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
             symbol_entity_name = symbol_entity_name_fn(entity_name)
             new_value = if value != nothing
                 try
-                    parse_value(value)
+                    parse_value(value, tag_list)
                 catch e
                     error(
                         "unable to parse value of '$parameter_name' for '$entity_name': "

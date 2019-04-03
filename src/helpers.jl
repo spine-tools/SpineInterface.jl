@@ -131,14 +131,14 @@ end
 
 
 """
-    parse_string(value::String)
+    parse_string(value::String, tag_list)
 """
-function parse_string(value::String)
+function parse_string(value::String, tag_list)
     format = dateformat"y-m-dTH:M:S"  # Let's use this, ISO 8601 I guess...
-    if any(startswith(value, x) for x in ("dt=", "date_time="))
-        DateTime(split(value, "=")[2], format)
-    elseif any(startswith(value, x) for x in ("tp=", "time_pattern="))
-        parse_time_pattern(split(value, "=")[2])
+    if "date_time" in tag_list
+        DateTime(value, format)
+    elseif "time_pattern" in tag_list
+        parse_time_pattern(value)
     else
         try
             parse(Int64, value)
@@ -156,10 +156,10 @@ end
 """
     parse_value(value)
 """
-function parse_value(value)
+function parse_value(value, tag_list)
     parsed = JSON.parse(value)  # Let LoadError be thrown
     if parsed isa String
-        parse_string(parsed)
+        parse_string(parsed, tag_list)
     elseif parsed isa Dict
         # Advance work for the convenience function
         haskey(parsed, "type") || error("'type' missing")
