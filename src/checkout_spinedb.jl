@@ -117,14 +117,14 @@ function checkout_spinedb_parameter(
             # Create and export convenience functions
             @eval begin
                 """
-                    $($parameter_name)(;class=entity, t::Union{Int64,String,Nothing}=nothing)
+                    $($parameter_name)(;class=entity, t=nothing)
 
                 The value of the parameter '$($parameter_name)' for `entity`
                 (and object name in case of an object parameter, a tuple of related object names in case of
                 a relationship parameter).
                 The argument `t` can be used, e.g., to retrieve a specific position in the returning array.
                 """
-                function $(parameter_name)(;t::Union{Int64,String,Nothing}=nothing, kwargs...)
+                function $(parameter_name)(;t=nothing, kwargs...)
                     class_parameter_value_dict = $(class_parameter_value_dict)
                     if length(kwargs) == 0
                         # Return dict if kwargs is empty

@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-    parse_value(db_value, tag_list)
+    parse_value(db_value::String, tag_list)
 
 """
 function parse_value(db_value::String, tag_list)
@@ -33,21 +33,25 @@ function parse_value(db_value::String, tag_list)
     end
 end
 
-
+parse_value(db_value::Array, tag_list) = [parse_value(x, tag_list) for x in db_value]
+parse_value(db_value::Dict, tag_list) = Dict(parse_value(k, tag_list) => v for (k, v) in db_value)
 parse_value(db_value, tag_list) = db_value
 
 
 """
-    get_value(value, t=nothing)
+    get_value(value::Array, t::Union{Int64,Nothing})
 
 """
-function get_value(value, t=nothing)
-    if isimmutable(value)
+function get_value(value::Union{Array,Dict}, t::Union{Int64,Nothing})
+    if t === nothing
         value
     else
         value[t]
     end
 end
+
+
+get_value(value, t) = value
 
 
 function diff_database_mapping(url::String; upgrade=false)
