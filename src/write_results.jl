@@ -35,8 +35,7 @@ function add_var_to_result!(
     object_class_name_list = PyVector(py"""[$result_class['name']]""")
     object_class_id_list = PyVector(py"""[$result_class['id']]""")
     # Iterate over first keys in the packed variable to retrieve object classes
-    object_names = first(keys(var))
-    object_names isa Tuple || (object_names = (object_names,))
+    object_names = tuple(first(keys(var))...)  # This makes it a tuple if it wasn't
     for object_name in object_names
         string_object_name = string(object_name)
         haskey(object_class_dict, string_object_name) || error(
@@ -68,7 +67,7 @@ function add_var_to_result!(
     for (object_name_tuple, value) in var
         object_name_list = PyVector(py"""[$result_object['name']]""")
         object_id_list = PyVector(py"""[$result_object['id']]""")
-        object_name_tuple isa Tuple || (object_name_tuple = (object_name_tuple,))
+        object_name_tuple = tuple(object_name_tuple...)  # This makes it a tuple if it wasn't
         for (k, object_name) in enumerate(object_name_tuple)
             object_class_id = object_class_id_list[k+1]
             id_dict = object_dict[object_class_id]

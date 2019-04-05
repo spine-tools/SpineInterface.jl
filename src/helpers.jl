@@ -16,12 +16,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+Tag = Val
+
 
 """
-    parse_value(db_value::String, tag_list)
+    parse_value(db_value::String, tags...; default=nothing)
 
 """
-function parse_value(db_value::String, tag_list)
+function parse_value(db_value::String, tags...; default=nothing)
     try
         parse(Int64, db_value)
     catch
@@ -33,26 +35,20 @@ function parse_value(db_value::String, tag_list)
     end
 end
 
-parse_value(db_value::Array, tag_list) = [parse_value(x, tag_list) for x in db_value]
-parse_value(db_value::Dict, tag_list) = Dict(parse_value(k, tag_list) => v for (k, v) in db_value)
-parse_value(db_value, tag_list) = db_value
-
-
-"""
-    get_value(value::Array, t::Union{Int64,Nothing})
-
-"""
-function get_value(value::Union{Array,Dict}, t::Union{Int64,Nothing})
-    if t === nothing
-        value
+function parse_value(db_value::Nothing, tags...; default=nothing)
+    if default === nothing
+        nothing
     else
-        value[t]
+        parse_value(default, tags...; default=nothing)
     end
 end
 
+parse_value(db_value::Array, tags...; default=nothing) = [parse_value(x, tags...; default=default) for x in db_value]
+parse_value(db_value, tags...; default=nothing) = db_value
 
-get_value(value, t) = value
-
+function parse_value(db_value::Dict, tags...; default=nothing)
+    Dict(parse_value(k, tags...; default=default) => v for (k, v) in db_value)
+end
 
 function diff_database_mapping(url::String; upgrade=false)
     try

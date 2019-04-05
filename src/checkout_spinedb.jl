@@ -18,8 +18,7 @@
 #############################################################################
 
 
-function checkout_spinedb_parameter(
-        db_map::PyObject, object_dict::Dict, relationship_dict::Dict, parse_value, get_value)
+function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relationship_dict::Dict, parse_value)
     parameter_dict = Dict()
     class_object_subset_dict = Dict{Symbol,Any}()
     parameter_list = vcat(
@@ -36,11 +35,11 @@ function checkout_spinedb_parameter(
         parameter_id = parameter["id"]
         object_class_name = get(parameter, "object_class_name", nothing)
         relationship_class_name = get(parameter, "relationship_class_name", nothing)
-        tag_list_str = parameter["parameter_tag_list"]
-        tag_list = if tag_list_str isa String
-            split(tag_list_str, ",")
+        tag_list = parameter["parameter_tag_list"]
+        tags = if tag_list isa String
+            (Tag(Symbol(x)) for x in split(tag_list, ","))
         else
-            []
+            ()
         end
         value_list_id = parameter["value_list_id"]
         object_subset_dict = if value_list_id != nothing && object_class_name != nothing
@@ -55,7 +54,7 @@ function checkout_spinedb_parameter(
             nothing
         end
         parsed_default_value = try
-            parse_value(JSON.parse(parameter["default_value"]), tag_list)
+            JSON.parse(parameter["default_value"])
         catch e
             error(
                 "unable to parse default value of '$parameter_name': "
@@ -75,7 +74,7 @@ function checkout_spinedb_parameter(
             class_name = relationship_class_name
             entity_name_list = relationship_dict[class_name]["object_name_lists"]
             entity_parameter_value_dict = relationship_parameter_value_dict
-            symbol_entity_name_fn = x -> Tuple(Symbol.(split(x, ",")))
+            symbol_entity_name_fn = x -> tuple(Symbol.(split(x, ","))...)
         else
             @warn("'$parameter_name' defined with no class, skipping...")
             continue
@@ -84,22 +83,19 @@ function checkout_spinedb_parameter(
         parameter_value_dict = class_parameter_value_dict[Symbol(class_name)] = Dict{Union{Symbol,Tuple},Any}()
         # Loop through all parameter values
         for entity_name in entity_name_list
-            value = get(entity_parameter_value_dict, (parameter_id, entity_name), nothing)
+            value = get(entity_parameter_value_dict, (parameter_id, entity_name), "null")
             symbol_entity_name = symbol_entity_name_fn(entity_name)
-            new_value = if value != nothing
-                try
-                    parse_value(JSON.parse(value), tag_list)
-                catch e
-                    error(
-                        "unable to parse value of '$parameter_name' for '$entity_name': "
-                        * "$(sprint(showerror, e))"
-                    )
-                end
-            else
-                parsed_default_value
+            new_value = try
+                parse_value(JSON.parse(value), tags...; default=parsed_default_value)
+            catch e
+                error(
+                    "unable to parse value of '$parameter_name' for '$entity_name': "
+                    * "$(sprint(showerror, e))"
+                )
             end
             parameter_value_dict[symbol_entity_name] = new_value
             # Add entry to class_object_subset_dict
+            # TODO: check that this still does what we want
             object_subset_dict == nothing && continue
             if haskey(object_subset_dict, Symbol(new_value))
                 arr = object_subset_dict[Symbol(new_value)]
@@ -117,14 +113,13 @@ function checkout_spinedb_parameter(
             # Create and export convenience functions
             @eval begin
                 """
-                    $($parameter_name)(;class=entity, t=nothing)
+                    $($parameter_name)(;class=entity)
 
                 The value of the parameter '$($parameter_name)' for `entity`
                 (and object name in case of an object parameter, a tuple of related object names in case of
                 a relationship parameter).
-                The argument `t` can be used, e.g., to retrieve a specific position in the returning array.
                 """
-                function $(parameter_name)(;t=nothing, kwargs...)
+                function $(parameter_name)(;kwargs...)
                     class_parameter_value_dict = $(class_parameter_value_dict)
                     if length(kwargs) == 0
                         # Return dict if kwargs is empty
@@ -138,20 +133,10 @@ function checkout_spinedb_parameter(
                         haskey(parameter_value_dict, entity_name) || error(
                             "'$($parameter_name)' not specified for '$entity_name' of class '$class_name'"
                         )
-                        value = parameter_value_dict[entity_name]
-                        result = try
-                            $get_value(value, t)
-                        catch e
-                            error(
-                                "can't get value of '$($parameter_name)' " *
-                                "for '$entity_name': $(sprint(showerror, e))"
-                            )
-                        end
-                        return result
+                        parameter_value_dict[entity_name]
                     else # length of kwargs is > 1
                         error(
-                            "too many arguments in call to `$($parameter_name)`: "
-                            * "expected 2, got $(1 + length(kwargs))"
+                            "too many arguments in call to `$($parameter_name)`: expected 1, got $(length(kwargs))"
                         )
                     end
                 end
@@ -249,7 +234,7 @@ function checkout_spinedb_relationship(db_map::PyObject, relationship_dict::Dict
                     if length(slice) == 1
                         [x[slice][1] for x in result]
                     else
-                        [Tuple(x[slice]) for x in result]
+                        [tuple(x[slice]...) for x in result]
                     end
                 end
                 export $(Symbol(relationship_class_name))
@@ -260,7 +245,7 @@ end
 
 
 """
-    checkout_spinedb(db_url::String; parse_value=parse_value, get_value=get_value, upgrade=false)
+    checkout_spinedb(db_url::String; parse_value=parse_value, upgrade=false)
 
 Generate and export convenience functions for accessing the database
 at the given [sqlalchemy url](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
@@ -274,25 +259,19 @@ A list of objects in a class.
 
 A list of object tuples in a relationship class.
 
-    parameter_name(;t, kwargs...)
+    parameter_name(;kwargs...)
 
 The value of a parameter.
 
-The arguments `parse_value` and `get_value` are used to customize the parameter convenience functions.
-The argument `parse_value` is a function for mapping a pair (`db_value`, `tag_list`) into a Julia value
-at the moment of *generating* the convenience function. Here, `db_value` is the value retrieved from the database and
-parsed using `JSON.parse`, and `tag_list` is a string array of tags. In the default implementation,
-`parse_value` just returns the same `db_value` untouched.
-The argument `get_value` is a function for mapping a pair (`jl_value`, `t`) into the return value
-at the moment of *calling* the convenience function. `jl_value` is the value obtained from calling `parse_value`,
-and `t` is the argument to the convenience function. In the default implementation,
-`get_value` returns `jl_value[t]` if `jl_value` is a collection, otherwise it just returns `jl_value`.
+The argument `parse_value` is a function for mapping a tuple `(db_value, tags)` into a Julia value
+to be returned by the parameter function. Here, `db_value` is the value retrieved from the database and
+parsed using `JSON.parse`, and `tags` is a Union of Tag types.
 """
-function checkout_spinedb(db_url::String; parse_value=parse_value, get_value=get_value, upgrade=false)
+function checkout_spinedb(db_url::String; parse_value=parse_value, upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
     try
         db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
-        checkout_spinedb(db_map; parse_value=parse_value, get_value=get_value)
+        checkout_spinedb(db_map; parse_value=parse_value)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
             error(
@@ -314,12 +293,12 @@ end
 
 
 """
-    checkout_spinedb(db_map::PyObject; parse_value=parse_value, get_value=get_value)
+    checkout_spinedb(db_map::PyObject; parse_value=parse_value)
 
 Generate and export convenience functions for accessing the database
 mapped by `db_map`. `db_map` is an instance of `DiffDatabaseMapping` as
 provided by [`spinedb_api`](https://github.com/Spine-project/Spine-Database-API).
-See [`checkout_spinedb(db_url::String; parse_value=parse_value, get_value=get_value, upgrade=false)`](@ref)
+See [`checkout_spinedb(db_url::String; parse_value=parse_value, upgrade=false)`](@ref)
 for more details.
 
 # Example
@@ -343,7 +322,7 @@ julia> trans_loss(connection="EL1", node1="LeuvenElectricity", node2="AntwerpEle
 0.9
 ```
 """
-function checkout_spinedb(db_map::PyObject; parse_value=parse_value, get_value=get_value)
+function checkout_spinedb(db_map::PyObject; parse_value=parse_value)
     py"""object_dict = {
         x.name: [y.name for y in $db_map.object_list(class_id=x.id)] for x in $db_map.object_class_list()
     }
@@ -355,8 +334,7 @@ function checkout_spinedb(db_map::PyObject; parse_value=parse_value, get_value=g
     }"""
     object_dict = py"object_dict"
     relationship_dict = py"relationship_dict"
-    class_object_subset_dict = checkout_spinedb_parameter(
-        db_map, object_dict, relationship_dict, parse_value, get_value)
+    class_object_subset_dict = checkout_spinedb_parameter(db_map, object_dict, relationship_dict, parse_value)
     checkout_spinedb_object(db_map, object_dict, class_object_subset_dict)
     checkout_spinedb_relationship(db_map, relationship_dict)
 end
