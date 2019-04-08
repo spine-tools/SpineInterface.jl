@@ -18,11 +18,24 @@
 #############################################################################
 Tag = Val
 
-
 """
-    parse_value(db_value::String, tags...; default=nothing)
+    parse_value(db_value, tags...; default=nothing)
 
+Parse a database value into a value to be returned by the parameter access function.
+Tags associated with the parameter are passed as 'value types' in the `tags` argument,
+and the default value is passed in the `default` argument.
+Add methods to this function to customize the way you access parameters in your database.
 """
+parse_value(db_value, tags...; default=nothing) = db_value
+
+function parse_value(db_value::Nothing, tags...; default=nothing)
+    if default === nothing
+        nothing
+    else
+        parse_value(default, tags...; default=nothing)
+    end
+end
+
 function parse_value(db_value::String, tags...; default=nothing)
     try
         parse(Int64, db_value)
@@ -35,16 +48,7 @@ function parse_value(db_value::String, tags...; default=nothing)
     end
 end
 
-function parse_value(db_value::Nothing, tags...; default=nothing)
-    if default === nothing
-        nothing
-    else
-        parse_value(default, tags...; default=nothing)
-    end
-end
-
 parse_value(db_value::Array, tags...; default=nothing) = [parse_value(x, tags...; default=default) for x in db_value]
-parse_value(db_value, tags...; default=nothing) = db_value
 
 function parse_value(db_value::Dict, tags...; default=nothing)
     Dict(parse_value(k, tags...; default=default) => v for (k, v) in db_value)

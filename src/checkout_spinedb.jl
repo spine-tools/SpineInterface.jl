@@ -42,16 +42,13 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
             ()
         end
         value_list_id = parameter["value_list_id"]
-        object_subset_dict = if value_list_id != nothing && object_class_name != nothing
+        update_object_subset_dict = value_list_id != nothing && object_class_name != nothing
+        if update_object_subset_dict
             d1 = get!(class_object_subset_dict, Symbol(object_class_name), Dict{Symbol,Any}())
             object_subset_dict = get!(d1, Symbol(parameter_name), Dict{Symbol,Any}())
-            value_list = value_list_dict[value_list_id]
-            for value in value_list
-                object_subset_dict[Symbol(value)] = Array{Symbol,1}()
+            for value in value_list_dict[value_list_id]
+                object_subset_dict[Symbol(JSON.parse(value))] = Array{Symbol,1}()
             end
-            object_subset_dict
-        else
-            nothing
         end
         parsed_default_value = try
             JSON.parse(parameter["default_value"])
@@ -76,17 +73,17 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
             entity_parameter_value_dict = relationship_parameter_value_dict
             symbol_entity_name_fn = x -> tuple(Symbol.(split(x, ","))...)
         else
-            @warn("'$parameter_name' defined with no class, skipping...")
+            @warn("'$parameter_name' somehow made it into the db without a class, skipping...")
             continue
         end
         class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Symbol,Any}())
         parameter_value_dict = class_parameter_value_dict[Symbol(class_name)] = Dict{Union{Symbol,Tuple},Any}()
         # Loop through all parameter values
         for entity_name in entity_name_list
-            value = get(entity_parameter_value_dict, (parameter_id, entity_name), "null")
+            parsed_value = JSON.parse(get(entity_parameter_value_dict, (parameter_id, entity_name), "null"))
             symbol_entity_name = symbol_entity_name_fn(entity_name)
             new_value = try
-                parse_value(JSON.parse(value), tags...; default=parsed_default_value)
+                parse_value(parsed_value, tags...; default=parsed_default_value)
             catch e
                 error(
                     "unable to parse value of '$parameter_name' for '$entity_name': "
@@ -95,14 +92,13 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
             end
             parameter_value_dict[symbol_entity_name] = new_value
             # Add entry to class_object_subset_dict
-            # TODO: check that this still does what we want
-            object_subset_dict == nothing && continue
-            if haskey(object_subset_dict, Symbol(new_value))
-                arr = object_subset_dict[Symbol(new_value)]
+            update_object_subset_dict || continue
+            if haskey(object_subset_dict, Symbol(parsed_value))
+                arr = object_subset_dict[Symbol(parsed_value)]
                 push!(arr, symbol_entity_name)
             else
                 @warn string(
-                    "found value $new_value for '$symbol_entity_name, $parameter_name', ",
+                    "found value $parsed_value for '$symbol_entity_name, $parameter_name', ",
                     "which is not a listed value."
                 )
             end
