@@ -16,27 +16,24 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-Tag = Val
-
 """
-    parse_value(db_value, tags...; default=nothing)
+    parse_value(db_value; default=nothing, tags...)
 
 Parse a database value into a value to be returned by the parameter access function.
-Tags associated with the parameter are passed as 'value types' in the `tags` argument,
-and the default value is passed in the `default` argument.
+The default value is passed in the `default` argument, and tags are passed in the `tags...` argument
 Add methods to this function to customize the way you access parameters in your database.
 """
-parse_value(db_value, tags...; default=nothing) = db_value
+parse_value(db_value; default=nothing, tags...) = db_value
 
-function parse_value(db_value::Nothing, tags...; default=nothing)
+function parse_value(db_value::Nothing; default=nothing, tags...)
     if default === nothing
         nothing
     else
-        parse_value(default, tags...; default=nothing)
+        parse_value(default; default=nothing, tags...)
     end
 end
 
-function parse_value(db_value::String, tags...; default=nothing)
+function parse_value(db_value::String; default=nothing, tags...)
     try
         parse(Int64, db_value)
     catch
@@ -48,10 +45,10 @@ function parse_value(db_value::String, tags...; default=nothing)
     end
 end
 
-parse_value(db_value::Array, tags...; default=nothing) = [parse_value(x, tags...; default=default) for x in db_value]
+parse_value(db_value::Array; default=nothing, tags...) = [parse_value(x; default=default, tags...) for x in db_value]
 
-function parse_value(db_value::Dict, tags...; default=nothing)
-    Dict(parse_value(k, tags...; default=default) => v for (k, v) in db_value)
+function parse_value(db_value::Dict; default=nothing, tags...)
+    Dict(parse_value(k; default=default, tags...) => v for (k, v) in db_value)
 end
 
 function diff_database_mapping(url::String; upgrade=false)

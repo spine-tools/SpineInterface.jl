@@ -37,9 +37,9 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
         relationship_class_name = get(parameter, "relationship_class_name", nothing)
         tag_list = parameter["parameter_tag_list"]
         tags = if tag_list isa String
-            (Tag(Symbol(x)) for x in split(tag_list, ","))
+            Dict(Symbol(x) => true for x in split(tag_list, ","))
         else
-            ()
+            Dict()
         end
         value_list_id = parameter["value_list_id"]
         update_object_subset_dict = value_list_id != nothing && object_class_name != nothing
@@ -83,7 +83,7 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
             parsed_value = JSON.parse(get(entity_parameter_value_dict, (parameter_id, entity_name), "null"))
             symbol_entity_name = symbol_entity_name_fn(entity_name)
             new_value = try
-                parse_value(parsed_value, tags...; default=parsed_default_value)
+                parse_value(parsed_value; default=parsed_default_value, tags...)
             catch e
                 error(
                     "unable to parse value of '$parameter_name' for '$entity_name': "
