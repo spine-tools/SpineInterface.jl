@@ -112,3 +112,20 @@ function fix_name_ambiguity(object_class_name_list::Array{Symbol,1})
     end
     fixed
 end
+
+"""
+    getkeyperm(dict::Dict{Tuple,T}, key::Tuple, default)
+
+Return the first key matching the argument `key` or any permutation if one exists in `dict`,
+otherwise return `default`.
+"""
+function getkeyperm(dict::Dict{Tuple,T}, key::Tuple, default) where T
+    sorted_key = sort([key...])
+    collected_keys = collect(keys(dict))
+    i = findfirst(k -> sort([k...]) == sorted_key, collected_keys)
+    if i === nothing
+        default
+    else
+        collected_keys[i]
+    end
+end

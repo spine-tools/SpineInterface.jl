@@ -21,87 +21,111 @@
 function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relationship_dict::Dict, parse_value)
     parameter_dict = Dict()
     class_object_subset_dict = Dict{Symbol,Any}()
-    parameter_list = vcat(
-        py"[x._asdict() for x in $db_map.object_parameter_list()]",
-        py"[x._asdict() for x in $db_map.relationship_parameter_list()]"
-    )
     object_parameter_value_dict =
         py"{(x.parameter_id, x.object_name): x.value for x in $db_map.object_parameter_value_list()}"
     relationship_parameter_value_dict =
         py"{(x.parameter_id, x.object_name_list): x.value for x in $db_map.relationship_parameter_value_list()}"
     value_list_dict = py"{x.id: x.value_list.split(',') for x in $db_map.wide_parameter_value_list_list()}"
-    for parameter in parameter_list
+    for parameter in py"[x._asdict() for x in $db_map.object_parameter_list()]"
         parameter_name = parameter["parameter_name"]
         parameter_id = parameter["id"]
-        object_class_name = get(parameter, "object_class_name", nothing)
-        relationship_class_name = get(parameter, "relationship_class_name", nothing)
+        object_class_name = parameter["object_class_name"]
         tag_list = parameter["parameter_tag_list"]
+        value_list_id = parameter["value_list_id"]
         tags = if tag_list isa String
             Dict(Symbol(x) => true for x in split(tag_list, ","))
         else
             Dict()
         end
-        value_list_id = parameter["value_list_id"]
-        update_object_subset_dict = value_list_id != nothing && object_class_name != nothing
-        if update_object_subset_dict
+        if value_list_id != nothing
             d1 = get!(class_object_subset_dict, Symbol(object_class_name), Dict{Symbol,Any}())
             object_subset_dict = get!(d1, Symbol(parameter_name), Dict{Symbol,Any}())
             for value in value_list_dict[value_list_id]
                 object_subset_dict[Symbol(JSON.parse(value))] = Array{Symbol,1}()
             end
         end
-        parsed_default_value = try
+        json_default_value = try
             JSON.parse(parameter["default_value"])
         catch e
-            error(
-                "unable to parse default value of '$parameter_name': "
-                * "$(sprint(showerror, e))"
-            )
+            error("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
         end
-        local class_name
-        local entity_name_list
-        local symbol_entity_name_fn
-        local entity_parameter_value_dict
-        if object_class_name != nothing
-            class_name = object_class_name
-            entity_name_list = object_dict[class_name]
-            entity_parameter_value_dict = object_parameter_value_dict
-            symbol_entity_name_fn = x -> Symbol(x)
-        elseif relationship_class_name != nothing
-            class_name = relationship_class_name
-            entity_name_list = relationship_dict[class_name]["object_name_lists"]
-            entity_parameter_value_dict = relationship_parameter_value_dict
-            symbol_entity_name_fn = x -> tuple(Symbol.(split(x, ","))...)
-        else
-            @warn("'$parameter_name' somehow made it into the db without a class, skipping...")
-            continue
-        end
-        class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Symbol,Any}())
-        parameter_value_dict = class_parameter_value_dict[Symbol(class_name)] = Dict{Union{Symbol,Tuple},Any}()
-        # Loop through all parameter values
-        for entity_name in entity_name_list
-            parsed_value = JSON.parse(get(entity_parameter_value_dict, (parameter_id, entity_name), "null"))
-            symbol_entity_name = symbol_entity_name_fn(entity_name)
-            new_value = try
-                parse_value(parsed_value; default=parsed_default_value, tags...)
-            catch e
-                error(
-                    "unable to parse value of '$parameter_name' for '$entity_name': "
-                    * "$(sprint(showerror, e))"
-                )
+        class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
+        parameter_value_dict = class_parameter_value_dict[(Symbol(object_class_name),)] = Dict{Tuple,Any}()
+        for object_name in object_dict[object_class_name]
+            value = get(object_parameter_value_dict, (parameter_id, object_name), nothing)
+            if value == nothing
+                json_value = nothing
+            else
+                json_value = JSON.parse(value)
             end
-            parameter_value_dict[symbol_entity_name] = new_value
+            symbol_object_name = Symbol(object_name)
+            new_value = try
+                parse_value(json_value; default=json_default_value, tags...)
+            catch e
+                error("unable to parse value of '$parameter_name' for '$object_name': $(sprint(showerror, e))")
+            end
+            parameter_value_dict[(symbol_object_name,)] = new_value
             # Add entry to class_object_subset_dict
-            update_object_subset_dict || continue
-            if haskey(object_subset_dict, Symbol(parsed_value))
-                arr = object_subset_dict[Symbol(parsed_value)]
-                push!(arr, symbol_entity_name)
+            value_list_id == nothing && continue
+            if haskey(object_subset_dict, Symbol(json_value))
+                arr = object_subset_dict[Symbol(json_value)]
+                push!(arr, symbol_object_name)
             else
                 @warn string(
-                    "found value $parsed_value for '$symbol_entity_name, $parameter_name', ",
+                    "the value of '$parameter_name' for '$symbol_object_name' is $json_value",
                     "which is not a listed value."
                 )
             end
+        end
+    end
+    for parameter in py"[x._asdict() for x in $db_map.relationship_parameter_list()]"
+        parameter_name = parameter["parameter_name"]
+        parameter_id = parameter["id"]
+        relationship_class_name = parameter["relationship_class_name"]
+        object_class_name_list = parameter["object_class_name_list"]
+        tag_list = parameter["parameter_tag_list"]
+        tags = if tag_list isa String
+            Dict(Symbol(x) => true for x in split(tag_list, ","))
+        else
+            Dict()
+        end
+        json_default_value = try
+            JSON.parse(parameter["default_value"])
+        catch e
+            error("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
+        end
+        class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
+        class_name = tuple(fix_name_ambiguity(Symbol.(split(object_class_name_list, ",")))...)
+        if getkeyperm(class_parameter_value_dict, class_name, nothing) != nothing
+            @warn(
+                "'$parameter_name' is ambiguous"
+                * " - use `$parameter_name($relationship_class_name=(...))` to access it."
+            )
+            alt_class_name = (Symbol(relationship_class_name),)
+            parameter_value_dict = class_parameter_value_dict[alt_class_name] = Dict{Tuple,Any}()
+        else
+            # NOTE: with this, the first one gets the place alright - is that ok?
+            parameter_value_dict = class_parameter_value_dict[class_name] = Dict{Tuple,Any}()
+        end
+        # Loop through all parameter values
+        object_name_lists = relationship_dict[relationship_class_name]["object_name_lists"]
+        for object_name_list in object_name_lists
+            value = get(relationship_parameter_value_dict, (parameter_id, object_name_list), nothing)
+            if value == nothing
+                json_value = nothing
+            else
+                json_value = JSON.parse(value)
+            end
+            symbol_object_name_list = tuple(Symbol.(split(object_name_list, ","))...)
+            new_value = try
+                parse_value(json_value; default=json_default_value, tags...)
+            catch e
+                error(
+                    "unable to parse value of '$parameter_name' for '$symbol_object_name_list': "
+                    * "$(sprint(showerror, e))"
+                )
+            end
+            parameter_value_dict[symbol_object_name_list] = new_value
         end
     end
     for (parameter_name, class_parameter_value_dict) in parameter_dict
@@ -109,31 +133,26 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
             # Create and export convenience functions
             @eval begin
                 """
-                    $($parameter_name)(;class=entity)
+                    $($parameter_name)(;kwargs...)
 
-                The value of the parameter '$($parameter_name)' for `entity`
-                (and object name in case of an object parameter, a tuple of related object names in case of
-                a relationship parameter).
+                The value of the parameter '$($parameter_name)' for the tuple given by `kwargs`.
                 """
                 function $(parameter_name)(;kwargs...)
                     class_parameter_value_dict = $(class_parameter_value_dict)
                     if length(kwargs) == 0
                         # Return dict if kwargs is empty
                         class_parameter_value_dict
-                    elseif length(kwargs) == 1
-                        class_name, entity_name = iterate(kwargs)[1]
-                        haskey(class_parameter_value_dict, class_name) || error(
-                            "'$($parameter_name)' not defined for class '$class_name'"
+                    else
+                        class_names = keys(kwargs)
+                        key = getkeyperm(class_parameter_value_dict, class_names, nothing)
+                        key == nothing && error("'$($parameter_name)' not defined for class(es) '$class_names'")
+                        parameter_value_dict = class_parameter_value_dict[key]
+                        object_names = values(kwargs)
+                        matched_object_names = Tuple([object_names[k] for k in key])
+                        haskey(parameter_value_dict, matched_object_names) || error(
+                            "'$($parameter_name)' not specified for '$object_names'"
                         )
-                        parameter_value_dict = class_parameter_value_dict[class_name]
-                        haskey(parameter_value_dict, entity_name) || error(
-                            "'$($parameter_name)' not specified for '$entity_name' of class '$class_name'"
-                        )
-                        parameter_value_dict[entity_name]
-                    else # length of kwargs is > 1
-                        error(
-                            "too many arguments in call to `$($parameter_name)`: expected 1, got $(length(kwargs))"
-                        )
+                        parameter_value_dict[matched_object_names]
                     end
                 end
                 export $(parameter_name)
