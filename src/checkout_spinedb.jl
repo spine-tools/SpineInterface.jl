@@ -227,34 +227,41 @@ function checkout_spinedb_relationship(db_map::PyObject, relationship_dict::Dict
                     obj_name_tuples = $(obj_name_tuples)
                     obj_cls_name_tuple = $(obj_cls_name_tuple)
                     orig_obj_cls_name = $(orig_obj_cls_name)
-                    iter_kwargs = Dict()
+                    new_kwargs = Dict()
+                    filtered_keys = []
                     for (key, val) in kwargs
                         !(key in obj_cls_name_tuple) && error(
                             """invalid keyword '$key' in call to '$($rel_cls_name)': """
                             * """valid keywords are '$(join(obj_cls_name_tuple, "', '"))'"""
                         )
-                        obj_cls_name = orig_obj_cls_name[key]
-                        applicable(iterate, val) || (val = (val,))
-                        vals = []
-                        valid_object_names = eval(obj_cls_name)()
-                        for v in val
-                            if !(v in valid_object_names)
-                                @warn(
-                                    "invalid object '$v' of class '$key' in call to '$($rel_cls_name)', "
-                                    * "will be ignored..."
-                                )
-                            else
-                                push!(vals, v)
+                        if val != :any
+                            obj_cls_name = orig_obj_cls_name[key]
+                            valid_object_names = eval(obj_cls_name)()
+                            applicable(iterate, val) || (val = (val,))
+                            invalid_vals = setdiff(val, valid_object_names)
+                            !isempty(invalid_vals) && @warn(
+                                "invalid object(s) '$(join(invalid_vals, "', '"))' of class '$key' "
+                                * "in call to '$($rel_cls_name)', will be ignored..."
+                            )
+                            vals = [x for x in val if !(x in invalid_vals)]
+                            if !isempty(vals)
+                                push!(new_kwargs, key => vals)
+                                push!(filtered_keys, key)
                             end
+                        else
+                            push!(filtered_keys, key)
                         end
-                        !isempty(vals) && push!(iter_kwargs, key => vals)
                     end
-                    result = [x for x in obj_name_tuples if all(x[k] in v for (k, v) in iter_kwargs)]
-                    result_keys = Tuple(x for x in obj_cls_name_tuple if !(x in keys(iter_kwargs)))
-                    if length(result_keys) == 1
-                        unique(x[result_keys...] for x in result)
+                    result_keys = Tuple(x for x in obj_cls_name_tuple if !(x in filtered_keys))
+                    if isempty(result_keys)
+                        []
                     else
-                        unique(NamedTuple{result_keys}([x[k] for k in result_keys]) for x in result)
+                        result = [x for x in obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs)]
+                        if length(result_keys) == 1
+                            unique(x[result_keys...] for x in result)
+                        else
+                            unique(NamedTuple{result_keys}([x[k] for k in result_keys]) for x in result)
+                        end
                     end
                 end
                 export $(Symbol(rel_cls_name))
