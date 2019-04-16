@@ -17,7 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-
 function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relationship_dict::Dict, parse_value)
     parameter_dict = Dict()
     class_object_subset_dict = Dict{Symbol,Any}()
@@ -215,44 +214,50 @@ end
 
 
 function checkout_spinedb_relationship(db_map::PyObject, relationship_dict::Dict)
-    for (relationship_class_name, relationship_class_dict) in relationship_dict
-        object_name_lists = relationship_class_dict["object_name_lists"]
-        orig_object_class_name_list = relationship_class_dict["object_class_name_list"]
-        symbol_orig_object_class_name_list = [Symbol(x) for x in split(orig_object_class_name_list, ",")]
-        symbol_object_class_name_list = fix_name_ambiguity(symbol_orig_object_class_name_list)
-        symbol_object_name_lists = [Symbol.(split(y, ",")) for y in object_name_lists]
+    for (rel_cls_name, rel_cls) in relationship_dict
+        obj_name_lists = [Symbol.(split(y, ",")) for y in rel_cls["object_name_lists"]]
+        orig_obj_cls_name_list = Symbol.(split(rel_cls["object_class_name_list"], ","))
+        obj_cls_name_list = fix_name_ambiguity(orig_obj_cls_name_list)
+        orig_obj_cls_name = Dict(k => v for (k, v) in zip(obj_cls_name_list, orig_obj_cls_name_list))
+        obj_cls_name_tuple = Tuple(obj_cls_name_list)
+        obj_name_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_name_lists]
         @suppress_err begin
             @eval begin
-                function $(Symbol(relationship_class_name))(;kwargs...)
-                    symbol_object_name_lists = $(symbol_object_name_lists)
-                    symbol_object_class_name_list = $(symbol_object_class_name_list)
-                    symbol_orig_object_class_name_list = $(symbol_orig_object_class_name_list)
-                    indexes = Array{Int64, 1}()
-                    object_name_list = Array{Symbol, 1}()
-                    for (object_class_name, object_name) in kwargs
-                        index = findfirst(x -> x == object_class_name, symbol_object_class_name_list)
-                        index == nothing && error(
-                            """invalid keyword '$object_class_name' in call to '$($relationship_class_name)': """
-                            * """valid keywords are '$(join(symbol_object_class_name_list, "', '"))'"""
+                function $(Symbol(rel_cls_name))(;kwargs...)
+                    obj_name_tuples = $(obj_name_tuples)
+                    obj_cls_name_tuple = $(obj_cls_name_tuple)
+                    orig_obj_cls_name = $(orig_obj_cls_name)
+                    iter_kwargs = Dict()
+                    for (key, val) in kwargs
+                        !(key in obj_cls_name_tuple) && error(
+                            """invalid keyword '$key' in call to '$($rel_cls_name)': """
+                            * """valid keywords are '$(join(obj_cls_name_tuple, "', '"))'"""
                         )
-                        orig_object_class_name = symbol_orig_object_class_name_list[index]
-                        object_names = eval(orig_object_class_name)()
-                        !(object_name in object_names) && error(
-                            "unable to retrieve '$($relationship_class_name)' tuples for '$object_name': "
-                            * "not a valid object of class '$orig_object_class_name'"
-                        )
-                        push!(indexes, index)
-                        push!(object_name_list, object_name)
+                        obj_cls_name = orig_obj_cls_name[key]
+                        applicable(iterate, val) || (val = (val,))
+                        vals = []
+                        valid_object_names = eval(obj_cls_name)()
+                        for v in val
+                            if !(v in valid_object_names)
+                                @warn(
+                                    "invalid object '$v' of class '$key' in call to '$($rel_cls_name)', "
+                                    * "will be ignored..."
+                                )
+                            else
+                                push!(vals, v)
+                            end
+                        end
+                        !isempty(vals) && push!(iter_kwargs, key => vals)
                     end
-                    slice = filter(i -> !(i in indexes), collect(1:length(symbol_object_class_name_list)))
-                    result = filter(x -> x[indexes] == object_name_list, symbol_object_name_lists)
-                    if length(slice) == 1
-                        [x[slice][1] for x in result]
+                    result = [x for x in obj_name_tuples if all(x[k] in v for (k, v) in iter_kwargs)]
+                    result_keys = Tuple(x for x in obj_cls_name_tuple if !(x in keys(iter_kwargs)))
+                    if length(result_keys) == 1
+                        unique(x[result_keys...] for x in result)
                     else
-                        [tuple(x[slice]...) for x in result]
+                        unique(NamedTuple{result_keys}([x[k] for k in result_keys]) for x in result)
                     end
                 end
-                export $(Symbol(relationship_class_name))
+                export $(Symbol(rel_cls_name))
             end
         end
     end
