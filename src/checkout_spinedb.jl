@@ -228,39 +228,35 @@ function checkout_spinedb_relationship(db_map::PyObject, relationship_dict::Dict
                     obj_cls_name_tuple = $(obj_cls_name_tuple)
                     orig_obj_cls_name = $(orig_obj_cls_name)
                     new_kwargs = Dict()
-                    filtered_keys = []
-                    for (key, val) in kwargs
-                        !(key in obj_cls_name_tuple) && error(
-                            """invalid keyword '$key' in call to '$($rel_cls_name)': """
-                            * """valid keywords are '$(join(obj_cls_name_tuple, "', '"))'"""
+                    filtered_classes = []
+                    for (obj_cls, obj) in kwargs
+                        !(obj_cls in obj_cls_name_tuple) && error(
+                            "invalid object class '$obj_cls' in call to '$($rel_cls_name)': "
+                            * "valid object classes are '$(join(obj_cls_name_tuple, "', '"))'"
                         )
-                        if val != :any
-                            obj_cls_name = orig_obj_cls_name[key]
+                        push!(filtered_classes, obj_cls)
+                        if obj != :any
+                            obj_cls_name = orig_obj_cls_name[obj_cls]
                             valid_object_names = eval(obj_cls_name)()
-                            applicable(iterate, val) || (val = (val,))
-                            invalid_vals = setdiff(val, valid_object_names)
-                            !isempty(invalid_vals) && @warn(
-                                "invalid object(s) '$(join(invalid_vals, "', '"))' of class '$key' "
+                            applicable(iterate, obj) || (obj = (obj,))
+                            invalid_objs = setdiff(obj, valid_object_names)
+                            !isempty(invalid_objs) && @warn(
+                                "invalid object(s) '$(join(invalid_objs, "', '"))' of class '$obj_cls' "
                                 * "in call to '$($rel_cls_name)', will be ignored..."
                             )
-                            vals = [x for x in val if !(x in invalid_vals)]
-                            if !isempty(vals)
-                                push!(new_kwargs, key => vals)
-                                push!(filtered_keys, key)
-                            end
-                        else
-                            push!(filtered_keys, key)
+                            objs = [x for x in obj if !(x in invalid_objs)]
+                            push!(new_kwargs, obj_cls => objs)
                         end
                     end
-                    result_keys = Tuple(x for x in obj_cls_name_tuple if !(x in filtered_keys))
-                    if isempty(result_keys)
+                    result_classes = Tuple(x for x in obj_cls_name_tuple if !(x in filtered_classes))
+                    if isempty(result_classes)
                         []
                     else
                         result = [x for x in obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs)]
-                        if length(result_keys) == 1
-                            unique(x[result_keys...] for x in result)
+                        if length(result_classes) == 1
+                            unique(x[result_classes...] for x in result)
                         else
-                            unique(NamedTuple{result_keys}([x[k] for k in result_keys]) for x in result)
+                            unique(NamedTuple{result_classes}([x[k] for k in result_classes]) for x in result)
                         end
                     end
                 end
