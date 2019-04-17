@@ -19,6 +19,7 @@
 
 function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relationship_dict::Dict, parse_value)
     parameter_dict = Dict()
+    parameter_class_names = Dict()
     class_object_subset_dict = Dict{Symbol,Any}()
     object_parameter_value_dict =
         py"{(x.parameter_id, x.object_name): x.value for x in $db_map.object_parameter_value_list()}"
@@ -77,7 +78,8 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
             end
         end
     end
-    for parameter in py"[x._asdict() for x in $db_map.relationship_parameter_list()]"
+    relationship_parameter_list = py"[x._asdict() for x in $db_map.relationship_parameter_list()]"
+    for parameter in relationship_parameter_list
         parameter_name = parameter["parameter_name"]
         parameter_id = parameter["id"]
         relationship_class_name = parameter["relationship_class_name"]
@@ -95,17 +97,12 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
         end
         class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         class_name = tuple(fix_name_ambiguity(Symbol.(split(object_class_name_list, ",")))...)
-        if getsimilarkey(class_parameter_value_dict, class_name, nothing) != nothing
-            @warn(
-                "'$parameter_name' is ambiguous"
-                * " - use `$parameter_name($relationship_class_name=(...))` to access it."
-            )
-            alt_class_name = (Symbol(relationship_class_name),)
-            parameter_value_dict = class_parameter_value_dict[alt_class_name] = Dict{Tuple,Any}()
-        else
-            # NOTE: with this, the first one gets the place alright - is that ok?
-            parameter_value_dict = class_parameter_value_dict[class_name] = Dict{Tuple,Any}()
-        end
+        alt_class_name = (Symbol(relationship_class_name),)
+        # Get dictionary of class names
+        d = get!(parameter_class_names, Symbol(parameter_name), Dict())
+        # Add (class_name, alt_class_name) to the list of relationships classes between the same object classes
+        push!(get!(d, sort([class_name...]), []), (class_name, alt_class_name))
+        parameter_value_dict = class_parameter_value_dict[alt_class_name] = Dict{Tuple,Any}()
         # Loop through all parameter values
         object_name_lists = relationship_dict[relationship_class_name]["object_name_lists"]
         for object_name_list in object_name_lists
@@ -125,6 +122,21 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
                 )
             end
             parameter_value_dict[symbol_object_name_list] = new_value
+        end
+    end
+    for (parameter_name, class_name_dict) in parameter_class_names
+        for (sorted_class_name, class_name_tuples) in class_name_dict
+            if length(class_name_tuples) > 1
+                msg = "'$parameter_name' is defined on multiple relationship classes among the same "
+                msg *= "object classes '$(join(sorted_class_name, "', '"))'"
+                msg *= " - use, e.g., `$parameter_name($(last(class_name_tuples[1])[1])=...)` to access it"
+                @warn msg
+            else
+                # Replace the alt_class_name with class_name, since there's no ambiguity 
+                class_name, alt_class_name = class_name_tuples[1]
+                d = parameter_dict[parameter_name]
+                d[class_name] = pop!(d, alt_class_name)
+            end
         end
     end
     for (parameter_name, class_parameter_value_dict) in parameter_dict
