@@ -95,7 +95,7 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
         end
         class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         class_name = tuple(fix_name_ambiguity(Symbol.(split(object_class_name_list, ",")))...)
-        if getkeyperm(class_parameter_value_dict, class_name, nothing) != nothing
+        if getsimilarkey(class_parameter_value_dict, class_name, nothing) != nothing
             @warn(
                 "'$parameter_name' is ambiguous"
                 * " - use `$parameter_name($relationship_class_name=(...))` to access it."
@@ -143,7 +143,7 @@ function checkout_spinedb_parameter(db_map::PyObject, object_dict::Dict, relatio
                         class_parameter_value_dict
                     else
                         class_names = keys(kwargs)
-                        key = getkeyperm(class_parameter_value_dict, class_names, nothing)
+                        key = getsimilarkey(class_parameter_value_dict, class_names, nothing)
                         key == nothing && error("'$($parameter_name)' not defined for class(es) '$class_names'")
                         parameter_value_dict = class_parameter_value_dict[key]
                         object_names = values(kwargs)
@@ -223,7 +223,7 @@ function checkout_spinedb_relationship(db_map::PyObject, relationship_dict::Dict
         obj_name_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_name_lists]
         @suppress_err begin
             @eval begin
-                function $(Symbol(rel_cls_name))(;kwargs...)
+                function $(Symbol(rel_cls_name))(;_compact=true, kwargs...)
                     obj_name_tuples = $(obj_name_tuples)
                     obj_cls_name_tuple = $(obj_cls_name_tuple)
                     orig_obj_cls_name = $(orig_obj_cls_name)
@@ -248,7 +248,11 @@ function checkout_spinedb_relationship(db_map::PyObject, relationship_dict::Dict
                             push!(new_kwargs, obj_cls => objs)
                         end
                     end
-                    result_classes = Tuple(x for x in obj_cls_name_tuple if !(x in filtered_classes))
+                    result_classes = if _compact
+                        Tuple(x for x in obj_cls_name_tuple if !(x in filtered_classes))
+                    else
+                        obj_cls_name_tuple
+                    end
                     if isempty(result_classes)
                         []
                     else
