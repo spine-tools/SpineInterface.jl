@@ -5,16 +5,15 @@ using JSON
 using Dates
 using Suppressor
 
-include("checkout_spinedb.jl")
+include("spinedb_handle.jl")
 include("write_results.jl")
 include("helpers.jl")
 
-export checkout_spinedb
+export spinedb_handle
 export write_results
 export create_results_db
 export parse_value
 export get_value
-export Tag
 
 const db_api = PyNULL()
 const required_spinedb_api_version = "0.0.22"
