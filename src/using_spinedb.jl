@@ -20,8 +20,9 @@
 """
     Parameter
 
-A function-like object that represents a Spine parameter. The value of the parameter
-is retrieved by calling [`(p::Parameter)(;object_class=object...)`](@ref)
+A function-like object that represents a Spine parameter.
+The value of the parameter can be retrieved by calling this object
+as described in [`(p::Parameter)(;object_class=object...)`](@ref)
 """
 struct Parameter
     name::Symbol
@@ -35,8 +36,9 @@ end
 """
     ObjectClass
 
-A function-like object that represents a Spine object class. The objects of the class
-are retrieved by calling [`(p::Parameter)(;object_class=object...)`](@ref)
+A function-like object that represents a Spine object class.
+The objects of the class can be retrieved by calling this object as
+described in [`(o::ObjectClass)(;parameter=value...)`](@ref)
 """
 struct ObjectClass
     name::Symbol
@@ -47,8 +49,9 @@ end
 """
     RelationshipClass
 
-A function-like object that represents a Spine relationship class. The relationships of the class
-are retrieved by calling [`(p::Parameter)(;object_class=object...)`](@ref)
+A function-like object that represents a Spine relationship class.
+The relationships of the class can be retrieved by calling this object as described in
+[`(r::RelationshipClass)(;_compact=true, object_class=object...)`](@ref)
 """
 struct RelationshipClass
     name::Symbol
@@ -384,8 +387,8 @@ function using_spinedb(db_map::PyObject; parse_value=parse_value)
     p, class_object_subset_dict = spinedb_parameter_handle(db_map, object_dict, relationship_dict, parse_value)
     o = spinedb_object_handle(db_map, object_dict, class_object_subset_dict)
     r = spinedb_relationship_handle(db_map, relationship_dict)
-    db = merge(p, o, r)
-    for (name, value) in pairs(db)
+    db_handle = merge(p, o, r)
+    for (name, value) in pairs(db_handle)
         eval(:($name = $value))
         eval(:(export $name))
     end
