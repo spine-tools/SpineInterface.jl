@@ -16,41 +16,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-"""
-    parse_value(db_value; default=nothing, tags...)
-
-Parse a database value into a value to be returned by the parameter access function.
-The default value is passed in the `default` argument, and tags are passed in the `tags...` argument
-Add methods to this function to customize the way you access parameters in your database.
-"""
-parse_value(db_value; default=nothing, tags...) = db_value
-
-function parse_value(db_value::Nothing; default=nothing, tags...)
-    if default === nothing
-        nothing
-    else
-        parse_value(default; default=nothing, tags...)
-    end
-end
-
-function parse_value(db_value::String; default=nothing, tags...)
-    try
-        parse(Int64, db_value)
-    catch
-        try
-            parse(Float64, db_value)
-        catch
-            Symbol(db_value)
-        end
-    end
-end
-
-parse_value(db_value::Array; default=nothing, tags...) = [parse_value(x; default=default, tags...) for x in db_value]
-
-function parse_value(db_value::Dict; default=nothing, tags...)
-    Dict(parse_value(k; default=default, tags...) => v for (k, v) in db_value)
-end
-
 function diff_database_mapping(url::String; upgrade=false)
     try
         db_api.DiffDatabaseMapping(url, "SpineInterface.jl"; upgrade=upgrade)
@@ -79,18 +44,12 @@ end
 """
     fix_name_ambiguity(object_class_name_list)
 
-A list identical to `object_class_name_list`, except that repeated entries are modified by
+Take `object_class_name_list`, and return a new list where repeated entries are distinguished by
 appending an increasing integer.
 
 # Example
 ```julia
-julia> s=[:connection, :node, :node]
-3-element Array{Symbol,1}:
- :connection
- :node
- :node
-
-julia> fix_name_ambiguity(s)
+julia> fix_name_ambiguity([:connection, :node, :node])
 3-element Array{Symbol,1}:
  :connection
  :node1
@@ -112,6 +71,7 @@ function fix_name_ambiguity(object_class_name_list::Array{Symbol,1})
     end
     fixed
 end
+
 
 """
     getsubkey(dict::Dict{Tuple,T}, key::Tuple, default)
