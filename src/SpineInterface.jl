@@ -5,11 +5,11 @@ using JSON
 using Dates
 using Suppressor
 
-include("spinedb_handle.jl")
+include("using_spinedb.jl")
 include("write_results.jl")
 include("helpers.jl")
 
-export spinedb_handle
+export using_spinedb
 export write_results
 export create_results_db
 export parse_value
