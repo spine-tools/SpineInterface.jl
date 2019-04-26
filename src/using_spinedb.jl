@@ -399,7 +399,9 @@ function using_spinedb(db_map::PyObject; parse_value=parse_value)
     r = spinedb_relationship_handle(db_map, relationship_dict)
     db_handle = merge(p, o, r)
     for (name, value) in pairs(db_handle)
-        eval(:($name = $value))
-        eval(:(export $name))
+        @eval begin
+            $name = $value
+            export $name
+        end
     end
 end

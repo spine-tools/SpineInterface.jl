@@ -76,13 +76,30 @@ end
 """
     getsubkey(dict::Dict{Tuple,T}, key::Tuple, default)
 
-Return the first key which has all the elements in the tuple argument `key`, if one exists in `dict`,
+Return the first key 'contained' in the tuple argument `key`, if one exists in `dict`,
 otherwise return `default`.
 """
 function getsubkey(dict::Dict{Tuple,T}, key::Tuple, default) where T
     issubkey(subkey) = all(k in key for k in subkey)
     collected_keys = collect(keys(dict))
     i = findfirst(issubkey, collected_keys)
+    if i === nothing
+        default
+    else
+        collected_keys[i]
+    end
+end
+
+"""
+    getsuperkey(dict::Dict{Tuple,T}, key::Tuple, default)
+
+Return the first key that 'contains' the tuple argument `key`, if one exists in `dict`,
+otherwise return `default`.
+"""
+function getsuperkey(dict::Dict{Tuple,T}, key::Tuple, default) where T
+    issuperkey(superkey) = all(k in superkey for k in key)
+    collected_keys = collect(keys(dict))
+    i = findfirst(issuperkey, collected_keys)
     if i === nothing
         default
     else

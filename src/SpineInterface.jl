@@ -10,6 +10,7 @@ include("parse_value.jl")
 include("using_spinedb.jl")
 include("write_results.jl")
 include("helpers.jl")
+include("util.jl")
 
 export using_spinedb
 export write_results
@@ -20,6 +21,7 @@ export NoValue
 export ScalarValue
 export ArrayValue
 export DictValue
+export indices
 
 const db_api = PyNULL()
 const required_spinedb_api_version = "0.0.22"
