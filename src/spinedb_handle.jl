@@ -17,7 +17,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+"""
+    Parameter
 
+A function-like object that represents a Spine parameter. The value of the parameter
+is retrieved by calling [`(p::Parameter)(;object_class=object...)`](@ref)
+"""
 struct Parameter
     name::Symbol
     class_parameter_value_dict::Dict{Tuple,Any}
@@ -27,21 +32,33 @@ struct Parameter
     Parameter(n, d) = new(n, d, [], [], maximum(length(v) for v in values(d)))
 end
 
-struct Object
+"""
+    ObjectClass
+
+A function-like object that represents a Spine object class. The objects of the class
+are retrieved by calling [`(p::Parameter)(;object_class=object...)`](@ref)
+"""
+struct ObjectClass
     name::Symbol
     object_names::Array{Symbol,1}
     object_subset_dict::Dict{Symbol,Any}
 end
 
-struct Relationship
+"""
+    RelationshipClass
+
+A function-like object that represents a Spine relationship class. The relationships of the class
+are retrieved by calling [`(p::Parameter)(;object_class=object...)`](@ref)
+"""
+struct RelationshipClass
     name::Symbol
     obj_cls_name_tuple::Tuple
     obj_name_tuples::Array{NamedTuple,1}
 end
 
 Base.show(io::IO, p::Parameter) = print(io, p.name)
-Base.show(io::IO, o::Object) = print(io, o.name)
-Base.show(io::IO, r::Relationship) = print(io, r.name)
+Base.show(io::IO, o::ObjectClass) = print(io, o.name)
+Base.show(io::IO, r::RelationshipClass) = print(io, r.name)
 
 
 function cachevalue(p::Parameter, key::T) where T
@@ -71,28 +88,30 @@ function (p::Parameter)(;kwargs...)
         # Return dict if kwargs is empty
         p.class_parameter_value_dict
     else
-        value = cachevalue(p, values(kwargs))
+        kwkeys = keys(kwargs)
+        class_names = getsubkey(p.class_parameter_value_dict, kwkeys, nothing)
+        class_names == nothing && error("can't find a definition of '$p' for '$kwkeys'")
+        kwvalues = values(kwargs)
+        object_names = Tuple([kwvalues[k] for k in class_names])
+        cachekey = (class_names, object_names)
+        value = cachevalue(p, cachekey)
         if value == nothing
-            class_names = keys(kwargs)
-            key = getsimilarkey(p.class_parameter_value_dict, class_names, nothing)
-            key == nothing && error("'$p' not defined for class(es) '$class_names'")
-            parameter_value_dict = p.class_parameter_value_dict[key]
-            object_names = values(kwargs)
-            matched_object_names = Tuple([object_names[k] for k in key])
-            haskey(parameter_value_dict, matched_object_names) || error("'$p' not specified for '$object_names'")
-            cachepush!(p, values(kwargs), parameter_value_dict[matched_object_names])
-        else
-            value
+            parameter_value_dict = p.class_parameter_value_dict[class_names]
+            haskey(parameter_value_dict, object_names) || error("'$p' not specified for '$object_names'")
+            value = parameter_value_dict[object_names]
+            cachepush!(p, cachekey, value)
         end
+        extra_kwargs = Dict(k => v for (k, v) in kwargs if !(k in class_names))
+        value(;extra_kwargs...)
     end
 end
 
 """
-    (o::Object)(;parameter=value...)
+    (o::ObjectClass)(;parameter=value...)
 
 The list of objects of class `o`, optionally having `parameter=value`.
 """
-function (o::Object)(;kwargs...)
+function (o::ObjectClass)(;kwargs...)
     if length(kwargs) == 0
         o.object_names
     else
@@ -113,11 +132,11 @@ function (o::Object)(;kwargs...)
 end
 
 """
-    (r::Relationship)(;_compact=true, object_class=object...)
+    (r::RelationshipClass)(;_compact=true, object_class=object...)
 
-The list of object tuples of relationship class `r`, optionally having `object_class=object`.
+The list of relationships of class `r`, optionally having `object_class=object`.
 """
-function (r::Relationship)(;_compact=true, kwargs...)
+function (r::RelationshipClass)(;_compact=true, kwargs...)
     new_kwargs = Dict()
     filtered_classes = []
     for (obj_cls, obj) in kwargs
@@ -284,7 +303,7 @@ function spinedb_object_handle(db_map::PyObject, object_dict::Dict, class_object
     for (object_class_name, object_names) in object_dict
         object_subset_dict = get(class_object_subset_dict, Symbol(object_class_name), Dict())
         push!(keys, Symbol(object_class_name))
-        push!(values, Object(Symbol(object_class_name), Symbol.(object_names), object_subset_dict))
+        push!(values, ObjectClass(Symbol(object_class_name), Symbol.(object_names), object_subset_dict))
     end
     NamedTuple{Tuple(keys)}(values)
 end
@@ -298,32 +317,29 @@ function spinedb_relationship_handle(db_map::PyObject, relationship_dict::Dict)
         obj_cls_name_tuple = Tuple(fix_name_ambiguity(obj_cls_name_list))
         obj_name_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_name_lists]
         push!(keys, Symbol(rel_cls_name))
-        push!(values, Relationship(Symbol(rel_cls_name), obj_cls_name_tuple, obj_name_tuples))
+        push!(values, RelationshipClass(Symbol(rel_cls_name), obj_cls_name_tuple, obj_name_tuples))
     end
     NamedTuple{Tuple(keys)}(values)
 end
 
 
 """
-    spinedb_handle(db_url::String; parse_value=parse_value, upgrade=false)
+    using_spinedb(db_url::String; parse_value=parse_value, upgrade=false)
 
-A handle to access the database at the given
+Create and export convenience function-like objects to access the database at the given
 [sqlalchemy url](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
-The handle is a triplet `p, o, r`, where:
-- `p` is a named tuple of `Parameter` values.
-- `o` is a named tuple of `Object` values.
-- `r` is a named tuple of `Relationship` values.
+These objects are of type [`Parameter`](@ref), [`ObjectClass`](@ref), and [`RelationshipClass`](@ref).
 
-The argument `parse_value` is a function for mapping `(db_value; default, tags...)` into a `Parameter` value:
+The argument `parse_value` is a function, for mapping `(db_value; default, tags...)` into a callable, where
 - `db_value` is the value retrieved from the database and parsed using `JSON.parse`
 - `default` is the default value retrieved from the database and parsed using `JSON.parse`
 - `tags` is a list of tags.
 """
-function spinedb_handle(db_url::String; parse_value=parse_value, upgrade=false)
+function using_spinedb(db_url::String; parse_value=parse_value, upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
     try
         db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
-        spinedb_handle(db_map; parse_value=parse_value)
+        using_spinedb(db_map; parse_value=parse_value)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
             error(
@@ -345,14 +361,15 @@ end
 
 
 """
-    spinedb_handle(db_map::PyObject; parse_value=parse_value)
+    using_spinedb(db_map::PyObject; parse_value=parse_value)
 
-A handle to access the given `db_map`, which is an instance of `DiffDatabaseMapping` as
+Create and export convenience function-like objects to access the given `db_map`,
+which must be an instance of `DiffDatabaseMapping` as
 provided by [`spinedb_api`](https://github.com/Spine-project/Spine-Database-API).
-See [`spinedb_handle(db_url::String; parse_value=parse_value, upgrade=false)`](@ref)
+See [`using_spinedb(db_url::String; parse_value=parse_value, upgrade=false)`](@ref)
 for more details.
 """
-function spinedb_handle(db_map::PyObject; parse_value=parse_value)
+function using_spinedb(db_map::PyObject; parse_value=parse_value)
     py"""object_dict = {
         x.name: [y.name for y in $db_map.object_list(class_id=x.id)] for x in $db_map.object_class_list()
     }
@@ -367,5 +384,9 @@ function spinedb_handle(db_map::PyObject; parse_value=parse_value)
     p, class_object_subset_dict = spinedb_parameter_handle(db_map, object_dict, relationship_dict, parse_value)
     o = spinedb_object_handle(db_map, object_dict, class_object_subset_dict)
     r = spinedb_relationship_handle(db_map, relationship_dict)
-    merge(p, o, r)
+    db = merge(p, o, r)
+    for (name, value) in pairs(db)
+        eval(:($name = $value))
+        eval(:(export $name))
+    end
 end

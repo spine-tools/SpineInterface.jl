@@ -114,15 +114,15 @@ function fix_name_ambiguity(object_class_name_list::Array{Symbol,1})
 end
 
 """
-    getsimilarkey(dict::Dict{Tuple,T}, key::Tuple, default)
+    getsubkey(dict::Dict{Tuple,T}, key::Tuple, default)
 
-Return the first key matching the argument `key` or any permutation if one exists in `dict`,
+Return the first key which has all the elements in the tuple argument `key`, if one exists in `dict`,
 otherwise return `default`.
 """
-function getsimilarkey(dict::Dict{Tuple,T}, key::Tuple, default) where T
-    sorted_key = sort([key...])
+function getsubkey(dict::Dict{Tuple,T}, key::Tuple, default) where T
+    issubkey(subkey) = all(k in key for k in subkey)
     collected_keys = collect(keys(dict))
-    i = findfirst(k -> sort([k...]) == sorted_key, collected_keys)
+    i = findfirst(issubkey, collected_keys)
     if i === nothing
         default
     else
