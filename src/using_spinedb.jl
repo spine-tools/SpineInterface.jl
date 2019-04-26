@@ -27,10 +27,6 @@ as described in [`(p::Parameter)(;object_class=object...)`](@ref)
 struct Parameter
     name::Symbol
     class_parameter_value_dict::Dict{Tuple,Any}
-    cache_keys::Array{Any,1}
-    cache_values::Array{Any,1}
-    cache_size::Int
-    Parameter(n, d) = new(n, d, [], [], maximum(length(v) for v in values(d)))
 end
 
 """
@@ -57,36 +53,21 @@ struct RelationshipClass
     name::Symbol
     obj_cls_name_tuple::Tuple
     obj_name_tuples::Array{NamedTuple,1}
+    cache::Dict{Symbol,Any}
+    RelationshipClass(n, o1, o2) = new(n, o1, o2, Dict{Symbol,Any}())
 end
 
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, o::ObjectClass) = print(io, o.name)
 Base.show(io::IO, r::RelationshipClass) = print(io, r.name)
 
-
-function cachevalue(p::Parameter, key::T) where T
-    for (i, k) in enumerate(p.cache_keys)
-        k == key && return p.cache_values[i]
-    end
-    nothing
-end
-
-function cachepush!(p::Parameter, key, value)
-    pushfirst!(p.cache_keys, key)
-    pushfirst!(p.cache_values, value)
-    if length(p.cache_keys) > p.cache_size
-        p.cache_keys = p.cache_keys[1:p.cache_size]
-        p.cache_values = p.cache_values[1:p.cache_size]
-    end
-    value
-end
-
 """
-    (p::Parameter)(;object_class=object...)
+    (p::Parameter)(;object_class=object..., extra_kwargs...)
 
 The value of parameter `p` for the given combination of `object_class=object` tuples.
+NOTE: Additional keyword arguments are used to call the value.
 """
-function (p::Parameter)(;kwargs...)
+function (p::Parameter)(;_optimize=true, kwargs...)
     if length(kwargs) == 0
         # Return dict if kwargs is empty
         p.class_parameter_value_dict
@@ -94,15 +75,24 @@ function (p::Parameter)(;kwargs...)
         kwkeys = keys(kwargs)
         class_names = getsubkey(p.class_parameter_value_dict, kwkeys, nothing)
         class_names == nothing && error("can't find a definition of '$p' for '$kwkeys'")
+        parameter_value_dict = p.class_parameter_value_dict[class_names]
         kwvalues = values(kwargs)
         object_names = Tuple([kwvalues[k] for k in class_names])
-        cachekey = (class_names, object_names)
-        value = cachevalue(p, cachekey)
-        if value == nothing
-            parameter_value_dict = p.class_parameter_value_dict[class_names]
-            haskey(parameter_value_dict, object_names) || error("'$p' not specified for '$object_names'")
-            value = parameter_value_dict[object_names]
-            cachepush!(p, cachekey, value)
+        # Lookup value and bring it forward so it's found earlier in subsequent calls
+        i = 1
+        nobreak = true
+        for (key, value) in parameter_value_dict
+            if key == object_names
+                nobreak = false
+                break
+            end
+            i += 1
+        end
+        nobreak && error("'$p' not specified for '$object_names'")
+        key, value = parameter_value_dict[i]
+        if i > 1 && _optimize
+            deleteat!(parameter_value_dict, i)
+            pushfirst!(parameter_value_dict, (key, value))
         end
         extra_kwargs = Dict(k => v for (k, v) in kwargs if !(k in class_names))
         value(;extra_kwargs...)
@@ -139,7 +129,7 @@ end
 
 The list of relationships of class `r`, optionally having `object_class=object`.
 """
-function (r::RelationshipClass)(;_compact=true, kwargs...)
+function (r::RelationshipClass)(;_compact=true, _optimize=true, kwargs...)
     new_kwargs = Dict()
     filtered_classes = []
     for (obj_cls, obj) in kwargs
@@ -157,15 +147,35 @@ function (r::RelationshipClass)(;_compact=true, kwargs...)
     else
         r.obj_cls_name_tuple
     end
-    if isempty(result_classes)
-        []
+    isempty(result_classes) && return []
+    if _optimize
+        cls_indices_arr = []
+        for (obj_cls, objs) in new_kwargs
+            obj_indices_arr = []
+            obj_cls_cache = get!(r.cache, obj_cls, Dict{Symbol,Array{Int64,1}}())
+            for obj in objs
+                obj_indices = get(obj_cls_cache, obj, nothing)
+                if obj_indices == nothing
+                    cond(x) = x[obj_cls] == obj
+                    obj_indices = obj_cls_cache[obj] = findall(cond, r.obj_name_tuples)
+                end
+                push!(obj_indices_arr, obj_indices)
+            end
+            push!(cls_indices_arr, union(obj_indices_arr...))
+        end
+        if isempty(cls_indices_arr)
+            result = r.obj_name_tuples
+        else
+            indices = intersect(cls_indices_arr...)
+            result = r.obj_name_tuples[indices]
+        end
     else
         result = [x for x in r.obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs)]
-        if length(result_classes) == 1
-            unique(x[result_classes...] for x in result)
-        else
-            unique(NamedTuple{result_classes}([x[k] for k in result_classes]) for x in result)
-        end
+    end
+    if length(result_classes) == 1
+        unique(x[result_classes...] for x in result)
+    else
+        unique(NamedTuple{result_classes}([x[k] for k in result_classes]) for x in result)
     end
 end
 
@@ -203,7 +213,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             error("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
         end
         class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
-        parameter_value_dict = class_parameter_value_dict[(Symbol(object_class_name),)] = Dict{Tuple,Any}()
+        parameter_value_dict = class_parameter_value_dict[(Symbol(object_class_name),)] = Array{Tuple,1}()
         for object_name in object_dict[object_class_name]
             value = get(object_parameter_value_dict, (parameter_id, object_name), nothing)
             if value == nothing
@@ -217,7 +227,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             catch e
                 error("unable to parse value of '$parameter_name' for '$object_name': $(sprint(showerror, e))")
             end
-            parameter_value_dict[(symbol_object_name,)] = new_value
+            push!(parameter_value_dict, ((symbol_object_name,), new_value))
             # Add entry to class_object_subset_dict
             value_list_id == nothing && continue
             if haskey(object_subset_dict, Symbol(json_value))
@@ -254,7 +264,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         # Add (class_name, alt_class_name) to the list of relationships classes between the same object classes
         d = get!(parameter_class_names, Symbol(parameter_name), Dict())
         push!(get!(d, sort([class_name...]), []), (class_name, alt_class_name))
-        parameter_value_dict = class_parameter_value_dict[alt_class_name] = Dict{Tuple,Any}()
+        parameter_value_dict = class_parameter_value_dict[alt_class_name] = Array{Tuple,1}()
         # Loop through all parameter values
         object_name_lists = relationship_dict[relationship_class_name]["object_name_lists"]
         for object_name_list in object_name_lists
@@ -273,7 +283,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
                     * "$(sprint(showerror, e))"
                 )
             end
-            parameter_value_dict[symbol_object_name_list] = new_value
+            push!(parameter_value_dict, (symbol_object_name_list, new_value))
         end
     end
     for (parameter_name, class_name_dict) in parameter_class_names
