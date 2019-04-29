@@ -16,9 +16,25 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+"""
+    indices(p::Parameter; kwargs...)
 
-function indices(p::Parameter, args...)
+A set of indices corresponding to `p`, optionally filtered by `kwargs`.
+"""
+function indices(p::Parameter; kwargs...)
     d = p.class_parameter_value_dict
-    key = getsuperkey(d, args, first(keys(d)))
-    [k for (k, v) in d[key] if v() != nothing]
+    if !isempty(kwargs)
+        key_list = getsuperkeys(d, keys(kwargs))
+        result = [NamedTuple{key}(k) for key in key_list for (k, v) in d[key] if v != NoValue()]
+        new_kwargs = Dict()
+        for (key, val) in kwargs
+            if val != :any
+                applicable(iterate, val) || (val = (val,))
+                push!(new_kwargs, key => val)
+            end
+        end
+        [x for x in result if all(x[k] in v for (k, v) in new_kwargs)]
+    else
+        [NamedTuple{key}(k) for key in keys(d) for (k, v) in d[key] if v != NoValue()]
+    end
 end

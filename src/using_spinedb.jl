@@ -113,11 +113,20 @@ function (o::ObjectClass)(;kwargs...)
         for (par, val) in kwargs
             !haskey(o.object_subset_dict, par) && error("'$par' is not a list-parameter for '$o'")
             d = o.object_subset_dict[par]
-            !haskey(d, val) && error("'$val' is not a listed value for '$par' as defined for class '$o'")
+            applicable(iterate, val) || (val = (val,))
+            objs = []
+            for v in val
+                obj = get(d, v, nothing)
+                if obj == nothing
+                    @warn("'$val' is not a listed value for '$par' as defined for class '$o'")
+                else
+                    append!(objs, obj)
+                end
+            end
             if isempty(object_subset)
-                object_subset = d[val]
+                object_subset = objs
             else
-                object_subset = [x for x in object_subset if x in d[val]]
+                object_subset = [x for x in object_subset if x in objs]
             end
         end
         object_subset
@@ -125,11 +134,11 @@ function (o::ObjectClass)(;kwargs...)
 end
 
 """
-    (r::RelationshipClass)(;_compact=true, object_class=object...)
+    (r::RelationshipClass)(;_indices=:compact, _default=nothing, object_class=object...)
 
 The list of relationships of class `r`, optionally having `object_class=object`.
 """
-function (r::RelationshipClass)(;_compact=true, _optimize=true, kwargs...)
+function (r::RelationshipClass)(;_indices=:compact, _default=nothing, _optimize=true, kwargs...)
     new_kwargs = Dict()
     filtered_classes = []
     for (obj_cls, obj) in kwargs
@@ -142,12 +151,14 @@ function (r::RelationshipClass)(;_compact=true, _optimize=true, kwargs...)
             push!(new_kwargs, obj_cls => obj)
         end
     end
-    result_classes = if _compact
+    indices = if _indices == :compact
         Tuple(x for x in r.obj_cls_name_tuple if !(x in filtered_classes))
-    else
+    elseif _indices == :all
         r.obj_cls_name_tuple
+    else
+        _indices
     end
-    isempty(result_classes) && return []
+    isempty(indices) && return []
     if _optimize
         cls_indices_arr = []
         for (obj_cls, objs) in new_kwargs
@@ -166,16 +177,17 @@ function (r::RelationshipClass)(;_compact=true, _optimize=true, kwargs...)
         if isempty(cls_indices_arr)
             result = r.obj_name_tuples
         else
-            indices = intersect(cls_indices_arr...)
-            result = r.obj_name_tuples[indices]
+            intersection = intersect(cls_indices_arr...)
+            result = r.obj_name_tuples[intersection]
         end
     else
         result = [x for x in r.obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs)]
     end
-    if length(result_classes) == 1
-        unique(x[result_classes...] for x in result)
+    isempty(result) && _default != nothing && return _default
+    if length(indices) == 1
+        unique(x[indices...] for x in result)
     else
-        unique(NamedTuple{result_classes}([x[k] for k in result_classes]) for x in result)
+        unique(NamedTuple{indices}([x[k] for k in indices]) for x in result)
     end
 end
 

@@ -91,18 +91,11 @@ function getsubkey(dict::Dict{Tuple,T}, key::Tuple, default) where T
 end
 
 """
-    getsuperkey(dict::Dict{Tuple,T}, key::Tuple, default)
+    getsuperkeys(dict::Dict{Tuple,T}, key::Tuple)
 
-Return the first key that 'contains' the tuple argument `key`, if one exists in `dict`,
-otherwise return `default`.
+Return a list of keys in `dict` that 'contain' the tuple argument `key`.
 """
-function getsuperkey(dict::Dict{Tuple,T}, key::Tuple, default) where T
+function getsuperkeys(dict::Dict{Tuple,T}, key::Tuple) where T
     issuperkey(superkey) = all(k in superkey for k in key)
-    collected_keys = collect(keys(dict))
-    i = findfirst(issuperkey, collected_keys)
-    if i === nothing
-        default
-    else
-        collected_keys[i]
-    end
+    [superkey for superkey in collect(keys(dict)) if all(k in superkey for k in key)]
 end
