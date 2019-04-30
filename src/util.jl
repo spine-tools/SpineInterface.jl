@@ -22,10 +22,10 @@
 A set of indices corresponding to `p`, optionally filtered by `kwargs`.
 """
 function indices(p::Parameter; kwargs...)
-    d = p.class_parameter_value_dict
+    d = p.class_value_dict
     if !isempty(kwargs)
         key_list = getsuperkeys(d, keys(kwargs))
-        result = [NamedTuple{key}(k) for key in key_list for (k, v) in d[key] if v != NoValue()]
+        result = [NamedTuple{key}(ind) for key in key_list for (ind, val) in d[key] if val != NoValue()]
         new_kwargs = Dict()
         for (key, val) in kwargs
             if val != :any
@@ -35,6 +35,6 @@ function indices(p::Parameter; kwargs...)
         end
         [x for x in result if all(x[k] in v for (k, v) in new_kwargs)]
     else
-        [NamedTuple{key}(k) for key in keys(d) for (k, v) in d[key] if v != NoValue()]
+        [NamedTuple{key}(ind) for key in keys(d) for (ind, val) in d[key] if val != NoValue()]
     end
 end

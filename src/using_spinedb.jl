@@ -26,7 +26,7 @@ as described in [`(p::Parameter)(;object_class=object...)`](@ref)
 """
 struct Parameter
     name::Symbol
-    class_parameter_value_dict::Dict{Tuple,Any}
+    class_value_dict::Dict{Tuple,Any}
 end
 
 """
@@ -70,18 +70,18 @@ NOTE: Additional keyword arguments are used to call the value.
 function (p::Parameter)(;_optimize=true, kwargs...)
     if length(kwargs) == 0
         # Return dict if kwargs is empty
-        p.class_parameter_value_dict
+        p.class_value_dict
     else
         kwkeys = keys(kwargs)
-        class_names = getsubkey(p.class_parameter_value_dict, kwkeys, nothing)
+        class_names = getsubkey(p.class_value_dict, kwkeys, nothing)
         class_names == nothing && error("can't find a definition of '$p' for '$kwkeys'")
-        parameter_value_dict = p.class_parameter_value_dict[class_names]
+        parameter_value_tuples = p.class_value_dict[class_names]
         kwvalues = values(kwargs)
         object_names = Tuple([kwvalues[k] for k in class_names])
         # Lookup value and bring it forward so it's found earlier in subsequent calls
         i = 1
         nobreak = true
-        for (key, value) in parameter_value_dict
+        for (key, value) in parameter_value_tuples
             if key == object_names
                 nobreak = false
                 break
@@ -89,10 +89,10 @@ function (p::Parameter)(;_optimize=true, kwargs...)
             i += 1
         end
         nobreak && error("'$p' not specified for '$object_names'")
-        key, value = parameter_value_dict[i]
+        key, value = parameter_value_tuples[i]
         if i > 1 && _optimize
-            deleteat!(parameter_value_dict, i)
-            pushfirst!(parameter_value_dict, (key, value))
+            deleteat!(parameter_value_tuples, i)
+            pushfirst!(parameter_value_tuples, (key, value))
         end
         extra_kwargs = Dict(k => v for (k, v) in kwargs if !(k in class_names))
         value(;extra_kwargs...)
@@ -224,8 +224,8 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         catch e
             error("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
         end
-        class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
-        parameter_value_dict = class_parameter_value_dict[(Symbol(object_class_name),)] = Array{Tuple,1}()
+        class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
+        parameter_value_tuples = class_value_dict[(Symbol(object_class_name),)] = Array{Tuple,1}()
         for object_name in object_dict[object_class_name]
             value = get(object_parameter_value_dict, (parameter_id, object_name), nothing)
             if value == nothing
@@ -239,9 +239,9 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             catch e
                 error("unable to parse value of '$parameter_name' for '$object_name': $(sprint(showerror, e))")
             end
-            push!(parameter_value_dict, ((symbol_object_name,), new_value))
+            push!(parameter_value_tuples, ((symbol_object_name,), new_value))
             # Add entry to class_object_subset_dict
-            value_list_id == nothing && continue
+            (value_list_id == nothing || json_value == nothing) && continue
             if haskey(object_subset_dict, Symbol(json_value))
                 arr = object_subset_dict[Symbol(json_value)]
                 push!(arr, symbol_object_name)
@@ -270,13 +270,13 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         catch e
             error("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
         end
-        class_parameter_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
+        class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         class_name = tuple(fix_name_ambiguity(Symbol.(split(object_class_name_list, ",")))...)
         alt_class_name = (Symbol(relationship_class_name),)
         # Add (class_name, alt_class_name) to the list of relationships classes between the same object classes
         d = get!(parameter_class_names, Symbol(parameter_name), Dict())
         push!(get!(d, sort([class_name...]), []), (class_name, alt_class_name))
-        parameter_value_dict = class_parameter_value_dict[alt_class_name] = Array{Tuple,1}()
+        parameter_value_tuples = class_value_dict[alt_class_name] = Array{Tuple,1}()
         # Loop through all parameter values
         object_name_lists = relationship_dict[relationship_class_name]["object_name_lists"]
         for object_name_list in object_name_lists
@@ -295,7 +295,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
                     * "$(sprint(showerror, e))"
                 )
             end
-            push!(parameter_value_dict, (symbol_object_name_list, new_value))
+            push!(parameter_value_tuples, (symbol_object_name_list, new_value))
         end
     end
     for (parameter_name, class_name_dict) in parameter_class_names
@@ -315,9 +315,9 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
     end
     keys = []
     values = []
-    for (parameter_name, class_parameter_value_dict) in parameter_dict
+    for (parameter_name, class_value_dict) in parameter_dict
         push!(keys, Symbol(parameter_name))
-        push!(values, Parameter(Symbol(parameter_name), class_parameter_value_dict))
+        push!(values, Parameter(Symbol(parameter_name), class_value_dict))
     end
     NamedTuple{Tuple(keys)}(values), class_object_subset_dict
 end
