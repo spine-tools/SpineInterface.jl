@@ -82,11 +82,11 @@ otherwise return `default`.
 function getsubkey(dict::Dict{Tuple,T}, key::Tuple, default) where T
     issubkey(subkey) = all(k in key for k in subkey)
     collected_keys = collect(keys(dict))
-    i = findfirst(issubkey, collected_keys)
-    if i === nothing
+    subkeys = filter(issubkey, collected_keys)
+    if isempty(subkeys)
         default
     else
-        collected_keys[i]
+        first(sort(subkeys, lt=(x,y)->length([x...])<length([y...]), rev=true)) # Pick longest subkey
     end
 end
 
@@ -96,6 +96,5 @@ end
 Return a list of keys in `dict` that 'contain' the tuple argument `key`.
 """
 function getsuperkeys(dict::Dict{Tuple,T}, key::Tuple) where T
-    issuperkey(superkey) = all(k in superkey for k in key)
     [superkey for superkey in collect(keys(dict)) if all(k in superkey for k in key)]
 end
