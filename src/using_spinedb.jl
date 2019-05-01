@@ -33,11 +33,11 @@ Object(name::AbstractString) = Object(Symbol(name))
 Object(::Anything) = anything
 Object(other::Object) = other
 
-# Iterate single object as collection
+# Iterate single `Object` as collection
 Base.iterate(o::Object) = iterate((o,))
 Base.iterate(o::Object, state::T) where T = iterate((o,), state)
 Base.length(o::Object) = 1
-# Compare objects
+# Compare `Object`s
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 
 """
@@ -101,7 +101,7 @@ function (p::Parameter)(;_optimize=true, kwargs...)
         class_names == nothing && error("can't find a definition of '$p' for '$kwkeys'")
         parameter_value_tuples = p.class_value_dict[class_names]
         kwvalues = values(kwargs)
-        object_names = Tuple([kwvalues[k] for k in class_names])
+        object_names = Object.(Tuple([kwvalues[k] for k in class_names]))
         # Lookup value and bring it forward so it's found earlier in subsequent calls
         i = 1
         nobreak = true

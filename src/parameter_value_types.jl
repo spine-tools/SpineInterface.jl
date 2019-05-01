@@ -31,22 +31,36 @@ struct DictValue
     value::Dict
 end
 
+# Outer constructors
+ScalarValue(s::String) = ScalarValue(Symbol(s))
+
+# Callers
 (p::NoValue)(;kwargs...) = nothing
 (p::ScalarValue)(;kwargs...) = p.value
 
 function (p::ArrayValue)(;i::Union{Int64,Nothing}=nothing)
-    i === nothing && error("argument `i` missing")
-    p.value[i]
+    if i === nothing
+        @warn("argument `i` missing, returning the whole array")
+        p.value
+    else
+        p.value[i]
+    end
 end
 
 function (p::DictValue)(;k::Union{T,Nothing}=nothing) where T
-    k === nothing && error("argument `k` missing")
-    p.value[t]
+    if k === nothing
+        @warn("argument `k` missing, returning the whole dictionary")
+        p.value
+    else
+        p.value[t]
+    end
 end
 
 # Iterate single ScalarValue as collection
-ScalarValue(s::String) = ScalarValue(Symbol(s))
-
 Base.iterate(v::ScalarValue) = iterate((v,))
 Base.iterate(v::ScalarValue, state::T) where T = iterate((v,), state)
 Base.length(v::ScalarValue) = 1
+# Compare ScalarValue
+Base.isless(v1::ScalarValue, v2::ScalarValue) = v1.value < v2.value
+# Show ScalarValue
+Base.show(io::IO, v::ScalarValue) = print(io, v.value)

@@ -27,13 +27,12 @@ function indices(p::Parameter; kwargs...)
         key_list = getsuperkeys(d, keys(kwargs))
         result = [NamedTuple{key}(ind) for key in key_list for (ind, val) in d[key] if val != NoValue()]
         new_kwargs = Dict()
-        for (key, val) in kwargs
-            if val != :any
-                applicable(iterate, val) || (val = (val,))
-                push!(new_kwargs, key => val)
+        for (obj_cls, obj) in kwargs
+            if obj != anything
+                push!(new_kwargs, obj_cls => Object.(obj))
             end
         end
-        [x for x in result if all(x[k] in v for (k, v) in new_kwargs)]
+        [x for x in result if all(x[obj_cls] in obj for (obj_cls, obj) in new_kwargs)]
     else
         [NamedTuple{key}(ind) for key in keys(d) for (ind, val) in d[key] if val != NoValue()]
     end
