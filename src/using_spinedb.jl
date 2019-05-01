@@ -17,6 +17,29 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+struct Anything
+end
+
+anything = Anything()
+
+Base.intersect(s, ::Anything) = s
+Base.show(io::IO, ::Anything) = print(io, "anything (really, nevermind)")
+
+struct Object
+    name::Symbol
+end
+
+Object(name::AbstractString) = Object(Symbol(name))
+Object(::Anything) = anything
+Object(other::Object) = other
+
+# Iterate single object as collection
+Base.iterate(o::Object) = iterate((o,))
+Base.iterate(o::Object, state::T) where T = iterate((o,), state)
+Base.length(o::Object) = 1
+# Compare objects
+Base.isless(o1::Object, o2::Object) = o1.name < o2.name
+
 """
     Parameter
 
@@ -38,7 +61,7 @@ described in [`(o::ObjectClass)(;parameter=value...)`](@ref)
 """
 struct ObjectClass
     name::Symbol
-    object_names::Array{Symbol,1}
+    object_names::Array{Object,1}
     object_subset_dict::Dict{Symbol,Any}
 end
 
@@ -58,8 +81,9 @@ struct RelationshipClass
 end
 
 Base.show(io::IO, p::Parameter) = print(io, p.name)
-Base.show(io::IO, o::ObjectClass) = print(io, o.name)
-Base.show(io::IO, r::RelationshipClass) = print(io, r.name)
+Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
+Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
+Base.show(io::IO, o::Object) = print(io, o.name)
 
 """
     (p::Parameter)(;object_class=object..., extra_kwargs...)
@@ -113,12 +137,11 @@ function (o::ObjectClass)(;kwargs...)
         for (par, val) in kwargs
             !haskey(o.object_subset_dict, par) && error("'$par' is not a list-parameter for '$o'")
             d = o.object_subset_dict[par]
-            applicable(iterate, val) || (val = (val,))
             objs = []
-            for v in val
+            for v in ScalarValue.(val)
                 obj = get(d, v, nothing)
                 if obj == nothing
-                    @warn("'$val' is not a listed value for '$par' as defined for class '$o'")
+                    @warn("'$v' is not a listed value for '$par' as defined for class '$o'")
                 else
                     append!(objs, obj)
                 end
@@ -138,7 +161,7 @@ end
 
 The list of relationships of class `r`, optionally having `object_class=object`.
 """
-function (r::RelationshipClass)(;_indices=:compact, _default=nothing, _optimize=true, kwargs...)
+function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true, kwargs...)
     new_kwargs = Dict()
     filtered_classes = []
     for (obj_cls, obj) in kwargs
@@ -146,48 +169,49 @@ function (r::RelationshipClass)(;_indices=:compact, _default=nothing, _optimize=
             "'$obj_cls' is not a member of '$r' (valid members are '$(join(r.obj_cls_name_tuple, "', '"))')"
         )
         push!(filtered_classes, obj_cls)
-        if obj != :any
-            applicable(iterate, obj) || (obj = (obj,))
-            push!(new_kwargs, obj_cls => obj)
+        if obj != anything
+            push!(new_kwargs, obj_cls => Object.(obj))
         end
     end
-    indices = if _indices == :compact
+    result_keys = if _compact
         Tuple(x for x in r.obj_cls_name_tuple if !(x in filtered_classes))
-    elseif _indices == :all
+    else
         r.obj_cls_name_tuple
-    else
-        _indices
     end
-    isempty(indices) && return []
-    if _optimize
-        cls_indices_arr = []
-        for (obj_cls, objs) in new_kwargs
-            obj_indices_arr = []
-            obj_cls_cache = get!(r.cache, obj_cls, Dict{Symbol,Array{Int64,1}}())
-            for obj in objs
-                obj_indices = get(obj_cls_cache, obj, nothing)
-                if obj_indices == nothing
-                    cond(x) = x[obj_cls] == obj
-                    obj_indices = obj_cls_cache[obj] = findall(cond, r.obj_name_tuples)
+    if isempty(result_keys)
+        []
+    else
+        if _optimize
+            cls_indices_arr = []
+            for (obj_cls, objs) in new_kwargs
+                obj_indices_arr = []
+                obj_cls_cache = get!(r.cache, obj_cls, Dict{Object,Array{Int64,1}}())
+                for obj in objs
+                    obj_indices = get(obj_cls_cache, obj, nothing)
+                    if obj_indices == nothing
+                        cond(x) = x[obj_cls] == obj
+                        obj_indices = obj_cls_cache[obj] = findall(cond, r.obj_name_tuples)
+                    end
+                    push!(obj_indices_arr, obj_indices)
                 end
-                push!(obj_indices_arr, obj_indices)
+                isempty(obj_indices_arr) || push!(cls_indices_arr, union(obj_indices_arr...))
             end
-            push!(cls_indices_arr, union(obj_indices_arr...))
-        end
-        if isempty(cls_indices_arr)
-            result = r.obj_name_tuples
+            if isempty(cls_indices_arr)
+                result = r.obj_name_tuples
+            else
+                intersection = intersect(cls_indices_arr...)
+                result = r.obj_name_tuples[intersection]
+            end
         else
-            intersection = intersect(cls_indices_arr...)
-            result = r.obj_name_tuples[intersection]
+            result = [x for x in r.obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs)]
         end
-    else
-        result = [x for x in r.obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs)]
-    end
-    isempty(result) && _default != nothing && return _default
-    if length(indices) == 1
-        unique(x[indices...] for x in result)
-    else
-        unique(NamedTuple{indices}([x[k] for k in indices]) for x in result)
+        if isempty(result) && _default != nothing
+            _default
+        elseif length(result_keys) == 1
+            unique(x[result_keys...] for x in result)
+        else
+            unique(NamedTuple{result_keys}([x[k] for k in result_keys]) for x in result)
+        end
     end
 end
 
@@ -214,9 +238,9 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         end
         if value_list_id != nothing
             d1 = get!(class_object_subset_dict, Symbol(object_class_name), Dict{Symbol,Any}())
-            object_subset_dict = get!(d1, Symbol(parameter_name), Dict{Symbol,Any}())
+            object_subset_dict = get!(d1, Symbol(parameter_name), Dict{ScalarValue,Any}())
             for value in value_list_dict[value_list_id]
-                object_subset_dict[Symbol(JSON.parse(value))] = Array{Symbol,1}()
+                object_subset_dict[ScalarValue(JSON.parse(value))] = Array{Object,1}()
             end
         end
         json_default_value = try
@@ -233,22 +257,22 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             else
                 json_value = JSON.parse(value)
             end
-            symbol_object_name = Symbol(object_name)
+            object = Object(object_name)
             new_value = try
                 parse_value(json_value; default=json_default_value, tags...)
             catch e
                 error("unable to parse value of '$parameter_name' for '$object_name': $(sprint(showerror, e))")
             end
-            push!(parameter_value_tuples, ((symbol_object_name,), new_value))
+            push!(parameter_value_tuples, ((object,), new_value))
             # Add entry to class_object_subset_dict
             (value_list_id == nothing || json_value == nothing) && continue
-            if haskey(object_subset_dict, Symbol(json_value))
-                arr = object_subset_dict[Symbol(json_value)]
-                push!(arr, symbol_object_name)
+            arr = get(object_subset_dict, ScalarValue(json_value), nothing)
+            if arr != nothing
+                push!(arr, object)
             else
-                @warn string(
-                    "the value of '$parameter_name' for '$symbol_object_name' is $json_value",
-                    "which is not a listed value."
+                @warn(
+                    "the value of '$parameter_name' for '$object' is $json_value, "
+                    * "which is not a listed value."
                 )
             end
         end
@@ -286,16 +310,16 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             else
                 json_value = JSON.parse(value)
             end
-            symbol_object_name_list = tuple(Symbol.(split(object_name_list, ","))...)
+            object_tuple = tuple(Object.(split(object_name_list, ","))...)
             new_value = try
                 parse_value(json_value; default=json_default_value, tags...)
             catch e
                 error(
-                    "unable to parse value of '$parameter_name' for '$symbol_object_name_list': "
+                    "unable to parse value of '$parameter_name' for '$object_tuple': "
                     * "$(sprint(showerror, e))"
                 )
             end
-            push!(parameter_value_tuples, (symbol_object_name_list, new_value))
+            push!(parameter_value_tuples, (object_tuple, new_value))
         end
     end
     for (parameter_name, class_name_dict) in parameter_class_names
@@ -328,7 +352,7 @@ function spinedb_object_handle(db_map::PyObject, object_dict::Dict, class_object
     for (object_class_name, object_names) in object_dict
         object_subset_dict = get(class_object_subset_dict, Symbol(object_class_name), Dict())
         push!(keys, Symbol(object_class_name))
-        push!(values, ObjectClass(Symbol(object_class_name), Symbol.(object_names), object_subset_dict))
+        push!(values, ObjectClass(Symbol(object_class_name), Object.(object_names), object_subset_dict))
     end
     NamedTuple{Tuple(keys)}(values)
 end
@@ -338,11 +362,11 @@ function spinedb_relationship_handle(db_map::PyObject, relationship_dict::Dict)
     values = []
     for (rel_cls_name, rel_cls) in relationship_dict
         obj_cls_name_list = Symbol.(split(rel_cls["object_class_name_list"], ","))
-        obj_name_lists = [Symbol.(split(y, ",")) for y in rel_cls["object_name_lists"]]
+        obj_tup_list = [Object.(split(y, ",")) for y in rel_cls["object_name_lists"]]
         obj_cls_name_tuple = Tuple(fix_name_ambiguity(obj_cls_name_list))
-        obj_name_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_name_lists]
+        obj_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_tup_list]
         push!(keys, Symbol(rel_cls_name))
-        push!(values, RelationshipClass(Symbol(rel_cls_name), obj_cls_name_tuple, obj_name_tuples))
+        push!(values, RelationshipClass(Symbol(rel_cls_name), obj_cls_name_tuple, obj_tuples))
     end
     NamedTuple{Tuple(keys)}(values)
 end

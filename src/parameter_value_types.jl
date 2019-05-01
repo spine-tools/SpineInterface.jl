@@ -43,3 +43,10 @@ function (p::DictValue)(;k::Union{T,Nothing}=nothing) where T
     k === nothing && error("argument `k` missing")
     p.value[t]
 end
+
+# Iterate single ScalarValue as collection
+ScalarValue(s::String) = ScalarValue(Symbol(s))
+
+Base.iterate(v::ScalarValue) = iterate((v,))
+Base.iterate(v::ScalarValue, state::T) where T = iterate((v,), state)
+Base.length(v::ScalarValue) = 1

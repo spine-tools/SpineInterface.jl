@@ -12,6 +12,10 @@ include("write_results.jl")
 include("helpers.jl")
 include("util.jl")
 
+export ObjectClass
+export RelationshipClass
+export Parameter
+export Object
 export using_spinedb
 export write_results
 export create_results_db
@@ -22,6 +26,8 @@ export ScalarValue
 export ArrayValue
 export DictValue
 export indices
+export Anything
+export anything
 
 const db_api = PyNULL()
 const required_spinedb_api_version = "0.0.22"

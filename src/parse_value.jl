@@ -33,6 +33,6 @@ end
 
 parse_value(db_value::Int64; kwargs...) = ScalarValue(db_value)
 parse_value(db_value::Float64; kwargs...) = ScalarValue(db_value)
-parse_value(db_value::String; kwargs...) = ScalarValue(Symbol(db_value))
+parse_value(db_value::String; kwargs...) = ScalarValue(db_value)
 parse_value(db_value::Array; kwargs...) = ArrayValue(db_value)
 parse_value(db_value::Dict; kwargs...) = DictValue(db_value)
