@@ -17,23 +17,27 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 """
-    indices(p::Parameter; kwargs...)
+    indices(p::Parameter; value_filter=x->x!=nothing, kwargs...)
 
 A set of indices corresponding to `p`, optionally filtered by `kwargs`.
 """
-function indices(p::Parameter; value=x->x!=nothing, kwargs...)
+# If a dimension is not specified, get all of them. Eg. unit but no mode, get all modes for the unit
+# But also ignore irrelevant dimensions specified. Eg. constraint, get all
+function indices(p::Parameter; value_filter=x->x!=nothing, kwargs...)
     d = p.class_value_dict
-    if !isempty(kwargs)
-        key_list = getsuperkeys(d, keys(kwargs))
-        result = [NamedTuple{key}(ind) for key in key_list for (ind, val) in d[key] if value(val())] # != NoValue()]
-        new_kwargs = Dict()
-        for (obj_cls, obj) in kwargs
-            if obj != anything
-                push!(new_kwargs, obj_cls => Object.(obj))
-            end
+    new_kwargs = Dict()
+    for (obj_cls, obj) in kwargs
+        if obj != anything
+            push!(new_kwargs, obj_cls => Object.(obj))
         end
-        [x for x in result if all(x[obj_cls] in obj for (obj_cls, obj) in new_kwargs)]
-    else
-        result = [NamedTuple{key}(ind) for key in keys(d) for (ind, val) in d[key] if value(val())] # != NoValue()]
     end
+    result = []
+    for (key, value) in d
+        iargs = Dict(i => new_kwargs[k] for (i, k) in enumerate(key) if k in keys(new_kwargs))
+        append!(
+            result,
+            NamedTuple{key}(ind) for (ind, val) in value if all(ind[i] in v for (i, v) in iargs) && value_filter(val())
+        )
+    end
+    result
 end
