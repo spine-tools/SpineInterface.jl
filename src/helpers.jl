@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-function diff_database_mapping(url::String; upgrade=false)
+function DiffDatabaseMapping(url::String; upgrade=false)
     try
         db_api.DiffDatabaseMapping(url, "SpineInterface.jl"; upgrade=upgrade)
     catch e

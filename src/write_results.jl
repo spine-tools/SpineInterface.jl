@@ -112,6 +112,50 @@ function add_var_to_result!(
 end
 
 
+function add_var_to_result!(
+        db_map::PyObject,
+        var_name::Symbol,
+        var::Dict{NamedTuple,T},
+        ::Dict,
+        ::Dict,
+        result_class::Dict,
+        result_object::Dict) where T
+    object_classes = []
+    relationship_classes = []
+    parameters = []
+    for obj_cls_names in unique(keys(key) for key in keys(var))
+        str_obj_cls_names = [string(x) for x in obj_cls_names]
+        append!(object_classes, str_obj_cls_names)
+        pushfirst!(str_obj_cls_names, result_class["name"])
+        rel_cls_name = join(str_obj_cls_names, "__")
+        push!(relationship_classes, (rel_cls_name, str_obj_cls_names))
+        push!(parameters, (rel_cls_name, string(var_name)))
+    end
+    db_api.import_object_classes(db_map, unique(object_classes))
+    db_api.import_relationship_classes(db_map, relationship_classes)
+    db_api.import_relationship_parameters(db_map, parameters)
+    objects = []
+    relationships = []
+    parameter_values = []
+    for (key, value) in var
+        str_obj_cls_names = [string(x) for x in keys(key)]
+        str_obj_names = [string(x) for x in values(key)]
+        for (obj_cls_name, obj_name) in zip(str_obj_cls_names, str_obj_names)
+            push!(objects, (obj_cls_name, obj_name))
+        end
+        pushfirst!(str_obj_cls_names, result_class["name"])
+        rel_cls_name = join(str_obj_cls_names, "__")
+
+        pushfirst!(str_obj_names, result_object["name"])
+        push!(relationships, (rel_cls_name, str_obj_names))
+        push!(parameter_values, (rel_cls_name, str_obj_names, string(var_name), value))
+    end
+    db_api.import_objects(db_map, objects)
+    db_api.import_relationships(db_map, relationships)
+    db_api.import_relationship_parameter_values(db_map, parameter_values)
+end
+
+
 """
     write_results(dest_url::String; upgrade=false, results...)
 
@@ -120,8 +164,18 @@ Update `dest_url` with new parameters given by `results`.
 [sqlalchemy rules](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
 """
 function write_results(dest_url::String; upgrade=false, results...)
-    db_map = diff_database_mapping(dest_url)
-    write_results(db_map; upgrade=upgrade, results...)
+    # TODO: Try to catch a nice error here so as to create an empty SpineModel db
+    try
+        db_map = DiffDatabaseMapping(dest_url)
+        write_results(db_map; upgrade=upgrade, results...)
+    catch e
+        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBAPIError)
+            db_api.create_new_spine_database(dest_url)
+            write_results(dest_url; results...)
+        else
+            rethrow()
+        end
+    end
 end
 
 
@@ -139,9 +193,9 @@ function write_results(db_map::PyObject; upgrade=false, results...)
         object_dict = py"object_dict"
         result_class = py"$db_map.add_object_classes(dict(name='result'), return_dups=True)[0].one()._asdict()"
         timestamp = Dates.format(Dates.now(), "yyyymmdd_HH_MM_SS")
-        result_name = join(["result", timestamp], "_")
+        result_object_name = join(["result", timestamp], "_")
         object_ = Dict(
-            "name" => result_name,
+            "name" => result_object_name,
             "class_id" => result_class["id"]
         )
         result_object = py"$db_map.add_objects($object_, return_dups=True)[0].one()._asdict()"
