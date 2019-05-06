@@ -31,6 +31,7 @@ function parse_value(db_value::Nothing; default=nothing, tags...)
     end
 end
 
+parse_value(db_value::Bool; kwargs...) = ScalarValue(db_value)
 parse_value(db_value::Int64; kwargs...) = ScalarValue(db_value)
 parse_value(db_value::Float64; kwargs...) = ScalarValue(db_value)
 parse_value(db_value::String; kwargs...) = ScalarValue(db_value)

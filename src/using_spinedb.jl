@@ -163,22 +163,21 @@ The list of relationships of class `r`, optionally having `object_class=object`.
 """
 function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true, kwargs...)
     new_kwargs = Dict()
-    filtered_classes = []
+    tail = []
     for (obj_cls, obj) in kwargs
-        !(obj_cls in r.obj_cls_name_tuple) && error(
-            "'$obj_cls' is not a member of '$r' (valid members are '$(join(r.obj_cls_name_tuple, "', '"))')"
-        )
-        push!(filtered_classes, obj_cls)
+        !(obj_cls in r.obj_cls_name_tuple) && continue
+        # error("'$obj_cls' is not a member of '$r' (valid members are '$(join(r.obj_cls_name_tuple, "', '"))')")
+        push!(tail, obj_cls)
         if obj != anything
             push!(new_kwargs, obj_cls => Object.(obj))
         end
     end
-    result_keys = if _compact
-        Tuple(x for x in r.obj_cls_name_tuple if !(x in filtered_classes))
+    head = if _compact
+        Tuple(x for x in r.obj_cls_name_tuple if !(x in tail))
     else
         r.obj_cls_name_tuple
     end
-    if isempty(result_keys)
+    if isempty(head)
         []
     else
         if _optimize
@@ -207,10 +206,10 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
         end
         if isempty(result) && _default != nothing
             _default
-        elseif length(result_keys) == 1
-            unique(x[result_keys...] for x in result)
+        elseif length(head) == 1
+            unique(x[head...] for x in result)
         else
-            unique(NamedTuple{result_keys}([x[k] for k in result_keys]) for x in result)
+            unique(NamedTuple{head}([x[k] for k in head]) for x in result)
         end
     end
 end

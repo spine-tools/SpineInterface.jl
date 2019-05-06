@@ -21,11 +21,11 @@
 
 A set of indices corresponding to `p`, optionally filtered by `kwargs`.
 """
-function indices(p::Parameter; kwargs...)
+function indices(p::Parameter; value=x->x!=nothing, kwargs...)
     d = p.class_value_dict
     if !isempty(kwargs)
         key_list = getsuperkeys(d, keys(kwargs))
-        result = [NamedTuple{key}(ind) for key in key_list for (ind, val) in d[key] if val != NoValue()]
+        result = [NamedTuple{key}(ind) for key in key_list for (ind, val) in d[key] if value(val())] # != NoValue()]
         new_kwargs = Dict()
         for (obj_cls, obj) in kwargs
             if obj != anything
@@ -34,6 +34,6 @@ function indices(p::Parameter; kwargs...)
         end
         [x for x in result if all(x[obj_cls] in obj for (obj_cls, obj) in new_kwargs)]
     else
-        [NamedTuple{key}(ind) for key in keys(d) for (ind, val) in d[key] if val != NoValue()]
+        result = [NamedTuple{key}(ind) for key in keys(d) for (ind, val) in d[key] if value(val())] # != NoValue()]
     end
 end
