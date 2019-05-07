@@ -23,6 +23,7 @@
 Update `db_map` with data for parameter `var_name` given in `var`.
 Link the parameter to a `result_object` of class `result_class`.
 """
+# NOTE: this will be deprecated in favor of the method just below where var is a Dict{NamedTuple,T}
 function add_var_to_result!(
         db_map::PyObject,
         var_name::Symbol,
@@ -115,11 +116,11 @@ end
 function add_var_to_result!(
         db_map::PyObject,
         var_name::Symbol,
-        var::Dict{NamedTuple,T},
+        var::Dict{NamedTuple{R,S},T},
         ::Dict,
         ::Dict,
         result_class::Dict,
-        result_object::Dict) where T
+        result_object::Dict) where R where S where T
     object_classes = []
     relationship_classes = []
     parameters = []
@@ -131,9 +132,7 @@ function add_var_to_result!(
         push!(relationship_classes, (rel_cls_name, str_obj_cls_names))
         push!(parameters, (rel_cls_name, string(var_name)))
     end
-    db_api.import_object_classes(db_map, unique(object_classes))
-    db_api.import_relationship_classes(db_map, relationship_classes)
-    db_api.import_relationship_parameters(db_map, parameters)
+    unique!(object_classes)
     objects = []
     relationships = []
     parameter_values = []
@@ -145,14 +144,20 @@ function add_var_to_result!(
         end
         pushfirst!(str_obj_cls_names, result_class["name"])
         rel_cls_name = join(str_obj_cls_names, "__")
-
         pushfirst!(str_obj_names, result_object["name"])
         push!(relationships, (rel_cls_name, str_obj_names))
-        push!(parameter_values, (rel_cls_name, str_obj_names, string(var_name), value))
+        push!(parameter_values, (rel_cls_name, str_obj_names, string(var_name), JSON.json(value)))
     end
-    db_api.import_objects(db_map, objects)
-    db_api.import_relationships(db_map, relationships)
-    db_api.import_relationship_parameter_values(db_map, parameter_values)
+    added, err_log = db_api.import_data(
+        db_map,
+        object_classes=object_classes,
+        relationship_classes=relationship_classes,
+        relationship_parameters=parameters,
+        objects=objects,
+        relationships=relationships,
+        relationship_parameter_values=parameter_values,
+    )
+    isempty(err_log) || @warn join([x.msg for x in err_log], "\n")
 end
 
 
