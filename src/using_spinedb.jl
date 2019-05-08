@@ -440,3 +440,37 @@ function using_spinedb(db_map::PyObject; parse_value=parse_value)
         end
     end
 end
+
+
+function notusing_spinedb(db_url::String; upgrade=false)
+    # Create DatabaseMapping object using Python spinedb_api
+    try
+        db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
+        notusing_spinedb(db_map)
+    catch e
+        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
+            error(
+"""
+The database at '$db_url' is from an older version of Spine
+and needs to be upgraded in order to be used with the current version.
+
+You can upgrade it by running `checkout_spinedb(db_url; upgrade=true)`.
+
+WARNING: After the upgrade, the database may no longer be used
+with previous versions of Spine.
+"""
+            )
+        else
+            rethrow()
+        end
+    end
+end
+
+function notusing_spinedb(db_map::PyObject)
+    obj_cls_names = py"[x.name for x in $db_map.object_class_list()]"
+    rel_cls_names = py"[x.name for x in $db_map.wide_relationship_class_list()]"
+    par_names = py"[x.name for x in $db_map.parameter_definition_list()]"
+    for name in [obj_cls_names; rel_cls_names; par_names]
+        @eval $(Symbol(name)) = nothing
+    end
+end

@@ -215,37 +215,3 @@ function write_results(db_map::PyObject; upgrade=false, results...)
         rethrow()
     end
 end
-
-
-"""
-    create_results_db(dest_url::String, source_url::String; upgrade=false)
-
-Create a results db at `dest_url` with the same structure as `source_url`, but no parameters.
-Both `dest_url` and `source_url` are database urls composed according to
-[sqlalchemy rules](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
-"""
-function create_results_db(dest_url, source_url; upgrade=false)
-    try
-        db_api.copy_database(
-            dest_url, source_url; upgrade=upgrade,
-            skip_tables=["parameter", "parameter_value"])
-    catch e
-        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
-            error(
-"""
-The database at '$(source_url)' is from an older version of Spine
-and needs to be upgraded in order to be used with the current version.
-
-You can upgrade by passing the keyword argument `upgrade=true` to your function call, e.g.:
-
-    create_results_database(dest_url, source_url; upgrade=true)
-
-WARNING: After the upgrade, the database may no longer be used
-with previous versions of Spine.
-"""
-            )
-        else
-            rethrow()
-        end
-    end
-end

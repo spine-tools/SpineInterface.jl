@@ -17,8 +17,8 @@ export RelationshipClass
 export Parameter
 export Object
 export using_spinedb
+export notusing_spinedb
 export write_results
-export create_results_db
 export parse_value
 export get_value
 export NoValue
