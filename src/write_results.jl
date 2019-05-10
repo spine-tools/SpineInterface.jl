@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-    add_var_to_result!(db_map, var_name, var, object_class_dict, object_dict, result_class, result_object)
+    add_var_to_result!(db_map, var_name, var, result_class, result_object)
 
 Update `db_map` with data for parameter `var_name` given in `var`.
 Link the parameter to a `result_object` of class `result_class`.

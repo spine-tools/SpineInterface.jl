@@ -25,7 +25,9 @@ anything = Anything()
 Base.intersect(s, ::Anything) = s
 Base.show(io::IO, ::Anything) = print(io, "anything (really, nevermind)")
 
-struct Object
+abstract type ObjectLike end
+
+struct Object <: ObjectLike
     name::Symbol
 end
 

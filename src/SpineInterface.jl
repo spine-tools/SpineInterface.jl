@@ -15,6 +15,7 @@ include("util.jl")
 export ObjectClass
 export RelationshipClass
 export Parameter
+export ObjectLike
 export Object
 export using_spinedb
 export notusing_spinedb
