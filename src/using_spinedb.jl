@@ -167,8 +167,7 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
     new_kwargs = Dict()
     tail = []
     for (obj_cls, obj) in kwargs
-        !(obj_cls in r.obj_cls_name_tuple) && continue
-        # error("'$obj_cls' is not a member of '$r' (valid members are '$(join(r.obj_cls_name_tuple, "', '"))')")
+        !(obj_cls in r.obj_cls_name_tuple) && error("'$obj_cls' is not a member of '$r' (valid members are '$(join(r.obj_cls_name_tuple, "', '"))')")
         push!(tail, obj_cls)
         if obj != anything
             push!(new_kwargs, obj_cls => Object.(obj))
