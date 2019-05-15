@@ -23,7 +23,8 @@ A set of indices corresponding to `p`, optionally filtered by `kwargs`.
 """
 # If a dimension is not specified, get all of them. Eg. unit but no mode, get all modes for the unit
 # But also ignore irrelevant dimensions specified. Eg. constraint, get all
-function indices(p::Parameter; value_filter=x->x!=nothing, kwargs...)
+function indices(p::Parameter; skip_values=(), kwargs...)
+    skip_values = (skip_values..., nothing)
     d = p.class_value_dict
     new_kwargs = Dict()
     for (obj_cls, obj) in kwargs
@@ -36,7 +37,8 @@ function indices(p::Parameter; value_filter=x->x!=nothing, kwargs...)
         iargs = Dict(i => new_kwargs[k] for (i, k) in enumerate(key) if k in keys(new_kwargs))
         append!(
             result,
-            NamedTuple{key}(ind) for (ind, val) in value if all(ind[i] in v for (i, v) in iargs) && value_filter(val())
+            NamedTuple{key}(ind) for (ind, val) in value
+            if all(ind[i] in v for (i, v) in iargs) && !(val() in skip_values)
         )
     end
     result
