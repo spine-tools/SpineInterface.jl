@@ -23,7 +23,7 @@ end
 anything = Anything()
 
 Base.intersect(s, ::Anything) = s
-Base.show(io::IO, ::Anything) = print(io, "anything (really, nevermind)")
+Base.show(io::IO, ::Anything) = print(io, "anything (aka all of them)")
 
 abstract type ObjectLike end
 
@@ -167,7 +167,9 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
     new_kwargs = Dict()
     tail = []
     for (obj_cls, obj) in kwargs
-        !(obj_cls in r.obj_cls_name_tuple) && error("'$obj_cls' is not a member of '$r' (valid members are '$(join(r.obj_cls_name_tuple, "', '"))')")
+        !(obj_cls in r.obj_cls_name_tuple) && error(
+            "'$obj_cls' is not a member of '$r' (valid members are '$(join(r.obj_cls_name_tuple, "', '"))')"
+        )
         push!(tail, obj_cls)
         if obj != anything
             push!(new_kwargs, obj_cls => Object.(obj))
@@ -216,7 +218,7 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
 end
 
 
-function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relationship_dict::Dict, parse_value)
+function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relationship_dict::Dict)
     parameter_dict = Dict()
     parameter_class_names = Dict()
     class_object_subset_dict = Dict{Symbol,Any}()
@@ -373,22 +375,17 @@ end
 
 
 """
-    using_spinedb(db_url::String; parse_value=parse_value, upgrade=false)
+    using_spinedb(db_url::String; upgrade=false)
 
 Create and export convenience function-like objects to access the database at the given
 [sqlalchemy url](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
 These objects are of type [`Parameter`](@ref), [`ObjectClass`](@ref), and [`RelationshipClass`](@ref).
-
-The argument `parse_value` is a function, for mapping `(db_value; default, tags...)` into a callable, where
-- `db_value` is the value retrieved from the database and parsed using `JSON.parse`
-- `default` is the default value retrieved from the database and parsed using `JSON.parse`
-- `tags` is a list of tags.
 """
-function using_spinedb(db_url::String; parse_value=parse_value, upgrade=false)
+function using_spinedb(db_url::String; upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
     try
         db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
-        using_spinedb(db_map; parse_value=parse_value)
+        using_spinedb(db_map)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
             error(
@@ -410,15 +407,15 @@ end
 
 
 """
-    using_spinedb(db_map::PyObject; parse_value=parse_value)
+    using_spinedb(db_map::PyObject)
 
 Create and export convenience function-like objects to access the given `db_map`,
 which must be an instance of `DiffDatabaseMapping` as
 provided by [`spinedb_api`](https://github.com/Spine-project/Spine-Database-API).
-See [`using_spinedb(db_url::String; parse_value=parse_value, upgrade=false)`](@ref)
+See [`using_spinedb(db_url::String; upgrade=false)`](@ref)
 for more details.
 """
-function using_spinedb(db_map::PyObject; parse_value=parse_value)
+function using_spinedb(db_map::PyObject)
     py"""object_dict = {
         x.name: [y.name for y in $db_map.object_list(class_id=x.id)] for x in $db_map.object_class_list()
     }
@@ -430,7 +427,7 @@ function using_spinedb(db_map::PyObject; parse_value=parse_value)
     }"""
     object_dict = py"object_dict"
     relationship_dict = py"relationship_dict"
-    p, class_object_subset_dict = spinedb_parameter_handle(db_map, object_dict, relationship_dict, parse_value)
+    p, class_object_subset_dict = spinedb_parameter_handle(db_map, object_dict, relationship_dict)
     o = spinedb_object_handle(db_map, object_dict, class_object_subset_dict)
     r = spinedb_relationship_handle(db_map, relationship_dict)
     db_handle = merge(p, o, r)
