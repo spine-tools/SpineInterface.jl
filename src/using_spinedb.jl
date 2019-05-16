@@ -16,6 +16,29 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+struct ParseError{T} <: Exception where T <: Exception
+    original_exception::T
+    parameter_name::String
+    object_name
+end
+
+ParseError(orig, par) = ParseError(orig, par, nothing)
+
+function Base.showerror(io::IO, e::ParseError)
+    if e.object_name === nothing
+        print(
+            io,
+            "unable to parse value of '$(e.parameter_name)' for '$(e.object_name)': ",
+            sprint(showerror, e.original_exception)
+        )
+    else
+        print(
+            io,
+            "unable to parse default value of '$(e.parameter_name)': ",
+            sprint(showerror, e.original_exception)
+        )
+    end
+end
 
 struct Anything
 end
@@ -248,7 +271,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         json_default_value = try
             JSON.parse(parameter["default_value"])
         catch e
-            error("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
+            rethrow(ParseError(e, parameter_name))
         end
         class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         parameter_value_tuples = class_value_dict[(Symbol(object_class_name),)] = Array{Tuple,1}()
@@ -263,7 +286,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             new_value = try
                 parse_value(json_value; default=json_default_value, tags...)
             catch e
-                error("unable to parse value of '$parameter_name' for '$object_name': $(sprint(showerror, e))")
+                rethrow(ParseError(e, parameter_name, object_name))
             end
             push!(parameter_value_tuples, ((object,), new_value))
             # Add entry to class_object_subset_dict
@@ -294,7 +317,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         json_default_value = try
             JSON.parse(parameter["default_value"])
         catch e
-            error("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
+            rethrow(ParseError(e, parameter_name))
         end
         class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         class_name = tuple(fix_name_ambiguity(Symbol.(split(object_class_name_list, ",")))...)
@@ -316,10 +339,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             new_value = try
                 parse_value(json_value; default=json_default_value, tags...)
             catch e
-                error(
-                    "unable to parse value of '$parameter_name' for '$object_tuple': "
-                    * "$(sprint(showerror, e))"
-                )
+                rethrow(ParseError(e, parameter_name, object_tuple))
             end
             push!(parameter_value_tuples, (object_tuple, new_value))
         end
