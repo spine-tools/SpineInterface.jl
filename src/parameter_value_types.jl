@@ -31,6 +31,9 @@ struct DictValue
     value::Dict
 end
 
+ArrayValue(gen::T) where T <: Base.Generator = ArrayValue(collect(gen))
+DictValue(gen::T) where T <: Base.Generator = DictValue(Dict(gen))
+
 # Outer constructors
 ScalarValue(s::String) = ScalarValue(Symbol(s))
 
