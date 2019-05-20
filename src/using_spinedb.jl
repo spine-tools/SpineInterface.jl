@@ -219,7 +219,12 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
                     end
                     push!(obj_indices_arr, obj_indices)
                 end
-                isempty(obj_indices_arr) || push!(cls_indices_arr, union(obj_indices_arr...))
+                if isempty(obj_indices_arr)
+                    push!(cls_indices_arr, [])
+                    break
+                else
+                    push!(cls_indices_arr, union(obj_indices_arr...))
+                end
             end
             if isempty(cls_indices_arr)
                 result = r.obj_name_tuples
