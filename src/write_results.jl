@@ -17,6 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+add_var_to_result!(::PyObject, ::Symbol, ::Dict{Any,Any}, ::Dict{Any,Any}, ::Dict{Any,Any}) = nothing
+
 """
     add_var_to_result!(db_map, var_name, var, result_class, result_object)
 
