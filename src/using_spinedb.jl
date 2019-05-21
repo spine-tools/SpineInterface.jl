@@ -97,12 +97,33 @@ A function-like object that represents a Spine relationship class.
 The relationships of the class can be retrieved by calling this object as described in
 [`(r::RelationshipClass)(;_compact=true, object_class=object...)`](@ref)
 """
-struct RelationshipClass
+struct RelationshipClass{N,K,V}
     name::Symbol
-    obj_cls_name_tuple::Tuple
-    obj_name_tuples::Array{NamedTuple,1}
-    cache::Dict{Symbol,Any}
-    RelationshipClass(n, o1, o2) = new(n, o1, o2, Dict{Symbol,Any}())
+    obj_cls_name_tuple::NTuple{N,Symbol}
+    obj_name_tuples::Array{NamedTuple{K,V},1}
+    obj_type_dict::Dict{Symbol,Type}
+    cache::Dict{Symbol,Dict{Any,Array{Int64,1}}}
+end
+
+function RelationshipClass(
+        n,
+        oc::NTuple{N,Symbol},
+        os::Array{NamedTuple{K,V},1}
+    ) where {N,K,V<:Tuple}
+    K == oc || error("$K and $oc do not match")
+    d = Dict(zip(K, V.parameters))
+    RelationshipClass{N,K,V}(n, oc, os, d, Dict(k => Dict{v,Array{Int64,1}}() for (k,v) in d))
+end
+
+function RelationshipClass(
+        n,
+        oc::NTuple{N,Symbol},
+        os::Array{NamedTuple{K,V} where V<:Tuple,1}
+    ) where {N,K}
+    K == oc || error("$K and $oc do not match")
+    d = Dict(k => Object for k in K)
+    V = NTuple{N,Object}
+    RelationshipClass{N,K,V}(n, oc, os, d, Dict(k => Dict{v,Array{Int64,1}}() for (k,v) in d))
 end
 
 Base.show(io::IO, p::Parameter) = print(io, p.name)
@@ -195,7 +216,7 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
         )
         push!(tail, obj_cls)
         if obj != anything
-            push!(new_kwargs, obj_cls => Object.(obj))
+            push!(new_kwargs, obj_cls => r.obj_type_dict[obj_cls].(obj))
         end
     end
     head = if _compact
@@ -210,7 +231,7 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
             cls_indices_arr = []
             for (obj_cls, objs) in new_kwargs
                 obj_indices_arr = []
-                obj_cls_cache = get!(r.cache, obj_cls, Dict{Object,Array{Int64,1}}())
+                obj_cls_cache = r.cache[obj_cls]
                 for obj in objs
                     obj_indices = get(obj_cls_cache, obj, nothing)
                     if obj_indices == nothing
@@ -233,14 +254,14 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
                 result = r.obj_name_tuples[intersection]
             end
         else
-            result = [x for x in r.obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs)]
+            result = unique(x for x in r.obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs))
         end
         if isempty(result) && _default != nothing
             _default
         elseif length(head) == 1
-            unique(x[head...] for x in result)
+            [x[head...] for x in result]
         else
-            unique(NamedTuple{head}([x[k] for k in head]) for x in result)
+            [NamedTuple{head}([x[k] for k in head]) for x in result]
         end
     end
 end
@@ -389,9 +410,10 @@ function spinedb_relationship_handle(db_map::PyObject, relationship_dict::Dict)
     values = []
     for (rel_cls_name, rel_cls) in relationship_dict
         obj_cls_name_list = Symbol.(split(rel_cls["object_class_name_list"], ","))
+        N = length(obj_cls_name_list)
         obj_tup_list = [Object.(split(y, ",")) for y in rel_cls["object_name_lists"]]
         obj_cls_name_tuple = Tuple(fix_name_ambiguity(obj_cls_name_list))
-        obj_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_tup_list]
+        @show obj_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_tup_list]
         push!(keys, Symbol(rel_cls_name))
         push!(values, RelationshipClass(Symbol(rel_cls_name), obj_cls_name_tuple, obj_tuples))
     end
