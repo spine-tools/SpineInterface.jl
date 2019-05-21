@@ -413,7 +413,7 @@ function spinedb_relationship_handle(db_map::PyObject, relationship_dict::Dict)
         N = length(obj_cls_name_list)
         obj_tup_list = [Object.(split(y, ",")) for y in rel_cls["object_name_lists"]]
         obj_cls_name_tuple = Tuple(fix_name_ambiguity(obj_cls_name_list))
-        @show obj_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_tup_list]
+        obj_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_tup_list]
         push!(keys, Symbol(rel_cls_name))
         push!(values, RelationshipClass(Symbol(rel_cls_name), obj_cls_name_tuple, obj_tuples))
     end
