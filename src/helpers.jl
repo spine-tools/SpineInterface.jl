@@ -97,3 +97,29 @@ Return a list of keys in `dict` that 'contain' the tuple argument `key`.
 function getsuperkeys(dict::Dict{Tuple,T}, key::Tuple) where T
     [superkey for superkey in collect(keys(dict)) if all(k in superkey for k in key)]
 end
+
+
+"""
+    pull!(cache::Array{Any,1}, lookup_key, default; _optimize=true)
+"""
+function pull!(cache::Array{T,1}, lookup_key, default; _optimize=true) where T <: Tuple
+    i = 1
+    found = false
+    for (key, value) in cache
+        if key == lookup_key
+            found = true
+            break
+        end
+        i += 1
+    end
+    if !found
+        default
+    else
+        key, value = cache[i]
+        if i > .5 * length(cache) && _optimize
+            deleteat!(cache, i)
+            pushfirst!(cache, (key, value))
+        end
+        value
+    end
+end

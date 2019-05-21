@@ -102,7 +102,7 @@ struct RelationshipClass{N,K,V}
     obj_cls_name_tuple::NTuple{N,Symbol}
     obj_name_tuples::Array{NamedTuple{K,V},1}
     obj_type_dict::Dict{Symbol,Type}
-    cache::Dict{Symbol,Dict{Any,Array{Int64,1}}}
+    cache::Dict{Symbol,Array{Tuple{Any,Array{Int64,1}},1}}
 end
 
 function RelationshipClass(
@@ -112,7 +112,7 @@ function RelationshipClass(
     ) where {N,K,V<:Tuple}
     K == oc || error("$K and $oc do not match")
     d = Dict(zip(K, V.parameters))
-    RelationshipClass{N,K,V}(n, oc, os, d, Dict(k => Dict{v,Array{Int64,1}}() for (k,v) in d))
+    RelationshipClass{N,K,V}(n, oc, os, d, Dict(k => Array{Tuple{v,Array{Int64,1}},1}() for (k,v) in d))
 end
 
 function RelationshipClass(
@@ -123,7 +123,7 @@ function RelationshipClass(
     K == oc || error("$K and $oc do not match")
     d = Dict(k => Object for k in K)
     V = NTuple{N,Object}
-    RelationshipClass{N,K,V}(n, oc, os, d, Dict(k => Dict{v,Array{Int64,1}}() for (k,v) in d))
+    RelationshipClass{N,K,V}(n, oc, os, d, Dict(k => Array{Tuple{v,Array{Int64,1}},1}() for (k,v) in d))
 end
 
 Base.show(io::IO, p::Parameter) = print(io, p.name)
@@ -149,21 +149,8 @@ function (p::Parameter)(;_optimize=true, kwargs...)
         kwvalues = values(kwargs)
         object_names = Object.(Tuple([kwvalues[k] for k in class_names]))
         # Lookup value and bring it forward so it's found earlier in subsequent calls
-        i = 1
-        nobreak = true
-        for (key, value) in parameter_value_tuples
-            if key == object_names
-                nobreak = false
-                break
-            end
-            i += 1
-        end
-        nobreak && error("'$p' not specified for '$object_names'")
-        key, value = parameter_value_tuples[i]
-        if i > 1 && _optimize
-            deleteat!(parameter_value_tuples, i)
-            pushfirst!(parameter_value_tuples, (key, value))
-        end
+        value = pull!(parameter_value_tuples, object_names, nothing; _optimize=_optimize)
+        value === nothing && error("'$p' not specified for '$object_names'")
         extra_kwargs = Dict(k => v for (k, v) in kwargs if !(k in class_names))
         value(;extra_kwargs...)
     end
@@ -233,10 +220,11 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
                 obj_indices_arr = []
                 obj_cls_cache = r.cache[obj_cls]
                 for obj in objs
-                    obj_indices = get(obj_cls_cache, obj, nothing)
+                    obj_indices = pull!(obj_cls_cache, obj, nothing; _optimize=true)
                     if obj_indices == nothing
                         cond(x) = x[obj_cls] == obj
-                        obj_indices = obj_cls_cache[obj] = findall(cond, r.obj_name_tuples)
+                        obj_indices = findall(cond, r.obj_name_tuples)
+                        pushfirst!(obj_cls_cache, (obj, obj_indices))
                     end
                     push!(obj_indices_arr, obj_indices)
                 end
