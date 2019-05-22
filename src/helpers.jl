@@ -100,9 +100,9 @@ end
 
 
 """
-    pull!(cache::Array{Any,1}, lookup_key, default; _optimize=true)
+    pull!(cache::Array{Pair,1}, lookup_key, default; _optimize=true)
 """
-function pull!(cache::Array{T,1}, lookup_key, default; _optimize=true) where T <: Tuple
+function pull!(cache::Array{Pair,1}, lookup_key, default; _optimize=true)
     i = 1
     found = false
     for (key, value) in cache
@@ -116,10 +116,21 @@ function pull!(cache::Array{T,1}, lookup_key, default; _optimize=true) where T <
         default
     else
         key, value = cache[i]
-        if i > .5 * length(cache) && _optimize
+        if i > .1 * length(cache) && _optimize
             deleteat!(cache, i)
-            pushfirst!(cache, (key, value))
+            pushfirst!(cache, key => value)
         end
         value
     end
+end
+
+"""
+    unique_sorted(itr)
+
+Like `unique`, but assuming `itr` is sorted.
+"""
+function unique_sorted(itr)
+    isempty(itr) && return []
+    coll = collect(itr)
+    [coll[1]; [coll[i] for i in 2:length(coll) if coll[i] != coll[i-1]]]
 end

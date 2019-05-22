@@ -102,7 +102,7 @@ struct RelationshipClass{N,K,V}
     obj_cls_name_tuple::NTuple{N,Symbol}
     obj_name_tuples::Array{NamedTuple{K,V},1}
     obj_type_dict::Dict{Symbol,Type}
-    cache::Dict{Symbol,Array{Tuple{Any,Array{Int64,1}},1}}
+    cache::Array{Pair,1}
 end
 
 function RelationshipClass(
@@ -112,7 +112,7 @@ function RelationshipClass(
     ) where {N,K,V<:Tuple}
     K == oc || error("$K and $oc do not match")
     d = Dict(zip(K, V.parameters))
-    RelationshipClass{N,K,V}(n, oc, os, d, Dict(k => Array{Tuple{v,Array{Int64,1}},1}() for (k,v) in d))
+    RelationshipClass{N,K,V}(n, oc, sort(os), d, Array{Pair,1}())
 end
 
 function RelationshipClass(
@@ -123,7 +123,7 @@ function RelationshipClass(
     K == oc || error("$K and $oc do not match")
     d = Dict(k => Object for k in K)
     V = NTuple{N,Object}
-    RelationshipClass{N,K,V}(n, oc, os, d, Dict(k => Array{Tuple{v,Array{Int64,1}},1}() for (k,v) in d))
+    RelationshipClass{N,K,V}(n, oc, sort(os), d, Array{Pair,1}())
 end
 
 Base.show(io::IO, p::Parameter) = print(io, p.name)
@@ -145,11 +145,10 @@ function (p::Parameter)(;_optimize=true, kwargs...)
         kwkeys = keys(kwargs)
         class_names = getsubkey(p.class_value_dict, kwkeys, nothing)
         class_names == nothing && error("can't find a definition of '$p' for '$kwkeys'")
-        parameter_value_tuples = p.class_value_dict[class_names]
+        parameter_value_pairs = p.class_value_dict[class_names]
         kwvalues = values(kwargs)
         object_names = Object.(Tuple([kwvalues[k] for k in class_names]))
-        # Lookup value and bring it forward so it's found earlier in subsequent calls
-        value = pull!(parameter_value_tuples, object_names, nothing; _optimize=_optimize)
+        value = pull!(parameter_value_pairs, object_names, nothing; _optimize=_optimize)
         value === nothing && error("'$p' not specified for '$object_names'")
         extra_kwargs = Dict(k => v for (k, v) in kwargs if !(k in class_names))
         value(;extra_kwargs...)
@@ -215,41 +214,22 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
         []
     else
         if _optimize
-            cls_indices_arr = []
-            for (obj_cls, objs) in new_kwargs
-                obj_indices_arr = []
-                obj_cls_cache = r.cache[obj_cls]
-                for obj in objs
-                    obj_indices = pull!(obj_cls_cache, obj, nothing; _optimize=true)
-                    if obj_indices == nothing
-                        cond(x) = x[obj_cls] == obj
-                        obj_indices = findall(cond, r.obj_name_tuples)
-                        pushfirst!(obj_cls_cache, (obj, obj_indices))
-                    end
-                    push!(obj_indices_arr, obj_indices)
-                end
-                if isempty(obj_indices_arr)
-                    push!(cls_indices_arr, [])
-                    break
-                else
-                    push!(cls_indices_arr, union(obj_indices_arr...))
-                end
+            indices = pull!(r.cache, new_kwargs, nothing; _optimize=true)
+            if indices === nothing
+                cond(x) = all(x[k] in v for (k, v) in new_kwargs)
+                indices = findall(cond, r.obj_name_tuples)
+                pushfirst!(r.cache, new_kwargs => indices)
             end
-            if isempty(cls_indices_arr)
-                result = r.obj_name_tuples
-            else
-                intersection = intersect(cls_indices_arr...)
-                result = r.obj_name_tuples[intersection]
-            end
+            result = r.obj_name_tuples[indices]
         else
-            result = unique(x for x in r.obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs))
+            result = [x for x in r.obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs)]
         end
         if isempty(result) && _default != nothing
             _default
         elseif length(head) == 1
-            [x[head...] for x in result]
+            unique_sorted(x[head...] for x in result)
         else
-            [NamedTuple{head}([x[k] for k in head]) for x in result]
+            unique_sorted(NamedTuple{head}([x[k] for k in head]) for x in result)
         end
     end
 end
@@ -288,7 +268,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             rethrow(SpineDBParseError(e, parameter_name))
         end
         class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
-        parameter_value_tuples = class_value_dict[(Symbol(object_class_name),)] = Array{Tuple,1}()
+        parameter_value_pairs = class_value_dict[(Symbol(object_class_name),)] = Array{Pair,1}()
         for object_name in object_dict[object_class_name]
             value = get(object_parameter_value_dict, (parameter_id, object_name), nothing)
             if value == nothing
@@ -302,7 +282,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             catch e
                 rethrow(SpineDBParseError(e, parameter_name, object_name))
             end
-            push!(parameter_value_tuples, ((object,), new_value))
+            push!(parameter_value_pairs, (object,) => new_value)
             # Add entry to class_object_subset_dict
             (value_list_id == nothing || json_value == nothing) && continue
             arr = get(object_subset_dict, ScalarValue(json_value), nothing)
@@ -339,7 +319,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         # Add (class_name, alt_class_name) to the list of relationships classes between the same object classes
         d = get!(parameter_class_names, Symbol(parameter_name), Dict())
         push!(get!(d, sort([class_name...]), []), (class_name, alt_class_name))
-        parameter_value_tuples = class_value_dict[alt_class_name] = Array{Tuple,1}()
+        parameter_value_pairs = class_value_dict[alt_class_name] = Array{Pair,1}()
         # Loop through all parameter values
         object_name_lists = relationship_dict[relationship_class_name]["object_name_lists"]
         for object_name_list in object_name_lists
@@ -355,7 +335,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             catch e
                 rethrow(SpineDBParseError(e, parameter_name, object_tuple))
             end
-            push!(parameter_value_tuples, (object_tuple, new_value))
+            push!(parameter_value_pairs, object_tuple => new_value)
         end
     end
     for (parameter_name, class_name_dict) in parameter_class_names
@@ -398,7 +378,6 @@ function spinedb_relationship_handle(db_map::PyObject, relationship_dict::Dict)
     values = []
     for (rel_cls_name, rel_cls) in relationship_dict
         obj_cls_name_list = Symbol.(split(rel_cls["object_class_name_list"], ","))
-        N = length(obj_cls_name_list)
         obj_tup_list = [Object.(split(y, ",")) for y in rel_cls["object_name_lists"]]
         obj_cls_name_tuple = Tuple(fix_name_ambiguity(obj_cls_name_list))
         obj_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_tup_list]
