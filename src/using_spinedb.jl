@@ -193,7 +193,7 @@ end
 
 The list of relationships of class `r`, optionally having `object_class=object`.
 """
-function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true, kwargs...)
+function (r::RelationshipClass)(;_compact=true, _default=[], _optimize=true, kwargs...)
     new_kwargs = Dict()
     tail = []
     for (obj_cls, obj) in kwargs
@@ -210,27 +210,27 @@ function (r::RelationshipClass)(;_compact=true, _default=nothing, _optimize=true
     else
         r.obj_cls_name_tuple
     end
-    if isempty(head)
+    result = if isempty(head)
         []
+    elseif _optimize
+        indices = pull!(r.cache, new_kwargs, nothing; _optimize=true)
+        if indices === nothing
+            cond(x) = all(x[k] in v for (k, v) in new_kwargs)
+            indices = findall(cond, r.obj_name_tuples)
+            pushfirst!(r.cache, new_kwargs => indices)
+        end
+        r.obj_name_tuples[indices]
     else
-        if _optimize
-            indices = pull!(r.cache, new_kwargs, nothing; _optimize=true)
-            if indices === nothing
-                cond(x) = all(x[k] in v for (k, v) in new_kwargs)
-                indices = findall(cond, r.obj_name_tuples)
-                pushfirst!(r.cache, new_kwargs => indices)
-            end
-            result = r.obj_name_tuples[indices]
-        else
-            result = [x for x in r.obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs)]
-        end
-        if isempty(result) && _default != nothing
-            _default
-        elseif length(head) == 1
-            unique_sorted(x[head...] for x in result)
-        else
-            unique_sorted(NamedTuple{head}([x[k] for k in head]) for x in result)
-        end
+        [x for x in r.obj_name_tuples if all(x[k] in v for (k, v) in new_kwargs)]
+    end
+    if isempty(result)
+        _default
+    elseif head == r.obj_cls_name_tuple
+        result
+    elseif length(head) == 1
+        unique_sorted(x[head...] for x in result)
+    else
+        unique_sorted(NamedTuple{head}([x[k] for k in head]) for x in result)
     end
 end
 
