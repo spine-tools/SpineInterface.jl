@@ -123,14 +123,3 @@ function pull!(cache::Array{Pair,1}, lookup_key, default; _optimize=true)
         value
     end
 end
-
-"""
-    unique_sorted(itr)
-
-Like `unique`, but assuming `itr` is sorted.
-"""
-function unique_sorted(itr)
-    isempty(itr) && return []
-    coll = collect(itr)
-    [coll[1]; [coll[i] for i in 2:length(coll) if coll[i] != coll[i-1]]]
-end

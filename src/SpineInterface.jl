@@ -29,6 +29,7 @@ export DictValue
 export indices
 export Anything
 export anything
+export unique_sorted
 
 const db_api = PyNULL()
 const required_spinedb_api_version = "0.0.22"
