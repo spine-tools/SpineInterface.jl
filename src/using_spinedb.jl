@@ -244,7 +244,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
     relationship_parameter_value_dict =
         py"{(x.parameter_id, x.object_name_list): x.value for x in $db_map.relationship_parameter_value_list()}"
     value_list_dict = py"{x.id: x.value_list.split(',') for x in $db_map.wide_parameter_value_list_list()}"
-    for parameter in py"[x._asdict() for x in $db_map.object_parameter_list()]"
+    for parameter in py"[x._asdict() for x in $db_map.object_parameter_definition_list()]"
         parameter_name = parameter["parameter_name"]
         parameter_id = parameter["id"]
         object_class_name = parameter["object_class_name"]
@@ -296,8 +296,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             end
         end
     end
-    relationship_parameter_list = py"[x._asdict() for x in $db_map.relationship_parameter_list()]"
-    for parameter in relationship_parameter_list
+    for parameter in py"[x._asdict() for x in $db_map.relationship_parameter_definition_list()]"
         parameter_name = parameter["parameter_name"]
         parameter_id = parameter["id"]
         relationship_class_name = parameter["relationship_class_name"]
