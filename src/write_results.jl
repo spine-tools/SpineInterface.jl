@@ -93,15 +93,15 @@ function write_results(dest_url::String; upgrade=false, results...)
 end
 
 
-function write_results(db_map::PyObject; upgrade=false, result_name="", results...)
+function write_results(db_map::PyObject; upgrade=false, result="", results...)
     try
         result_class = py"$db_map.add_object_classes(dict(name='result'), return_dups=True)[0].one()._asdict()"
         timestamp = Dates.format(Dates.now(), "yyyymmdd_HH_MM_SS")
-        if isempty(result_name)
-            result_name = join(["result", timestamp], "_")
+        if isempty(result)
+            result = join(["result", timestamp], "_")
         end
         object_ = Dict(
-            "name" => result_name,
+            "name" => result,
             "class_id" => result_class["id"]
         )
         result_object = py"$db_map.add_objects($object_, return_dups=True)[0].one()._asdict()"
