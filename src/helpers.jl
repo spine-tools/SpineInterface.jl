@@ -20,9 +20,7 @@
     DiffDatabaseMapping(url; upgrade=false)
 
 An instance of [`spinedb_api.DiffDatabaseMapping`](https://spine-project.github.io/Spine-Database-API/autogen_apidocs/spinedb_api.html#spinedb_api.diff_database_mapping.DiffDatabaseMapping)
-corresponding to the given `url`.
-
-**`url`** is a database URL in RFC-1738 format pointing to a Spine database.
+corresponding to the given RFC-1738 `url`.
 
 **`upgrade`** is a boleean indicating whether or not the database should be upgraded to the latest version.
 """

@@ -21,4 +21,7 @@ Depth = 3
 SpineInterface.DiffDatabaseMapping(::String)
 using_spinedb(::String)
 using_spinedb(::PyObject)
+ObjectClass
+RelationshipClass
+Parameter
 ```

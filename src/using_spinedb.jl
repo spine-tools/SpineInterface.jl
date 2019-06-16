@@ -78,11 +78,9 @@ struct Parameter
 end
 
 """
-    ObjectClass
+    ObjectClass(;kwargs...)
 
-A function-like object that represents a Spine object class.
-The objects of the class can be retrieved by calling this object as
-described in [`(o::ObjectClass)(;parameter=value...)`](@ref)
+The lisf of objects in the class.
 """
 struct ObjectClass
     name::Symbol
@@ -155,11 +153,7 @@ function (p::Parameter)(;_optimize=true, kwargs...)
     end
 end
 
-"""
-    (o::ObjectClass)(;parameter=value...)
 
-The list of objects of class `o`, optionally having `parameter=value`.
-"""
 function (o::ObjectClass)(;kwargs...)
     if length(kwargs) == 0
         o.object_names
@@ -390,9 +384,12 @@ end
 """
     using_spinedb(db_url::String; upgrade=false)
 
-Create and export convenience function-like objects to access the database at the given
-[sqlalchemy url](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
-These objects are of type [`Parameter`](@ref), [`ObjectClass`](@ref), and [`RelationshipClass`](@ref).
+Create and export convenience function-like objects
+of type [`Parameter`](@ref), [`ObjectClass`](@ref), and [`RelationshipClass`](@ref),
+providing convenient access to the database at the given RFC-1738 `url`.
+
+**`upgrade`** is a boleean indicating whether or not the database at `url`
+should be upgraded to the latest version.
 """
 function using_spinedb(db_url::String; upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
@@ -422,10 +419,10 @@ end
 """
     using_spinedb(db_map::PyObject)
 
-Create and export convenience function-like objects to access the given `db_map`,
-which must be an instance of `DiffDatabaseMapping` as
+Create and export convenience function-like objects providing convenient access to `db_map`,
+which must be a `PyObject` as
 returned by [`SpineInterface.DiffDatabaseMapping`](@ref).
-See [`using_spinedb(::String)`](@ref)
+See [`using_spinedb`](@ref)
 for more details.
 """
 function using_spinedb(db_map::PyObject)
