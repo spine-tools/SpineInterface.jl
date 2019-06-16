@@ -32,6 +32,6 @@ before_script: # homebrew for mac
 #  - if [ $TRAVIS_OS_NAME = osx ]; then brew install gcc; fi
 
 script:
-  - julia --project=docs/ -e 'using Pkg; Pkg.add(PackageSpec(path=pwd())); Pkg.build("SpineInterface"); Pkg.instantiate()'
+  - julia --project=docs/ -e 'using Pkg; Pkg.add(PackageSpec(path=pwd())); Pkg.instantiate()'
   - julia --project=docs/ docs/make.jl
 after_success: skip

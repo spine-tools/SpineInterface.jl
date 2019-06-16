@@ -1,4 +1,4 @@
-using Documenter, SpineInterface
+using Documenter, SpineInterface, PyCall
 
 makedocs(
     sitename = "SpineInterface.jl",
@@ -7,7 +7,7 @@ makedocs(
     ),
     pages = [
         "Home" => "index.md",
-        # "Library" => "library.md",
+        "Library" => "library.md",
     ]
 )
 

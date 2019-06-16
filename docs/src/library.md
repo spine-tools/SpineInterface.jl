@@ -18,4 +18,7 @@ Depth = 3
 ## Functions
 
 ```@docs
+SpineInterface.DiffDatabaseMapping(::url)
+using_spinedb(::String)
+using_spinedb(::PyObject)
 ```

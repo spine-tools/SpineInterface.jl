@@ -424,8 +424,8 @@ end
 
 Create and export convenience function-like objects to access the given `db_map`,
 which must be an instance of `DiffDatabaseMapping` as
-provided by [`spinedb_api`](https://github.com/Spine-project/Spine-Database-API).
-See [`using_spinedb(db_url::String; upgrade=false)`](@ref)
+returned by [`SpineInterface.DiffDatabaseMapping`](@ref).
+See [`using_spinedb(::String)`](@ref)
 for more details.
 """
 function using_spinedb(db_map::PyObject)
