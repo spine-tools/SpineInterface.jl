@@ -19,10 +19,12 @@
 """
     DiffDatabaseMapping(url; upgrade=false)
 
-An instance of [`spinedb_api.DiffDatabaseMapping`](https://spine-project.github.io/Spine-Database-API/autogen_apidocs/spinedb_api.html#spinedb_api.diff_database_mapping.DiffDatabaseMapping)
+An instance of [`spinedb_api.DiffDatabaseMapping`](
+    https://spine-project.github.io/Spine-Database-API/autogen_apidocs/
+spinedb_api.html#spinedb_api.diff_database_mapping.DiffDatabaseMapping)
 corresponding to the given RFC-1738 `url`.
 
-**`upgrade`** is a boleean indicating whether or not the database should be upgraded to the latest version.
+**`upgrade`** is a boolean indicating whether or not the database at `url` should be upgraded to the latest version.
 """
 function DiffDatabaseMapping(url::String; upgrade=false)
     try

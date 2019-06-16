@@ -80,7 +80,10 @@ end
 """
     ObjectClass(;kwargs...)
 
-The lisf of objects in the class.
+The lisf of objects in a class.
+
+**`kwargs`** have the form `parameter_name=value`. If provided, only objects having that value for the given parameter
+are returned.
 """
 struct ObjectClass
     name::Symbol
@@ -385,11 +388,13 @@ end
     using_spinedb(db_url::String; upgrade=false)
 
 Create and export convenience function-like objects
-of type [`Parameter`](@ref), [`ObjectClass`](@ref), and [`RelationshipClass`](@ref),
-providing convenient access to the database at the given RFC-1738 `url`.
+for accessing the database at the given RFC-1738 `url`.
 
-**`upgrade`** is a boleean indicating whether or not the database at `url`
+**`upgrade`** is a boolean indicating whether or not the database at `url`
 should be upgraded to the latest version.
+
+See [`Parameter`](@ref), [`ObjectClass`](@ref), and [`RelationshipClass`](@ref) for details on
+the convenience functions.
 """
 function using_spinedb(db_url::String; upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
@@ -419,11 +424,11 @@ end
 """
     using_spinedb(db_map::PyObject)
 
-Create and export convenience function-like objects providing convenient access to `db_map`,
-which must be a `PyObject` as
-returned by [`SpineInterface.DiffDatabaseMapping`](@ref).
-See [`using_spinedb`](@ref)
-for more details.
+Create and export convenience function-like objects for accessing the given `db_map`,
+which is a `PyObject` as returned by [`SpineInterface.DiffDatabaseMapping`](@ref).
+
+See [`Parameter`](@ref), [`ObjectClass`](@ref), and [`RelationshipClass`](@ref) for details on
+the convenience functions.
 """
 function using_spinedb(db_map::PyObject)
     py"""object_dict = {
