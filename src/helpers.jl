@@ -16,6 +16,16 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+"""
+    DiffDatabaseMapping(url; upgrade=false)
+
+An instance of [`spinedb_api.DiffDatabaseMapping`](https://spine-project.github.io/Spine-Database-API/autogen_apidocs/spinedb_api.html#spinedb_api.diff_database_mapping.DiffDatabaseMapping)
+corresponding to the given `url`.
+
+**`url`** is a database URL in RFC-1738 format pointing to a Spine database.
+
+**`upgrade`** is a boleean indicating whether or not the database should be upgraded to the latest version.
+"""
 function DiffDatabaseMapping(url::String; upgrade=false)
     try
         db_api.DiffDatabaseMapping(url, "SpineInterface.jl"; upgrade=upgrade)
