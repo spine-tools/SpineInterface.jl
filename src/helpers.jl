@@ -24,7 +24,7 @@ An instance of [`spinedb_api.DiffDatabaseMapping`](
 spinedb_api.html#spinedb_api.diff_database_mapping.DiffDatabaseMapping)
 corresponding to the given RFC-1738 `url`.
 
-**`upgrade`** is a boolean indicating whether or not the database at `url` should be upgraded to the latest version.
+If `upgrade` is `true`, the database is upgraded to the latest version.
 """
 function DiffDatabaseMapping(url::String; upgrade=false)
     try
