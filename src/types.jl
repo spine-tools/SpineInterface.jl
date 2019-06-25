@@ -51,11 +51,16 @@ struct Anything
 end
 
 """
-    const anything
+    anything
 
-The singleton instance of type [`Anything`](@ref), used for creating filters
+The singleton instance of type [`Anything`](@ref), used for passing *catchall* filters
+to [`ObjectClass()`](@ref), and [`RelationshipClass()`](@ref), and [`Parameter()`](@ref).
+
+# Example
+
+TODO
 """
-const anything = Anything()
+anything = Anything()
 
 Base.intersect(s, ::Anything) = s
 Base.show(io::IO, ::Anything) = print(io, "anything (aka all of them)")
@@ -134,16 +139,16 @@ Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, o::Object) = print(io, o.name)
 
 """
-    (p::Parameter)(;kwargs..., i=nothing, k=nothing, t=nothing)
+    (p::Parameter)(;<keyword arguments>)
 
-The value of parameter `p` for the object or relationship specified by `kwargs`
+The value of parameter `p` for the object or relationship specified by keyword arguments
 of the form `object_class=:object`.
 
-`i` is an `Integer` for retrieving a specific index in case of an array value (ignored otherwise).
+# Additional arguments
 
-`k` is a `String` for retrieving a specific key in case of a dictionary value (ignored otherwise).
-
-`t` is a `TimeSlice` for retrieving a specific time-index in case of a time-varying value (ignored otherwise).
+- `i::Int64`: a specific index to retrieve in case of an array value (ignored otherwise).
+- `k::String`: a specific key to retrieve in case of a dictionary value (ignored otherwise).
+- `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
 
 
 # Example
@@ -155,11 +160,11 @@ julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "exa
 
 julia> using_spinedb(url)
 
-julia> demand(node=:Sthlm, i=1)
-21
-
 julia> tax_net_flow(node=:Sthlm, commodity=:water)
 4
+
+julia> demand(node=:Sthlm, i=1)
+21
 
 ```
 """
@@ -182,11 +187,11 @@ function (p::Parameter)(;_optimize=true, kwargs...)
 end
 
 """
-    (oc::ObjectClass)(;kwargs...)
+    (oc::ObjectClass)(;<keyword arguments>)
 
 An `Array` of [`Object`](@ref) instances corresponding to the objects in class `oc`.
 
-`kwargs` of the form `parameter_name=value` act as filtering conditions.
+Keyword arguments of the form `parameter_name=value` act as filtering conditions.
 
 # Example
 
@@ -240,15 +245,16 @@ function (oc::ObjectClass)(;kwargs...)
 end
 
 """
-    (rc::RelationshipClass)(;kwargs..., _compact=true, _default=[])
+    (rc::RelationshipClass)(;<keyword arguments>)
 
 An `Array` of [`Object`](@ref) tuples corresponding to the relationships of class `rc`.
 
-`kwargs` of the form `object_class=:object` act as filtering conditions.
+Keyword arguments of the form `object_class=:object` act as filtering conditions.
 
-`_compact` indicates whether or not filtered objects should be skipped in the resulting tuple.
+# Additional arguments
 
-`_default` is a value to return in case no relationship meets the filter.
+- `_compact::Bool=true`: whether or not filtered objects should be skipped in the resulting tuple.
+- `_default=[]`: the default value to return in case no relationship meets the filter.
 
 ```jldoctest
 julia> using SpineInterface;

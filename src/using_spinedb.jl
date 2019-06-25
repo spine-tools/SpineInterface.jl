@@ -165,7 +165,7 @@ for accessing the database at the given `url` in RFC-1738 format.
 
 If `upgrade` is `true`, then the database at `url` is upgraded to the latest version.
 
-See [`Parameter()`](@ref), [`ObjectClass()`](@ref), and [`RelationshipClass()`](@ref) for details about
+See [`ObjectClass()`](@ref), and [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details about
 the convenience functors.
 """
 function using_spinedb(db_url::String; upgrade=false)

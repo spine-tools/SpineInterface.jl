@@ -28,9 +28,9 @@ Anything
 
 ```@docs
 using_spinedb(::String)
-Parameter()
 ObjectClass()
 RelationshipClass()
+Parameter()
 TimeSlice(::DateTime, ::DateTime)
 duration(::TimeSlice)
 before(::TimeSlice, ::TimeSlice)
@@ -44,6 +44,6 @@ t_highest_resolution(t_iter)
 
 ## Constants
 
-```@doc
+```@docs
 anything
 ```
