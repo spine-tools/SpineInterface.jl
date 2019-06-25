@@ -256,6 +256,8 @@ Keyword arguments of the form `object_class=:object` act as filtering conditions
 - `_compact::Bool=true`: whether or not filtered objects should be skipped in the resulting tuple.
 - `_default=[]`: the default value to return in case no relationship meets the filter.
 
+# Example
+
 ```jldoctest
 julia> using SpineInterface;
 
