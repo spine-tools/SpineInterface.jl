@@ -45,6 +45,5 @@ t_highest_resolution(t_iter)
 ## Constants
 
 ```@doc
-db_api
 anything
 ```

@@ -51,11 +51,11 @@ struct Anything
 end
 
 """
-    anything
+    const anything
 
 The singleton instance of type [`Anything`](@ref), used for creating filters
 """
-anything = Anything()
+const anything = Anything()
 
 Base.intersect(s, ::Anything) = s
 Base.show(io::IO, ::Anything) = print(io, "anything (aka all of them)")
@@ -148,14 +148,19 @@ of the form `object_class=:object`.
 
 # Example
 
-```julia
+```jldoctest
 julia> using SpineInterface;
-julia> url = joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+
+julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+
 julia> using_spinedb(url)
+
 julia> demand(node=:Sthlm, i=1)
 21
+
 julia> tax_net_flow(node=:Sthlm, commodity=:water)
 4
+
 ```
 """
 function (p::Parameter)(;_optimize=true, kwargs...)
@@ -185,10 +190,13 @@ An `Array` of [`Object`](@ref) instances corresponding to the objects in class `
 
 # Example
 
-```julia
+```jldoctest
 julia> using SpineInterface;
-julia> url = joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+
+julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+
 julia> using_spinedb(url)
+
 julia> node()
 5-element Array{Object,1}:
  Nimes
@@ -196,9 +204,11 @@ julia> node()
  Leuven
  Espoo
  Dublin
+
 julia> commodity(state_of_matter=:gas)
 1-element Array{Any,1}:
  wind
+
 ```
 """
 function (oc::ObjectClass)(;kwargs...)
@@ -240,10 +250,13 @@ An `Array` of [`Object`](@ref) tuples corresponding to the relationships of clas
 
 `_default` is a value to return in case no relationship meets the filter.
 
-```julia
+```jldoctest
 julia> using SpineInterface;
-julia> url = joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+
+julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+
 julia> using_spinedb(url)
+
 julia> node__commodity()
 5-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
  (node = Dublin, commodity = wind)
@@ -251,16 +264,20 @@ julia> node__commodity()
  (node = Leuven, commodity = wind)
  (node = Nimes, commodity = water)
  (node = Sthlm, commodity = water)
+
 julia> node__commodity(commodity=:water)
- 2-element Array{Object,1}:
-  Nimes
-  Sthlm
+2-element Array{Object,1}:
+ Nimes
+ Sthlm
+
 julia> node__commodity(commodity=:water, _compact=false)
 2-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
  (node = Nimes, commodity = water)
  (node = Sthlm, commodity = water)
+
 julia> node__commodity(commodity=:gas, _default=:nogas)
 :nogas
+
 ```
 """
 function (rc::RelationshipClass)(;_compact=true, _default=[], _optimize=true, kwargs...)
