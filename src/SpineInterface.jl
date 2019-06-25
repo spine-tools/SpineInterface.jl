@@ -16,12 +16,6 @@ include("write_results.jl")
 include("helpers.jl")
 include("util.jl")
 
-
-"""
-    db_api
-
-A `PyObject` corresponding to the `spinedb_api` module.
-"""
 const db_api = PyNULL()
 const required_spinedb_api_version = "0.0.22"
 
@@ -45,6 +39,7 @@ export duration
 export start
 export before
 export overlaps
+export overlap_duration
 export t_lowest_resolution
 export t_highest_resolution
 export time_stamps
@@ -52,7 +47,6 @@ export indices
 export anything
 export unique_sorted
 export iso8601zoneless
-export db_api
 
 function __init__()
     copy!(db_api, pyimport("spinedb_api"))

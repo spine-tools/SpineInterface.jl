@@ -179,9 +179,27 @@ end
 """
     (oc::ObjectClass)(;kwargs...)
 
-A list of [`Object`](@ref) instances corresponding to the objects in class `oc`.
+An `Array` of [`Object`](@ref) instances corresponding to the objects in class `oc`.
 
 `kwargs` of the form `parameter_name=value` act as filtering conditions.
+
+# Example
+
+```julia
+julia> using SpineInterface;
+julia> url = joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+julia> using_spinedb(url)
+julia> node()
+5-element Array{Object,1}:
+ Nimes
+ Sthlm
+ Leuven
+ Espoo
+ Dublin
+julia> commodity(state_of_matter=:gas)
+1-element Array{Any,1}:
+ wind
+```
 """
 function (oc::ObjectClass)(;kwargs...)
     if length(kwargs) == 0
@@ -214,13 +232,36 @@ end
 """
     (rc::RelationshipClass)(;kwargs..., _compact=true, _default=[])
 
-A list of [`Object`](@ref) tuples corresponding to the relationships of class `rc`.
+An `Array` of [`Object`](@ref) tuples corresponding to the relationships of class `rc`.
 
 `kwargs` of the form `object_class=:object` act as filtering conditions.
 
 `_compact` indicates whether or not filtered objects should be skipped in the resulting tuple.
 
 `_default` is a value to return in case no relationship meets the filter.
+
+```julia
+julia> using SpineInterface;
+julia> url = joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+julia> using_spinedb(url)
+julia> node__commodity()
+5-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
+ (node = Dublin, commodity = wind)
+ (node = Espoo, commodity = wind)
+ (node = Leuven, commodity = wind)
+ (node = Nimes, commodity = water)
+ (node = Sthlm, commodity = water)
+julia> node__commodity(commodity=:water)
+ 2-element Array{Object,1}:
+  Nimes
+  Sthlm
+julia> node__commodity(commodity=:water, _compact=false)
+2-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
+ (node = Nimes, commodity = water)
+ (node = Sthlm, commodity = water)
+julia> node__commodity(commodity=:gas, _default=:nogas)
+:nogas
+```
 """
 function (rc::RelationshipClass)(;_compact=true, _default=[], _optimize=true, kwargs...)
     new_kwargs = Dict()

@@ -235,6 +235,9 @@ function (p::TimeSeriesValue)(;t::Union{TimeSlice,Nothing}=nothing)
 end
 
 # Utility
+"""
+    time_stamps(val::TimeSeriesValue)
+"""
 time_stamps(val::TimeSeriesValue) = val.time_stamps
 
 # Iterate single ScalarValue as collection

@@ -16,7 +16,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+"""
+    TimeSlice
 
+A type for representing a time-interval.
+"""
 struct TimeSlice <: ObjectLike
     start::DateTime
     end_::DateTime
@@ -26,6 +30,11 @@ struct TimeSlice <: ObjectLike
     TimeSlice(x, y, blk, n) = x > y ? error("out of order") : new(x, y, Minute(y - x), blk, n)
 end
 
+"""
+    TimeSlice(start::DateTime, end_::DateTime)
+
+Construct a `TimeSlice` with bounds given by `start` and `end_`.
+"""
 TimeSlice(start::DateTime, end_::DateTime, blocks::Object...) = TimeSlice(start, end_, blocks, "$start...$end_")
 TimeSlice(other::TimeSlice) = other
 
@@ -34,7 +43,7 @@ Base.show(io::IO, time_slice::TimeSlice) = print(io, time_slice.JuMP_name)
 """
     duration(t::TimeSlice)
 
-The duration of time slice `t` (in minutes).
+The duration of time slice `t` in minutes.
 """
 duration(t::TimeSlice) = t.duration.value
 
@@ -47,7 +56,7 @@ Base.isless(a::TimeSlice, b::TimeSlice) = tuple(a.start, a.end_) < tuple(b.start
 """
     before(a::TimeSlice, b::TimeSlice)
 
-Determine whether the start point of `b` is exactly the end point of `a`.
+Determine whether `a` comes *before* `b`, i.e., the start point of `b` is exactly the end point of `a`.
 """
 before(a::TimeSlice, b::TimeSlice) = b.start == a.end_
 
@@ -70,7 +79,7 @@ overlaps(a::TimeSlice, b::TimeSlice) = a.start <= b.start < a.end_ || b.start <=
 """
     overlap_duration(a::TimeSlice, b::TimeSlice)
 
-The number of minutes time slices `a` and `b` overlap.
+The number of minutes where `a` and `b` overlap.
 """
 function overlap_duration(a::TimeSlice, b::TimeSlice)
     overlaps(a, b) || return 0
@@ -102,8 +111,7 @@ Base.:-(t::TimeSlice, p::Period) = TimeSlice(t.start - p, t.end_ - p)
 """
     t_lowest_resolution(t_iter)
 
-Return the list of the lowest resolution time slices within `t_iter`
-(those that aren't contained in any other).
+An `Array` with the `TimeSlices` in `t_iter` that are not contained in any other.
 """
 function t_lowest_resolution(t_iter)
     isempty(t_iter) && return []
@@ -124,8 +132,7 @@ end
 """
     t_highest_resolution(t_iter)
 
-Return the list of the highest resolution time slices from `t_iter`
-(those that don't contain any other).
+An `Array` with the `TimeSlices` in `t_iter` that do not contain any other.
 """
 function t_highest_resolution(t_iter)
     isempty(t_iter) && return []

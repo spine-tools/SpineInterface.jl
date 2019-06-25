@@ -20,6 +20,7 @@ Depth = 3
 ```@docs
 ObjectLike
 Object
+TimeSlice
 Anything
 ```
 
@@ -30,6 +31,14 @@ using_spinedb(::String)
 Parameter()
 ObjectClass()
 RelationshipClass()
+TimeSlice(::DateTime, ::DateTime)
+duration(::TimeSlice)
+before(::TimeSlice, ::TimeSlice)
+in(::TimeSlice, ::TimeSlice)
+overlaps(::TimeSlice, ::TimeSlice)
+overlap_duration(::TimeSlice, ::TimeSlice)
+t_lowest_resolution(t_iter)
+t_highest_resolution(t_iter)
 ```
 
 
