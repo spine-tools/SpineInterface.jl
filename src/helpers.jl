@@ -16,39 +16,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-"""
-    DiffDatabaseMapping(url; upgrade=false)
-
-An instance of [`spinedb_api.DiffDatabaseMapping`](
-    https://spine-project.github.io/Spine-Database-API/autogen_apidocs/
-spinedb_api.html#spinedb_api.diff_database_mapping.DiffDatabaseMapping)
-corresponding to the given RFC-1738 `url`.
-
-If `upgrade` is `true`, the database is upgraded to the latest version.
-"""
-function DiffDatabaseMapping(url::String; upgrade=false)
-    try
-        db_api.DiffDatabaseMapping(url, "SpineInterface.jl"; upgrade=upgrade)
-    catch e
-        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
-            error(
-"""
-The database at '$(url)' is from an older version of Spine
-and needs to be upgraded in order to be used with the current version.
-
-You can upgrade by passing the keyword argument `upgrade=true` to your function call, e.g.:
-
-    diff_database_mapping(url; upgrade=true)
-
-WARNING: After the upgrade, the database may no longer be used
-with previous versions of Spine.
-"""
-            )
-        else
-            rethrow()
-        end
-    end
-end
 
 
 """

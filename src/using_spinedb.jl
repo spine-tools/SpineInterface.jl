@@ -160,13 +160,13 @@ end
 """
     using_spinedb(db_url::String; upgrade=false)
 
-Create and export convenience function-like objects
-for accessing the database at the given RFC-1738 `url`.
+Create and export convenience *functors*
+for accessing the database at the given `url` in RFC-1738 format.
 
-If `upgrade` is `true`, the database at `url` is upgraded to the latest version.
+If `upgrade` is `true`, then the database at `url` is upgraded to the latest version.
 
-See [`Parameter()`](@ref), [`ObjectClass()`](@ref), and [`RelationshipClass()`](@ref) for details on
-the convenience function-like objects.
+See [`Parameter()`](@ref), [`ObjectClass()`](@ref), and [`RelationshipClass()`](@ref) for details about
+the convenience functors.
 """
 function using_spinedb(db_url::String; upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
@@ -196,12 +196,12 @@ end
 """
     using_spinedb(db_map::PyObject)
 
-Create and export function-like objects
-from the contents of the given `db_map`,
-which is a `PyObject` as returned by [`SpineInterface.DiffDatabaseMapping`](@ref).
+Create and export convenience *functors*
+for accessing the given `db_map`,
+which must be a `PyObject` as returned by `db_api.DiffDatabaseMapping`.
 
-See [`Parameter()`](@ref), [`ObjectClass()`](@ref), and [`RelationshipClass()`](@ref) for details on
-the convenience functions.
+See [`Parameter()`](@ref), [`ObjectClass()`](@ref), and [`RelationshipClass()`](@ref) for details about
+the convenience functors.
 """
 function using_spinedb(db_map::PyObject)
     py"""object_dict = {

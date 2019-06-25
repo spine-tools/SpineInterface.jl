@@ -80,8 +80,8 @@ Update `dest_url` with new parameters given by `results`.
 """
 function write_results(dest_url::String; upgrade=false, results...)
     try
-        db_map = DiffDatabaseMapping(dest_url)
-        write_results(db_map; upgrade=upgrade, results...)
+        db_map = db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
+        write_results(db_map; results...)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBAPIError)
             db_api.create_new_spine_database(dest_url)
@@ -93,7 +93,7 @@ function write_results(dest_url::String; upgrade=false, results...)
 end
 
 
-function write_results(db_map::PyObject; upgrade=false, result="", results...)
+function write_results(db_map::PyObject; result="", results...)
     try
         result_class = py"$db_map.add_object_classes(dict(name='result'), return_dups=True)[0].one()._asdict()"
         timestamp = Dates.format(Dates.now(), "yyyymmdd_HH_MM_SS")

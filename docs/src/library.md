@@ -15,31 +15,27 @@ Depth = 3
 ```
 
 
+## Types
+
+```@docs
+ObjectLike
+Object
+Anything
+```
+
 ## Functions
 
 ```@docs
-SpineInterface.DiffDatabaseMapping(::String)
 using_spinedb(::String)
-using_spinedb(::PyObject)
-Object(::String)
 Parameter()
 ObjectClass()
 RelationshipClass()
 ```
 
-# Types
 
-```@docs
-ObjectLike
-Object
-ObjectClass
-RelationshipClass
-Parameter
-Anything
-```
-
-# Constants
+## Constants
 
 ```@doc
+db_api
 anything
 ```

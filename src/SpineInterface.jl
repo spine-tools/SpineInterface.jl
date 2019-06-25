@@ -16,17 +16,25 @@ include("write_results.jl")
 include("helpers.jl")
 include("util.jl")
 
+
+"""
+    db_api
+
+A `PyObject` corresponding to the `spinedb_api` module.
+"""
+const db_api = PyNULL()
+const required_spinedb_api_version = "0.0.22"
+
 export Anything
+export Parameter
 export ObjectClass
 export RelationshipClass
-export Parameter
 export ObjectLike
 export Object
 export TimeSlice
 export using_spinedb
 export notusing_spinedb
 export write_results
-export parse_value
 export NoValue
 export ScalarValue
 export ArrayValue
@@ -44,9 +52,7 @@ export indices
 export anything
 export unique_sorted
 export iso8601zoneless
-
-const db_api = PyNULL()
-const required_spinedb_api_version = "0.0.22"
+export db_api
 
 function __init__()
     copy!(db_api, pyimport("spinedb_api"))

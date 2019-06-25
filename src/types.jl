@@ -64,24 +64,19 @@ Base.show(io::IO, ::Anything) = print(io, "anything (aka all of them)")
 """
     ObjectLike
 
-Supertype for [`Object`](@ref) and all types that want to use the same interface.
+Supertype for [`Object`](@ref) and [`TimeSlice`](@ref).
 """
 abstract type ObjectLike end
 
 """
     Object
 
-An object in a Spine db.
+A type for representing an object in a Spine db.
 """
 struct Object <: ObjectLike
     name::Symbol
 end
 
-"""
-    Object(name)
-
-Construct an `Object` with the given name which can be either a `String` or a `Symbol`.
-"""
 Object(name::AbstractString) = Object(Symbol(name))
 Object(::Anything) = anything
 Object(other::Object) = other
@@ -93,32 +88,17 @@ Base.length(o::Object) = 1
 # Compare `Object`s
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 
-"""
-    Parameter
-
-A functor for accessing a parameter in a Spine db.
-"""
 struct Parameter
     name::Symbol
     class_value_dict::Dict{Tuple,Any}
 end
 
-"""
-    ObjectClass
-
-A functor for accessing an object class in a Spine db.
-"""
 struct ObjectClass
     name::Symbol
     object_names::Array{Object,1}
     object_subset_dict::Dict{Symbol,Any}
 end
 
-"""
-    RelationshipClass
-
-A functor for accessing a relationship class in a Spine db.
-"""
 struct RelationshipClass{N,K,V}
     name::Symbol
     obj_cls_name_tuple::NTuple{N,Symbol}
@@ -154,10 +134,29 @@ Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, o::Object) = print(io, o.name)
 
 """
-    (p::Parameter)(;object_class=object..., extra_kwargs...)
+    (p::Parameter)(;kwargs..., i=nothing, k=nothing, t=nothing)
 
-The value of parameter `p` for the given combination of `object_class=object` tuples.
-NOTE: Additional keyword arguments are used to call the value.
+The value of parameter `p` for the object or relationship specified by `kwargs`
+of the form `object_class=:object`.
+
+`i` is an `Integer` for retrieving a specific index in case of an array value (ignored otherwise).
+
+`k` is a `String` for retrieving a specific key in case of a dictionary value (ignored otherwise).
+
+`t` is a `TimeSlice` for retrieving a specific time-index in case of a time-varying value (ignored otherwise).
+
+
+# Example
+
+```julia
+julia> using SpineInterface;
+julia> url = joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+julia> using_spinedb(url)
+julia> demand(node=:Sthlm, i=1)
+21
+julia> tax_net_flow(node=:Sthlm, commodity=:water)
+4
+```
 """
 function (p::Parameter)(;_optimize=true, kwargs...)
     if length(kwargs) == 0
@@ -180,10 +179,9 @@ end
 """
     (oc::ObjectClass)(;kwargs...)
 
-A list of [`Object`](@ref) instances corresponding to objects in class `oc`.
+A list of [`Object`](@ref) instances corresponding to the objects in class `oc`.
 
-`kwargs` given as `parameter_name=value` filter the result
-so that it only contains objects with the given value(s) for the given parameter(s).
+`kwargs` of the form `parameter_name=value` act as filtering conditions.
 """
 function (oc::ObjectClass)(;kwargs...)
     if length(kwargs) == 0
@@ -214,12 +212,15 @@ function (oc::ObjectClass)(;kwargs...)
 end
 
 """
-    (rc::RelationshipClass)(;_compact=true, _default=[], _optimize=true, kwargs...)
+    (rc::RelationshipClass)(;kwargs..., _compact=true, _default=[])
 
-A list of tuples of [`Object`](@ref) instances corresponding to relationships of class `rc`.
+A list of [`Object`](@ref) tuples corresponding to the relationships of class `rc`.
 
-`kwargs` given as `object_class_name=object` filter the result
-so it only contains relationships with the given object in the given class.
+`kwargs` of the form `object_class=:object` act as filtering conditions.
+
+`_compact` indicates whether or not filtered objects should be skipped in the resulting tuple.
+
+`_default` is a value to return in case no relationship meets the filter.
 """
 function (rc::RelationshipClass)(;_compact=true, _default=[], _optimize=true, kwargs...)
     new_kwargs = Dict()
