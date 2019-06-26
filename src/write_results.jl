@@ -72,11 +72,14 @@ end
 
 
 """
-    write_results(dest_url::String; upgrade=false, results...)
+    write_results(url::String; upgrade=false, <results>)
 
-Update `dest_url` with new parameters given by `results`.
-`dest_url` is a database url composed according to
-[sqlalchemy rules](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls).
+Write results to the Spine database at the given RFC-1738 `url`.
+
+If `upgrade` is `true`, then the database at `url` is upgraded to the latest revision.
+
+Results...
+
 """
 function write_results(dest_url::String; upgrade=false, results...)
     try

@@ -40,6 +40,7 @@ overlaps(::TimeSlice, ::TimeSlice)
 overlap_duration(::TimeSlice, ::TimeSlice)
 t_lowest_resolution(t_iter)
 t_highest_resolution(t_iter)
+write_results(::String)
 ```
 
 ## Constants

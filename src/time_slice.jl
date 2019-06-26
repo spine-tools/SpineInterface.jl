@@ -111,8 +111,8 @@ Base.:-(t::TimeSlice, p::Period) = TimeSlice(t.start - p, t.end_ - p)
 """
     t_lowest_resolution(iter)
 
-An `Array` with the *lowest resolution* `TimeSlices` in the given iterable
-(those that are not contained in any other).
+Take the given iterable and return an `Array` only with the `TimeSlice`s that
+are not contained in any other.
 """
 function t_lowest_resolution(t_iter)
     isempty(t_iter) && return []
@@ -133,8 +133,7 @@ end
 """
     t_highest_resolution(iter)
 
-An `Array` with the *highest resolution* `TimeSlices` in the given iterable
-(those that do not contain any other).
+Take the given iterable and return an `Array` only with the `TimeSlice`s that do not contain any other.
 """
 function t_highest_resolution(t_iter)
     isempty(t_iter) && return []

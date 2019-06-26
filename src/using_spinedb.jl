@@ -160,13 +160,14 @@ end
 """
     using_spinedb(db_url::String; upgrade=false)
 
-Create and export convenience *functors*
-for accessing the database at the given RFC-1738 `url`.
+Take the Spine database at the given RFC-1738 `url`,
+and export convenience *functors* named after each object class, relationship class,
+and parameter in it. 
 
-If `upgrade` is `true`, then the database at `url` is upgraded to the latest version.
+If `upgrade` is `true`, then the database at `url` is upgraded to the latest revision.
 
-See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details about
-the convenience functors.
+See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details on
+how to call the convenience functors.
 """
 function using_spinedb(db_url::String; upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api

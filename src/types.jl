@@ -54,7 +54,7 @@ end
     anything
 
 The singleton instance of type [`Anything`](@ref), used to specify *all-pass* filters
-to [`RelationshipClass()`](@ref).
+in calls to [`RelationshipClass()`](@ref).
 """
 anything = Anything()
 
@@ -135,11 +135,14 @@ Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, o::Object) = print(io, o.name)
 
 """
-    (oc::ObjectClass)(;<keyword arguments>)
+    (<oc>::ObjectClass)(;<keyword arguments>)
 
 An `Array` of [`Object`](@ref) instances corresponding to the objects in class `oc`.
 
-Keyword arguments of the form `<parameter name>=<value>` act as filtering conditions.
+# Arguments
+
+For each parameter associated to `oc` in the database there is a keyword argument
+named after it. The purpose is to filter the result by specific values of that parameter.
 
 # Example
 
@@ -193,16 +196,16 @@ function (oc::ObjectClass)(;kwargs...)
 end
 
 """
-    (rc::RelationshipClass)(;<keyword arguments>)
+    (<rc>::RelationshipClass)(;<keyword arguments>)
 
 An `Array` of [`Object`](@ref) tuples corresponding to the relationships of class `rc`.
 
-Keyword arguments of the form `<object class name>=:<object name>` act as filtering conditions;
-if `<object class name>=anything`, then all objects of that class pass the filter.
+# Arguments
 
-# Additional arguments
-
-- `_compact::Bool=true`: whether or not filtered objects should be hidden in the resulting tuples.
+- For each object class in `rc`, there is a keyword argument named after it.
+  The purpose is to filter the result by an object or list of objects of that class,
+  or to accept all objects of that class by specifying `anything` for that argument.
+- `_compact::Bool=true`: whether or not filtered object classes should be removed from the resulting tuples.
 - `_default=[]`: the default value to return in case no relationship passes the filter.
 
 # Example
@@ -284,13 +287,17 @@ function (rc::RelationshipClass)(;_compact=true, _default=[], _optimize=true, kw
 end
 
 """
-    (p::Parameter)(;<keyword arguments>)
+    (<p>::Parameter)(;<keyword arguments>)
 
-The value of parameter `p` for the object or relationship specified by keyword arguments
-of the form `<object class name>=:<object name>`.
+The values of parameter `p`. They are given as a `Dict` mapping object and relationship classes
+associated with `p`, to another `Dict` mapping corresponding objects or relationships to values.
 
-# Additional arguments
+# Arguments
 
+- For each object class associated with `p` there is a keyword argument named after it.
+  The purpose is to retrieve the value of `p` for a specific object.
+- For each relationship class associated with `p`, there is a keyword argument named after each of the
+  object classes involved in it. The purpose is to retrieve the value of `p` for a specific relationship.
 - `i::Int64`: a specific index to retrieve in case of an array value (ignored otherwise).
 - `k::String`: a specific key to retrieve in case of a dictionary value (ignored otherwise).
 - `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
