@@ -15,6 +15,7 @@ Depth = 3
 ```
 
 
+
 ## Types
 
 ```@docs
@@ -40,7 +41,6 @@ overlap_duration(::TimeSlice, ::TimeSlice)
 t_lowest_resolution(t_iter)
 t_highest_resolution(t_iter)
 ```
-
 
 ## Constants
 

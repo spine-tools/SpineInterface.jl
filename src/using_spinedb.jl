@@ -161,7 +161,7 @@ end
     using_spinedb(db_url::String; upgrade=false)
 
 Create and export convenience *functors*
-for accessing the database at the given `url` in RFC-1738 format.
+for accessing the database at the given RFC-1738 `url`.
 
 If `upgrade` is `true`, then the database at `url` is upgraded to the latest version.
 

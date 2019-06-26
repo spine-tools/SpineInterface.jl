@@ -19,7 +19,7 @@
 """
     TimeSlice
 
-A type for representing a time-interval.
+A type for representing a slice of time.
 """
 struct TimeSlice <: ObjectLike
     start::DateTime
@@ -56,7 +56,7 @@ Base.isless(a::TimeSlice, b::TimeSlice) = tuple(a.start, a.end_) < tuple(b.start
 """
     before(a::TimeSlice, b::TimeSlice)
 
-Determine whether `a` comes *before* `b`, i.e., the start point of `b` is exactly the end point of `a`.
+Determine whether the end point of `a` is exactly the start point of `b`.
 """
 before(a::TimeSlice, b::TimeSlice) = b.start == a.end_
 
@@ -109,9 +109,10 @@ Base.intersect(s::Array{TimeSlice,1}, ::Anything) = s
 Base.:-(t::TimeSlice, p::Period) = TimeSlice(t.start - p, t.end_ - p)
 
 """
-    t_lowest_resolution(t_iter)
+    t_lowest_resolution(iter)
 
-An `Array` with the `TimeSlices` in `t_iter` that are not contained in any other.
+An `Array` with the *lowest resolution* `TimeSlices` in the given iterable
+(those that are not contained in any other).
 """
 function t_lowest_resolution(t_iter)
     isempty(t_iter) && return []
@@ -130,9 +131,10 @@ end
 
 
 """
-    t_highest_resolution(t_iter)
+    t_highest_resolution(iter)
 
-An `Array` with the `TimeSlices` in `t_iter` that do not contain any other.
+An `Array` with the *highest resolution* `TimeSlices` in the given iterable
+(those that do not contain any other).
 """
 function t_highest_resolution(t_iter)
     isempty(t_iter) && return []

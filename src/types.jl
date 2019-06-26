@@ -45,7 +45,7 @@ end
 """
     Anything
 
-A type with not fields that is the type of [`anything`](@ref).
+A type with no fields that is the type of [`anything`](@ref).
 """
 struct Anything
 end
@@ -53,12 +53,8 @@ end
 """
     anything
 
-The singleton instance of type [`Anything`](@ref), used for passing *catchall* filters
-to [`ObjectClass()`](@ref), and [`RelationshipClass()`](@ref), and [`Parameter()`](@ref).
-
-# Example
-
-TODO
+The singleton instance of type [`Anything`](@ref), used to specify *all-pass* filters
+to [`RelationshipClass()`](@ref).
 """
 anything = Anything()
 
@@ -139,59 +135,11 @@ Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, o::Object) = print(io, o.name)
 
 """
-    (p::Parameter)(;<keyword arguments>)
-
-The value of parameter `p` for the object or relationship specified by keyword arguments
-of the form `object_class=:object`.
-
-# Additional arguments
-
-- `i::Int64`: a specific index to retrieve in case of an array value (ignored otherwise).
-- `k::String`: a specific key to retrieve in case of a dictionary value (ignored otherwise).
-- `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
-
-
-# Example
-
-```jldoctest
-julia> using SpineInterface;
-
-julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
-
-julia> using_spinedb(url)
-
-julia> tax_net_flow(node=:Sthlm, commodity=:water)
-4
-
-julia> demand(node=:Sthlm, i=1)
-21
-
-```
-"""
-function (p::Parameter)(;_optimize=true, kwargs...)
-    if length(kwargs) == 0
-        # Return dict if kwargs is empty
-        p.class_value_dict
-    else
-        kwkeys = keys(kwargs)
-        class_names = getsubkey(p.class_value_dict, kwkeys, nothing)
-        class_names == nothing && error("can't find a definition of '$p' for '$kwkeys'")
-        parameter_value_pairs = p.class_value_dict[class_names]
-        kwvalues = values(kwargs)
-        object_names = Object.(Tuple([kwvalues[k] for k in class_names]))
-        value = pull!(parameter_value_pairs, object_names, nothing; _optimize=_optimize)
-        value === nothing && error("'$p' not specified for '$object_names'")
-        extra_kwargs = Dict(k => v for (k, v) in kwargs if !(k in class_names))
-        value(;extra_kwargs...)
-    end
-end
-
-"""
     (oc::ObjectClass)(;<keyword arguments>)
 
 An `Array` of [`Object`](@ref) instances corresponding to the objects in class `oc`.
 
-Keyword arguments of the form `parameter_name=value` act as filtering conditions.
+Keyword arguments of the form `<parameter name>=<value>` act as filtering conditions.
 
 # Example
 
@@ -249,12 +197,13 @@ end
 
 An `Array` of [`Object`](@ref) tuples corresponding to the relationships of class `rc`.
 
-Keyword arguments of the form `object_class=:object` act as filtering conditions.
+Keyword arguments of the form `<object class name>=:<object name>` act as filtering conditions;
+if `<object class name>=anything`, then all objects of that class pass the filter.
 
 # Additional arguments
 
-- `_compact::Bool=true`: whether or not filtered objects should be skipped in the resulting tuple.
-- `_default=[]`: the default value to return in case no relationship meets the filter.
+- `_compact::Bool=true`: whether or not filtered objects should be hidden in the resulting tuples.
+- `_default=[]`: the default value to return in case no relationship passes the filter.
 
 # Example
 
@@ -277,6 +226,11 @@ julia> node__commodity(commodity=:water)
 2-element Array{Object,1}:
  Nimes
  Sthlm
+
+julia> node__commodity(node=anything)
+2-element Array{Object,1}:
+ wind
+ water
 
 julia> node__commodity(commodity=:water, _compact=false)
 2-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
@@ -326,5 +280,53 @@ function (rc::RelationshipClass)(;_compact=true, _default=[], _optimize=true, kw
         unique_sorted(x[head...] for x in result)
     else
         unique_sorted(NamedTuple{head}([x[k] for k in head]) for x in result)
+    end
+end
+
+"""
+    (p::Parameter)(;<keyword arguments>)
+
+The value of parameter `p` for the object or relationship specified by keyword arguments
+of the form `<object class name>=:<object name>`.
+
+# Additional arguments
+
+- `i::Int64`: a specific index to retrieve in case of an array value (ignored otherwise).
+- `k::String`: a specific key to retrieve in case of a dictionary value (ignored otherwise).
+- `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
+
+
+# Example
+
+```jldoctest
+julia> using SpineInterface;
+
+julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+
+julia> using_spinedb(url)
+
+julia> tax_net_flow(node=:Sthlm, commodity=:water)
+4
+
+julia> demand(node=:Sthlm, i=1)
+21
+
+```
+"""
+function (p::Parameter)(;_optimize=true, kwargs...)
+    if length(kwargs) == 0
+        # Return dict if kwargs is empty
+        p.class_value_dict
+    else
+        kwkeys = keys(kwargs)
+        class_names = getsubkey(p.class_value_dict, kwkeys, nothing)
+        class_names == nothing && error("can't find a definition of '$p' for '$kwkeys'")
+        parameter_value_pairs = p.class_value_dict[class_names]
+        kwvalues = values(kwargs)
+        object_names = Object.(Tuple([kwvalues[k] for k in class_names]))
+        value = pull!(parameter_value_pairs, object_names, nothing; _optimize=_optimize)
+        value === nothing && error("'$p' not specified for '$object_names'")
+        extra_kwargs = Dict(k => v for (k, v) in kwargs if !(k in class_names))
+        value(;extra_kwargs...)
     end
 end
