@@ -33,35 +33,26 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         value_list_id = parameter["value_list_id"]
         if value_list_id != nothing
             d1 = get!(class_object_subset_dict, Symbol(object_class_name), Dict{Symbol,Any}())
-            object_subset_dict = get!(d1, Symbol(parameter_name), Dict{ScalarValue,Any}())
+            object_subset_dict = get!(d1, Symbol(parameter_name), Dict{Any,Any}())
             for value in value_list_dict[value_list_id]
-                object_subset_dict[ScalarValue(JSON.parse(value))] = Array{Object,1}()
+                object_subset_dict[value] = Array{Object,1}()
             end
         end
-        json_default_value = try
-            JSON.parse(parameter["default_value"])
-        catch e
-            rethrow(SpineDBParseError(e, parameter_name))
-        end
+        default_callable = db_api.from_database(parameter["default_value"])
         class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         parameter_value_pairs = class_value_dict[(Symbol(object_class_name),)] = Array{Pair,1}()
         for object_name in object_dict[object_class_name]
             value = get(object_parameter_value_dict, (parameter_id, object_name), nothing)
-            if value == nothing
-                json_value = nothing
+            callable_ = if value == nothing
+                 default_callable
             else
-                json_value = JSON.parse(value)
+                callable(db_api.from_database(value))
             end
             object = Object(object_name)
-            new_value = try
-                parse_value(json_value; default=json_default_value)
-            catch e
-                rethrow(SpineDBParseError(e, parameter_name, object_name))
-            end
-            push!(parameter_value_pairs, (object,) => new_value)
+            push!(parameter_value_pairs, (object,) => callable_)
             # Add entry to class_object_subset_dict
-            (value_list_id == nothing || json_value == nothing) && continue
-            arr = get(object_subset_dict, ScalarValue(json_value), nothing)
+            (value_list_id == nothing || value == nothing) && continue
+            arr = get(object_subset_dict, value, nothing)
             if arr != nothing
                 push!(arr, object)
             else
@@ -77,11 +68,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         parameter_id = parameter["id"]
         relationship_class_name = parameter["relationship_class_name"]
         object_class_name_list = parameter["object_class_name_list"]
-        json_default_value = try
-            JSON.parse(parameter["default_value"])
-        catch e
-            rethrow(SpineDBParseError(e, parameter_name))
-        end
+        default_callable = db_api.from_database(parameter["default_value"])
         class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         class_name = tuple(fix_name_ambiguity(Symbol.(split(object_class_name_list, ",")))...)
         alt_class_name = (Symbol(relationship_class_name),)
@@ -93,18 +80,13 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         object_name_lists = relationship_dict[relationship_class_name]["object_name_lists"]
         for object_name_list in object_name_lists
             value = get(relationship_parameter_value_dict, (parameter_id, object_name_list), nothing)
-            if value == nothing
-                json_value = nothing
+            callable_ = if value == nothing
+                 default_callable
             else
-                json_value = JSON.parse(value)
+                callable(db_api.from_database(value))
             end
             object_tuple = tuple(Object.(split(object_name_list, ","))...)
-            new_value = try
-                parse_value(json_value; default=json_default_value)
-            catch e
-                rethrow(SpineDBParseError(e, parameter_name, object_tuple))
-            end
-            push!(parameter_value_pairs, object_tuple => new_value)
+            push!(parameter_value_pairs, object_tuple => callable_)
         end
     end
     for (parameter_name, class_name_dict) in parameter_class_names
@@ -162,7 +144,7 @@ end
 
 Take the Spine database at the given RFC-1738 `url`,
 and export convenience *functors* named after each object class, relationship class,
-and parameter in it. 
+and parameter in it.
 
 If `upgrade` is `true`, then the database at `url` is upgraded to the latest revision.
 

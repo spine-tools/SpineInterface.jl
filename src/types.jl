@@ -144,7 +144,7 @@ An `Array` of [`Object`](@ref) instances corresponding to the objects in class `
 For each parameter associated to `oc` in the database there is a keyword argument
 named after it. The purpose is to filter the result by specific values of that parameter.
 
-# Example
+# Examples
 
 ```jldoctest
 julia> using SpineInterface;
@@ -202,13 +202,13 @@ An `Array` of [`Object`](@ref) tuples corresponding to the relationships of clas
 
 # Arguments
 
-- For each object class in `rc`, there is a keyword argument named after it.
+- For each object class in `rc` there is a keyword argument named after it.
   The purpose is to filter the result by an object or list of objects of that class,
-  or to accept all objects of that class by specifying `anything` for that argument.
+  or to accept all objects of that class by specifying `anything` for this argument.
 - `_compact::Bool=true`: whether or not filtered object classes should be removed from the resulting tuples.
 - `_default=[]`: the default value to return in case no relationship passes the filter.
 
-# Example
+# Examples
 
 ```jldoctest
 julia> using SpineInterface;
@@ -229,6 +229,10 @@ julia> node__commodity(commodity=:water)
 2-element Array{Object,1}:
  Nimes
  Sthlm
+
+julia> node__commodity(node=(:Dublin, :Espoo))
+1-element Array{Object,1}:
+ wind
 
 julia> node__commodity(node=anything)
 2-element Array{Object,1}:
@@ -303,7 +307,7 @@ associated with `p`, to another `Dict` mapping corresponding objects or relation
 - `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
 
 
-# Example
+# Examples
 
 ```jldoctest
 julia> using SpineInterface;

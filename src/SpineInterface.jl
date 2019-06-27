@@ -10,7 +10,6 @@ include("types.jl")
 include("time_slice.jl")
 include("time_pattern.jl")
 include("parameter_value_types.jl")
-include("parse_value.jl")
 include("using_spinedb.jl")
 include("write_results.jl")
 include("helpers.jl")
@@ -18,6 +17,7 @@ include("util.jl")
 
 const db_api = PyNULL()
 const required_spinedb_api_version = "0.0.22"
+const iso8601zoneless = dateformat"yyyy-mm-ddTHH:MM"
 
 export Anything
 export Parameter
@@ -59,6 +59,13 @@ SpineInterface couldn't find the required version of `spinedb_api` and needs to 
 - Run `import Pkg; Pkg.build("SpineInterface")` to rebuild SpineInterface.
 """
     )
+    pytype_mapping(db_api."parameter_value"."DateTime", DateTime_)
+    pytype_mapping(db_api."parameter_value"."Duration", Duration)
+    pytype_mapping(db_api."parameter_value"."TimeSeriesFixedResolution", TimeSeries)
+    pytype_mapping(db_api."parameter_value"."TimeSeriesVariableResolution", TimeSeries)
+    py"""
+    from datetime import datetime
+    """
 end
 
 end # module
