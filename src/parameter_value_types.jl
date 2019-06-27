@@ -38,22 +38,6 @@ end
 
 # Convert routines
 # Here we specify how to go from `PyObject` returned by `spinedb_api.from_database` to our special type
-function relativedelta_to_period(delta::PyObject)
-    if delta.minutes > 0
-        Minute(delta.minutes)
-    elseif delta.hours > 0
-        Hour(delta.hours)
-    elseif delta.days > 0
-        Day(delta.days)
-    elseif delta.months > 0
-        Month(delta.months)
-    elseif delta.years > 0
-        Year(delta.years)
-    else
-        Minute(0)
-    end
-end
-
 Base.convert(::Type{DateTime_}, o::PyObject) = DateTime_(o.value)
 Base.convert(::Type{Duration}, o::PyObject) = Duration(relativedelta_to_period(o.value)) # TODO: variable duration?
 
@@ -72,6 +56,22 @@ function Base.convert(::Type{TimeSeries}, o::PyObject)
         indexes = py"[s.astype(datetime) for s in $o.indexes]"
     end
     TimeSeries(indexes, values, ignore_year, repeat)
+end
+
+function relativedelta_to_period(delta::PyObject)
+    if delta.minutes > 0
+        Minute(delta.minutes)
+    elseif delta.hours > 0
+        Hour(delta.hours)
+    elseif delta.days > 0
+        Day(delta.days)
+    elseif delta.months > 0
+        Month(delta.months)
+    elseif delta.years > 0
+        Year(delta.years)
+    else
+        Minute(0)
+    end
 end
 
 # Callable types
@@ -93,25 +93,30 @@ struct TimePatternCallable{T}
     default
 end
 
-struct TimeSeriesCallable{I,V, MV}
+abstract type TimeSeriesCallableLike end
+
+struct TimeSeriesCallable{I,V} <: TimeSeriesCallableLike
     value::TimeSeries{I,V}
-    span::Period
+end
+
+struct RepeatingTimeSeriesCallable{I,V,MV} <: TimeSeriesCallableLike
+    value::TimeSeries{I,V}
+    span::Union{Period,Nothing}
     mean_value::MV
 end
+
 
 # Constructors
 ScalarCallable(s::String) = ScalarCallable(Symbol(s))
 
-function TimeSeriesCallable(ts::TimeSeries{I,V}) where {I,V}
+function TimeSeriesCallableLike(ts::TimeSeries{I,V}) where {I,V}
     if ts.repeat
-        # Compute span and mean value to save work when accessing repeating time series
         span = ts.indexes[end] - ts.indexes[1]
         mean_value = mean(ts.values)
+        RepeatingTimeSeriesCallable(ts, span, mean_value)
     else
-        span = Minute(0)
-        mean_value = 0
+        TimeSeriesCallable(ts)
     end
-    TimeSeriesCallable(ts, span, mean_value)
 end
 
 # Call operators
@@ -173,41 +178,49 @@ function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing)
         t_start -= Year(t_start)
         t_end = t_start + t_duration
     end
-    if p.value.repeat
-        repetitions = 0
-        if t_start > p.value.indexes[end]
-            # Move start back within time_stamps range
-            mismatch = start - p.value.indexes[1]
-            repetitions = div(mismatch, p.span)
-            t_start -= repetitions * p.span
-            t_end = start + duration
-        end
-        if t_end > p.value.indexes[end]
-            # Move end_ back within time_stamps range
-            mismatch = t_end - p.value.indexes[1]
-            repetitions = div(mismatch, p.span)
-            t_end -= repetitions * p.span
-        end
-        a = findfirst(i -> i >= t_start, p.value.indexes)
-        b = findlast(i -> i < t_end, p.value.indexes)
-        if a === nothing || b === nothing
-            error("$p is not defined on $t")
-        else
-            if a <= b
-                value = mean(p.value.values[a:b])
-            else
-                value = -mean(p.value.values[b:a])
-            end
-            value + repetitions * p.mean_value  # repetitions holds the number of rolls we move back the end
-        end
+    a = findfirst(i -> i >= t_start, p.value.indexes)
+    b = findlast(i -> i <= t_end, p.value.indexes)
+    if a === nothing || b === nothing
+        error("$p is not defined on $t")
     else
-        a = findfirst(i -> i >= t_start, p.value.indexes)
-        b = findlast(i -> i <= t_end, p.value.indexes)
-        if a === nothing || b === nothing
-            error("$p is not defined on $t")
+        mean(p.value.values[a:b])
+    end
+end
+
+function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing)
+    t === nothing && return p.value
+    t_start = t.start
+    t_end = t.end_
+    t_duration = t.duration
+    if p.value.ignore_year
+        t_start -= Year(t_start)
+        t_end = t_start + t_duration
+    end
+    repetitions = 0
+    if t_start > p.value.indexes[end]
+        # Move start back within time_stamps range
+        mismatch = start - p.value.indexes[1]
+        repetitions = div(mismatch, p.span)
+        t_start -= repetitions * p.span
+        t_end = start + duration
+    end
+    if t_end > p.value.indexes[end]
+        # Move end_ back within time_stamps range
+        mismatch = t_end - p.value.indexes[1]
+        repetitions = div(mismatch, p.span)
+        t_end -= repetitions * p.span
+    end
+    a = findfirst(i -> i >= t_start, p.value.indexes)
+    b = findlast(i -> i < t_end, p.value.indexes)
+    if a === nothing || b === nothing
+        error("$p is not defined on $t")
+    else
+        if a <= b
+            value = mean(p.value.values[a:b])
         else
-            mean(p.value.values[a:b])
+            value = -mean(p.value.values[b:a])
         end
+        value + repetitions * p.mean_value  # repetitions holds the number of rolls we move back the end
     end
 end
 
@@ -221,7 +234,7 @@ callable(parsed_value::Array) = ArrayCallable(parsed_value)
 callable(parsed_value::DateTime_) = ScalarCallable(parsed_value.value)
 callable(parsed_value::Duration) = ScalarCallable(parsed_value.value)
 callable(parsed_value::TimePattern) = TimePatternCallable(parsed_value)
-callable(parsed_value::TimeSeries) = TimeSeriesCallable(parsed_value)
+callable(parsed_value::TimeSeries) = TimeSeriesCallableLike(parsed_value)
 
 
 # Utility
