@@ -48,12 +48,14 @@ function Base.convert(::Type{TimeSeries}, o::PyObject)
     if pyisinstance(o, db_api.TimeSeriesFixedResolution) && length(o.resolution) == 1
         # Let's use StepRange here for efficiency since we can
         start = o.start
+        ignore_year && (start -= Year(start))
         len = length(values)
         res = relativedelta_to_period(o.resolution[1])
         end_ = start + len * res
         indexes = start:res:end_
     else
         indexes = py"[s.astype(datetime) for s in $o.indexes]"
+        ignore_year && (indexes = [s - Year(s) for s in indexes])
     end
     TimeSeries(indexes, values, ignore_year, repeat)
 end
@@ -99,10 +101,11 @@ struct TimeSeriesCallable{I,V} <: TimeSeriesCallableLike
     value::TimeSeries{I,V}
 end
 
-struct RepeatingTimeSeriesCallable{I,V,MV} <: TimeSeriesCallableLike
+struct RepeatingTimeSeriesCallable{I,V} <: TimeSeriesCallableLike
     value::TimeSeries{I,V}
     span::Union{Period,Nothing}
-    mean_value::MV
+    valsum::V
+    len::Int64
 end
 
 
@@ -112,8 +115,9 @@ ScalarCallable(s::String) = ScalarCallable(Symbol(s))
 function TimeSeriesCallableLike(ts::TimeSeries{I,V}) where {I,V}
     if ts.repeat
         span = ts.indexes[end] - ts.indexes[1]
-        mean_value = mean(ts.values)
-        RepeatingTimeSeriesCallable(ts, span, mean_value)
+        valsum = sum(ts.values)
+        len = length(ts.values)
+        RepeatingTimeSeriesCallable(ts, span, valsum, len)
     else
         TimeSeriesCallable(ts)
     end
@@ -172,12 +176,9 @@ end
 function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing)
     t === nothing && return p.value
     t_start = t.start
-    t_end = t.end_
+    p.value.ignore_year && (t_start -= Year(t_start))
     t_duration = t.duration
-    if p.value.ignore_year
-        t_start -= Year(t_start)
-        t_end = t_start + t_duration
-    end
+    t_end = t_start + t_duration
     a = findfirst(i -> i >= t_start, p.value.indexes)
     b = findlast(i -> i <= t_end, p.value.indexes)
     if a === nothing || b === nothing
@@ -190,37 +191,36 @@ end
 function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing)
     t === nothing && return p.value
     t_start = t.start
-    t_end = t.end_
-    t_duration = t.duration
-    if p.value.ignore_year
-        t_start -= Year(t_start)
-        t_end = t_start + t_duration
-    end
-    repetitions = 0
+    p.value.ignore_year && (t_start -= Year(t_start))
     if t_start > p.value.indexes[end]
-        # Move start back within time_stamps range
-        mismatch = start - p.value.indexes[1]
-        repetitions = div(mismatch, p.span)
-        t_start -= repetitions * p.span
-        t_end = start + duration
+        # Move t_start back within time_stamps range
+        mismatch = t_start - p.value.indexes[1]
+        reps = div(mismatch, p.span)
+        t_start -= reps * p.span
     end
-    if t_end > p.value.indexes[end]
-        # Move end_ back within time_stamps range
+    t_duration = t.duration
+    t_end = t_start + t_duration
+    # Move t_end back within time_stamps range
+    reps = if t_end > p.value.indexes[end]
         mismatch = t_end - p.value.indexes[1]
-        repetitions = div(mismatch, p.span)
-        t_end -= repetitions * p.span
+        div(mismatch, p.span)
+    else
+        0
     end
+    t_end -= reps * p.span
     a = findfirst(i -> i >= t_start, p.value.indexes)
-    b = findlast(i -> i < t_end, p.value.indexes)
+    b = findlast(i -> i <= t_end, p.value.indexes)
     if a === nothing || b === nothing
         error("$p is not defined on $t")
     else
-        if a <= b
-            value = mean(p.value.values[a:b])
+        if a < b
+            (sum(p.value.values[a:b-1]) + reps * p.valsum) / (b - a + reps * p.len)
         else
-            value = -mean(p.value.values[b:a])
+            div(
+                sum(p.value.values[1:b]) + sum(p.value.values[a:end]) + (reps - 1) * p.valsum,
+                b - a + 1 + reps * p.len
+            )
         end
-        value + repetitions * p.mean_value  # repetitions holds the number of rolls we move back the end
     end
 end
 
