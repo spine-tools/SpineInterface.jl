@@ -32,6 +32,7 @@ export write_results
 export duration
 export start
 export before
+export iscontained
 export overlaps
 export overlap_duration
 export t_lowest_resolution
