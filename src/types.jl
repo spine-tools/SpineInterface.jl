@@ -59,7 +59,7 @@ in calls to [`RelationshipClass()`](@ref).
 anything = Anything()
 
 Base.intersect(s, ::Anything) = s
-Base.show(io::IO, ::Anything) = print(io, "anything (aka all of them)")
+Base.show(io::IO, ::Anything) = print(io, "anything")
 
 
 """
@@ -303,7 +303,6 @@ associated with `p`, to another `Dict` mapping corresponding objects or relation
 - For each relationship class associated with `p`, there is a keyword argument named after each of the
   object classes involved in it. The purpose is to retrieve the value of `p` for a specific relationship.
 - `i::Int64`: a specific index to retrieve in case of an array value (ignored otherwise).
-- `k::String`: a specific key to retrieve in case of a dictionary value (ignored otherwise).
 - `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
 
 

@@ -8,7 +8,7 @@ using Statistics
 
 include("types.jl")
 include("time_slice.jl")
-include("time_pattern.jl")
+include("period_collection.jl")
 include("parameter_value_types.jl")
 include("using_spinedb.jl")
 include("write_results.jl")
@@ -20,21 +20,15 @@ const required_spinedb_api_version = "0.0.22"
 const iso8601zoneless = dateformat"yyyy-mm-ddTHH:MM"
 
 export Anything
-export Parameter
 export ObjectClass
 export RelationshipClass
+export Parameter
 export ObjectLike
 export Object
 export TimeSlice
 export using_spinedb
 export notusing_spinedb
 export write_results
-export NoValue
-export ScalarValue
-export ArrayValue
-export DictValue
-export TimePatternValue
-export TimeSeriesValue
 export duration
 export start
 export before
@@ -60,7 +54,8 @@ SpineInterface couldn't find the required version of `spinedb_api` and needs to 
 """
     )
     pytype_mapping(db_api."parameter_value"."DateTime", DateTime_)
-    pytype_mapping(db_api."parameter_value"."Duration", Duration)
+    pytype_mapping(db_api."parameter_value"."Duration", DurationLike)
+    pytype_mapping(db_api."parameter_value"."TimePattern", TimePattern)
     pytype_mapping(db_api."parameter_value"."TimeSeriesFixedResolution", TimeSeries)
     pytype_mapping(db_api."parameter_value"."TimeSeriesVariableResolution", TimeSeries)
     py"""

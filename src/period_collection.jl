@@ -18,40 +18,40 @@
 #############################################################################
 
 """
-    TimePattern(...)
+    PeriodCollection
 """
-struct TimePattern
-    y::Union{Array{UnitRange{Int64},1},Nothing}
-    m::Union{Array{UnitRange{Int64},1},Nothing}
-    d::Union{Array{UnitRange{Int64},1},Nothing}
-    wd::Union{Array{UnitRange{Int64},1},Nothing}
-    H::Union{Array{UnitRange{Int64},1},Nothing}
+struct PeriodCollection
+    Y::Union{Array{UnitRange{Int64},1},Nothing}
     M::Union{Array{UnitRange{Int64},1},Nothing}
-    S::Union{Array{UnitRange{Int64},1},Nothing}
-    TimePattern(;y=nothing, m=nothing, d=nothing, wd=nothing, H=nothing, M=nothing, S=nothing) = new(y, m, d, wd, H, M, S)
+    D::Union{Array{UnitRange{Int64},1},Nothing}
+    WD::Union{Array{UnitRange{Int64},1},Nothing}
+    h::Union{Array{UnitRange{Int64},1},Nothing}
+    m::Union{Array{UnitRange{Int64},1},Nothing}
+    s::Union{Array{UnitRange{Int64},1},Nothing}
+    function PeriodCollection(;Y=nothing, M=nothing, D=nothing, WD=nothing, h=nothing, m=nothing, s=nothing)
+        new(Y, M, D, WD, h, m, s)
+    end
 end
 
 """
-    TimePattern(spec::String)
+    PeriodCollection(spec::String)
 
-A `TimePattern` value parsed from the given string specification.
+Construct a `PeriodCollection` from the given string specification.
 """
-function TimePattern(spec::String)
+function PeriodCollection(spec::String)
     union_op = ","
     intersection_op = ";"
     range_op = "-"
     kwargs = Dict()
-    regexp = r"(y|m|d|wd|H|M|S)"
-    pattern_specs = split(spec, union_op)
-    for pattern_spec in pattern_specs
-        range_specs = split(pattern_spec, intersection_op)
-        for range_spec in range_specs
-            m = match(regexp, range_spec)
-            m === nothing && error("""invalid interval specification $range_spec.""")
+    regexp = r"(Y|M|D|WD|h|m|s)"
+    for intervals in split(spec, union_op)
+        for interval in split(intervals, intersection_op)
+            m = Base.match(regexp, interval)
+            m === nothing && error("""invalid interval specification $interval.""")
             key = m.match
-            start_stop = range_spec[length(key)+1:end]
+            start_stop = interval[length(key)+1:end]
             start_stop = split(start_stop, range_op)
-            length(start_stop) != 2 && error("""invalid interval specification $range_spec.""")
+            length(start_stop) != 2 && error("""invalid interval specification $interval.""")
             start_str, stop_str = start_stop
             start = try
                 parse(Int64, start_str)
@@ -68,23 +68,23 @@ function TimePattern(spec::String)
             push!(arr, range(start, stop=stop))
         end
     end
-    TimePattern(;kwargs...)
+    PeriodCollection(;kwargs...)
 end
 
 
-function Base.show(io::IO, time_pattern::TimePattern)
+function Base.show(io::IO, period_collection::PeriodCollection)
     d = Dict{Symbol,String}(
-        :y => "year",
-        :m => "month",
-        :d => "day",
-        :wd => "day of the week",
-        :H => "hour",
-        :M => "minute",
-        :S => "second",
+        :Y => "year",
+        :M => "month",
+        :D => "day",
+        :WD => "day of the week",
+        :h => "hour",
+        :m => "minute",
+        :s => "second",
     )
     ranges = Array{String,1}()
-    for field in fieldnames(TimePattern)
-        value = getfield(time_pattern, field)
+    for field in fieldnames(PeriodCollection)
+        value = getfield(period_collection, field)
         if value != nothing
             str = "$(d[field]) from "
             str *= join(["$(x.start) to $(x.stop)" for x in value], ", or ")

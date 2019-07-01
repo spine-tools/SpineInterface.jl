@@ -17,17 +17,25 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-# Special types
-# types returned by `spinedb_api.from_database` are automatically converted to these
-# using `PyCall.pytype_mapping` system.
+# Special parameter value types
+# types returned by the parsing function `spinedb_api.from_database`
+# are automatically converted to these using `PyCall.pytype_mapping`.
 # This allows us to mutiple dispatch `callable` below
 struct DateTime_
     value::DateTime
 end
 
-struct Duration
+abstract type DurationLike end
+
+struct ScalarDuration <: DurationLike
     value::Period
 end
+
+struct ArrayDuration <: DurationLike
+    value::Array{Period,1}
+end
+
+TimePattern = Dict{PeriodCollection,T} where T
 
 struct TimeSeries{I,V}
     indexes::I
@@ -39,27 +47,8 @@ end
 # Convert routines
 # Here we specify how to go from `PyObject` returned by `spinedb_api.from_database` to our special type
 Base.convert(::Type{DateTime_}, o::PyObject) = DateTime_(o.value)
-Base.convert(::Type{Duration}, o::PyObject) = Duration(relativedelta_to_period(o.value)) # TODO: variable duration?
 
-function Base.convert(::Type{TimeSeries}, o::PyObject)
-    ignore_year = o.ignore_year
-    repeat = o.repeat
-    values = o.values
-    if pyisinstance(o, db_api.TimeSeriesFixedResolution) && length(o.resolution) == 1
-        # Let's use StepRange here for efficiency since we can
-        start = o.start
-        ignore_year && (start -= Year(start))
-        len = length(values)
-        res = relativedelta_to_period(o.resolution[1])
-        end_ = start + len * res
-        indexes = start:res:end_
-    else
-        indexes = py"[s.astype(datetime) for s in $o.indexes]"
-        ignore_year && (indexes = [s - Year(s) for s in indexes])
-    end
-    TimeSeries(indexes, values, ignore_year, repeat)
-end
-
+# Helper function for `convert(::Type{DurationLike}, ::PyObject)`
 function relativedelta_to_period(delta::PyObject)
     if delta.minutes > 0
         Minute(delta.minutes)
@@ -76,8 +65,39 @@ function relativedelta_to_period(delta::PyObject)
     end
 end
 
+function Base.convert(::Type{DurationLike}, o::PyObject)
+    if o.value isa Array
+        ArrayDuration([relativedelta_to_period(val) for val in o.value])
+    else
+        ScalarDuration(relativedelta_to_period(o.value))
+    end
+end
+
+function Base.convert(::Type{TimePattern}, o::PyObject)
+    Dict(PeriodCollection(ind) => val for (ind, val) in zip(o.indexes, o.values))
+end
+
+function Base.convert(::Type{TimeSeries}, o::PyObject)
+    ignore_year = o.ignore_year
+    repeat = o.repeat
+    values = o.values
+    if pyisinstance(o, db_api.TimeSeriesFixedResolution) && length(o.resolution) == 1
+        # Let's use StepRange here since we can, in case it improves performance
+        start = o.start
+        ignore_year && (start -= Year(start))
+        len = length(values)
+        res = relativedelta_to_period(o.resolution[1])
+        end_ = start + len * res
+        indexes = start:res:end_
+    else
+        indexes = py"[s.astype(datetime) for s in $o.indexes]"
+        ignore_year && (indexes = [s - Year(s) for s in indexes])
+    end
+    TimeSeries(indexes, values, ignore_year, repeat)
+end
+
 # Callable types
-# These are wrappers around standard Julia types and our special types above
+# These are wrappers around standard Julia types and our special types above,
 # that override the call operator
 struct NothingCallable
 end
@@ -91,8 +111,7 @@ struct ArrayCallable{T,N}
 end
 
 struct TimePatternCallable{T}
-    dict::Dict{TimePattern,T}
-    default
+    value::TimePattern{T}
 end
 
 abstract type TimeSeriesCallableLike end
@@ -108,8 +127,7 @@ struct RepeatingTimeSeriesCallable{I,V} <: TimeSeriesCallableLike
     len::Int64
 end
 
-
-# Constructors
+# Required outer constructors
 ScalarCallable(s::String) = ScalarCallable(Symbol(s))
 
 function TimeSeriesCallableLike(ts::TimeSeries{I,V}) where {I,V}
@@ -123,51 +141,50 @@ function TimeSeriesCallableLike(ts::TimeSeries{I,V}) where {I,V}
     end
 end
 
-# Call operators
+# Call operator override
+# Here we specify how to call our `...Callable` types
 (p::NothingCallable)(;kwargs...) = nothing
 (p::ScalarCallable)(;kwargs...) = p.value
 
 function (p::ArrayCallable)(;i::Union{Int64,Nothing}=nothing)
-    if i === nothing
-        @warn("argument `i` missing, returning the whole array")
-        p.value
-    else
-        p.value[i]
-    end
+    i === nothing && return p.value
+    p.value[i]
 end
 
+# Helper functions for `(p::TimePatternCallable)()`
 """
-    match(ts::TimeSlice, tp::TimePattern)
+    iscontained(ts::TimeSlice, pc::PeriodCollection)
 
-Test whether a time slice matches a time pattern.
-A time pattern and a time series match iff, for every time level (year, month, and so on),
-the time slice fully contains at least one of the ranges specified in the time pattern for that level.
+Test whether a time slice is contained in a period collection.
 """
-function match(ts::TimeSlice, tp::TimePattern)
+function iscontained(ts::TimeSlice, pc::PeriodCollection)
+    fdict = Dict{Symbol,Function}(
+        :Y => year,
+        :M => month,
+        :D => day,
+        :WD => dayofweek,
+        :h => hour,
+        :m => minute,
+        :s => second,
+    )
     conds = Array{Bool,1}()
-    tp.y != nothing && push!(conds, any(range_in(rng, year(ts.start):year(ts.end_)) for rng in tp.y))
-    tp.m != nothing && push!(conds, any(range_in(rng, month(ts.start):month(ts.end_)) for rng in tp.m))
-    tp.d != nothing && push!(conds, any(range_in(rng, day(ts.start):day(ts.end_)) for rng in tp.d))
-    tp.wd != nothing && push!(conds, any(range_in(rng, dayofweek(ts.start):dayofweek(ts.end_)) for rng in tp.wd))
-    tp.H != nothing && push!(conds, any(range_in(rng, hour(ts.start):hour(ts.end_)) for rng in tp.H))
-    tp.M != nothing && push!(conds, any(range_in(rng, minute(ts.start):minute(ts.end_)) for rng in tp.M))
-    tp.S != nothing && push!(conds, any(range_in(rng, second(ts.start):second(ts.end_)) for rng in tp.S))
+    sizehint!(conds, 7)
+    for name in fieldnames(PeriodCollection)
+        getfield(pc, name) == nothing && continue
+        f = fdict[name]
+        b = f(ts.start):f(ts.end_)
+        push!(conds, any(iscontained(b, a) for a in getfield(pc, name)))
+    end
     all(conds)
 end
 
-"""
-    range_in(b::UnitRange{Int64}, a::UnitRange{Int64})
-
-Test whether `b` is fully contained in `a`.
-"""
-range_in(b::UnitRange{Int64}, a::UnitRange{Int64}) = b.start >= a.start && b.stop <= a.stop
+iscontained(b::UnitRange{Int64}, a::UnitRange{Int64}) = b.start >= a.start && b.stop <= a.stop
 
 function (p::TimePatternCallable)(;t::Union{TimeSlice,Nothing}=nothing)
-    t === nothing && error("argument `t` missing")
-    values = [val for (tp, val) in p.dict if match(t, tp)]
+    t === nothing && return p.value
+    values = [val for (tp, val) in p.value if iscontained(t, tp)]
     if isempty(values)
-        @warn("$t does not match $p, using default value...")
-        p.default
+        error("$t is not defined on $p")
     else
         mean(values)
     end
@@ -232,12 +249,14 @@ callable(parsed_value::Float64) = ScalarCallable(parsed_value)
 callable(parsed_value::String) = ScalarCallable(parsed_value)
 callable(parsed_value::Array) = ArrayCallable(parsed_value)
 callable(parsed_value::DateTime_) = ScalarCallable(parsed_value.value)
-callable(parsed_value::Duration) = ScalarCallable(parsed_value.value)
+callable(parsed_value::ScalarDuration) = ScalarCallable(parsed_value.value)
+callable(parsed_value::ArrayDuration) = ArrayCallable(parsed_value.value)
 callable(parsed_value::TimePattern) = TimePatternCallable(parsed_value)
 callable(parsed_value::TimeSeries) = TimeSeriesCallableLike(parsed_value)
 
 
 # Utility
+# We need to check all this, where it is used and why
 """
     time_stamps(val::TimeSeriesCallable)
 """

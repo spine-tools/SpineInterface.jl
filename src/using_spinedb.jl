@@ -38,7 +38,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
                 object_subset_dict[value] = Array{Object,1}()
             end
         end
-        default_callable = db_api.from_database(parameter["default_value"])
+        default_callable = callable(db_api.from_database(parameter["default_value"]))
         class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         parameter_value_pairs = class_value_dict[(Symbol(object_class_name),)] = Array{Pair,1}()
         for object_name in object_dict[object_class_name]
@@ -68,7 +68,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         parameter_id = parameter["id"]
         relationship_class_name = parameter["relationship_class_name"]
         object_class_name_list = parameter["object_class_name_list"]
-        default_callable = db_api.from_database(parameter["default_value"])
+        default_callable = callable(db_api.from_database(parameter["default_value"]))
         class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         class_name = tuple(fix_name_ambiguity(Symbol.(split(object_class_name_list, ",")))...)
         alt_class_name = (Symbol(relationship_class_name),)
@@ -92,7 +92,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
     for (parameter_name, class_name_dict) in parameter_class_names
         for (sorted_class_name, class_name_tuples) in class_name_dict
             if length(class_name_tuples) > 1
-                msg = "'$parameter_name' is defined on multiple relationship classes among the same "
+                msg = "'$parameter_name' is defined on multiple relationship classes involving the same "
                 msg *= "object classes '$(join(sorted_class_name, "', '"))'"
                 msg *= " - use, e.g., `$parameter_name($(last(class_name_tuples[1])[1])=...)` to access it"
                 @warn msg
@@ -144,7 +144,7 @@ end
 
 Take the Spine database at the given RFC-1738 `url`,
 and export convenience *functors* named after each object class, relationship class,
-and parameter in it.
+and parameter in it. These functors can be used to retrieve specific contents in the db.
 
 If `upgrade` is `true`, then the database at `url` is upgraded to the latest revision.
 
