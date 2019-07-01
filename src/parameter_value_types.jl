@@ -87,7 +87,7 @@ function Base.convert(::Type{TimeSeries}, o::PyObject)
         ignore_year && (start -= Year(start))
         len = length(values)
         res = relativedelta_to_period(o.resolution[1])
-        end_ = start + len * res
+        end_ = start + (len - 1) * res
         indexes = start:res:end_
     else
         indexes = py"[s.astype(datetime) for s in $o.indexes]"

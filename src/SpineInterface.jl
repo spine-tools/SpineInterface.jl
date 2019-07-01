@@ -36,7 +36,7 @@ export overlaps
 export overlap_duration
 export t_lowest_resolution
 export t_highest_resolution
-export time_stamps
+export TimeSeries
 export indices
 export anything
 export unique_sorted
