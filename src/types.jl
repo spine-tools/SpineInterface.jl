@@ -16,32 +16,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-
-struct SpineDBParseError{T} <: Exception where T <: Exception
-    original_exception::T
-    parameter_name::String
-    object_name
-end
-
-SpineDBParseError(orig, par) = SpineDBParseError(orig, par, nothing)
-
-function Base.showerror(io::IO, e::SpineDBParseError)
-    if e.object_name != nothing
-        print(
-            io,
-            "unable to parse value of '$(e.parameter_name)' for '$(e.object_name)': ",
-            sprint(showerror, e.original_exception)
-        )
-    else
-        print(
-            io,
-            "unable to parse default value of '$(e.parameter_name)': ",
-            sprint(showerror, e.original_exception)
-        )
-    end
-end
-
-
 """
     Anything
 
