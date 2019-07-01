@@ -38,7 +38,15 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
                 object_subset_dict[value] = Array{Object,1}()
             end
         end
-        default_callable = callable(db_api.from_database(parameter["default_value"]))
+        default_callable = try
+            callable(db_api.from_database(parameter["default_value"]))
+        catch e
+            if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
+                rethrow(ErrorException("unable to parse default value of '$parameter_name': $(sprint(showerror, e))"))
+            else
+                rethrow()
+            end
+        end
         class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         parameter_value_pairs = class_value_dict[(Symbol(object_class_name),)] = Array{Pair,1}()
         for object_name in object_dict[object_class_name]
@@ -46,7 +54,19 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             callable_ = if value == nothing
                  default_callable
             else
-                callable(db_api.from_database(value))
+                try
+                    callable(db_api.from_database(value))
+                catch e
+                    if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
+                        rethrow(
+                            ErrorException(
+                                "unable to parse value of '$parameter_name' for '$object_name': $(sprint(showerror, e))"
+                            )
+                        )
+                    else
+                        rethrow()
+                    end
+                end
             end
             object = Object(object_name)
             push!(parameter_value_pairs, (object,) => callable_)
@@ -57,8 +77,7 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
                 push!(arr, object)
             else
                 @warn(
-                    "the value of '$parameter_name' for '$object' is $json_value, "
-                    * "which is not a listed value."
+                    "the value of '$parameter_name' for '$object' is $value, which is not a listed value."
                 )
             end
         end
@@ -68,7 +87,15 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
         parameter_id = parameter["id"]
         relationship_class_name = parameter["relationship_class_name"]
         object_class_name_list = parameter["object_class_name_list"]
-        default_callable = callable(db_api.from_database(parameter["default_value"]))
+        default_callable = try
+            callable(db_api.from_database(parameter["default_value"]))
+        catch e
+            if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
+                rethrow(ErrorException("unable to parse default value of '$parameter_name': $(sprint(showerror, e))"))
+            else
+                rethrow()
+            end
+        end
         class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         class_name = tuple(fix_name_ambiguity(Symbol.(split(object_class_name_list, ",")))...)
         alt_class_name = (Symbol(relationship_class_name),)
@@ -83,7 +110,22 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
             callable_ = if value == nothing
                  default_callable
             else
-                callable(db_api.from_database(value))
+                try
+                    callable(db_api.from_database(value))
+                catch e
+                    if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
+                        rethrow(
+                            ErrorException(
+                                string(
+                                    "unable to parse value of '$parameter_name' for '$object_name_list': ",
+                                    sprint(showerror, e)
+                                )
+                            )
+                        )
+                    else
+                        rethrow()
+                    end
+                end
             end
             object_tuple = tuple(Object.(split(object_name_list, ","))...)
             push!(parameter_value_pairs, object_tuple => callable_)
@@ -217,7 +259,7 @@ function notusing_spinedb(db_url::String; upgrade=false)
         db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
         notusing_spinedb(db_map)
     catch e
-        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
+        if e isa PyCall.PyError && e.T == db_api.exception.SpineDBVersionError
             error(
 """
 The database at '$db_url' is from an older version of Spine
