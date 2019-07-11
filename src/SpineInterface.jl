@@ -11,7 +11,7 @@ include("time_slice.jl")
 include("period_collection.jl")
 include("parameter_value_types.jl")
 include("using_spinedb.jl")
-include("write_results.jl")
+include("write_parameters.jl")
 include("helpers.jl")
 include("util.jl")
 
@@ -28,7 +28,7 @@ export Object
 export TimeSlice
 export using_spinedb
 export notusing_spinedb
-export write_results
+export write_parameters
 export duration
 export start
 export before

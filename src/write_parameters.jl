@@ -17,46 +17,49 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-add_var_to_result!(::PyObject, ::Symbol, ::Dict{Any,Any}, ::Dict{Any,Any}, ::Dict{Any,Any}) = nothing
+write_parameter!(::PyObject, ::Symbol, ::Dict{Any,Any}; result::String="") = nothing
 
 """
-    add_var_to_result!(db_map, var_name, var, result_class, result_object)
+    write_parameter!(db_map, name, data; result="")
 
-Update `db_map` with data for parameter `var_name` given in `var`.
-Link the parameter to a `result_object` of class `result_class`.
+Add parameter to `db_map` with given `name` and `data`.
+Link the parameter to given result object if not empty.
 """
-function add_var_to_result!(
+function write_parameter!(
         db_map::PyObject,
-        var_name::Symbol,
-        var::Dict{S,T},
-        result_class::Dict,
-        result_object::Dict) where {S<:NamedTuple,T}
+        name::Symbol,
+        data::Dict{S,T};
+        result::String="") where {S<:NamedTuple,T}
     object_classes = []
+    !isempty(result) && pushfirst!(object_classes, "result")
     relationship_classes = []
     parameters = []
-    for obj_cls_names in unique(keys(key) for key in keys(var))
+    for obj_cls_names in unique(keys(key) for key in keys(data))
         str_obj_cls_names = [string(x) for x in obj_cls_names]
         append!(object_classes, str_obj_cls_names)
-        pushfirst!(str_obj_cls_names, result_class["name"])
+        !isempty(result) && pushfirst!(str_obj_cls_names, "result")
         rel_cls_name = join(str_obj_cls_names, "__")
         push!(relationship_classes, (rel_cls_name, str_obj_cls_names))
-        push!(parameters, (rel_cls_name, string(var_name)))
+        push!(parameters, (rel_cls_name, string(name)))
     end
     unique!(object_classes)
     objects = []
+    !isempty(result) && pushfirst!(objects, ("result", result))
     relationships = []
     parameter_values = []
-    for (key, value) in var
+    for (key, value) in data
         str_obj_cls_names = [string(x) for x in keys(key)]
         str_obj_names = [string(x) for x in values(key)]
         for (obj_cls_name, obj_name) in zip(str_obj_cls_names, str_obj_names)
             push!(objects, (obj_cls_name, obj_name))
         end
-        pushfirst!(str_obj_cls_names, result_class["name"])
+        if !isempty(result)
+            pushfirst!(str_obj_cls_names, "result")
+            pushfirst!(str_obj_names, result)
+        end
         rel_cls_name = join(str_obj_cls_names, "__")
-        pushfirst!(str_obj_names, result_object["name"])
         push!(relationships, (rel_cls_name, str_obj_names))
-        push!(parameter_values, (rel_cls_name, str_obj_names, string(var_name), JSON.json(value)))
+        push!(parameter_values, (rel_cls_name, str_obj_names, string(name), JSON.json(value)))
     end
     added, err_log = db_api.import_data(
         db_map,
@@ -72,23 +75,23 @@ end
 
 
 """
-    write_results(url::String; upgrade=false, <results>)
+    write_parameters(url::String; upgrade=false, result="", comment="", <parameters>)
 
-Write results to the Spine database at the given RFC-1738 `url`.
+Write given `parameters` to the Spine database at the given RFC-1738 `url`.
 
 If `upgrade` is `true`, then the database at `url` is upgraded to the latest revision.
 
 Results...
 
 """
-function write_results(dest_url::String; upgrade=false, results...)
+function write_parameters(dest_url::String; upgrade=false, result="", comment="", parameters...)
     try
         db_map = db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
-        write_results(db_map; results...)
+        write_parameters(db_map; result=result, comment=comment, parameters...)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBAPIError)
             db_api.create_new_spine_database(dest_url)
-            write_results(dest_url; results...)
+            write_parameters(dest_url; result=result, comment=comment, parameters...)
         else
             rethrow()
         end
@@ -96,24 +99,15 @@ function write_results(dest_url::String; upgrade=false, results...)
 end
 
 
-function write_results(db_map::PyObject; result="", results...)
+function write_parameters(db_map::PyObject; result="", comment="", parameters...)
     try
-        result_class = py"$db_map.add_object_classes(dict(name='result'), return_dups=True)[0].one()._asdict()"
-        timestamp = Dates.format(Dates.now(), "yyyymmdd_HH_MM_SS")
-        if isempty(result)
-            result = join(["result", timestamp], "_")
+        for (name, data) in parameters
+            write_parameter!(db_map, name, data; result=result)
         end
-        object_ = Dict(
-            "name" => result,
-            "class_id" => result_class["id"]
-        )
-        result_object = py"$db_map.add_objects($object_, return_dups=True)[0].one()._asdict()"
-        # Insert variable into spine database.
-        for (name, var) in results
-            add_var_to_result!(db_map, name, var, result_class, result_object)
+        if isempty(comment)
+            comment = string("Add $(join([string(k) for (k, v) in parameters])), automatically from SpineInterface.jl.")
         end
-        msg = string("Add $(join([string(k) for (k, v) in results])), automatically from SpineInterface.jl.")
-        db_map.commit_session(msg)
+        db_map.commit_session(comment)
     catch err
         db_map.rollback_session()
         rethrow()
