@@ -42,6 +42,24 @@ struct TimeSeries{I,V}
     values::Array{V,1}
     ignore_year::Bool
     repeat::Bool
+    function TimeSeries(inds::I, vals::Array{V,1}, iy, rep) where {I,V}
+        if length(inds) != length(vals)
+            error("lengths don't match")
+        end
+        new{I,V}(inds, vals, iy, rep)
+    end
+end
+
+# Convenience constructor that takes the start of the time slice as index
+function TimeSeries(indexes::Array{TimeSlice,1}, values::Array{V,1}, ignore_year::Bool, repeat::Bool) where V
+    TimeSeries([t.start for t in indexes], values, ignore_year, repeat)
+end
+
+# Convenience constructor that takes the `t` element of a NamedTuple as index
+function TimeSeries(indexes::Array{T,1}, values::Array{V,1}, ignore_year::Bool, repeat::Bool) where {
+        S,T<:NamedTuple{(:t,),S},V
+    }
+    TimeSeries([i.t for i in indexes], values, ignore_year, repeat)
 end
 
 # Convert routines
@@ -95,6 +113,14 @@ function Base.convert(::Type{TimeSeries}, o::PyObject)
     end
     TimeSeries(indexes, values, ignore_year, repeat)
 end
+
+# PyObject constructors
+function PyObject(ts::TimeSeries)
+    @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
+end
+
+# TODO: specify PyObject constructor for other special types
+
 
 # Callable types
 # These are wrappers around standard Julia types and our special types above,

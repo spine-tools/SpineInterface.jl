@@ -52,3 +52,12 @@ function unique_sorted(itr)
     coll = collect(itr)
     [coll[1]; [coll[i] for i in 2:length(coll) if coll[i] != coll[i-1]]]
 end
+
+
+
+"""
+    to_database(x)
+
+A JSON representation of `x`.
+"""
+to_database(x::Union{DateTime_,DurationLike,TimePattern,TimeSeries}) = PyObject(x).to_database()

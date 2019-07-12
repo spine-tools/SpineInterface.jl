@@ -17,34 +17,32 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-write_parameter!(::PyObject, ::Symbol, ::Dict{Any,Any}; result::String="") = nothing
-
 """
-    write_parameter!(db_map, name, data; result="")
+    write_parameter!(db_map, name, data; report="")
 
 Add parameter to `db_map` with given `name` and `data`.
-Link the parameter to given result object if not empty.
+Link the parameter to given `report` object.
 """
 function write_parameter!(
         db_map::PyObject,
         name::Symbol,
-        data::Dict{S,T};
-        result::String="") where {S<:NamedTuple,T}
+        data::Dict{Any,Any};
+        report::String="")
     object_classes = []
-    !isempty(result) && pushfirst!(object_classes, "result")
+    !isempty(report) && pushfirst!(object_classes, "report")
     relationship_classes = []
     parameters = []
     for obj_cls_names in unique(keys(key) for key in keys(data))
         str_obj_cls_names = [string(x) for x in obj_cls_names]
         append!(object_classes, str_obj_cls_names)
-        !isempty(result) && pushfirst!(str_obj_cls_names, "result")
+        !isempty(report) && pushfirst!(str_obj_cls_names, "report")
         rel_cls_name = join(str_obj_cls_names, "__")
         push!(relationship_classes, (rel_cls_name, str_obj_cls_names))
         push!(parameters, (rel_cls_name, string(name)))
     end
     unique!(object_classes)
     objects = []
-    !isempty(result) && pushfirst!(objects, ("result", result))
+    !isempty(report) && pushfirst!(objects, ("report", report))
     relationships = []
     parameter_values = []
     for (key, value) in data
@@ -53,13 +51,13 @@ function write_parameter!(
         for (obj_cls_name, obj_name) in zip(str_obj_cls_names, str_obj_names)
             push!(objects, (obj_cls_name, obj_name))
         end
-        if !isempty(result)
-            pushfirst!(str_obj_cls_names, "result")
-            pushfirst!(str_obj_names, result)
+        if !isempty(report)
+            pushfirst!(str_obj_cls_names, "report")
+            pushfirst!(str_obj_names, report)
         end
         rel_cls_name = join(str_obj_cls_names, "__")
         push!(relationships, (rel_cls_name, str_obj_names))
-        push!(parameter_values, (rel_cls_name, str_obj_names, string(name), JSON.json(value)))
+        push!(parameter_values, (rel_cls_name, str_obj_names, string(name), value))
     end
     added, err_log = db_api.import_data(
         db_map,
@@ -75,7 +73,7 @@ end
 
 
 """
-    write_parameters(url::String; upgrade=false, result="", comment="", <parameters>)
+    write_parameters(url::String; upgrade=false, report="", comment="", <parameters>)
 
 Write given `parameters` to the Spine database at the given RFC-1738 `url`.
 
@@ -84,14 +82,14 @@ If `upgrade` is `true`, then the database at `url` is upgraded to the latest rev
 Results...
 
 """
-function write_parameters(dest_url::String; upgrade=false, result="", comment="", parameters...)
+function write_parameters(dest_url::String; upgrade=false, report="", comment="", parameters...)
     try
         db_map = db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
-        write_parameters(db_map; result=result, comment=comment, parameters...)
+        write_parameters(db_map; report=report, comment=comment, parameters...)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBAPIError)
             db_api.create_new_spine_database(dest_url)
-            write_parameters(dest_url; result=result, comment=comment, parameters...)
+            write_parameters(dest_url; report=report, comment=comment, parameters...)
         else
             rethrow()
         end
@@ -99,10 +97,10 @@ function write_parameters(dest_url::String; upgrade=false, result="", comment=""
 end
 
 
-function write_parameters(db_map::PyObject; result="", comment="", parameters...)
+function write_parameters(db_map::PyObject; report="", comment="", parameters...)
     try
         for (name, data) in parameters
-            write_parameter!(db_map, name, data; result=result)
+            write_parameter!(db_map, name, data; report=report)
         end
         if isempty(comment)
             comment = string("Add $(join([string(k) for (k, v) in parameters])), automatically from SpineInterface.jl.")

@@ -41,7 +41,7 @@ export TimeSeries
 export indices
 export anything
 export unique_sorted
-export iso8601zoneless
+export to_database
 
 function __init__()
     copy!(db_api, pyimport("spinedb_api"))
