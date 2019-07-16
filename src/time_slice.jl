@@ -49,6 +49,7 @@ duration(t::TimeSlice) = t.duration.value
 
 start(t::TimeSlice) = t.start
 end_(t::TimeSlice) = t.end_
+blocks(t::TimeSlice) = t.blocks
 
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(a.start, a.end_) < tuple(b.start, b.end_)
 
@@ -88,19 +89,21 @@ function overlap_duration(a::TimeSlice, b::TimeSlice)
     Minute(overlap_end - overlap_start).value
 end
 
-# Iterate single `TimeSlice` as collection. NOTE: This also enables `intersect` with a single `TimeSlice`
-# I believe this is correct, since a single `TimeSlice` shouldn't be decomposed by an iterator
-# This is also Julia's default behaviour for `Number` types -Manuel
+# Iterate single `TimeSlice` as if it were a one-element collection.
+# NOTE:
+# - This also enables `intersect` with a single `TimeSlice`
+# - This is also Julia's default behaviour for `Number` types
 Base.iterate(t::TimeSlice) = iterate((t,))
 Base.iterate(t::TimeSlice, state::T) where T = iterate((t,), state)
 Base.length(t::TimeSlice) = 1
 
+# FIXME: This doesn't preserve order, so it's not exactly as `Base`'s
 function Base.intersect(s::Array{TimeSlice,1}, itrs...)
     sort!(s)
     for itr in itrs
         s = [s[i] for t in itr for i in searchsorted(s, t)]
     end
-    unique_sorted(s)
+    uniquesorted(s)
 end
 
 Base.intersect(s::Array{TimeSlice,1}, ::Anything) = s

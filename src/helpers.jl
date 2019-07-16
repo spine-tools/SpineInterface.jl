@@ -77,9 +77,9 @@ end
 
 
 """
-    pull!(cache::Array{Pair,1}, lookup_key, default; _optimize=true)
+    pull!(cache::Array{Pair,1}, lookup_key, default)
 """
-function pull!(cache::Array{Pair,1}, lookup_key, default; _optimize=true)
+function pull!(cache::Array{Pair,1}, lookup_key, default)
     i = 1
     found = false
     for (key, value) in cache
@@ -93,10 +93,22 @@ function pull!(cache::Array{Pair,1}, lookup_key, default; _optimize=true)
         default
     else
         key, value = cache[i]
-        if i > .1 * length(cache) && _optimize
+        if i > .1 * length(cache)
             deleteat!(cache, i)
             pushfirst!(cache, key => value)
         end
         value
     end
+end
+
+
+"""
+    uniquesorted(itr)
+
+Like `unique`, but assuming `itr` is sorted. Result is undefined if `itr` is not sorted.
+"""
+function uniquesorted(itr)
+    isempty(itr) && return []
+    coll = collect(itr)
+    [coll[1]; [coll[i] for i in 2:length(coll) if coll[i] != coll[i - 1]]]
 end

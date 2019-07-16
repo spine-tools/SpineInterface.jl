@@ -20,7 +20,7 @@
 """
     write_parameter!(db_map, name, data; report="")
 
-Add parameter to `db_map` with given `name` and `data`.
+Write parameter to `db_map` with given `name` and `data`.
 Link the parameter to given `report` object.
 """
 function write_parameter!(
@@ -78,9 +78,6 @@ end
 Write given `parameters` to the Spine database at the given RFC-1738 `url`.
 
 If `upgrade` is `true`, then the database at `url` is upgraded to the latest revision.
-
-Results...
-
 """
 function write_parameters(dest_url::String; upgrade=false, report="", comment="", parameters...)
     try

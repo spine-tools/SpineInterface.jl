@@ -31,6 +31,7 @@ export notusing_spinedb
 export write_parameters
 export duration
 export start
+export end_
 export before
 export iscontained
 export overlaps
@@ -40,7 +41,6 @@ export t_highest_resolution
 export TimeSeries
 export indices
 export anything
-export unique_sorted
 export to_database
 
 function __init__()
