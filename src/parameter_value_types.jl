@@ -68,26 +68,22 @@ Base.convert(::Type{DateTime_}, o::PyObject) = DateTime_(o.value)
 
 # Helper function for `convert(::Type{DurationLike}, ::PyObject)`
 function relativedelta_to_period(delta::PyObject)
-    if delta.minutes > 0
-        Minute(delta.minutes)
-    elseif delta.hours > 0
-        Hour(delta.hours)
-    elseif delta.days > 0
-        Day(delta.days)
-    elseif delta.months > 0
-        Month(delta.months)
-    elseif delta.years > 0
-        Year(delta.years)
+    # Add up till the day level
+    minutes = delta.minutes + 60 * (delta.hours + 24 * delta.days)
+    if minutes > 0
+        # No way the `relativedelta` implementation added beyond this point
+        Minute(minutes)
     else
-        Minute(0)
+        months = delta.months + 12 * delta.years
+        Month(months)
     end
 end
 
 function Base.convert(::Type{DurationLike}, o::PyObject)
-    if o.value isa Array
-        ArrayDuration([relativedelta_to_period(val) for val in o.value])
+    if length(o.value) == 1
+        ScalarDuration(relativedelta_to_period(o.value[1]))
     else
-        ScalarDuration(relativedelta_to_period(o.value))
+        ArrayDuration([relativedelta_to_period(val) for val in o.value])
     end
 end
 
@@ -115,12 +111,10 @@ function Base.convert(::Type{TimeSeries}, o::PyObject)
 end
 
 # PyObject constructors
+# TODO: specify PyObject constructor for other special types
 function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
 end
-
-# TODO: specify PyObject constructor for other special types
-
 
 # Callable types
 # These are wrappers around standard Julia types and our special types above,
@@ -174,7 +168,11 @@ end
 
 function (p::ArrayCallable)(;i::Union{Int64,Nothing}=nothing)
     i === nothing && return p.value
-    p.value[i]
+    if checkbounds(Bool, p.value, i)
+        p.value[i]
+    else
+        nothing
+    end
 end
 
 # Helper functions for `(p::TimePatternCallable)()`
@@ -210,7 +208,7 @@ function (p::TimePatternCallable)(;t::Union{TimeSlice,Nothing}=nothing)
     t === nothing && return p.value
     values = [val for (tp, val) in p.value if iscontained(t, tp)]
     if isempty(values)
-        error("$t is not defined on $p")
+        nothing
     else
         mean(values)
     end
@@ -222,11 +220,11 @@ function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing)
     p.value.ignore_year && (t_start -= Year(t_start))
     t_duration = t.duration
     t_end = t_start + t_duration
-    a = findfirst(i -> i >= t_start, p.value.indexes)
-    b = findlast(i -> i <= t_end, p.value.indexes)
-    if a === nothing || b === nothing
-        error("$p is not defined on $t")
+    if t_start > last(p.value.indexes) || t_end < first(p.value.indexes)
+        nothing
     else
+        a = findfirst(i -> i >= t_start, p.value.indexes)
+        b = findlast(i -> i <= t_end, p.value.indexes)
         mean(p.value.values[a:b])
     end
 end
@@ -254,7 +252,7 @@ function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing)
     a = findfirst(i -> i >= t_start, p.value.indexes)
     b = findlast(i -> i <= t_end, p.value.indexes)
     if a === nothing || b === nothing
-        error("$p is not defined on $t")
+        nothing
     else
         if a < b
             (sum(p.value.values[a:b-1]) + reps * p.valsum) / (b - a + reps * p.len)

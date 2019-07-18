@@ -92,7 +92,7 @@ end
 # Iterate single `TimeSlice` as if it were a one-element collection.
 # NOTE:
 # - This also enables `intersect` with a single `TimeSlice`
-# - This is also Julia's default behaviour for `Number` types
+# - This is also Julia's default behaviour for scalar types
 Base.iterate(t::TimeSlice) = iterate((t,))
 Base.iterate(t::TimeSlice, state::T) where T = iterate((t,), state)
 Base.length(t::TimeSlice) = 1

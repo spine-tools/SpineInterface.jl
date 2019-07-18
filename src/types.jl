@@ -32,6 +32,7 @@ in calls to [`RelationshipClass()`](@ref).
 """
 anything = Anything()
 
+Base.intersect(::Anything, s) = s
 Base.intersect(s, ::Anything) = s
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.in(item, ::Anything) = true
