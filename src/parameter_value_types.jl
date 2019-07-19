@@ -168,11 +168,7 @@ end
 
 function (p::ArrayCallable)(;i::Union{Int64,Nothing}=nothing)
     i === nothing && return p.value
-    if checkbounds(Bool, p.value, i)
-        p.value[i]
-    else
-        nothing
-    end
+    get(p.value, i, nothing)
 end
 
 # Helper functions for `(p::TimePatternCallable)()`
