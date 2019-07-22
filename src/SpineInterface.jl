@@ -42,6 +42,8 @@ export TimeSeries
 export indices
 export anything
 export to_database
+export MissingItemHandler
+
 
 function __init__()
     copy!(db_api, pyimport("spinedb_api"))
@@ -54,14 +56,14 @@ SpineInterface couldn't find the required version of `spinedb_api` and needs to 
 - Run `import Pkg; Pkg.build("SpineInterface")` to rebuild SpineInterface.
 """
     )
+    py"""
+    from datetime import datetime
+    """
     pytype_mapping(db_api."parameter_value"."DateTime", DateTime_)
     pytype_mapping(db_api."parameter_value"."Duration", DurationLike)
     pytype_mapping(db_api."parameter_value"."TimePattern", TimePattern)
     pytype_mapping(db_api."parameter_value"."TimeSeriesFixedResolution", TimeSeries)
     pytype_mapping(db_api."parameter_value"."TimeSeriesVariableResolution", TimeSeries)
-    py"""
-    from datetime import datetime
-    """
 end
 
 end # module
