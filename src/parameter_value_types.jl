@@ -56,6 +56,7 @@ function TimeSeries(indexes::Array{TimeSlice,1}, values::Array{V,1}, ignore_year
 end
 
 # Convenience constructor that takes the `t` element of a NamedTuple as index
+# TODO: Maybe move this to `SpineModel.jl`
 function TimeSeries(indexes::Array{T,1}, values::Array{V,1}, ignore_year::Bool, repeat::Bool) where {
         S,T<:NamedTuple{(:t,),S},V
     }

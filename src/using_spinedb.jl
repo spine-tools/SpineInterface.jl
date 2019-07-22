@@ -47,8 +47,8 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
                 rethrow()
             end
         end
-        class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
-        parameter_value_pairs = class_value_dict[(Symbol(object_class_name),)] = Array{Pair,1}()
+        class_values = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
+        parameter_value_pairs = class_values[(Symbol(object_class_name),)] = Array{Pair,1}()
         for object_name in object_dict[object_class_name]
             value = get(object_parameter_value_dict, (parameter_id, object_name), nothing)
             callable_ = if value == nothing
@@ -96,13 +96,13 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
                 rethrow()
             end
         end
-        class_value_dict = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
+        class_values = get!(parameter_dict, Symbol(parameter_name), Dict{Tuple,Any}())
         class_name = tuple(fix_name_ambiguity(Symbol.(split(object_class_name_list, ",")))...)
         alt_class_name = (Symbol(relationship_class_name),)
         # Add (class_name, alt_class_name) to the list of relationships classes between the same object classes
         d = get!(parameter_class_names, Symbol(parameter_name), Dict())
         push!(get!(d, sort([class_name...]), []), (class_name, alt_class_name))
-        parameter_value_pairs = class_value_dict[alt_class_name] = Array{Pair,1}()
+        parameter_value_pairs = class_values[alt_class_name] = Array{Pair,1}()
         # Loop through all parameter values
         object_name_lists = relationship_dict[relationship_class_name]["object_name_lists"]
         for object_name_list in object_name_lists
@@ -148,9 +148,9 @@ function spinedb_parameter_handle(db_map::PyObject, object_dict::Dict, relations
     end
     keys = []
     values = []
-    for (parameter_name, class_value_dict) in parameter_dict
+    for (parameter_name, class_values) in parameter_dict
         push!(keys, Symbol(parameter_name))
-        push!(values, Parameter(Symbol(parameter_name), class_value_dict))
+        push!(values, (Symbol(parameter_name), class_values))
     end
     NamedTuple{Tuple(keys)}(values), class_object_subset_dict
 end
@@ -161,7 +161,7 @@ function spinedb_object_handle(db_map::PyObject, object_dict::Dict, class_object
     for (object_class_name, object_names) in object_dict
         object_subset_dict = get(class_object_subset_dict, Symbol(object_class_name), Dict())
         push!(keys, Symbol(object_class_name))
-        push!(values, ObjectClass(Symbol(object_class_name), Object.(object_names), object_subset_dict))
+        push!(values, (Symbol(object_class_name), Object.(object_names), object_subset_dict))
     end
     NamedTuple{Tuple(keys)}(values)
 end
@@ -173,11 +173,29 @@ function spinedb_relationship_handle(db_map::PyObject, relationship_dict::Dict)
         obj_cls_name_list = Symbol.(split(rel_cls["object_class_name_list"], ","))
         obj_tup_list = [Object.(split(y, ",")) for y in rel_cls["object_name_lists"]]
         obj_cls_name_tuple = Tuple(fix_name_ambiguity(obj_cls_name_list))
-        obj_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_tup_list]
+        object_tuples = [NamedTuple{obj_cls_name_tuple}(y) for y in obj_tup_list]
         push!(keys, Symbol(rel_cls_name))
-        push!(values, RelationshipClass(Symbol(rel_cls_name), obj_cls_name_tuple, obj_tuples))
+        push!(values, (Symbol(rel_cls_name), obj_cls_name_tuple, object_tuples))
     end
     NamedTuple{Tuple(keys)}(values)
+end
+
+function spinedb_handle(db_map::PyObject)
+    py"""object_dict = {
+        x.name: [y.name for y in $db_map.object_list(class_id=x.id)] for x in $db_map.object_class_list()
+    }
+    relationship_dict = {
+        x.name: {
+            'object_class_name_list': x.object_class_name_list,
+            'object_name_lists': [y.object_name_list for y in $db_map.wide_relationship_list(class_id=x.id)]
+        } for x in $db_map.wide_relationship_class_list()
+    }"""
+    object_dict = py"object_dict"
+    relationship_dict = py"relationship_dict"
+    param, class_object_subset_dict = spinedb_parameter_handle(db_map, object_dict, relationship_dict)
+    obj_cls = spinedb_object_handle(db_map, object_dict, class_object_subset_dict)
+    rel_cls = spinedb_relationship_handle(db_map, relationship_dict)
+    obj_cls, rel_cls, param
 end
 
 
@@ -229,24 +247,22 @@ See [`Parameter()`](@ref), [`ObjectClass()`](@ref), and [`RelationshipClass()`](
 the convenience functors.
 """
 function using_spinedb(db_map::PyObject)
-    py"""object_dict = {
-        x.name: [y.name for y in $db_map.object_list(class_id=x.id)] for x in $db_map.object_class_list()
-    }
-    relationship_dict = {
-        x.name: {
-            'object_class_name_list': x.object_class_name_list,
-            'object_name_lists': [y.object_name_list for y in $db_map.wide_relationship_list(class_id=x.id)]
-        } for x in $db_map.wide_relationship_class_list()
-    }"""
-    object_dict = py"object_dict"
-    relationship_dict = py"relationship_dict"
-    p, class_object_subset_dict = spinedb_parameter_handle(db_map, object_dict, relationship_dict)
-    o = spinedb_object_handle(db_map, object_dict, class_object_subset_dict)
-    r = spinedb_relationship_handle(db_map, relationship_dict)
-    db_handle = merge(p, o, r)
-    for (name, value) in pairs(db_handle)
+    obj_cls, rel_cls, param = spinedb_handle(db_map)
+    for (name, value) in pairs(obj_cls)
         @eval begin
-            $name = $value
+            $name = ObjectClass($value...)
+            export $name
+        end
+    end
+    for (name, value) in pairs(rel_cls)
+        @eval begin
+            $name = RelationshipClass($value...)
+            export $name
+        end
+    end
+    for (name, value) in pairs(param)
+        @eval begin
+            $name = Parameter($value...)
             export $name
         end
     end
@@ -278,10 +294,32 @@ with previous versions of Spine.
 end
 
 function notusing_spinedb(db_map::PyObject)
-    obj_cls_names = py"[x.name for x in $db_map.object_class_list()]"
-    rel_cls_names = py"[x.name for x in $db_map.wide_relationship_class_list()]"
-    par_names = py"[x.name for x in $db_map.parameter_definition_list()]"
-    for name in [obj_cls_names; rel_cls_names; par_names]
-        @eval $(Symbol(name)) = nothing
+    obj_cls, rel_cls, param = spinedb_handle(db_map)
+    for (name, value) in pairs(obj_cls)
+        name in names(SpineInterface) || continue
+        functor = getfield(SpineInterface, name)
+        x, objects, object_subset_dict = value
+        setdiff!(functor.objects, objects)
+        for key in keys(functor.object_subset_dict)
+            setdiff!(functor.object_subset_dict[key], objects)
+        end
+    end
+    for (name, value) in pairs(rel_cls)
+        name in names(SpineInterface) || continue
+        functor = getfield(SpineInterface, name)
+        x, obj_cls_name_tuple, object_tuples = value
+        obj_cls_name_tuple == functor.obj_cls_name_tuple || continue
+        setdiff!(functor.object_tuples, object_tuples)
+        empty!(functor.cache)
+    end
+    for (name, value) in pairs(param)
+        name in names(SpineInterface) || continue
+        functor = getfield(SpineInterface, name)
+        x, class_values = value
+        for (class, values) in class_values
+            functor_values = get(functor.class_values, class, nothing)
+            functor_values === nothing && continue
+            setdiff!(functor_values, values)
+        end
     end
 end
