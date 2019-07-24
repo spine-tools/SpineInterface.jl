@@ -211,11 +211,11 @@ If `upgrade` is `true`, then the database at `url` is upgraded to the latest rev
 See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details on
 how to call the convenience functors.
 """
-function using_spinedb(db_url::String; upgrade=false)
+function using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
     try
         db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
-        using_spinedb(db_map)
+        using_spinedb(db_map, mod)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
             error(
@@ -246,22 +246,23 @@ which must be a `PyObject` as returned by `db_api.DiffDatabaseMapping`.
 See [`Parameter()`](@ref), [`ObjectClass()`](@ref), and [`RelationshipClass()`](@ref) for details about
 the convenience functors.
 """
-function using_spinedb(db_map::PyObject)
+function using_spinedb(db_map::PyObject, mod=@__MODULE__)
+    @eval mod using SpineInterface
     obj_cls, rel_cls, param = spinedb_handle(db_map)
     for (name, value) in pairs(obj_cls)
-        @eval begin
+        @eval mod begin
             $name = ObjectClass($value...)
             export $name
         end
     end
     for (name, value) in pairs(rel_cls)
-        @eval begin
+        @eval mod begin
             $name = RelationshipClass($value...)
             export $name
         end
     end
     for (name, value) in pairs(param)
-        @eval begin
+        @eval mod begin
             $name = Parameter($value...)
             export $name
         end
@@ -269,11 +270,11 @@ function using_spinedb(db_map::PyObject)
 end
 
 
-function notusing_spinedb(db_url::String; upgrade=false)
+function notusing_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
     try
         db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
-        notusing_spinedb(db_map)
+        notusing_spinedb(db_map, mod)
     catch e
         if e isa PyCall.PyError && e.T == db_api.exception.SpineDBVersionError
             error(
@@ -293,11 +294,11 @@ with previous versions of Spine.
     end
 end
 
-function notusing_spinedb(db_map::PyObject)
+function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
     obj_cls, rel_cls, param = spinedb_handle(db_map)
     for (name, value) in pairs(obj_cls)
-        name in names(SpineInterface) || continue
-        functor = getfield(SpineInterface, name)
+        name in names(mod) || continue
+        functor = getfield(mod, name)
         x, objects, object_subset_dict = value
         setdiff!(functor.objects, objects)
         for key in keys(functor.object_subset_dict)
@@ -305,16 +306,16 @@ function notusing_spinedb(db_map::PyObject)
         end
     end
     for (name, value) in pairs(rel_cls)
-        name in names(SpineInterface) || continue
-        functor = getfield(SpineInterface, name)
+        name in names(mod) || continue
+        functor = getfield(mod, name)
         x, obj_cls_name_tuple, object_tuples = value
         obj_cls_name_tuple == functor.obj_cls_name_tuple || continue
         setdiff!(functor.object_tuples, object_tuples)
         empty!(functor.cache)
     end
     for (name, value) in pairs(param)
-        name in names(SpineInterface) || continue
-        functor = getfield(SpineInterface, name)
+        name in names(mod) || continue
+        functor = getfield(mod, name)
         x, class_values = value
         for (class, values) in class_values
             functor_values = get(functor.class_values, class, nothing)

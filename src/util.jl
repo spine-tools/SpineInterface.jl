@@ -17,36 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 """
-A type to handle missing db items.
-"""
-struct MissingItemHandler
-    name::Symbol
-    value::Any
-    handled::Ref{Bool}
-    MissingItemHandler(name, value) = new(name, value, false)
-end
-
-
-"""
-    (f::MissingItemHandler)(args...; kwargs...)
-
-If `f.name` is defined in `SpineInterface`, call it and return the result;
-oterwise just return `f.value` and issue a warning.
-"""
-function (f::MissingItemHandler)(args...; kwargs...)
-    try
-        getfield(SpineInterface, f.name)(args...; kwargs...)
-    catch e
-        !(e isa UndefVarError) && rethrow()
-        if !f.handled[]
-            @warn "SpineInterface.$(f.name) is not defined"
-            f.handled[] = true
-        end
-        f.value
-    end
-end
-
-"""
     indices(p::Parameter; value_filter=x->x!=nothing, kwargs...)
 
 A set of indices corresponding to `p`, optionally filtered by `kwargs`.
@@ -70,19 +40,6 @@ function indices(p::Parameter; skip_values=(), kwargs...)
         )
     end
     result
-end
-
-function indices(f::MissingItemHandler; kwargs...)
-    try
-        indices(getfield(SpineInterface, f.name); kwargs...)
-    catch e
-        !(e isa UndefVarError) && rethrow()
-        if !f.handled[]
-            @warn "SpineInterface.$(f.name) is not defined"
-            f.handled[] = true
-        end
-        ()
-    end
 end
 
 """

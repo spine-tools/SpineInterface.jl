@@ -42,7 +42,6 @@ export TimeSeries
 export indices
 export anything
 export to_database
-export MissingItemHandler
 
 
 function __init__()
