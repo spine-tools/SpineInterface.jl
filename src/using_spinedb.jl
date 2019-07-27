@@ -146,7 +146,8 @@ function spinedb_handle(db_map::PyObject)
         end
         default_values = NamedTuple{Tuple(k)}(v)
         # Get relationships and their values
-        relationships = rel_cls_material[Symbol(rel_cls_name), default_values, obj_cls_name_tup] = Tuple{NamedTuple,NamedTuple}[]
+        relationships = rel_cls_material[Symbol(rel_cls_name), default_values, obj_cls_name_tup] =
+            Tuple{NamedTuple,NamedTuple}[]
         for relationship in get(relationship_dict, rel_cls_id, ())
             object_name_list = split(relationship["object_name_list"], ",")
             relationship_id = relationship["id"]
@@ -163,7 +164,8 @@ function spinedb_handle(db_map::PyObject)
                     if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
                         rethrow(
                             ErrorException(
-                                "unable to parse value of '$parameter_name' for '$object_name_list': $(sprint(showerror, e))"
+                                "unable to parse value of '$parameter_name' for '$object_name_list': "
+                                * "$(sprint(showerror, e))"
                             )
                         )
                     else
