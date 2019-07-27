@@ -94,7 +94,7 @@ struct Parameter
     mod::Module
 end
 
-Parameter(name) = RelationshipClass(name, Dict())
+Parameter(name) = Parameter(name, [], @__MODULE__)
 
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
@@ -129,7 +129,7 @@ julia> node()
  Dublin
 
 julia> commodity(state_of_matter=:gas)
-1-element Array{Any,1}:
+1-element Array{Object,1}:
  wind
 
 ```
@@ -167,11 +167,11 @@ julia> using_spinedb(url)
 
 julia> node__commodity()
 5-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
- (node = Dublin, commodity = wind)
- (node = Espoo, commodity = wind)
- (node = Leuven, commodity = wind)
  (node = Nimes, commodity = water)
  (node = Sthlm, commodity = water)
+ (node = Leuven, commodity = wind)
+ (node = Espoo, commodity = wind)
+ (node = Dublin, commodity = wind)
 
 julia> node__commodity(commodity=:water)
 2-element Array{Object,1}:
@@ -184,8 +184,8 @@ julia> node__commodity(node=(:Dublin, :Espoo))
 
 julia> node__commodity(node=anything)
 2-element Array{Object,1}:
- wind
  water
+ wind
 
 julia> node__commodity(commodity=:water, _compact=false)
 2-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
@@ -248,7 +248,7 @@ function lookup(rc::RelationshipClass; _optimize=true, kwargs...)
         indices = pull!(rc.cache, objects, nothing)
         if indices === nothing
             cond(x) = all(first(x)[k] in v for (k, v) in objects)
-            # TODO: Check if there's any benefit from having `object_tuples` sorted here
+            # TODO: Check if there's any benefit from having `relationships` sorted here
             indices = findall(cond, rc.relationships)
             pushfirst!(rc.cache, objects => indices)
         end

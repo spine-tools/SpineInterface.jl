@@ -146,8 +146,8 @@ function spinedb_handle(db_map::PyObject)
         end
         default_values = NamedTuple{Tuple(k)}(v)
         # Get relationships and their values
-        relationships = rel_cls_material[Symbol(rel_cls_name), default_values, obj_cls_name_tup] =
-            Tuple{NamedTuple,NamedTuple}[]
+        rel_cls_key = (Symbol(rel_cls_name), default_values, obj_cls_name_tup)
+        relationships = rel_cls_material[rel_cls_key] = Tuple{NamedTuple,NamedTuple}[]
         for relationship in get(relationship_dict, rel_cls_id, ())
             object_name_list = split(relationship["object_name_list"], ",")
             relationship_id = relationship["id"]
@@ -246,12 +246,14 @@ end
 """
     using_spinedb(db_map::PyObject)
 
-Create and export convenience *functors*
-for accessing the given `db_map`,
-which must be a `PyObject` as returned by `db_api.DiffDatabaseMapping`.
+Take the given `db_map` (a `spinedb_api.DiffDatabaseMapping` object),
+and export convenience *functors* named after each object class, relationship class,
+and parameter in it. These functors can be used to retrieve specific contents in the db.
 
-See [`Parameter()`](@ref), [`ObjectClass()`](@ref), and [`RelationshipClass()`](@ref) for details about
-the convenience functors.
+If `upgrade` is `true`, then the database at `url` is upgraded to the latest revision.
+
+See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details on
+how to call the convenience functors.
 """
 function using_spinedb(db_map::PyObject, mod=@__MODULE__)
     @eval mod using SpineInterface
