@@ -38,7 +38,6 @@ Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.in(item, ::Anything) = true
 Broadcast.broadcastable(::Anything) = Base.RefValue{Anything}(anything)
 
-
 """
     ObjectLike
 
@@ -57,7 +56,7 @@ end
 
 Object(name::AbstractString) = Object(Symbol(name))
 Object(::Anything) = anything
-Object(other::Object) = other
+Object(other::T) where {T<:ObjectLike} = other
 
 # Iterate single `Object` as collection
 Base.iterate(o::Object) = iterate((o,))
@@ -68,46 +67,31 @@ Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 
 struct ObjectClass
     name::Symbol
-    objects::Array{Object,1}
-    object_subset_dict::Dict{Symbol,Any}
-end
-
-ObjectClass(name) = ObjectClass(name, [], Dict())
-
-struct RelationshipClass{N,K,V}
-    name::Symbol
-    obj_cls_name_tuple::NTuple{N,Symbol}
-    object_tuples::Array{NamedTuple{K,V},1}
-    obj_type_dict::Dict{Symbol,Type}
+    default_values::NamedTuple
+    objects::Array{Tuple{Object,NamedTuple},1}
+    object_class_names::Tuple{Vararg{Symbol}}
     cache::Array{Pair,1}
+    ObjectClass(name, default_values, objects) = new(name, default_values, objects, (name,), [])
 end
 
-function RelationshipClass(
-        name,
-        obj_cls_name_tuple::NTuple{N,Symbol},
-        object_tuples::Array{NamedTuple{K,V},1}
-    ) where {N,K,V<:Tuple}
-    K == obj_cls_name_tuple || error("$K and $obj_cls_name_tuple do not match")
-    obj_type_dict = Dict(zip(K, V.parameters))
-    RelationshipClass{N,K,V}(name, obj_cls_name_tuple, object_tuples, obj_type_dict, Array{Pair,1}())
+ObjectClass(name) = ObjectClass(name, (), [])
+
+struct RelationshipClass
+    name::Symbol
+    default_values::NamedTuple
+    object_class_names::Tuple{Vararg{Symbol}}
+    relationships::Array{Tuple{NamedTuple,NamedTuple},1}
+    cache::Array{Pair,1}
+    RelationshipClass(name, default_values, object_class_names, relationships) =
+        new(name, default_values, object_class_names, relationships, [])
 end
 
-function RelationshipClass(
-        name,
-        obj_cls_name_tuple::NTuple{N,Symbol},
-        object_tuples::Array{NamedTuple{K,V} where V<:Tuple,1}
-    ) where {N,K}
-    K == obj_cls_name_tuple || error("$K and $obj_cls_name_tuple do not match")
-    obj_type_dict = Dict(k => Object for k in K)
-    V = NTuple{N,Object}
-    RelationshipClass{N,K,V}(name, obj_cls_name_tuple, object_tuples, obj_type_dict, Array{Pair,1}())
-end
-
-RelationshipClass(name) = RelationshipClass(name, (), [], Dict(), [])
+RelationshipClass(name) = RelationshipClass(name, (), [])
 
 struct Parameter
     name::Symbol
-    class_values::Dict{Tuple,Any}
+    classes::Array{Symbol}
+    mod::Module
 end
 
 Parameter(name) = RelationshipClass(name, Dict())
@@ -152,29 +136,10 @@ julia> commodity(state_of_matter=:gas)
 """
 function (oc::ObjectClass)(;kwargs...)
     if length(kwargs) == 0
-        oc.objects
+        first.(oc.objects)
     else
-        # Return the object subset at the intersection of all kwargs
-        object_subset = []
-        for (par, val) in kwargs
-            !haskey(oc.object_subset_dict, par) && error("'$par' is not a list-parameter for '$oc'")
-            d = oc.object_subset_dict[par]
-            objs = []
-            for v in ScalarValue.(val)
-                obj = get(d, v, nothing)
-                if obj == nothing
-                    @warn("'$v' is not a listed value for '$par' as defined for class '$oc'")
-                else
-                    append!(objs, obj)
-                end
-            end
-            if isempty(object_subset)
-                object_subset = objs
-            else
-                object_subset = [x for x in object_subset if x in objs]
-            end
-        end
-        object_subset
+        # Return objects that match all conditions
+        [obj for (obj, vals) in oc.objects if all(get(vals, p, NothingCallable())() == val for (p, val) in kwargs)]
     end
 end
 
@@ -233,39 +198,19 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 ```
 """
 function (rc::RelationshipClass)(;_compact=true, _default=[], _optimize=true, kwargs...)
-    new_kwargs = Dict()
-    tail = []
-    for (obj_cls_name, obj) in kwargs
-        !(obj_cls_name in rc.obj_cls_name_tuple) && error(
-            "'$obj_cls_name' is not a member of '$rc' (valid members are '$(join(rc.obj_cls_name_tuple, "', '"))')"
-        )
-        push!(tail, obj_cls_name)
-        if obj != anything
-            push!(new_kwargs, obj_cls_name => rc.obj_type_dict[obj_cls_name].(obj))
-        end
-    end
     head = if _compact
-        Tuple(x for x in rc.obj_cls_name_tuple if !(x in tail))
+        Tuple(x for x in rc.object_class_names if !(x in keys(kwargs)))
     else
-        rc.obj_cls_name_tuple
+        rc.object_class_names
     end
     result = if isempty(head)
         []
-    elseif _optimize
-        indices = pull!(rc.cache, new_kwargs, nothing)
-        if indices === nothing
-            cond(x) = all(x[k] in v for (k, v) in new_kwargs)
-            # TODO: Check if there's any benefit from having `object_tuples` sorted here
-            indices = findall(cond, rc.object_tuples)
-            pushfirst!(rc.cache, new_kwargs => indices)
-        end
-        rc.object_tuples[indices]
     else
-        [x for x in rc.object_tuples if all(x[k] in v for (k, v) in new_kwargs)]
+        first.(lookup(rc; _optimize=_optimize, kwargs...))
     end
     if isempty(result)
         _default
-    elseif head == rc.obj_cls_name_tuple
+    elseif head == rc.object_class_names
         result
     elseif length(head) == 1
         unique(x[head...] for x in result)
@@ -273,6 +218,46 @@ function (rc::RelationshipClass)(;_compact=true, _default=[], _optimize=true, kw
         unique(NamedTuple{head}([x[k] for k in head]) for x in result)
     end
 end
+
+function lookup(oc::ObjectClass; _optimize=true, kwargs...)
+    objects = anything
+    for (obj_cls_name, obj) in kwargs
+        obj_cls_name != oc.name && error("invalid keyword argument '$obj_cls_name' for $(oc.name)")
+        objects = Object.(obj)
+    end
+    if _optimize
+        indices = pull!(oc.cache, objects, nothing)
+        if indices === nothing
+            cond(x) = first(x) in objects
+            indices = findall(cond, oc.objects)
+            pushfirst!(oc.cache, objects => indices)
+        end
+        oc.objects[indices]
+    else
+        [x for x in oc.objects if first(x) in objects]
+    end
+end
+
+function lookup(rc::RelationshipClass; _optimize=true, kwargs...)
+    objects = Dict()
+    for (obj_cls_name, obj) in kwargs
+        !(obj_cls_name in rc.object_class_names) && error("invalid keyword argument '$obj_cls_name' for $(rc.name)")
+        objects[obj_cls_name] = Object.(obj)
+    end
+    if _optimize
+        indices = pull!(rc.cache, objects, nothing)
+        if indices === nothing
+            cond(x) = all(first(x)[k] in v for (k, v) in objects)
+            # TODO: Check if there's any benefit from having `object_tuples` sorted here
+            indices = findall(cond, rc.relationships)
+            pushfirst!(rc.cache, objects => indices)
+        end
+        rc.relationships[indices]
+    else
+        [x for x in rc.relationships if all(first(x)[k] in v for (k, v) in objects)]
+    end
+end
+
 
 """
     (<p>::Parameter)(;<keyword arguments>)
@@ -308,28 +293,24 @@ julia> demand(node=:Sthlm, i=1)
 ```
 """
 function (p::Parameter)(;_optimize=true, kwargs...)
-    if length(kwargs) == 0
-        # Return dict if kwargs is empty
-        p.class_values
-    else
-        kwkeys = keys(kwargs)
-        class_names = getsubkey(p.class_values, kwkeys, nothing)
-        class_names == nothing && error("can't find a definition of '$p' for '$kwkeys'")
-        parameter_value_pairs = p.class_values[class_names]
-        kwvalues = values(kwargs)
-        object_tuple = Object.(Tuple([kwvalues[k] for k in class_names]))
-        value = if _optimize
-            pull!(parameter_value_pairs, object_tuple, nothing)
-        else
-            i = findfirst(x -> first(x) == object_tuple, parameter_value_pairs)
-            if i === nothing
-                nothing
+    for class_ in p.classes
+        class = getfield(p.mod, class_)
+        base_kwargs = Dict()
+        extra_kwargs = Dict()
+        for (keyword, arg) in kwargs
+            if keyword in class.object_class_names
+                base_kwargs[keyword] = arg
             else
-                last(parameter_value_pairs[i])
+                extra_kwargs[keyword] = arg
             end
         end
-        value === nothing && error("'$p' not specified for '$object_tuple'")
-        extra_kwargs = Dict(k => v for (k, v) in kwargs if !(k in class_names))
-        value(;extra_kwargs...)
+        length(base_kwargs) != length(class.object_class_names) && continue
+        match = lookup(class; _optimize=_optimize, base_kwargs...)
+        length(match) != 1 && continue
+        x, values = first(match)
+        all_values = merge(class.default_values, values)
+        value = all_values[p.name]
+        return value(;extra_kwargs...)
     end
+    error("'$p' is not specified for the given arguments $(kwargs...)")
 end

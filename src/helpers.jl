@@ -26,55 +26,28 @@ appending an increasing integer.
 
 # Example
 ```julia
-julia> fix_name_ambiguity([:connection, :node, :node])
-3-element Array{Symbol,1}:
- :connection
- :node1
- :node2
+julia> fix_name_ambiguity(["connection", "node", "node"])
+3-element Array{String,1}:
+ "connection"
+ "node1"
+ "node2"
 ```
 """
-function fix_name_ambiguity(object_class_name_list::Array{Symbol,1})
-    fixed = Array{Symbol,1}()
-    object_class_name_ocurrences = Dict{Symbol,Int64}()
+function fix_name_ambiguity(object_class_name_list::Array{T,1}) where T
+    fixed = Array{T,1}()
+    object_class_name_ocurrences = Dict{T,Int64}()
     for (i, object_class_name) in enumerate(object_class_name_list)
         n_ocurrences = count(x -> x == object_class_name, object_class_name_list)
         if n_ocurrences == 1
             push!(fixed, object_class_name)
         else
             ocurrence = get(object_class_name_ocurrences, object_class_name, 1)
-            push!(fixed, Symbol(object_class_name, ocurrence))
+            push!(fixed, string(object_class_name, ocurrence))
             object_class_name_ocurrences[object_class_name] = ocurrence + 1
         end
     end
     fixed
 end
-
-
-"""
-    getsubkey(dict::Dict{Tuple,T}, superkey::Tuple, default)
-
-Return the key that matches the most elements in the argument `superkey`, if one exists in `dict`,
-otherwise return `default`.
-"""
-function getsubkey(dict::Dict{Tuple,T}, superkey::Tuple, default) where T
-    isempty(superkey) && return default
-    subkeys = [key for key in keys(dict) if all(k in superkey for k in key)]
-    if isempty(subkeys)
-        default
-    else
-        first(sort(subkeys, lt=(x,y)->length([x...])<length([y...]), rev=true)) # Pick longest subkey
-    end
-end
-
-"""
-    getsuperkeys(dict::Dict{Tuple,T}, key::Tuple)
-
-Return a list of keys in `dict` that 'contain' the tuple argument `key`.
-"""
-function getsuperkeys(dict::Dict{Tuple,T}, key::Tuple) where T
-    [superkey for superkey in collect(keys(dict)) if all(k in superkey for k in key)]
-end
-
 
 """
     pull!(cache::Array{Pair,1}, lookup_key, default)

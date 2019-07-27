@@ -17,26 +17,21 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 """
-    indices(p::Parameter; value_filter=x->x!=nothing, kwargs...)
+    indices(p::Parameter; kwargs...)
 
 A set of indices corresponding to `p`, optionally filtered by `kwargs`.
 """
-function indices(p::Parameter; skip_values=(), kwargs...)
-    skip_values = (skip_values..., nothing)
-    d = p.class_values
-    new_kwargs = Dict()
-    for (obj_cls, obj) in kwargs
-        if obj != anything
-            push!(new_kwargs, obj_cls => Object.(obj))
-        end
-    end
+function indices(p::Parameter; kwargs...)
     result = []
-    for (key, value) in d
-        iargs = Dict(i => new_kwargs[k] for (i, k) in enumerate(key) if k in keys(new_kwargs))
+    for class_ in p.classes
+        class = getfield(p.mod, class_)
         append!(
             result,
-            NamedTuple{key}(ind) for (ind, val) in value
-            if all(ind[i] in v for (i, v) in iargs) && !(val() in skip_values)
+            [
+                relationship
+                for (relationship, values) in lookup(class; kwargs...)
+                if get(values, p.name, class.default_values[p.name])() != nothing
+            ]
         )
     end
     result
