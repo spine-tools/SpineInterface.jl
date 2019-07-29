@@ -56,20 +56,20 @@ function spinedb_handle(db_map::PyObject)
             rel_param_val_dict[parameter_id, param_val["relationship_id"]] = param_val["value"]
         end
     end
-    # Get object classes
+    # Get material
+    # Loop object classes
     for object_class in all_object_classes
         object_class_name = object_class["name"]
         object_class_id = object_class["id"]
         parameters = get(obj_param_dict, object_class_id, ())
         # Get default values
-        k = Symbol[]
-        v = []
+        default_values_d = Dict()
         for parameter in parameters
             parameter_name = parameter["name"]
             parameter_id = parameter["id"]
             push!(get!(param_material, Symbol(parameter_name), Symbol[]), Symbol(object_class_name))
             default_value = parameter["default_value"]
-            default_callable = try
+            default_values_d[Symbol(parameter_name)] = try
                 callable(db_api.from_database(default_value))
             catch e
                 if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
@@ -80,23 +80,19 @@ function spinedb_handle(db_map::PyObject)
                     rethrow()
                 end
             end
-            push!(k, Symbol(parameter_name))
-            push!(v, default_callable)
         end
-        default_values = NamedTuple{Tuple(k)}(v)
         # Get objects and their values
-        objects = obj_cls_material[Symbol(object_class_name), default_values] = Tuple{Object,NamedTuple}[]
+        objects = obj_cls_material[Symbol(object_class_name), (;default_values_d...)] = Tuple{Object,NamedTuple}[]
         for object in get(object_dict, object_class_id, ())
             object_name = object["name"]
             object_id = object["id"]
-            k = Symbol[]
-            v = []
+            values_d = Dict()
             for parameter in parameters
                 parameter_name = parameter["name"]
                 parameter_id = parameter["id"]
                 value = get(obj_param_val_dict, (parameter_id, object_id), nothing)
                 value === nothing && continue
-                callable_ = try
+                values_d[Symbol(parameter_name)] = try
                     callable(db_api.from_database(value))
                 catch e
                     if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
@@ -109,13 +105,11 @@ function spinedb_handle(db_map::PyObject)
                         rethrow()
                     end
                 end
-                push!(k, Symbol(parameter_name))
-                push!(v, callable_)
             end
-            push!(objects, (Object(object_name), NamedTuple{Tuple(k)}(v)))
+            push!(objects, (Object(object_name), (;values_d...)))
         end
     end
-    # Get relationship classes
+    # Loop relationship classes
     for relationship_class in all_relationship_classes
         rel_cls_name = relationship_class["name"]
         obj_cls_name_lst = fix_name_ambiguity(split(relationship_class["object_class_name_list"], ","))
@@ -123,14 +117,13 @@ function spinedb_handle(db_map::PyObject)
         rel_cls_id = relationship_class["id"]
         parameters = get(rel_param_dict, rel_cls_id, ())
         # Get default values
-        k = Symbol[]
-        v = []
+        default_values_d = Dict()
         for parameter in parameters
             parameter_name = parameter["name"]
             parameter_id = parameter["id"]
             push!(get!(param_material, Symbol(parameter_name), Symbol[]), Symbol(rel_cls_name))
             default_value = parameter["default_value"]
-            default_callable = try
+            default_values_d[Symbol(parameter_name)] = try
                 callable(db_api.from_database(default_value))
             catch e
                 if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
@@ -141,24 +134,20 @@ function spinedb_handle(db_map::PyObject)
                     rethrow()
                 end
             end
-            push!(k, Symbol(parameter_name))
-            push!(v, default_callable)
         end
-        default_values = NamedTuple{Tuple(k)}(v)
         # Get relationships and their values
-        rel_cls_key = (Symbol(rel_cls_name), default_values, obj_cls_name_tup)
+        rel_cls_key = (Symbol(rel_cls_name), (;default_values_d...), obj_cls_name_tup)
         relationships = rel_cls_material[rel_cls_key] = Tuple{NamedTuple,NamedTuple}[]
         for relationship in get(relationship_dict, rel_cls_id, ())
             object_name_list = split(relationship["object_name_list"], ",")
             relationship_id = relationship["id"]
-            k = Symbol[]
-            v = []
+            values_d = Dict()
             for parameter in parameters
                 parameter_name = parameter["name"]
                 parameter_id = parameter["id"]
                 value = get(rel_param_val_dict, (parameter_id, relationship_id), nothing)
                 value === nothing && continue
-                callable_ = try
+                values_d[Symbol(parameter_name)] = try
                     callable(db_api.from_database(value))
                 catch e
                     if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
@@ -172,36 +161,19 @@ function spinedb_handle(db_map::PyObject)
                         rethrow()
                     end
                 end
-                push!(k, Symbol(parameter_name))
-                push!(v, callable_)
             end
-            push!(relationships, (NamedTuple{obj_cls_name_tup}(Object.(object_name_list)), NamedTuple{Tuple(k)}(v)))
+            push!(relationships, (NamedTuple{obj_cls_name_tup}(Object.(object_name_list)), (;values_d...)))
         end
     end
-    # Object class handler
-    k = []
-    v = []
-    for ((name, default_values), objects) in obj_cls_material
-        push!(k, name)
-        push!(v, (name, default_values, objects))
-    end
-    obj_cls_handler = NamedTuple{Tuple(k)}(v)
-    # Relationship class handler
-    k = []
-    v = []
-    for ((name, default_values, obj_cls_name_tup), relationships) in rel_cls_material
-        push!(k, name)
-        push!(v, (name, default_values, obj_cls_name_tup, relationships))
-    end
-    rel_cls_handler = NamedTuple{Tuple(k)}(v)
-    # Parameter handler
-    k = []
-    v = []
-    for (name, classes) in param_material
-        push!(k, name)
-        push!(v, (name, classes))
-    end
-    param_handler = NamedTuple{Tuple(k)}(v)
+    # Handlers
+    obj_cls_handler = Dict(
+        name => (name, default_values, objects) for ((name, default_values), objects) in obj_cls_material
+    )
+    rel_cls_handler = Dict(
+        name => (name, default_values, obj_cls_name_tup, relationships)
+        for ((name, default_values, obj_cls_name_tup), relationships) in rel_cls_material
+    )
+    param_handler = Dict(name => (name, classes) for (name, classes) in param_material)
     obj_cls_handler, rel_cls_handler, param_handler
 end
 
@@ -258,19 +230,19 @@ how to call the convenience functors.
 function using_spinedb(db_map::PyObject, mod=@__MODULE__)
     @eval mod using SpineInterface
     obj_cls_handler, rel_cls_handler, param_handler = spinedb_handle(db_map)
-    for (name, value) in pairs(obj_cls_handler)
+    for (name, value) in obj_cls_handler
         @eval mod begin
             $name = ObjectClass($value...)
             export $name
         end
     end
-    for (name, value) in pairs(rel_cls_handler)
+    for (name, value) in rel_cls_handler
         @eval mod begin
             $name = RelationshipClass($value...)
             export $name
         end
     end
-    for (name, value) in pairs(param_handler)
+    for (name, value) in param_handler
         @eval mod begin
             $name = Parameter($value..., $mod)
             export $name
@@ -305,14 +277,14 @@ end
 
 function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
     obj_cls_handler, rel_cls_handler, param_handler = spinedb_handle(db_map)
-    for (name, value) in pairs(obj_cls_handler)
+    for (name, value) in obj_cls_handler
         name in names(mod) || continue
         functor = getfield(mod, name)
         name, default_values, objects = value
         setdiff!(functor.objects, objects)
         empty!(functor.cache)
     end
-    for (name, value) in pairs(rel_cls_handler)
+    for (name, value) in rel_cls_handler
         name in names(mod) || continue
         functor = getfield(mod, name)
         name, default_values, obj_cls_name_tup, relationships = value
@@ -320,7 +292,7 @@ function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
         setdiff!(functor.relationships, relationships)
         empty!(functor.cache)
     end
-    for (name, value) in pairs(param_handler)
+    for (name, value) in param_handler
         name in names(mod) || continue
         functor = getfield(mod, name)
         name, classes = value
