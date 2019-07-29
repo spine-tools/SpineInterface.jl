@@ -276,13 +276,6 @@ callable(parsed_value::TimePattern) = TimePatternCallable(parsed_value)
 callable(parsed_value::TimeSeries) = TimeSeriesCallableLike(parsed_value)
 
 
-# Utility
-# We need to check all this, where it is used and why
-"""
-    time_stamps(val::TimeSeriesCallable)
-"""
-time_stamps(val::TimeSeriesCallable) = val.indexes
-
 # Iterate single ScalarCallable as collection
 Base.iterate(v::ScalarCallable) = iterate((v,))
 Base.iterate(v::ScalarCallable, state::T) where T = iterate((v,), state)

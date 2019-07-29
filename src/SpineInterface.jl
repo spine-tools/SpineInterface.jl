@@ -16,7 +16,7 @@ include("helpers.jl")
 include("util.jl")
 
 const db_api = PyNULL()
-const required_spinedb_api_version = "0.0.22"
+const required_spinedb_api_version = "0.0.82"
 const iso8601zoneless = dateformat"yyyy-mm-ddTHH:MM"
 
 export Anything
@@ -50,10 +50,10 @@ function __init__()
     current_version_split = parse.(Int, split(current_version, "."))
     required_version_split = parse.(Int, split(required_spinedb_api_version, "."))
     any(current_version_split .< required_version_split) && error(
-"""
-SpineInterface couldn't find the required version of `spinedb_api` and needs to be rebuilt:
-- Run `import Pkg; Pkg.build("SpineInterface")` to rebuild SpineInterface.
-"""
+        """
+        SpineInterface couldn't find the required version of `spinedb_api` and needs to be rebuilt:
+        - Run `import Pkg; Pkg.build("SpineInterface")` to rebuild SpineInterface.
+        """
     )
     py"""
     from datetime import datetime

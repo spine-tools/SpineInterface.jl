@@ -47,23 +47,23 @@ function PeriodCollection(spec::String)
     for intervals in split(spec, union_op)
         for interval in split(intervals, intersection_op)
             m = Base.match(regexp, interval)
-            m === nothing && error("""invalid interval specification $interval.""")
+            m === nothing && error("invalid interval specification $interval.")
             key = m.match
             start_stop = interval[length(key)+1:end]
             start_stop = split(start_stop, range_op)
-            length(start_stop) != 2 && error("""invalid interval specification $interval.""")
+            length(start_stop) != 2 && error("invalid interval specification $interval.")
             start_str, stop_str = start_stop
             start = try
                 parse(Int64, start_str)
             catch ArgumentError
-                error("""invalid lower bound $start_str.""")
+                error("invalid lower bound $start_str.")
             end
             stop = try
                 parse(Int64, stop_str)
             catch ArgumentError
-                error("""invalid upper bound $stop_str.""")
+                error("invalid upper bound $stop_str.")
             end
-            start > stop && error("""lower bound can't be higher than upper bound.""")
+            start > stop && error("lower bound can't be higher than upper bound.")
             arr = get!(kwargs, Symbol(key), Array{UnitRange{Int64},1}())
             push!(arr, range(start, stop=stop))
         end
