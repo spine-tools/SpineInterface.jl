@@ -20,7 +20,7 @@
 function spinedb_handle(db_map::PyObject)
     obj_cls_material = Dict{Tuple{Symbol,NamedTuple},Any}()
     rel_cls_material = Dict{Tuple{Symbol,NamedTuple,Tuple},Any}()
-    param_material = Dict{Symbol,Vector{Symbol}}()
+    param_material = Dict{Symbol,Vector{Tuple{Symbol,Int64}}}()
     # Query db
     all_object_classes = py"[x._asdict() for x in $db_map.query($db_map.object_class_sq)]"
     all_relationship_classes = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_class_sq)]"
@@ -62,12 +62,13 @@ function spinedb_handle(db_map::PyObject)
         object_class_name = object_class["name"]
         object_class_id = object_class["id"]
         parameters = get(obj_param_dict, object_class_id, ())
+        class_length_tup = (Symbol(object_class_name), 1)
         # Get default values
         default_values_d = Dict()
         for parameter in parameters
             parameter_name = parameter["name"]
             parameter_id = parameter["id"]
-            push!(get!(param_material, Symbol(parameter_name), Symbol[]), Symbol(object_class_name))
+            push!(get!(param_material, Symbol(parameter_name), Symbol[]), class_length_tup)
             default_value = parameter["default_value"]
             default_values_d[Symbol(parameter_name)] = try
                 callable(db_api.from_database(default_value))
@@ -116,12 +117,13 @@ function spinedb_handle(db_map::PyObject)
         obj_cls_name_tup = Tuple(Symbol.(obj_cls_name_lst))
         rel_cls_id = relationship_class["id"]
         parameters = get(rel_param_dict, rel_cls_id, ())
+        class_length_tup = (Symbol(rel_cls_name), length(obj_cls_name_tup))
         # Get default values
         default_values_d = Dict()
         for parameter in parameters
             parameter_name = parameter["name"]
             parameter_id = parameter["id"]
-            push!(get!(param_material, Symbol(parameter_name), Symbol[]), Symbol(rel_cls_name))
+            push!(get!(param_material, Symbol(parameter_name), Symbol[]), class_length_tup)
             default_value = parameter["default_value"]
             default_values_d[Symbol(parameter_name)] = try
                 callable(db_api.from_database(default_value))
@@ -173,7 +175,7 @@ function spinedb_handle(db_map::PyObject)
         name => (name, default_values, obj_cls_name_tup, relationships)
         for ((name, default_values, obj_cls_name_tup), relationships) in rel_cls_material
     )
-    param_handler = Dict(name => (name, classes) for (name, classes) in param_material)
+    param_handler = Dict(name => (name, first.(sort(classes; by=last, rev=true))) for (name, classes) in param_material)
     obj_cls_handler, rel_cls_handler, param_handler
 end
 
@@ -243,8 +245,10 @@ function using_spinedb(db_map::PyObject, mod=@__MODULE__)
         end
     end
     for (name, value) in param_handler
+        name_, classes = value
+        classes_ = [getfield(mod, x) for x in classes]
         @eval mod begin
-            $name = Parameter($value..., $mod)
+            $name = Parameter($(Expr(:quote, name_)), $classes_)
             export $name
         end
     end
@@ -296,6 +300,6 @@ function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
         name in names(mod) || continue
         functor = getfield(mod, name)
         name, classes = value
-        setdiff!(functor.classes, classes)
+        setdiff!(functor.classes, [getfield(mod, x) for x in classes])
     end
 end

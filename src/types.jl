@@ -90,11 +90,10 @@ RelationshipClass(name) = RelationshipClass(name, (), [])
 
 struct Parameter
     name::Symbol
-    classes::Array{Symbol}
-    mod::Module
+    classes::Array{Union{ObjectClass,RelationshipClass}}
 end
 
-Parameter(name) = Parameter(name, [], @__MODULE__)
+Parameter(name) = Parameter(name, [])
 
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
@@ -262,8 +261,7 @@ end
 """
     (<p>::Parameter)(;<keyword arguments>)
 
-The values of parameter `p`. They are given as a `Dict` mapping object and relationship classes
-associated with `p`, to another `Dict` mapping corresponding objects or relationships to values.
+The value of parameter `p` for a given object or relationship.
 
 # Arguments
 
@@ -293,8 +291,7 @@ julia> demand(node=:Sthlm, i=1)
 ```
 """
 function (p::Parameter)(;_optimize=true, kwargs...)
-    for class_ in p.classes
-        class = getfield(p.mod, class_)
+    for class in p.classes
         base_kwargs = Dict()
         extra_kwargs = Dict()
         for (keyword, arg) in kwargs
