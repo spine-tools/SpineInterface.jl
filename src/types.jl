@@ -33,9 +33,14 @@ in calls to [`RelationshipClass()`](@ref).
 anything = Anything()
 
 Base.intersect(::Anything, s) = s
-Base.intersect(s, ::Anything) = s
-Base.show(io::IO, ::Anything) = print(io, "anything")
+Base.intersect(s::T, ::Anything) where T<:AbstractArray = s
+Base.intersect(s::T, ::Anything) where T<:AbstractSet = s
 Base.in(item, ::Anything) = true
+# Iterating `anything` returns `anything` once and then finishes
+Base.iterate(::Anything) = anything, nothing
+Base.iterate(::Anything, ::Nothing) = nothing
+Base.show(io::IO, ::Anything) = print(io, "anything")
+
 Broadcast.broadcastable(::Anything) = Base.RefValue{Anything}(anything)
 
 """

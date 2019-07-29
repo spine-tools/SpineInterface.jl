@@ -23,8 +23,7 @@ A set of indices corresponding to `p`, optionally filtered by `kwargs`.
 """
 function indices(p::Parameter; kwargs...)
     result = []
-    for class_ in p.classes
-        class = getfield(p.mod, class_)
+    for class in p.classes
         append!(
             result,
             [

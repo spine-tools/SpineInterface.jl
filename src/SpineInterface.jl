@@ -16,8 +16,7 @@ include("helpers.jl")
 include("util.jl")
 
 const db_api = PyNULL()
-const required_spinedb_api_version = "0.0.82"
-const iso8601zoneless = dateformat"yyyy-mm-ddTHH:MM"
+const required_spinedb_api_version = "0.0.22"
 
 export Anything
 export ObjectClass
@@ -52,7 +51,7 @@ function __init__()
     any(current_version_split .< required_version_split) && error(
         """
         SpineInterface couldn't find the required version of `spinedb_api` and needs to be rebuilt:
-        - Run `import Pkg; Pkg.build("SpineInterface")` to rebuild SpineInterface.
+        Please run `import Pkg; Pkg.build("SpineInterface")` to rebuild SpineInterface.
         """
     )
     py"""
