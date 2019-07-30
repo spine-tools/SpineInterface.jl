@@ -73,10 +73,10 @@ Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 struct ObjectClass
     name::Symbol
     default_values::NamedTuple
-    objects::Array{Tuple{Object,NamedTuple},1}
     object_class_names::Tuple{Vararg{Symbol}}
+    objects::Array{Tuple{Object,NamedTuple},1}
     cache::Array{Pair,1}
-    ObjectClass(name, default_values, objects) = new(name, default_values, objects, (name,), [])
+    ObjectClass(name, default_values, objects) = new(name, default_values, (name,), objects, [])
 end
 
 ObjectClass(name) = ObjectClass(name, (), [])
@@ -226,7 +226,7 @@ end
 function lookup(oc::ObjectClass; _optimize=true, kwargs...)
     objects = anything
     for (obj_cls_name, obj) in kwargs
-        obj_cls_name != oc.name && error("invalid keyword argument '$obj_cls_name' for $(oc.name)")
+        !(obj_cls_name in oc.object_class_names) && error("invalid keyword argument '$obj_cls_name' for $(oc.name)")
         objects = Object.(obj)
     end
     if _optimize
@@ -306,12 +306,11 @@ function (p::Parameter)(;_optimize=true, kwargs...)
                 extra_kwargs[keyword] = arg
             end
         end
-        length(base_kwargs) != length(class.object_class_names) && continue
+        length(base_kwargs) == length(class.object_class_names) || continue
         match = lookup(class; _optimize=_optimize, base_kwargs...)
-        length(match) != 1 && continue
+        length(match) == 1 || continue
         x, values = first(match)
-        all_values = merge(class.default_values, values)
-        value = all_values[p.name]
+        value = get(values, p.name, class.default_values[p.name])
         return value(;extra_kwargs...)
     end
     error("'$p' is not specified for the given arguments $(kwargs...)")
