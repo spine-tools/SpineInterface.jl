@@ -52,7 +52,7 @@ end
 """
     pull!(cache::Array{Pair,1}, lookup_key, default)
 """
-function pull!(cache::Array{Pair{K,V},1}, lookup_key::K, default) where {K,V}
+function pull!(cache::Array{Pair,1}, lookup_key, default)
     i = 1
     found = false
     for (key, value) in cache
