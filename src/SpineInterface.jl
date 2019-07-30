@@ -1,7 +1,6 @@
 module SpineInterface
 
 using PyCall
-using JSON
 using Dates
 using Suppressor
 using Statistics

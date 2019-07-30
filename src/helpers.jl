@@ -52,7 +52,7 @@ end
 """
     pull!(cache::Array{Pair,1}, lookup_key, default)
 """
-function pull!(cache::Array{Pair,1}, lookup_key, default)
+function pull!(cache::Array{Pair{K,V},1}, lookup_key::K, default) where {K,V}
     i = 1
     found = false
     for (key, value) in cache
@@ -66,7 +66,7 @@ function pull!(cache::Array{Pair,1}, lookup_key, default)
         default
     else
         key, value = cache[i]
-        if i > .1 * length(cache)
+        if i > 32
             deleteat!(cache, i)
             pushfirst!(cache, key => value)
         end
