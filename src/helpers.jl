@@ -50,32 +50,6 @@ function fix_name_ambiguity(object_class_name_list::Array{T,1}) where T
 end
 
 """
-    pull!(cache::Array{Pair,1}, lookup_key, default)
-"""
-function pull!(cache::Array{Pair,1}, lookup_key, default)
-    i = 1
-    found = false
-    for (key, value) in cache
-        if key == lookup_key
-            found = true
-            break
-        end
-        i += 1
-    end
-    if !found
-        default
-    else
-        key, value = cache[i]
-        if i > 32
-            deleteat!(cache, i)
-            pushfirst!(cache, key => value)
-        end
-        value
-    end
-end
-
-
-"""
     uniquesorted(itr)
 
 Like `unique`, but assuming `itr` is sorted. Result is undefined if `itr` is not sorted.
