@@ -315,3 +315,76 @@ function (p::Parameter)(;_optimize=true, kwargs...)
     end
     error("'$p' is not specified for the given arguments $(kwargs...)")
 end
+
+"""
+    (<p>::Parameter)(<object::Object>,<new_value>)
+
+The new value for parameter `p` for a certain Object.
+
+# Arguments
+
+- <object> is the object, for which the parameter should be overwritten.
+- <new_value> is the new assigned value.
+
+
+# Examples
+
+```jldoctest
+julia> using SpineInterface;
+
+julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+
+julia> using_spinedb(url)
+
+julia> number_of_units(unit=:dummy_unit)
+1
+
+julia> number_of_units(dummy_unit,0)
+0
+
+
+```
+"""
+function (p::Parameter)(object::Object,new_value)
+    for (counter,oc) in enumerate(p.classes)
+        for (index,object_properties) in enumerate(oc.objects)
+            if first(object_properties) == object
+                list_name = []
+                list_value = []
+                for key in keys(last(object_properties))
+                     push!(list_name,key)
+                     if key == p.name
+                         push!(list_value,typeof(last(object_properties)[key])(new_value))
+                     else
+                         push!(list_value,last(object_properties)[key])
+                     end
+                 end
+                 test = NamedTuple{Tuple(list_name)}(list_value)
+                 p.classes[counter].objects[index] = (first(object_properties),test)
+            end
+        end
+    end
+end
+
+### To be continued...
+# function (p::Parameter)(relationship,new_value)
+#     for (counter,rc) in enumerate(p.classes)
+#         for index = 1:length(classes)
+#             object_properties = oc.object_class_names[index]
+#             if first(object_properties) == relationship
+#                 list_name = []
+#                 list_value = []
+#                 for key in keys(last(object_properties))
+#                      push!(list_name,key)
+#                      if key == p.name
+#                          push!(list_value,typeof(last(object_properties)[key])(new_value))
+#                      else
+#                          push!(list_value,last(object_properties)[key])
+#                      end
+#                  end
+#                  test = NamedTuple{Tuple(list_name)}(list_value)
+#                  p.classes[counter].objects[index] = (first(object_properties),test)
+#             end
+#         end
+#     end
+# end
