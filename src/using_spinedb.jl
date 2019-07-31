@@ -83,7 +83,7 @@ function spinedb_handle(db_map::PyObject)
             end
         end
         # Get objects and their values
-        objects = obj_cls_material[Symbol(object_class_name), (;default_values_d...)] = Tuple{Object,NamedTuple}[]
+        objects, values = obj_cls_material[Symbol(object_class_name), (;default_values_d...)] = (Object[], NamedTuple[])
         for object in get(object_dict, object_class_id, ())
             object_name = object["name"]
             object_id = object["id"]
@@ -107,7 +107,8 @@ function spinedb_handle(db_map::PyObject)
                     end
                 end
             end
-            push!(objects, (Object(object_name), (;values_d...)))
+            push!(objects, Object(object_name))
+            push!(values, (;values_d...))
         end
     end
     # Loop relationship classes
@@ -139,7 +140,7 @@ function spinedb_handle(db_map::PyObject)
         end
         # Get relationships and their values
         rel_cls_key = (Symbol(rel_cls_name), (;default_values_d...), obj_cls_name_tup)
-        relationships = rel_cls_material[rel_cls_key] = Tuple{NamedTuple,NamedTuple}[]
+        relationships, values = rel_cls_material[rel_cls_key] = (NamedTuple[], NamedTuple[])
         for relationship in get(relationship_dict, rel_cls_id, ())
             object_name_list = split(relationship["object_name_list"], ",")
             relationship_id = relationship["id"]
@@ -166,16 +167,18 @@ function spinedb_handle(db_map::PyObject)
                     end
                 end
             end
-            push!(relationships, (NamedTuple{obj_cls_name_tup}(Object.(object_name_list)), (;values_d...)))
+            push!(relationships, NamedTuple{obj_cls_name_tup}(Object.(object_name_list)))
+            push!(values, (;values_d...))
         end
     end
     # Handlers
     obj_cls_handler = Dict(
-        name => (name, default_values, objects) for ((name, default_values), objects) in obj_cls_material
+        name => (name, default_values, objects, values)
+        for ((name, default_values), (objects, values)) in obj_cls_material
     )
     rel_cls_handler = Dict(
-        name => (name, default_values, obj_cls_name_tup, relationships)
-        for ((name, default_values, obj_cls_name_tup), relationships) in rel_cls_material
+        name => (name, default_values, obj_cls_name_tup, relationships, values)
+        for ((name, default_values, obj_cls_name_tup), (relationships, values)) in rel_cls_material
     )
     param_handler = Dict(name => (name, first.(sort(classes; by=last, rev=true))) for (name, classes) in param_material)
     obj_cls_handler, rel_cls_handler, param_handler
