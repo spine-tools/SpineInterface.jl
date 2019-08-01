@@ -70,7 +70,6 @@ Base.length(o::Object) = 1
 # Compare `Object`s
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 
-
 """
     CustomCache
 
@@ -80,7 +79,6 @@ struct CustomCache
     data::Vector{Pair}
     CustomCache() = new([])
 end
-
 
 function CustomCache(kv::Pair...)
     cache = CustomCache()
@@ -236,7 +234,7 @@ function (oc::ObjectClass)(;kwargs...)
         # Return objects that match all conditions
         cond(x) = all(get(x, p, NothingCallable())() === val for (p, val) in kwargs)
         indices = findall(cond, oc.values)
-        oc.objects[indices]
+        view(oc.objects, indices)
     end
 end
 
@@ -298,12 +296,13 @@ function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], _optimi
     isempty(kwargs) && return rc.relationships
     indices = lookup(rc; _optimize=_optimize, kwargs...)
     isempty(indices) && return _default
-    _compact || return rc.relationships[indices]
+    relationships_view = view(rc.relationships, indices)
+    _compact || return relationships_view
     head = setdiff(rc.object_class_names, keys(kwargs))
     if length(head) == 1
-        unique(x[head...] for x in rc.relationships[indices])
+        unique(x[head...] for x in relationships_view)
     elseif length(head) > 1
-        unique(NamedTuple{head}([x[k] for k in head]) for x in rc.relationships[indices])
+        unique(NamedTuple{head}([x[k] for k in head]) for x in relationships_view)
     else
         _default
     end
