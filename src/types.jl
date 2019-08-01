@@ -165,7 +165,7 @@ Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, o::Object) = print(io, o.name)
 
-# Lookup functions. These must be as optimized as possible
+# Lookup functions. These must be optimized as much as possible
 function lookup(oc::ObjectClass; _optimize=true, kwargs...)
     cond(x) = x in Object.(kwargs[oc.name])
     try
@@ -341,25 +341,16 @@ julia> demand(node=:Sthlm, i=1)
 
 ```
 """
-function (p::Parameter)(;_optimize=true, kwargs...)
+function (p::Parameter)(;_optimize=true, i=nothing, t=nothing, kwargs...)
     for class in p.classes
-        base_kwargs = Dict()
-        extra_kwargs = Dict()
-        for (keyword, arg) in kwargs
-            if keyword in class.object_class_names
-                base_kwargs[keyword] = arg
-            else
-                extra_kwargs[keyword] = arg
-            end
-        end
-        length(base_kwargs) == length(class.object_class_names) || continue
-        indices = lookup(class; _optimize=_optimize, base_kwargs...)
+        length(kwargs) === length(class.object_class_names) || continue
+        indices = lookup(class; _optimize=_optimize, kwargs...)
         length(indices) === 1 || continue
         values = class.values[first(indices)]
         value = get(values, p.name) do
             class.default_values[p.name]
         end
-        return value(;extra_kwargs...)
+        return value(i=i, t=t)
     end
     error("parameter $p is not specified for argument(s) $(kwargs...)")
 end
