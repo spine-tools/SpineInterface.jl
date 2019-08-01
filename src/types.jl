@@ -165,6 +165,9 @@ Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, o::Object) = print(io, o.name)
 
+entities(class::ObjectClass) = class.objects
+entities(class::RelationshipClass) = class.relationships
+
 # Lookup functions. These must be optimized as much as possible
 function lookup(oc::ObjectClass; _optimize=true, kwargs...)
     cond(x) = x in Object.(kwargs[oc.name])

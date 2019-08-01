@@ -19,19 +19,67 @@
 """
     indices(p::Parameter; kwargs...)
 
-A set of indices corresponding to `p`, optionally filtered by `kwargs`.
+An array of all objects and relationships where the value of `p` is different than `nothing`.
+
+# Arguments
+
+- For each object class where `p` is defined, there is a keyword argument named after it;
+  similarly, for each relationship class where `p` is defined, there is a keyword argument
+  named after each object class in it.
+  The purpose of these arguments is to filter the result by an object or list of objects of an specific class,
+  or to accept all objects of that class by specifying `anything` for the corresponding argument.
+
+# Examples
+
+```jldoctest
+julia> using SpineInterface;
+
+julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
+
+julia> using_spinedb(url)
+
+julia> indices(tax_net_flow)
+1-element Array{Any,1}:
+ (commodity = water, node = Sthlm)
+
+julia> indices(demand)
+5-element Array{Any,1}:
+ Nimes
+ Sthlm
+ Leuven
+ Espoo
+ Dublin
+
+```
 """
 function indices(p::Parameter; kwargs...)
     result = []
-    for class in p.classes
-        append!(
-            result,
-            [
-                relationship
-                for (relationship, values) in lookup(class; kwargs...)
-                if get(values, p.name, class.default_values[p.name])() != nothing
-            ]
-        )
+    if isempty(kwargs)
+        for class in p.classes
+            appendix = []
+            sizehint!(appendix, length(class.values))
+            for (ind, value) in enumerate(class.values)
+                val = get(value, p.name) do
+                    class.default_values[p.name]
+                end
+                val() === nothing || push!(appendix, entities(class)[ind])
+            end
+            append!(result, appendix)
+        end
+    else
+        for class in p.classes
+            inds = lookup(class; kwargs...)
+            isempty(inds) && continue
+            appendix = []
+            sizehint!(appendix, length(inds))
+            for ind in inds
+                val = get(class.values[ind], p.name) do
+                    class.default_values[p.name]
+                end
+                val() === nothing || push!(appendix, entities(class)[ind])
+            end
+            append!(result, appendix)
+        end
     end
     result
 end
