@@ -72,57 +72,50 @@ Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 
 
 """
-    HotColdCache
+    CustomCache
 
-A two-stage cache
+A custom cache
 """
-struct HotColdCache{K,V}
-    hot::Vector{Pair{K,V}}
-    cold::Vector{Pair{K,V}}
-    hotlength::Int64
-    function HotColdCache{K,V}(;hotlength::Int64=32) where {K,V}
-        hot = Pair{K,V}[]
-        cold = Pair{K,V}[]
-        sizehint!(hot, hotlength)
-        new(hot, cold, hotlength)
-    end
+struct CustomCache
+    data::Vector{Pair}
+    CustomCache() = new([])
 end
 
-function HotColdCache(kv::Pair{K,V}...; hotlength::Int64=32) where {K,V}
-    cache = HotColdCache{K,V}(hotlength=hotlength)
-    length(kv) > hotlength && sizehint!(cache.cold, length(kv) - hotlength)
+
+function CustomCache(kv::Pair...)
+    cache = CustomCache()
     for (k, v) in kv
         cache[k] = v
     end
     cache
 end
 
-HotColdCache(kv) = HotColdCache(kv...)
+CustomCache(kv) = CustomCache(kv...)
 
-Base.setindex!(cache::HotColdCache{K,V}, value::V, key::K) where {K,V} = pushfirst!(cache, key => value)
+Base.setindex!(cache::CustomCache, value, key) = pushfirst!(cache.data, key => value)
 
-function Base.pushfirst!(cache::HotColdCache{K,V}, item::Pair{K2,V}) where {K,V,K2<:K}
-    # Move last element of hot to cold if hot is 'full', then pushfirst `item` into hot
-    length(cache.hot) == cache.hotlength && pushfirst!(cache.cold, pop!(cache.hot))
-    pushfirst!(cache.hot, item)
-end
-
-function Base.get!(f::Function, cache::HotColdCache{K,V}, key::K2) where {K,V,K2<:K}
-    # Lookup in hot first
-    for (k, v) in cache.hot
-        k === key && return v
-    end
-    # Lookup in cold. If found, move it to hot
-    for (i, (k, v)) in enumerate(cache.cold)
-        if k === key
-            deleteat!(cache.cold, i)
-            pushfirst!(cache, k => v)
-            return v
+function Base.get!(f::Function, cache::CustomCache, key)
+    i = 1
+    found = false
+    for (k, v) in cache.data
+        if k == key
+            found = true
+            break
         end
+        i += 1
     end
-    default = f()
-    pushfirst!(cache, key => default)
-    default
+    if !found
+        default = f()
+        pushfirst!(cache.data, key => default)
+        default
+    else
+        k, v = cache.data[i]
+        if i > 0.1 * length(cache.data)
+            deleteat!(cache.data, i)
+            pushfirst!(cache.data, k => v)
+        end
+        v
+    end
 end
 
 ObjectCollection = Union{Object,Vector{Object},Tuple{Vararg{Object}}}
@@ -133,9 +126,9 @@ struct ObjectClass
     object_class_names::Tuple{Vararg{Symbol}}
     objects::Array{Object,1}
     values::Array{NamedTuple,1}
-    cache::HotColdCache{Any,Vector{Int64}}
+    cache::CustomCache
     ObjectClass(name, default_values, objects, values) =
-        new(name, default_values, (name,), objects, values, HotColdCache{Any,Vector{Int64}}())
+        new(name, default_values, (name,), objects, values, CustomCache())
 end
 
 ObjectClass(name) = ObjectClass(name, (), [], [])
@@ -146,9 +139,9 @@ struct RelationshipClass
     object_class_names::Tuple{Vararg{Symbol}}
     relationships::Array{NamedTuple,1}
     values::Array{NamedTuple,1}
-    cache::HotColdCache{Any,Vector{Int64}}
+    cache::CustomCache
     RelationshipClass(name, def_vals, obj_cls_names, rels, vals) =
-        new(name, def_vals, obj_cls_names, rels, vals, HotColdCache{Any,Vector{Int64}}())
+        new(name, def_vals, obj_cls_names, rels, vals, CustomCache())
 end
 
 RelationshipClass(name) = RelationshipClass(name, (), (), [], [])
@@ -179,8 +172,8 @@ function lookup(oc::ObjectClass; _optimize=true, kwargs...)
         else
             findall(cond, oc.objects)
         end
-    catch
-        error("can't find any objects of class $(oc.name) that match arguments $(kwargs...)")
+    catch e
+        error("can't find any objects of class $(oc.name) that match arguments $(kwargs...): $(sprint(showerror, e))")
     end
 end
 
@@ -194,8 +187,12 @@ function lookup(rc::RelationshipClass; _optimize=true, kwargs...)
         else
             findall(cond, rc.relationships)
         end
-    catch
-        error("can't find any relationships of class $(rc.name) that match arguments $(kwargs...)")
+    catch e
+        error(
+            """can't find any relationships of class $(rc.name) that match arguments $(kwargs...):
+            $(sprint(showerror, e))
+            """
+        )
     end
 end
 
