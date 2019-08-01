@@ -167,7 +167,7 @@ end
 (p::NothingCallable)(;kwargs...) = nothing
 (p::ScalarCallable)(;kwargs...) = p.value
 
-function (p::ArrayCallable)(;i::Union{Int64,Nothing}=nothing)
+function (p::ArrayCallable)(;i::Union{Int64,Nothing}=nothing, kwargs...)
     i === nothing && return p.value
     get(p.value, i, nothing)
 end
@@ -201,7 +201,7 @@ end
 
 iscontained(b::UnitRange{Int64}, a::UnitRange{Int64}) = b.start >= a.start && b.stop <= a.stop
 
-function (p::TimePatternCallable)(;t::Union{TimeSlice,Nothing}=nothing)
+function (p::TimePatternCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
     values = [val for (tp, val) in p.value if iscontained(t, tp)]
     if isempty(values)
@@ -211,7 +211,7 @@ function (p::TimePatternCallable)(;t::Union{TimeSlice,Nothing}=nothing)
     end
 end
 
-function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing)
+function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
     t_start = t.start
     p.value.ignore_year && (t_start -= Year(t_start))
@@ -226,7 +226,7 @@ function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing)
     end
 end
 
-function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing)
+function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
     t_start = t.start
     p.value.ignore_year && (t_start -= Year(t_start))

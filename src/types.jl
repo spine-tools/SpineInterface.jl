@@ -70,28 +70,88 @@ Base.length(o::Object) = 1
 # Compare `Object`s
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 
+
+"""
+    HotColdCache
+
+A two-stage cache
+"""
+struct HotColdCache{K,V}
+    hot::Vector{Pair{K,V}}
+    cold::Vector{Pair{K,V}}
+    hotlength::Int64
+    function HotColdCache{K,V}(;hotlength::Int64=32) where {K,V}
+        hot = Pair{K,V}[]
+        cold = Pair{K,V}[]
+        sizehint!(hot, hotlength)
+        new(hot, cold, hotlength)
+    end
+end
+
+function HotColdCache(kv::Pair{K,V}...; hotlength::Int64=32) where {K,V}
+    cache = HotColdCache{K,V}(hotlength=hotlength)
+    length(kv) > hotlength && sizehint!(cache.cold, length(kv) - hotlength)
+    for (k, v) in kv
+        cache[k] = v
+    end
+    cache
+end
+
+HotColdCache(kv) = HotColdCache(kv...)
+
+Base.setindex!(cache::HotColdCache{K,V}, value::V, key::K) where {K,V} = pushfirst!(cache, key => value)
+
+function Base.pushfirst!(cache::HotColdCache{K,V}, item::Pair{K2,V}) where {K,V,K2<:K}
+    # Move last element of hot to cold if hot is 'full', then pushfirst `item` into hot
+    length(cache.hot) == cache.hotlength && pushfirst!(cache.cold, pop!(cache.hot))
+    pushfirst!(cache.hot, item)
+end
+
+function Base.get!(f::Function, cache::HotColdCache{K,V}, key::K2) where {K,V,K2<:K}
+    # Lookup in hot first
+    for (k, v) in cache.hot
+        k === key && return v
+    end
+    # Lookup in cold. If found, move it to hot
+    for (i, (k, v)) in enumerate(cache.cold)
+        if k === key
+            deleteat!(cache.cold, i)
+            pushfirst!(cache, k => v)
+            return v
+        end
+    end
+    default = f()
+    pushfirst!(cache, key => default)
+    default
+end
+
+ObjectCollection = Union{Object,Vector{Object},Tuple{Vararg{Object}}}
+
 struct ObjectClass
     name::Symbol
     default_values::NamedTuple
     object_class_names::Tuple{Vararg{Symbol}}
-    objects::Array{Tuple{Object,NamedTuple},1}
-    cache::Array{Pair,1}
-    ObjectClass(name, default_values, objects) = new(name, default_values, (name,), objects, [])
+    objects::Array{Object,1}
+    values::Array{NamedTuple,1}
+    cache::HotColdCache{Any,Vector{Int64}}
+    ObjectClass(name, default_values, objects, values) =
+        new(name, default_values, (name,), objects, values, HotColdCache{Any,Vector{Int64}}())
 end
 
-ObjectClass(name) = ObjectClass(name, (), [])
+ObjectClass(name) = ObjectClass(name, (), [], [])
 
 struct RelationshipClass
     name::Symbol
     default_values::NamedTuple
     object_class_names::Tuple{Vararg{Symbol}}
-    relationships::Array{Tuple{NamedTuple,NamedTuple},1}
-    cache::Array{Pair,1}
-    RelationshipClass(name, default_values, object_class_names, relationships) =
-        new(name, default_values, object_class_names, relationships, [])
+    relationships::Array{NamedTuple,1}
+    values::Array{NamedTuple,1}
+    cache::HotColdCache{Any,Vector{Int64}}
+    RelationshipClass(name, def_vals, obj_cls_names, rels, vals) =
+        new(name, def_vals, obj_cls_names, rels, vals, HotColdCache{Any,Vector{Int64}}())
 end
 
-RelationshipClass(name) = RelationshipClass(name, (), [])
+RelationshipClass(name) = RelationshipClass(name, (), (), [], [])
 
 struct Parameter
     name::Symbol
@@ -104,6 +164,37 @@ Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, o::Object) = print(io, o.name)
+
+# Lookup functions. These must be optimized as much as possible
+function lookup(oc::ObjectClass; _optimize=true, kwargs...)
+    cond(x) = x in Object.(kwargs[oc.name])
+    try
+        if _optimize
+            get!(oc.cache, kwargs) do
+                findall(cond, oc.objects)
+            end
+        else
+            findall(cond, oc.objects)
+        end
+    catch
+        error("can't find any objects of class $(oc.name) that match arguments $(kwargs...)")
+    end
+end
+
+function lookup(rc::RelationshipClass; _optimize=true, kwargs...)
+    cond(x) = all(x[k] in Object.(v) for (k, v) in kwargs)
+    try
+        if _optimize
+            get!(rc.cache, kwargs) do
+                findall(cond, rc.relationships)
+            end
+        else
+            findall(cond, rc.relationships)
+        end
+    catch
+        error("can't find any relationships of class $(rc.name) that match arguments $(kwargs...)")
+    end
+end
 
 """
     (<oc>::ObjectClass)(;<keyword arguments>)
@@ -139,11 +230,13 @@ julia> commodity(state_of_matter=:gas)
 ```
 """
 function (oc::ObjectClass)(;kwargs...)
-    if length(kwargs) == 0
-        first.(oc.objects)
+    if isempty(kwargs)
+        oc.objects
     else
         # Return objects that match all conditions
-        [obj for (obj, vals) in oc.objects if all(get(vals, p, NothingCallable())() == val for (p, val) in kwargs)]
+        cond(x) = all(get(x, p, NothingCallable())() === val for (p, val) in kwargs)
+        indices = findall(cond, oc.values)
+        oc.objects[indices]
     end
 end
 
@@ -201,67 +294,20 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 
 ```
 """
-function (rc::RelationshipClass)(;_compact=true, _default=[], _optimize=true, kwargs...)
-    head = if _compact
-        Tuple(x for x in rc.object_class_names if !(x in keys(kwargs)))
+function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], _optimize::Bool=true, kwargs...)
+    isempty(kwargs) && return rc.relationships
+    indices = lookup(rc; _optimize=_optimize, kwargs...)
+    isempty(indices) && return _default
+    _compact || return rc.relationships[indices]
+    head = setdiff(rc.object_class_names, keys(kwargs))
+    if length(head) == 1
+        unique(x[head...] for x in rc.relationships[indices])
+    elseif length(head) > 1
+        unique(NamedTuple{head}([x[k] for k in head]) for x in rc.relationships[indices])
     else
-        rc.object_class_names
-    end
-    result = if isempty(head)
-        []
-    else
-        first.(lookup(rc; _optimize=_optimize, kwargs...))
-    end
-    if isempty(result)
         _default
-    elseif head == rc.object_class_names
-        result
-    elseif length(head) == 1
-        unique(x[head...] for x in result)
-    else
-        unique(NamedTuple{head}([x[k] for k in head]) for x in result)
     end
 end
-
-function lookup(oc::ObjectClass; _optimize=true, kwargs...)
-    objects = anything
-    for (obj_cls_name, obj) in kwargs
-        !(obj_cls_name in oc.object_class_names) && error("invalid keyword argument '$obj_cls_name' for $(oc.name)")
-        objects = Object.(obj)
-    end
-    if _optimize
-        indices = pull!(oc.cache, objects, nothing)
-        if indices === nothing
-            cond(x) = first(x) in objects
-            indices = findall(cond, oc.objects)
-            pushfirst!(oc.cache, objects => indices)
-        end
-        oc.objects[indices]
-    else
-        [x for x in oc.objects if first(x) in objects]
-    end
-end
-
-function lookup(rc::RelationshipClass; _optimize=true, kwargs...)
-    objects = Dict()
-    for (obj_cls_name, obj) in kwargs
-        !(obj_cls_name in rc.object_class_names) && error("invalid keyword argument '$obj_cls_name' for $(rc.name)")
-        objects[obj_cls_name] = Object.(obj)
-    end
-    if _optimize
-        indices = pull!(rc.cache, objects, nothing)
-        if indices === nothing
-            cond(x) = all(first(x)[k] in v for (k, v) in objects)
-            # TODO: Check if there's any benefit from having `relationships` sorted here
-            indices = findall(cond, rc.relationships)
-            pushfirst!(rc.cache, objects => indices)
-        end
-        rc.relationships[indices]
-    else
-        [x for x in rc.relationships if all(first(x)[k] in v for (k, v) in objects)]
-    end
-end
-
 
 """
     (<p>::Parameter)(;<keyword arguments>)
@@ -295,25 +341,18 @@ julia> demand(node=:Sthlm, i=1)
 
 ```
 """
-function (p::Parameter)(;_optimize=true, kwargs...)
+function (p::Parameter)(;_optimize=true, i=nothing, t=nothing, kwargs...)
     for class in p.classes
-        base_kwargs = Dict()
-        extra_kwargs = Dict()
-        for (keyword, arg) in kwargs
-            if keyword in class.object_class_names
-                base_kwargs[keyword] = arg
-            else
-                extra_kwargs[keyword] = arg
-            end
+        length(kwargs) === length(class.object_class_names) || continue
+        indices = lookup(class; _optimize=_optimize, kwargs...)
+        length(indices) === 1 || continue
+        values = class.values[first(indices)]
+        value = get(values, p.name) do
+            class.default_values[p.name]
         end
-        length(base_kwargs) == length(class.object_class_names) || continue
-        match = lookup(class; _optimize=_optimize, base_kwargs...)
-        length(match) == 1 || continue
-        x, values = first(match)
-        value = get(values, p.name, class.default_values[p.name])
-        return value(;extra_kwargs...)
+        return value(i=i, t=t)
     end
-    error("'$p' is not specified for the given arguments $(kwargs...)")
+    error("parameter $p is not specified for argument(s) $(kwargs...)")
 end
 
 """
