@@ -40,6 +40,7 @@ export TimeSeries
 export indices
 export anything
 export to_database
+export update!
 
 
 function __init__()

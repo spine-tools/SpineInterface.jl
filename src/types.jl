@@ -387,46 +387,45 @@ julia> number_of_units(dummy_unit,0)
 
 ```
 """
-function (p::Parameter)(object::Object,new_value)
-    for (counter,oc) in enumerate(p.classes)
-        for (index,object_properties) in enumerate(oc.objects)
-            if first(object_properties) == object
+function update!(p::Parameter, object::Object, new_value)
+    for (oc_id,oc) in enumerate(p.classes)
+        for (object_id,param_object) in enumerate(oc.objects)
+            if param_object == object
                 list_name = []
                 list_value = []
-                for key in keys(last(object_properties))
+                for key in keys(oc.values[object_id])
                      push!(list_name,key)
                      if key == p.name
-                         push!(list_value,typeof(last(object_properties)[key])(new_value))
+                         push!(list_value,typeof(oc.values[object_id][key])(new_value))
                      else
-                         push!(list_value,last(object_properties)[key])
+                         push!(list_value,oc.values[object_id][key])
                      end
                  end
                  test = NamedTuple{Tuple(list_name)}(list_value)
-                 p.classes[counter].objects[index] = (first(object_properties),test)
+                 p.classes[oc_id].values[object_id] = (test)
             end
         end
     end
 end
 
-### To be continued...
-# function (p::Parameter)(relationship,new_value)
-#     for (counter,rc) in enumerate(p.classes)
-#         for index = 1:length(classes)
-#             object_properties = oc.object_class_names[index]
-#             if first(object_properties) == relationship
-#                 list_name = []
-#                 list_value = []
-#                 for key in keys(last(object_properties))
-#                      push!(list_name,key)
-#                      if key == p.name
-#                          push!(list_value,typeof(last(object_properties)[key])(new_value))
-#                      else
-#                          push!(list_value,last(object_properties)[key])
-#                      end
-#                  end
-#                  test = NamedTuple{Tuple(list_name)}(list_value)
-#                  p.classes[counter].objects[index] = (first(object_properties),test)
-#             end
-#         end
-#     end
-# end
+## To be continued...
+function update!(p::Parameter, relationship::NamedTuple, new_value)
+    for (rc_id,rc) in enumerate(p.classes)
+        for  (rel_id, param_rel) in enumerate(rc.relationships)
+            if param_rel == relationship
+                list_name = []
+                list_value = []
+                for key in keys(rc.values[rel_id])
+                     push!(list_name,key)
+                     if key == p.name
+                         push!(list_value,typeof(rc.values[rel_id][key])(new_value))
+                     else
+                         push!(list_value,rc.values[rel_id][key])
+                     end
+                 end
+                 test = NamedTuple{Tuple(list_name)}(list_value)
+                 p.classes[rc_id].values[rel_id] = (test)
+            end
+        end
+    end
+end
