@@ -93,27 +93,22 @@ CustomCache(kv) = CustomCache(kv...)
 Base.setindex!(cache::CustomCache, value, key) = pushfirst!(cache.data, key => value)
 
 function Base.get!(f::Function, cache::CustomCache, key)
-    i = 1
-    found = false
-    for (k, v) in cache.data
+    breakpoint = div(length(cache.data), 10)
+    for (k, v) in Iterators.take(cache.data, breakpoint)
+        k == key && return v
+    end
+    i = breakpoint + 1
+    for (k, v) in Iterators.drop(cache.data, breakpoint)
         if k == key
-            found = true
-            break
+            deleteat!(cache.data, i)
+            pushfirst!(cache.data, k => v)
+            return v
         end
         i += 1
     end
-    if !found
-        default = f()
-        pushfirst!(cache.data, key => default)
-        default
-    else
-        k, v = cache.data[i]
-        if i > 0.1 * length(cache.data)
-            deleteat!(cache.data, i)
-            pushfirst!(cache.data, k => v)
-        end
-        v
-    end
+    default = f()
+    pushfirst!(cache.data, key => default)
+    default
 end
 
 ObjectCollection = Union{Object,Vector{Object},Tuple{Vararg{Object}}}

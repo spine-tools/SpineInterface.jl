@@ -48,14 +48,3 @@ function fix_name_ambiguity(object_class_name_list::Array{T,1}) where T
     end
     fixed
 end
-
-"""
-    uniquesorted(itr)
-
-Like `unique`, but assuming `itr` is sorted. Result is undefined if `itr` is not sorted.
-"""
-function uniquesorted(itr)
-    isempty(itr) && return []
-    coll = collect(itr)
-    [coll[1]; [coll[i] for i in 2:length(coll) if coll[i] != coll[i - 1]]]
-end

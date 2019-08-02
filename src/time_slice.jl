@@ -90,61 +90,111 @@ function overlap_duration(a::TimeSlice, b::TimeSlice)
 end
 
 # Iterate single `TimeSlice` as if it were a one-element collection.
-# NOTE:
-# - This also enables `intersect` with a single `TimeSlice`
-# - This is also Julia's default behaviour for scalar types
 Base.iterate(t::TimeSlice) = iterate((t,))
 Base.iterate(t::TimeSlice, state::T) where T = iterate((t,), state)
 Base.length(t::TimeSlice) = 1
 
-# FIXME: This doesn't preserve order, so it's not exactly as `Base`'s
-function Base.intersect(s::Array{TimeSlice,1}, itrs...)
-    sort!(s)
-    for itr in itrs
-        s = [s[i] for t in itr for i in searchsorted(s, t)]
-    end
-    uniquesorted(s)
-end
-
-Base.intersect(s::Array{TimeSlice,1}, ::Anything) = s
-
 # Convenience subtraction operator
 Base.:-(t::TimeSlice, p::Period) = TimeSlice(t.start - p, t.end_ - p)
 
-"""
-    t_lowest_resolution(iter)
+# Custom intersect: up to 10 times faster for sorted inputs
+Base.intersect(s::Array{TimeSlice,1}, ::Anything) = s
 
-An `Array` with the `TimeSlice`s from the given iterable that
-are not contained in any other.
+function Base.intersect(s::Array{TimeSlice,1}, s2)
+    if issorted(s) && issorted(s2)
+        intersectsorted(s, s2)
+    else
+        invoke(intersect, Tuple{AbstractArray,typeof(s2)}, s, s2)
+    end
+end
+
+function Base.unique(s::Array{TimeSlice,1})
+    if issorted(s)
+        uniquesorted(s)
+    else
+        invoke(unique, Tuple{AbstractArray}, s)
+    end
+end
+
+function uniquesorted(s::Array{T,1}) where T
+    result = T[]
+    sizehint!(result, length(s))
+    it = iterate(s)
+    while it != nothing
+        i, t = it
+        push!(result, i)
+        it = _groupediterate(s, t, i)
+    end
+    result
+end
+
+function intersectsorted(s::Array{T,1}, s2) where T
+    result = T[]
+    sizehint!(result, length(s))
+    it = iterate(s)
+    it2 = iterate(s2)
+    while it != nothing && it2 != nothing
+        i, t = it
+        i2, t2 = it2
+        if i > i2
+            it2 = _groupediterate(s2, t2, i2)
+        elseif i2 > i
+            it = _groupediterate(s, t, i)
+        else  # i == i2
+            push!(result, i)
+            it = _groupediterate(s, t, i)
+            it2 = _groupediterate(s2, t2, i2)
+        end
+    end
+    result
+end
+
+function _groupediterate(s, t, ref)
+    it = iterate(s, t)
+    while true
+        it === nothing && break
+        i, t = it
+        i != ref && break
+        it = iterate(s, t)
+    end
+    it
+end
+
+
 """
-function t_lowest_resolution(t_iter)
-    isempty(t_iter) && return []
-    t_coll = collect(t_iter)
-    sort!(t_coll)
-    result::Array{TimeSlice,1} = [t_coll[1]]
-    for t in t_coll[2:end]
-        if result[end] in t
+    t_lowest_resolution(t_arr::Array{TimeSlice,1})
+
+An `Array` with the `TimeSlice`s from `t_arr` that are not contained in any other.
+"""
+function t_lowest_resolution(t_arr::Array{TimeSlice,1})
+    isempty(t_arr) && return TimeSlice[]
+    t_arr = sort(t_arr)
+    result = [t_arr[1]]
+    for t in Iterators.drop(t_arr, 1)
+        if iscontained(result[end], t)
             result[end] = t
-        elseif !(t in result[end])
+        elseif !iscontained(t, result[end])
             push!(result, t)
         end
     end
     result
 end
 
+t_lowest_resolution(t_iter) = isempty(t_iter) ? [] : t_lowest_resolution(collect(t_iter))
 
 """
-    t_highest_resolution(iter)
+    t_highest_resolution(t_arr::Array{TimeSlice,1})
 
-An `Array` with the `TimeSlice`s from the given iterable that do not contain any other.
+An `Array` with the `TimeSlice`s from `t_arr` that do not contain any other.
 """
-function t_highest_resolution(t_iter)
-    isempty(t_iter) && return []
-    t_coll = collect(t_iter)
-    sort!(t_coll)
-    result::Array{TimeSlice,1} = [t_coll[1]]
-    for t in t_coll[2:end]
-        result[end] in t || push!(result, t)
+function t_highest_resolution(t_arr::Array{TimeSlice,1})
+    isempty(t_arr) && return TimeSlice[]
+    t_arr = sort(t_arr)
+    result = [t_arr[1]]
+    for t in Iterators.drop(t_arr, 1)
+        iscontained(result[end], t) || push!(result, t)
     end
     result
 end
+
+t_highest_resolution(t_iter) = isempty(t_iter) ? [] : t_highest_resolution(collect(t_iter))
