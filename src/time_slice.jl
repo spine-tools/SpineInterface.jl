@@ -25,7 +25,7 @@ struct TimeSlice <: ObjectLike
     start::DateTime
     end_::DateTime
     duration::Period
-    blocks::Tuple
+    blocks::NTuple{N,Object} where N
     JuMP_name::String
     TimeSlice(x, y, blk, n) = x > y ? error("out of order") : new(x, y, Minute(y - x), blk, n)
 end
@@ -52,7 +52,7 @@ end_(t::TimeSlice) = t.end_
 blocks(t::TimeSlice) = t.blocks
 
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(a.start, a.end_) < tuple(b.start, b.end_)
-
+Base.:(==)(a::TimeSlice, b::TimeSlice) = tuple(a.start, a.end_) == tuple(b.start, b.end_)
 
 """
     before(a::TimeSlice, b::TimeSlice)
@@ -97,7 +97,7 @@ Base.length(t::TimeSlice) = 1
 # Convenience subtraction operator
 Base.:-(t::TimeSlice, p::Period) = TimeSlice(t.start - p, t.end_ - p)
 
-# Custom intersect: up to 10 times faster for sorted inputs
+# Custom `intersect` - up to 10 times faster for sorted inputs - and `unique`
 Base.intersect(s::Array{TimeSlice,1}, ::Anything) = s
 
 function Base.intersect(s::Array{TimeSlice,1}, s2)
@@ -108,25 +108,41 @@ function Base.intersect(s::Array{TimeSlice,1}, s2)
     end
 end
 
-function Base.unique(s::Array{TimeSlice,1})
-    if issorted(s)
-        uniquesorted(s)
-    else
-        invoke(unique, Tuple{AbstractArray}, s)
+
+#=
+IDEA: Try and use `TimeSlice.blocks`. Not very good at the moment
+
+"""
+    block_time_slices(s::Array{TimeSlice,1})
+
+A `Dict` mapping temporal blocks to time slices in `s`.
+"""
+function block_time_slices(s::Array{TimeSlice,1})
+    block_time_slices = Dict{Object,Array{TimeSlice,1}}()
+    for t in s
+        for blk in t.blocks
+            push!(get!(block_time_slices, blk, TimeSlice[]), t)
+        end
     end
+    block_time_slices
 end
 
-function uniquesorted(s::Array{T,1}) where T
-    result = T[]
-    sizehint!(result, length(s))
-    it = iterate(s)
-    while it != nothing
-        i, t = it
-        push!(result, i)
-        it = _groupediterate(s, t, i)
+function Base.intersect(s::Array{TimeSlice,1}, s2::Array{TimeSlice,1})
+    block_s = block_time_slices(s)
+    block_s2 = block_time_slices(s2)
+    result = []
+    for k in intersect(keys(block_s), keys(block_s2))
+        v = block_s[k]
+        v2 = block_s2[k]
+        if issorted(v) && issorted(v2)
+            append!(result, intersectsorted(v, v2))
+        else
+            append!(result, invoke(intersect, Tuple{AbstractArray,AbstractArray}, v, v2))
+        end
     end
-    result
+    unique(result)
 end
+=#
 
 function intersectsorted(s::Array{T,1}, s2) where T
     result = T[]
@@ -149,6 +165,31 @@ function intersectsorted(s::Array{T,1}, s2) where T
     result
 end
 
+function Base.unique(s::Array{TimeSlice,1})
+    if issorted(s)
+        uniquesorted(s)
+    else
+        invoke(unique, Tuple{AbstractArray}, s)
+    end
+end
+
+function uniquesorted(s::Array{T,1}) where T
+    result = T[]
+    sizehint!(result, length(s))
+    it = iterate(s)
+    while it != nothing
+        i, t = it
+        push!(result, i)
+        it = _groupediterate(s, t, i)
+    end
+    result
+end
+
+"""
+    _groupediterate(s, t, ref)
+
+Advance the iterator to obtain the next element different than `ref`
+"""
 function _groupediterate(s, t, ref)
     it = iterate(s, t)
     while true
