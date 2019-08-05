@@ -250,7 +250,7 @@ function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, 
     end
     t_end -= reps * p.span
     a = findfirst(i -> i >= t_start, p.value.indexes)
-    b = findlast(i -> i <= t_end, p.value.indexes)
+    b = findlast(i -> i < t_end, p.value.indexes)
     if a === nothing || b === nothing
         nothing
     else
