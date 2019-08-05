@@ -215,14 +215,17 @@ function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...
     t === nothing && return p.value
     t_start = t.start
     p.value.ignore_year && (t_start -= Year(t_start))
-    t_duration = t.duration
-    t_end = t_start + t_duration
-    if t_start > last(p.value.indexes) || t_end < first(p.value.indexes)
+    t_end = t_start + t.duration
+    if t_start > last(p.value.indexes) || t_end <= first(p.value.indexes)
         nothing
     else
         a = findfirst(i -> i >= t_start, p.value.indexes)
-        b = findlast(i -> i <= t_end, p.value.indexes)
-        mean(p.value.values[a:b])
+        b = findlast(i -> i < t_end, p.value.indexes)
+        if a > b
+            nothing
+        else
+            mean(p.value.values[a:b])
+        end
     end
 end
 
