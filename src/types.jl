@@ -101,20 +101,21 @@ function Base.setindex!(cache::CustomCache, value, key)
 end
 
 function Base.get!(f::Function, cache::CustomCache, key)
+    key_hash = hash(key)
     breakpoint = cache.breakpoint[]
     for (k, v) in Iterators.take(cache.data, breakpoint)
-        k == key && return v
+        k == key_hash && return v
     end
     i = breakpoint + 1
     for (k, v) in Iterators.drop(cache.data, breakpoint)
-        if k == key
+        if k == key_hash
             deleteat!(cache.data, i)
             cache[k] = v
             return v
         end
         i += 1
     end
-    cache[key] = f()
+    cache[key_hash] = f()
 end
 
 ObjectCollection = Union{Object,Vector{Object},Tuple{Vararg{Object}}}
