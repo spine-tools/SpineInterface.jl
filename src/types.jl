@@ -77,7 +77,8 @@ A custom cache
 """
 struct CustomCache
     data::Vector{Pair}
-    CustomCache() = new([])
+    breakpoint::Ref{Int}
+    CustomCache() = new([], Ref(0))
 end
 
 function CustomCache(kv::Pair...)
@@ -85,15 +86,22 @@ function CustomCache(kv::Pair...)
     for (k, v) in kv
         cache[k] = v
     end
+    update_breakpoint!(cache)
     cache
 end
 
 CustomCache(kv) = CustomCache(kv...)
 
-Base.setindex!(cache::CustomCache, value, key) = pushfirst!(cache.data, key => value)
+update_breakpoint!(cache::CustomCache) = (cache.breakpoint[] = max(1, length(cache.data) >> 4))
+
+function Base.setindex!(cache::CustomCache, value, key)
+    pushfirst!(cache.data, key => value)
+    update_breakpoint!(cache)
+    value
+end
 
 function Base.get!(f::Function, cache::CustomCache, key)
-    breakpoint = div(length(cache.data), 10)
+    breakpoint = cache.breakpoint[]
     for (k, v) in Iterators.take(cache.data, breakpoint)
         k == key && return v
     end
@@ -101,14 +109,12 @@ function Base.get!(f::Function, cache::CustomCache, key)
     for (k, v) in Iterators.drop(cache.data, breakpoint)
         if k == key
             deleteat!(cache.data, i)
-            pushfirst!(cache.data, k => v)
+            cache[k] = v
             return v
         end
         i += 1
     end
-    default = f()
-    pushfirst!(cache.data, key => default)
-    default
+    cache[key] = f()
 end
 
 ObjectCollection = Union{Object,Vector{Object},Tuple{Vararg{Object}}}
