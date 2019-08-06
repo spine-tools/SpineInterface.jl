@@ -16,10 +16,29 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+
+
+# Map iterator. It applies the given `map` function over elements of the given `itr`.
+# Used by `indices`
+struct Map{F,I}
+    map::F
+    itr::I
+end
+
+function Base.iterate(m::Map, state...)
+    y = iterate(m.itr, state...)
+    y === nothing && return nothing
+    m.map(y[1]), y[2]
+end
+
+Base.eltype(::Type{Map{F,I}}) where {F,I} = eltype(I)
+Base.IteratorEltype(::Type{Map{F,I}}) where {F,I} = Base.IteratorEltype(I)
+Base.IteratorSize(::Type{Map{F,I}}) where {F,I} = Base.IteratorSize(I)
+
 """
     indices(p::Parameter; kwargs...)
 
-An array of all objects and relationships where the value of `p` is different than `nothing`.
+An iterator over all objects and relationships where the value of `p` is different than `nothing`.
 
 # Arguments
 
@@ -38,12 +57,12 @@ julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "exa
 
 julia> using_spinedb(url)
 
-julia> indices(tax_net_flow)
-1-element Array{Any,1}:
+julia> collect(indices(tax_net_flow))
+1-element Array{NamedTuple{(:commodity, :node),Tuple{Object,Object}},1}:
  (commodity = water, node = Sthlm)
 
-julia> indices(demand)
-5-element Array{Any,1}:
+julia> collect(indices(demand))
+5-element Array{Object,1}:
  Nimes
  Sthlm
  Leuven
@@ -53,35 +72,23 @@ julia> indices(demand)
 ```
 """
 function indices(p::Parameter; kwargs...)
-    result = []
+    # Get iterators
     if isempty(kwargs)
-        for class in p.classes
-            appendix = []
-            sizehint!(appendix, length(class.values))
-            for (ind, value) in enumerate(class.values)
-                val = get(value, p.name) do
-                    class.default_values[p.name]
-                end
-                val() === nothing || push!(appendix, entities(class)[ind])
-            end
-            append!(result, appendix)
-        end
+        # No kwargs, just zip all entities, values, and the default value
+        itrs = (
+            Iterators.zip(entities(class), class.values, Iterators.repeated(class.default_values[p.name]))
+            for class in p.classes
+        )
     else
-        for class in p.classes
-            inds = lookup(class; kwargs...)
-            isempty(inds) && continue
-            appendix = []
-            sizehint!(appendix, length(inds))
-            for ind in inds
-                val = get(class.values[ind], p.name) do
-                    class.default_values[p.name]
-                end
-                val() === nothing || push!(appendix, entities(class)[ind])
-            end
-            append!(result, appendix)
-        end
+        # Zip entities matching the kwargs, their values, and the default value
+        itrs = (
+            Map(i -> (entities(class)[i], class.values[i], class.default_values[p.name]), lookup(class; kwargs...))
+            for class in p.classes
+        )
     end
-    result
+    # Filtering function, `true` if the value is not nothing
+    flt(x) = get(x[2], p.name, x[3])() !== nothing
+    Map(first, Iterators.filter(flt, Iterators.flatten(itrs)))
 end
 
 """
