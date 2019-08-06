@@ -73,20 +73,26 @@ end
 
 
 """
-    write_parameters(url::String; upgrade=false, report="", comment="", <parameters>)
+    write_parameters(parameters, url::String; <keyword arguments>)
 
-Write given `parameters` to the Spine database at the given RFC-1738 `url`.
+Write `parameters` to the Spine database at the given RFC-1738 `url`.
+`parameters` is a dictionary mapping parameter names to values.
 
-If `upgrade` is `true`, then the database at `url` is upgraded to the latest revision.
+# Arguments
+
+- `upgrade::Bool=true`: whether or not the database at `url` should be upgraded to the latest revision.
+- `report::String=""`: the name of a report object that will be added as an extra dimension to the written parameters.
+- `comment::String=""`: a comment explaining the nature of the writing operation.
+- `<parameters>`: a dictionary mapping
 """
-function write_parameters(dest_url::String; upgrade=false, report="", comment="", parameters...)
+function write_parameters(parameters, dest_url::String; upgrade=false, report="", comment="")
     try
         db_map = db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
-        write_parameters(db_map; report=report, comment=comment, parameters...)
+        write_parameters(parameters, db_map; report=report, comment=comment)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBAPIError)
             db_api.create_new_spine_database(dest_url)
-            write_parameters(dest_url; report=report, comment=comment, parameters...)
+            write_parameters(parameters, dest_url; report=report, comment=comment)
         else
             rethrow()
         end
@@ -94,7 +100,7 @@ function write_parameters(dest_url::String; upgrade=false, report="", comment=""
 end
 
 
-function write_parameters(db_map::PyObject; report="", comment="", parameters...)
+function write_parameters(parameters, db_map::PyObject; report="", comment="")
     try
         for (name, data) in parameters
             write_parameter!(db_map, name, data; report=report)

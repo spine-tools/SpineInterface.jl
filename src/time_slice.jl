@@ -203,9 +203,9 @@ end
 
 
 """
-    t_lowest_resolution(t_arr::Array{TimeSlice,1})
+    t_lowest_resolution(t_itr)
 
-An `Array` with the `TimeSlice`s from `t_arr` that are not contained in any other.
+An `Array` holding only the lowest resolution `TimeSlice`s from `t_itr` (those that are not contained in any other).
 """
 function t_lowest_resolution(t_arr::Array{TimeSlice,1})
     isempty(t_arr) && return TimeSlice[]
@@ -224,9 +224,9 @@ end
 t_lowest_resolution(t_iter) = isempty(t_iter) ? [] : t_lowest_resolution(collect(t_iter))
 
 """
-    t_highest_resolution(t_arr::Array{TimeSlice,1})
+    t_highest_resolution(t_itr)
 
-An `Array` with the `TimeSlice`s from `t_arr` that do not contain any other.
+An `Array` holding only the highest resolution `TimeSlice`s from `t_itr` (those that do not contain any other).
 """
 function t_highest_resolution(t_arr::Array{TimeSlice,1})
     isempty(t_arr) && return TimeSlice[]

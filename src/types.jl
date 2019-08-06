@@ -236,7 +236,7 @@ function (oc::ObjectClass)(;kwargs...)
         # Return objects that match all conditions
         cond(x) = all(get(x, p, NothingCallable())() === val for (p, val) in kwargs)
         indices = findall(cond, oc.values)
-        view(oc.objects, indices)
+        oc.objects[indices]
     end
 end
 
@@ -298,13 +298,13 @@ function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], _optimi
     isempty(kwargs) && return rc.relationships
     indices = lookup(rc; _optimize=_optimize, kwargs...)
     isempty(indices) && return _default
-    relationships_view = view(rc.relationships, indices)
-    _compact || return relationships_view
+    result = rc.relationships[indices]
+    _compact || return result
     head = setdiff(rc.object_class_names, keys(kwargs))
     if length(head) == 1
-        unique(x[head...] for x in relationships_view)
+        unique(x[head...] for x in result)
     elseif length(head) > 1
-        unique(NamedTuple{head}([x[k] for k in head]) for x in relationships_view)
+        unique(NamedTuple{head}([x[k] for k in head]) for x in result)
     else
         _default
     end
