@@ -39,7 +39,6 @@ export t_highest_resolution
 export TimeSeries
 export indices
 export anything
-export to_database
 export update!
 
 

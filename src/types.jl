@@ -118,6 +118,8 @@ function Base.get!(f::Function, cache::CustomCache, key)
     cache[hashed_key] = f()
 end
 
+Base.empty!(cache::CustomCache) = (cache.breakpoint[] = 0; empty!(cache.data))
+
 ObjectCollection = Union{Object,Vector{Object},Tuple{Vararg{Object}}}
 
 struct ObjectClass

@@ -90,10 +90,3 @@ function indices(p::Parameter; kwargs...)
     flt(x) = get(x[2], p.name, x[3])() !== nothing
     Map(first, Iterators.filter(flt, Iterators.flatten(itrs)))
 end
-
-"""
-    to_database(x)
-
-A JSON representation of `x` to go in a Spine database.
-"""
-to_database(x::Union{DateTime_,DurationLike,TimePattern,TimeSeries}) = PyObject(x).to_database()
