@@ -306,7 +306,9 @@ function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], _optimi
     if length(head) == 1
         unique(x[head...] for x in result)
     elseif length(head) > 1
-        unique(NamedTuple{head}([x[k] for k in head]) for x in result)
+        # Hanspeter fix to issue #2 in github. TODO: Check if it happens elsewhere
+        # unique(NamedTuple{head}([x[k] for k in head]) for x in result)
+        unique(NamedTuple{tuple(head...)}([x[k] for k in head]) for x in result)
     else
         _default
     end
