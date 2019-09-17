@@ -411,28 +411,3 @@ function update!(p::Parameter, object::Object, new_value)
 end
 
 ## To be continued...
-function update!(p::Parameter, relationship::NamedTuple, new_values::Array{Tuple{NamedTuple{(:t,),Tuple{TimeSlice}},Float64},1})
-    for (rc_id,rc) in enumerate(p.classes)
-        if relationship in rc.relationships
-            rel_index = findfirst(x -> x == relationship,rc.relationships)
-            for j = 1:length(new_values)
-                positions = findfirst(x -> x == first(new_values[j]).t.start, (((rc.values[rel_index])[p.name]).value).indexes)
-                if positions == nothing
-                    push!(rc.values[rel_index][p.name].value.indexes,first(new_values[j]).t.start)
-                    push!(rc.values[rel_index][p.name].value.values, last(new_values[j]))
-                else #values needs to be overwritten
-                    rc.values[rel_index][p.name].value.values[positions] =  last(new_values[j])
-                end
-            end
-        else #### instead of push use =
-            push!(rc.relationships,relationship)
-            push!(rc.values,NamedTuple{(Symbol("$p"),),Tuple{SpineInterface.TimeSeriesCallable{Array{DateTime,1},Float64}}}((SpineInterface.TimeSeriesCallableLike(TimeSeries(DateTime[first(new_values[1]).t.start], [last(new_values[1])], false, false)),)))
-            index2 = findfirst(x ->x == relationship, rc.relationships)
-            @show rc.values
-            for j = 2:length(new_values)
-                push!(((((rc).values[index2])[p.name]).value).indexes,(first(new_values[j]).t).start)
-                push!(((((rc).values[index2])[p.name]).value).values, last(new_values[j]))
-            end
-        end
-    end
-end
