@@ -17,171 +17,182 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-function spinedb_handle(db_map::PyObject)
-    obj_cls_material = Dict{Tuple{Symbol,NamedTuple},Any}()
-    rel_cls_material = Dict{Tuple{Symbol,NamedTuple,Tuple},Any}()
-    param_material = Dict{Symbol,Vector{Tuple{Symbol,Int64}}}()
-    # Query db
-    all_object_classes = py"[x._asdict() for x in $db_map.query($db_map.object_class_sq)]"
-    all_relationship_classes = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_class_sq)]"
-    all_objects = py"[x._asdict() for x in $db_map.query($db_map.object_sq)]"
-    all_relationships = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_sq)]"
-    all_parameters = py"[x._asdict() for x in $db_map.query($db_map.parameter_definition_sq)]"
-    all_param_values = py"[x._asdict() for x in $db_map.query($db_map.parameter_value_sq)]"
-    object_dict = Dict()
-    relationship_dict = Dict()
-    obj_param_dict = Dict()
-    rel_param_dict = Dict()
-    obj_param_val_dict = Dict()
-    rel_param_val_dict = Dict()
-    # Compose
-    for obj in all_objects
-        push!(get!(object_dict, obj["class_id"], Dict[]), obj)
+
+"""
+A dictionary mapping class ids to a list of entities in that class.
+"""
+function entities_per_class(entities)
+    d = Dict()
+    for ent in entities
+        push!(get!(d, ent["class_id"], Dict[]), ent)
     end
-    for rel in all_relationships
-        push!(get!(relationship_dict, rel["class_id"], Dict[]), rel)
+    d
+end
+
+not_nothing(x, ::Nothing) = x
+not_nothing(::Nothing, x) = x
+
+"""
+A dictionary mapping entity class ids to a list of parameter definitions associated to that class.
+"""
+function parameter_definitions_per_class(param_defs)
+    d = Dict()
+    for param_def in param_defs
+        class_id = not_nothing(param_def["object_class_id"], param_def["relationship_class_id"])
+        push!(get!(d, class_id, Dict[]), param_def)
     end
-    for param in all_parameters
-        if param["object_class_id"] != nothing
-            push!(get!(obj_param_dict, param["object_class_id"], Dict[]), param)
-        elseif param["relationship_class_id"] != nothing
-            push!(get!(rel_param_dict, param["relationship_class_id"], Dict[]), param)
-        end
-    end
-    for param_val in all_param_values
+    d
+end
+
+"""
+A dictionary mapping tuples of parameter definition and entity id,
+to a list of corresponding parameter values.
+"""
+function parameter_values_per_entity(param_values)
+    d = Dict()
+    for param_val in param_values
         parameter_id = param_val["parameter_definition_id"]
-        if param_val["object_id"] != nothing
-            obj_param_val_dict[parameter_id, param_val["object_id"]] = param_val["value"]
-        elseif param_val["relationship_id"] != nothing
-            rel_param_val_dict[parameter_id, param_val["relationship_id"]] = param_val["value"]
+        entity_id = not_nothing(param_val["object_id"], param_val["relationship_id"])
+        d[parameter_id, entity_id] = param_val["value"]
+    end
+    d
+end
+
+
+"""
+A named tuple mapping parameter names to their default values.
+"""
+function default_values(param_defs)
+    d = Dict()
+    for param_def in param_defs
+        parameter_name = param_def["name"]
+        parameter_id = param_def["id"]
+        default_value = param_def["default_value"]
+        d[Symbol(parameter_name)] = try
+            callable(db_api.from_database(default_value))
+        catch e
+            if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
+                rethrow(
+                    ErrorException("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
+                )
+            else
+                rethrow()
+            end
         end
     end
-    # Get material
-    # Loop object classes
-    for object_class in all_object_classes
-        object_class_name = object_class["name"]
-        object_class_id = object_class["id"]
-        parameters = get(obj_param_dict, object_class_id, ())
-        class_length_tup = (Symbol(object_class_name), 1)
-        # Get default values
-        default_values_d = Dict()
-        for parameter in parameters
-            parameter_name = parameter["name"]
-            parameter_id = parameter["id"]
-            push!(get!(param_material, Symbol(parameter_name), Symbol[]), class_length_tup)
-            default_value = parameter["default_value"]
-            default_values_d[Symbol(parameter_name)] = try
-                callable(db_api.from_database(default_value))
-            catch e
-                if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
-                    rethrow(
-                        ErrorException("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
+    (;d...)
+end
+
+
+"""
+A name tuple mapping parameter names to their values for a given entity.
+"""
+function given_values(entity, param_defs, param_vals)
+    d = Dict()
+    entity_id = entity["id"]
+    entity_name = entity["name"]
+    for param_def in param_defs
+        parameter_id = param_def["id"]
+        parameter_name = param_def["name"]
+        value = get(param_vals, (parameter_id, entity_id), nothing)
+        value === nothing && continue
+        d[Symbol(parameter_name)] = try
+            callable(db_api.from_database(value))
+        catch e
+            if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
+                rethrow(
+                    ErrorException(
+                        """
+                        unable to parse value of '$parameter_name' for '$entity_name':
+                        $(sprint(showerror, e))
+                        """
                     )
-                else
-                    rethrow()
-                end
+                )
+            else
+                rethrow()
             end
-        end
-        # Get objects and their values
-        objects, values = obj_cls_material[Symbol(object_class_name), (;default_values_d...)] = (Object[], NamedTuple[])
-        for object in get(object_dict, object_class_id, ())
-            object_name = object["name"]
-            object_id = object["id"]
-            values_d = Dict()
-            for parameter in parameters
-                parameter_name = parameter["name"]
-                parameter_id = parameter["id"]
-                value = get(obj_param_val_dict, (parameter_id, object_id), nothing)
-                value === nothing && continue
-                values_d[Symbol(parameter_name)] = try
-                    callable(db_api.from_database(value))
-                catch e
-                    if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
-                        rethrow(
-                            ErrorException(
-                                "unable to parse value of '$parameter_name' for '$object_name': $(sprint(showerror, e))"
-                            )
-                        )
-                    else
-                        rethrow()
-                    end
-                end
-            end
-            push!(objects, Object(object_name))
-            push!(values, (;values_d...))
         end
     end
-    # Loop relationship classes
-    for relationship_class in all_relationship_classes
-        rel_cls_name = relationship_class["name"]
-        obj_cls_name_lst = fix_name_ambiguity(split(relationship_class["object_class_name_list"], ","))
-        obj_cls_name_tup = Tuple(Symbol.(obj_cls_name_lst))
-        rel_cls_id = relationship_class["id"]
-        parameters = get(rel_param_dict, rel_cls_id, ())
-        class_length_tup = (Symbol(rel_cls_name), length(obj_cls_name_tup))
-        # Get default values
-        default_values_d = Dict()
-        for parameter in parameters
-            parameter_name = parameter["name"]
-            parameter_id = parameter["id"]
-            push!(get!(param_material, Symbol(parameter_name), Symbol[]), class_length_tup)
-            default_value = parameter["default_value"]
-            default_values_d[Symbol(parameter_name)] = try
-                callable(db_api.from_database(default_value))
-            catch e
-                if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
-                    rethrow(
-                        ErrorException("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
-                    )
-                else
-                    rethrow()
-                end
-            end
+    (;d...)
+end
+
+
+function class_handle(classes, entities, param_defs, param_vals)
+    d = Dict()
+    for class in classes
+        class_id = class["id"]
+        class_name = class["name"]
+        class_param_defs = get(param_defs, class_id, ())
+        default_vals = default_values(class_param_defs)
+        class_entities = get(entities, class_id, [])
+        vals = NamedTuple[]
+        for entity in class_entities
+            given_vals = given_values(entity, class_param_defs, param_vals)
+            push!(vals, given_vals)
         end
-        # Get relationships and their values
-        rel_cls_key = (Symbol(rel_cls_name), (;default_values_d...), obj_cls_name_tup)
-        relationships, values = rel_cls_material[rel_cls_key] = (NamedTuple[], NamedTuple[])
-        for relationship in get(relationship_dict, rel_cls_id, ())
-            object_name_list = split(relationship["object_name_list"], ",")
-            relationship_id = relationship["id"]
-            values_d = Dict()
-            for parameter in parameters
-                parameter_name = parameter["name"]
-                parameter_id = parameter["id"]
-                value = get(rel_param_val_dict, (parameter_id, relationship_id), nothing)
-                value === nothing && continue
-                values_d[Symbol(parameter_name)] = try
-                    callable(db_api.from_database(value))
-                catch e
-                    if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
-                        rethrow(
-                            ErrorException(
-                                """
-                                unable to parse value of '$parameter_name' for '$object_name_list':
-                                $(sprint(showerror, e))
-                                """
-                            )
-                        )
-                    else
-                        rethrow()
-                    end
-                end
-            end
-            push!(relationships, NamedTuple{obj_cls_name_tup}(Object.(object_name_list)))
-            push!(values, (;values_d...))
+        d[Symbol(class_name)] = class_handle_entry(class, default_vals, class_entities, vals)
+    end
+    d
+end
+
+
+function class_handle_entry(class, default_vals, class_entities, vals)
+    object_class_names = get(class, "object_class_name_list", nothing)
+    class_handle_entry(class, object_class_names, default_vals, class_entities, vals)
+end
+
+function class_handle_entry(class, ::Nothing, default_vals, class_entities, vals)
+    class_objects = [Object(ent["name"]) for ent in class_entities]
+    Symbol(class["name"]), default_vals, class_objects, vals
+end
+
+function class_handle_entry(class, object_class_names, default_vals, class_entities, vals)
+    object_class_name_tuple = Tuple(Symbol.(fix_name_ambiguity(split(object_class_names, ","))))
+    class_relationships = []
+    for ent in class_entities
+        object_name_list = split(ent["object_name_list"], ",")
+        push!(class_relationships, NamedTuple{object_class_name_tuple}(Object.(object_name_list)))
+    end
+    Symbol(class["name"]), object_class_name_tuple, default_vals, class_relationships, vals
+end
+
+
+"""
+A dictionary mapping parameter names to a collection of class names where the parameter is defined.
+The collection of class names is sorted by decreasing number of dimensions in the class.
+Note that for object classes, the number of dimensions is one.
+"""
+function parameter_handle(classes, param_defs)
+    d = Dict()
+    for class in classes
+        class_id = class["id"]
+        class_name = class["name"]
+        class_param_defs = get(param_defs, class_id, ())
+        dim_count = length(split(get(class, "object_class_id_list", ""), ","))
+        for param_def in class_param_defs
+            parameter_name = param_def["name"]
+            push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), dim_count))
         end
     end
-    # Handlers
-    obj_cls_handler = Dict(
-        name => (name, default_values, objects, values)
-        for ((name, default_values), (objects, values)) in obj_cls_material
-    )
-    rel_cls_handler = Dict(
-        name => (name, default_values, obj_cls_name_tup, relationships, values)
-        for ((name, default_values, obj_cls_name_tup), (relationships, values)) in rel_cls_material
-    )
-    param_handler = Dict(name => (name, first.(sort(classes; by=last, rev=true))) for (name, classes) in param_material)
-    obj_cls_handler, rel_cls_handler, param_handler
+    Dict(name => (name, first.(sort(tups; by=last, rev=true))) for (name, tups) in d)
+end
+
+
+function spinedb_handle(db_map::PyObject)
+    object_classes = py"[x._asdict() for x in $db_map.query($db_map.object_class_sq)]"
+    relationship_classes = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_class_sq)]"
+    objects = py"[x._asdict() for x in $db_map.query($db_map.object_sq)]"
+    relationships = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_sq)]"
+    param_defs = py"[x._asdict() for x in $db_map.query($db_map.parameter_definition_sq)]"
+    param_vals = py"[x._asdict() for x in $db_map.query($db_map.parameter_value_sq)]"
+    objects = entities_per_class(objects)
+    relationships = entities_per_class(relationships)
+    param_defs = parameter_definitions_per_class(param_defs)
+    param_vals = parameter_values_per_entity(param_vals)  
+    obj_class_handle = class_handle(object_classes, objects, param_defs, param_vals)
+    rel_class_handle = class_handle(relationship_classes, relationships, param_defs, param_vals)
+    param_handle = parameter_handle([object_classes; relationship_classes], param_defs)
+    obj_class_handle, rel_class_handle, param_handle
 end
 
 
@@ -236,20 +247,20 @@ how to call the convenience functors.
 """
 function using_spinedb(db_map::PyObject, mod=@__MODULE__)
     @eval mod using SpineInterface
-    obj_cls_handler, rel_cls_handler, param_handler = spinedb_handle(db_map)
-    for (name, value) in obj_cls_handler
+    obj_class_handle, rel_class_handle, param_handle = spinedb_handle(db_map)
+    for (name, value) in obj_class_handle
         @eval mod begin
             $name = ObjectClass($value...)
             export $name
         end
     end
-    for (name, value) in rel_cls_handler
+    for (name, value) in rel_class_handle
         @eval mod begin
             $name = RelationshipClass($value...)
             export $name
         end
     end
-    for (name, value) in param_handler
+    for (name, value) in param_handle
         name_, classes = value
         classes_ = [getfield(mod, x) for x in classes]
         @eval mod begin
@@ -285,15 +296,15 @@ function notusing_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
 end
 
 function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
-    obj_cls_handler, rel_cls_handler, param_handler = spinedb_handle(db_map)
-    for (name, value) in obj_cls_handler
+    obj_class_handle, rel_class_handle, param_handle = spinedb_handle(db_map)
+    for (name, value) in obj_class_handle
         name in names(mod) || continue
         functor = getfield(mod, name)
         name, default_values, objects = value
         setdiff!(functor.objects, objects)
         empty!(functor.cache)
     end
-    for (name, value) in rel_cls_handler
+    for (name, value) in rel_class_handle
         name in names(mod) || continue
         functor = getfield(mod, name)
         name, default_values, obj_cls_name_tup, relationships = value
@@ -301,7 +312,7 @@ function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
         setdiff!(functor.relationships, relationships)
         empty!(functor.cache)
     end
-    for (name, value) in param_handler
+    for (name, value) in param_handle
         name in names(mod) || continue
         functor = getfield(mod, name)
         name, classes = value

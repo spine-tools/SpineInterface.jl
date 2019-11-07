@@ -137,8 +137,8 @@ ObjectClass(name) = ObjectClass(name, (), [], [])
 
 struct RelationshipClass
     name::Symbol
-    default_values::NamedTuple
     object_class_names::Tuple{Vararg{Symbol}}
+    default_values::NamedTuple
     relationships::Array{NamedTuple,1}
     values::Array{NamedTuple,1}
     cache::CustomCache
@@ -217,13 +217,13 @@ julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "exa
 
 julia> using_spinedb(url)
 
-julia> node()
+julia> sort(node())
 5-element Array{Object,1}:
+ Dublin
+ Espoo
+ Leuven
  Nimes
  Sthlm
- Leuven
- Espoo
- Dublin
 
 julia> commodity(state_of_matter=:gas)
 1-element Array{Object,1}:
@@ -264,13 +264,13 @@ julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "exa
 
 julia> using_spinedb(url)
 
-julia> node__commodity()
-5-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
+julia> sort(node__commodity())
+5-element Array{NamedTuple,1}:
+ (node = Dublin, commodity = wind)
+ (node = Espoo, commodity = wind)
+ (node = Leuven, commodity = wind)
  (node = Nimes, commodity = water)
  (node = Sthlm, commodity = water)
- (node = Leuven, commodity = wind)
- (node = Espoo, commodity = wind)
- (node = Dublin, commodity = wind)
 
 julia> node__commodity(commodity=:water)
 2-element Array{Object,1}:
@@ -281,13 +281,13 @@ julia> node__commodity(node=(:Dublin, :Espoo))
 1-element Array{Object,1}:
  wind
 
-julia> node__commodity(node=anything)
+julia> sort(node__commodity(node=anything))
 2-element Array{Object,1}:
  water
  wind
 
-julia> node__commodity(commodity=:water, _compact=false)
-2-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
+julia> sort(node__commodity(commodity=:water, _compact=false))
+2-element Array{NamedTuple,1}:
  (node = Nimes, commodity = water)
  (node = Sthlm, commodity = water)
 
@@ -361,7 +361,7 @@ function (p::Parameter)(;_optimize=true, i=nothing, t=nothing, kwargs...)
 end
 
 """
-    (<p>::Parameter)(<object::Object>,<new_value>)
+    (<p>::Parameter)(<object::Object>, <new_value>)
 
 The new value for parameter `p` for a certain Object.
 
@@ -373,25 +373,11 @@ The new value for parameter `p` for a certain Object.
 
 # Examples
 
-```jldoctest
-julia> using SpineInterface;
-
-julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
-
-julia> using_spinedb(url)
-
-julia> number_of_units(unit=:dummy_unit)
-1
-
-julia> number_of_units(dummy_unit,0)
-0
-
-
-```
+TODO
 """
 function update!(p::Parameter, object::Object, new_value)
-    for (oc_id,oc) in enumerate(p.classes)
-        for (object_id,param_object) in enumerate(oc.objects)
+    for (oc_id, oc) in enumerate(p.classes)
+        for (object_id, param_object) in enumerate(oc.objects)
             if param_object == object
                 list_name = []
                 list_value = []
@@ -404,10 +390,8 @@ function update!(p::Parameter, object::Object, new_value)
                      end
                  end
                  test = NamedTuple{Tuple(list_name)}(list_value)
-                 p.classes[oc_id].values[object_id] = (test)
+                 p.classes[oc_id].values[object_id] = (test,)
             end
         end
     end
 end
-
-## To be continued...
