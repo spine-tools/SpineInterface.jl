@@ -327,6 +327,7 @@ The value of parameter `p` for a given object or relationship.
   object classes involved in it. The purpose is to retrieve the value of `p` for a specific relationship.
 - `i::Int64`: a specific index to retrieve in case of an array value (ignored otherwise).
 - `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
+- `_strict::Bool`: whether to raise an error or return `nothing` if the parameter is not specified for the given arguments.
 
 
 # Examples
@@ -346,7 +347,7 @@ julia> demand(node=:Sthlm, i=1)
 
 ```
 """
-function (p::Parameter)(;_optimize=true, i=nothing, t=nothing, kwargs...)
+function (p::Parameter)(;_optimize=true, i=nothing, t=nothing, _strict=true, kwargs...)
     for class in p.classes
         length(kwargs) === length(class.object_class_names) || continue
         indices = lookup(class; _optimize=_optimize, kwargs...)
@@ -357,7 +358,8 @@ function (p::Parameter)(;_optimize=true, i=nothing, t=nothing, kwargs...)
         end
         return value(i=i, t=t)
     end
-    error("parameter $p is not specified for argument(s) $(kwargs...)")
+    _strict && error("parameter $p is not specified for argument(s) $(kwargs...)")
+    nothing
 end
 
 """
