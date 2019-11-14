@@ -215,7 +215,7 @@ function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...
     t === nothing && return p.value
     t_start = t.start
     p.value.ignore_year && (t_start -= Year(t_start))
-    t_end = t_start + t.duration
+    t_end = t_start + (t.end_ - t.start)
     if t_start > last(p.value.indexes) || t_end <= first(p.value.indexes)
         nothing
     else
@@ -239,8 +239,7 @@ function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, 
         reps = div(mismatch, p.span)
         t_start -= reps * p.span
     end
-    t_duration = t.duration
-    t_end = t_start + t_duration
+    t_end = t_start + (t.end_ - t.start)
     # Move t_end back within time_stamps range
     reps = if t_end > p.value.indexes[end]
         mismatch = t_end - p.value.indexes[1]
