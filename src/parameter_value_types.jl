@@ -37,16 +37,16 @@ end
 
 TimePattern = Dict{PeriodCollection,T} where T
 
-struct TimeSeries{I,V}
-    indexes::I
+struct TimeSeries{V}
+    indexes::Array{DateTime,1}
     values::Array{V,1}
     ignore_year::Bool
     repeat::Bool
-    function TimeSeries(inds::I, vals::Array{V,1}, iy, rep) where {I,V}
+    function TimeSeries(inds, vals::Array{V,1}, iy, rep) where {V}
         if length(inds) != length(vals)
             error("lengths don't match")
         end
-        new{I,V}(inds, vals, iy, rep)
+        new{V}(inds, vals, iy, rep)
     end
 end
 
@@ -96,25 +96,23 @@ function Base.convert(::Type{TimeSeries}, o::PyObject)
     ignore_year = o.ignore_year
     repeat = o.repeat
     values = o.values
-    if pyisinstance(o, db_api.TimeSeriesFixedResolution) && length(o.resolution) == 1
-        # Let's use StepRange here since we can, in case it improves performance
-        start = o.start
-        ignore_year && (start -= Year(start))
-        len = length(values)
-        res = relativedelta_to_period(o.resolution[1])
-        end_ = start + (len - 1) * res
-        indexes = start:res:end_
-    else
-        indexes = py"[s.astype(datetime) for s in $o.indexes]"
-        ignore_year && (indexes = [s - Year(s) for s in indexes])
-    end
+    indexes = py"[s.astype(datetime) for s in $o.indexes]"
+    ignore_year && (indexes = [s - Year(s) for s in indexes])
     TimeSeries(indexes, values, ignore_year, repeat)
 end
+
 
 # PyObject constructors
 # TODO: specify PyObject constructor for other special types
 function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
+end
+
+# Append routines
+function Base.append!(ts::TimeSeries{T}, other::TimeSeries{T}) where T
+    append!(ts.indexes, other.indexes)
+    append!(ts.values, other.values)
+    ts
 end
 
 # Callable types
@@ -137,12 +135,12 @@ end
 
 abstract type TimeSeriesCallableLike end
 
-struct TimeSeriesCallable{I,V} <: TimeSeriesCallableLike
-    value::TimeSeries{I,V}
+struct TimeSeriesCallable{V} <: TimeSeriesCallableLike
+    value::TimeSeries{V}
 end
 
-struct RepeatingTimeSeriesCallable{I,V} <: TimeSeriesCallableLike
-    value::TimeSeries{I,V}
+struct RepeatingTimeSeriesCallable{V} <: TimeSeriesCallableLike
+    value::TimeSeries{V}
     span::Union{Period,Nothing}
     valsum::V
     len::Int64
@@ -151,7 +149,7 @@ end
 # Required outer constructors
 ScalarCallable(s::String) = ScalarCallable(Symbol(s))
 
-function TimeSeriesCallableLike(ts::TimeSeries{I,V}) where {I,V}
+function TimeSeriesCallableLike(ts::TimeSeries{V}) where {V}
     if ts.repeat
         span = ts.indexes[end] - ts.indexes[1]
         valsum = sum(ts.values)

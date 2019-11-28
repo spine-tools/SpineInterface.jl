@@ -164,7 +164,7 @@ entities(class::ObjectClass) = class.objects
 entities(class::RelationshipClass) = class.relationships
 
 # Lookup functions. These must be optimized as much as possible
-function lookup(oc::ObjectClass; _optimize=true, kwargs...)
+function lookup_indices(oc::ObjectClass; _optimize=true, kwargs...)
     cond(x) = x in Object.(kwargs[oc.name])
     try
         if _optimize
@@ -179,7 +179,7 @@ function lookup(oc::ObjectClass; _optimize=true, kwargs...)
     end
 end
 
-function lookup(rc::RelationshipClass; _optimize=true, kwargs...)
+function lookup_indices(rc::RelationshipClass; _optimize=true, kwargs...)
     cond(x) = all(x[k] in Object.(v) for (k, v) in kwargs)
     try
         if _optimize
@@ -196,6 +196,20 @@ function lookup(rc::RelationshipClass; _optimize=true, kwargs...)
             """
         )
     end
+end
+
+function lookup_callable(p::Parameter; _optimize=true, kwargs...)
+    for class in p.classes
+        length(kwargs) === length(class.object_class_names) || continue
+        indices = lookup_indices(class; _optimize=_optimize, kwargs...)
+        length(indices) === 1 || continue
+        values = class.values[first(indices)]
+        value = get(values, p.name) do
+            class.default_values[p.name]
+        end
+        return value
+    end
+    nothing
 end
 
 """
@@ -298,7 +312,7 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 """
 function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], _optimize::Bool=true, kwargs...)
     isempty(kwargs) && return rc.relationships
-    indices = lookup(rc; _optimize=_optimize, kwargs...)
+    indices = lookup_indices(rc; _optimize=_optimize, kwargs...)
     isempty(indices) && return _default
     result = rc.relationships[indices]
     _compact || return result
@@ -348,52 +362,9 @@ julia> demand(node=:Sthlm, i=1)
 ```
 """
 function (p::Parameter)(;_optimize=true, i=nothing, t=nothing, _strict=true, kwargs...)
-    for class in p.classes
-        length(kwargs) === length(class.object_class_names) || continue
-        indices = lookup(class; _optimize=_optimize, kwargs...)
-        length(indices) === 1 || continue
-        values = class.values[first(indices)]
-        value = get(values, p.name) do
-            class.default_values[p.name]
-        end
-        return value(i=i, t=t)
-    end
+    callable = lookup_callable(p; _optimize=_optimize, kwargs...)
+    callable != nothing && return callable(i=i, t=t)
     _strict && error("parameter $p is not specified for argument(s) $(kwargs...)")
     nothing
 end
 
-"""
-    (<p>::Parameter)(<object::Object>, <new_value>)
-
-The new value for parameter `p` for a certain Object.
-
-# Arguments
-
-- <object> is the object, for which the parameter should be overwritten.
-- <new_value> is the new assigned value.
-
-
-# Examples
-
-TODO
-"""
-function update!(p::Parameter, object::Object, new_value)
-    for (oc_id, oc) in enumerate(p.classes)
-        for (object_id, param_object) in enumerate(oc.objects)
-            if param_object == object
-                list_name = []
-                list_value = []
-                for key in keys(oc.values[object_id])
-                     push!(list_name,key)
-                     if key == p.name
-                         push!(list_value,typeof(oc.values[object_id][key])(new_value))
-                     else
-                         push!(list_value,oc.values[object_id][key])
-                     end
-                 end
-                 test = NamedTuple{Tuple(list_name)}(list_value)
-                 p.classes[oc_id].values[object_id] = (test,)
-            end
-        end
-    end
-end

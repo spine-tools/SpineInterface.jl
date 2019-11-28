@@ -39,7 +39,6 @@ export t_highest_resolution
 export TimeSeries
 export indices
 export anything
-export update!
 
 
 function __init__()
