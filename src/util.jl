@@ -82,7 +82,10 @@ function indices(p::Parameter; kwargs...)
     else
         # Zip entities matching the kwargs, their values, and the default value
         itrs = (
-            Map(i -> (entities(class)[i], class.values[i], class.default_values[p.name]), lookup(class; kwargs...))
+            Map(
+                i -> (entities(class)[i], class.values[i], class.default_values[p.name]), 
+                lookup_indices(class; kwargs...)
+            )
             for class in p.classes
         )
     end
@@ -108,8 +111,8 @@ Append `values` to parameter `p`.
 function Base.append!(p::Parameter, values; _optimize=true, kwargs...)
     callable = lookup_callable(p; _optimize=_optimize, kwargs...)
     callable === nothing && return
-    append!(callable.value, values)
-    callable
+    append!(callable, values)
+    p
 end
 
 

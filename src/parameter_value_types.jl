@@ -118,22 +118,24 @@ end
 # Callable types
 # These are wrappers around standard Julia types and our special types above,
 # that override the call operator
-struct NothingCallable
+abstract type CallableLike end
+
+struct NothingCallable <: CallableLike
 end
 
-struct ScalarCallable{T}
+struct ScalarCallable{T} <: CallableLike
     value::T
 end
 
-struct ArrayCallable{T,N}
+struct ArrayCallable{T,N} <: CallableLike
     value::Array{T,N}
 end
 
-struct TimePatternCallable{T}
+struct TimePatternCallable{T} <: CallableLike
     value::TimePattern{T}
 end
 
-abstract type TimeSeriesCallableLike end
+abstract type TimeSeriesCallableLike <: CallableLike end
 
 struct TimeSeriesCallable{V} <: TimeSeriesCallableLike
     value::TimeSeries{V}
@@ -284,3 +286,8 @@ Base.length(v::ScalarCallable) = 1
 Base.isless(v1::ScalarCallable, v2::ScalarCallable) = v1.value < v2.value
 # Show ScalarCallable
 Base.show(io::IO, v::ScalarCallable) = print(io, v.value)
+
+# Append
+Base.append!(v::RepeatingTimeSeriesCallable, values) = (append!(v.value, values); v)
+Base.append!(v::TimeSeriesCallable, values) = (append!(v.value, values); v)
+Base.append!(v::NothingCallable, values) = v
