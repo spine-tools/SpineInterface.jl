@@ -45,7 +45,7 @@ function parameter_definitions_per_class(param_defs)
 end
 
 """
-A dictionary mapping tuples of parameter definition and entity id,
+A dictionary mapping tuples of parameter definition and entity ids,
 to a list of corresponding parameter values.
 """
 function parameter_values_per_entity(param_values)
@@ -60,15 +60,14 @@ end
 
 
 """
-A named tuple mapping parameter names to their default values.
+A dictionary mapping parameter names to their default values.
 """
 function default_values(param_defs)
     d = Dict()
     for param_def in param_defs
         parameter_name = param_def["name"]
-        parameter_id = param_def["id"]
         default_value = param_def["default_value"]
-        d[Symbol(parameter_name)] = try
+        d[parameter_name] = try
             callable(db_api.from_database(default_value))
         catch e
             if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
@@ -80,14 +79,14 @@ function default_values(param_defs)
             end
         end
     end
-    (;d...)
+    d
 end
 
 
 """
-A name tuple mapping parameter names to their values for a given entity.
+A named tuple mapping parameter names to their values for a given entity.
 """
-function given_values(entity, param_defs, param_vals)
+function given_values(entity, param_defs, param_vals, default_vals)
     d = Dict()
     entity_id = entity["id"]
     entity_name = entity["name"]
@@ -95,7 +94,10 @@ function given_values(entity, param_defs, param_vals)
         parameter_id = param_def["id"]
         parameter_name = param_def["name"]
         value = get(param_vals, (parameter_id, entity_id), nothing)
-        value === nothing && continue
+        if value === nothing
+            d[Symbol(parameter_name)] = copy(default_vals[parameter_name])
+            continue
+        end
         d[Symbol(parameter_name)] = try
             callable(db_api.from_database(value))
         catch e
@@ -127,33 +129,33 @@ function class_handle(classes, entities, param_defs, param_vals)
         class_entities = get(entities, class_id, [])
         vals = NamedTuple[]
         for entity in class_entities
-            given_vals = given_values(entity, class_param_defs, param_vals)
+            given_vals = given_values(entity, class_param_defs, param_vals, default_vals)
             push!(vals, given_vals)
         end
-        d[Symbol(class_name)] = class_handle_entry(class, default_vals, class_entities, vals)
+        d[Symbol(class_name)] = class_handle_entry(class, class_entities, vals)
     end
     d
 end
 
 
-function class_handle_entry(class, default_vals, class_entities, vals)
+function class_handle_entry(class, class_entities, vals)
     object_class_names = get(class, "object_class_name_list", nothing)
-    class_handle_entry(class, object_class_names, default_vals, class_entities, vals)
+    class_handle_entry(class, object_class_names, class_entities, vals)
 end
 
-function class_handle_entry(class, ::Nothing, default_vals, class_entities, vals)
+function class_handle_entry(class, ::Nothing, class_entities, vals)
     class_objects = [Object(ent["name"]) for ent in class_entities]
-    Symbol(class["name"]), default_vals, class_objects, vals
+    Symbol(class["name"]), class_objects, vals
 end
 
-function class_handle_entry(class, object_class_names, default_vals, class_entities, vals)
+function class_handle_entry(class, object_class_names, class_entities, vals)
     object_class_name_tuple = Tuple(Symbol.(fix_name_ambiguity(split(object_class_names, ","))))
     class_relationships = []
     for ent in class_entities
         object_name_list = split(ent["object_name_list"], ",")
         push!(class_relationships, NamedTuple{object_class_name_tuple}(Object.(object_name_list)))
     end
-    Symbol(class["name"]), object_class_name_tuple, default_vals, class_relationships, vals
+    Symbol(class["name"]), object_class_name_tuple, class_relationships, vals
 end
 
 
@@ -300,14 +302,14 @@ function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
     for (name, value) in obj_class_handle
         name in names(mod) || continue
         functor = getfield(mod, name)
-        name, default_values, objects = value
+        name, objects = value
         setdiff!(functor.objects, objects)
         empty!(functor.cache)
     end
     for (name, value) in rel_class_handle
         name in names(mod) || continue
         functor = getfield(mod, name)
-        name, default_values, obj_cls_name_tup, relationships = value
+        name, obj_cls_name_tup, relationships = value
         obj_cls_name_tup == functor.object_class_names || continue
         setdiff!(functor.relationships, relationships)
         empty!(functor.cache)

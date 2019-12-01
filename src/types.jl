@@ -125,12 +125,10 @@ ObjectCollection = Union{Object,Vector{Object},Tuple{Vararg{Object}}}
 struct ObjectClass
     name::Symbol
     object_class_names::Tuple{Vararg{Symbol}}
-    default_values::NamedTuple
     objects::Array{Object,1}
     values::Array{NamedTuple,1}
     cache::CustomCache
-    ObjectClass(name, default_values, objects, vals) =
-        new(name, (name,), default_values, objects, vals, CustomCache())
+    ObjectClass(name, objects, vals) = new(name, (name,), objects, vals, CustomCache())
 end
 
 ObjectClass(name) = ObjectClass(name, (), [], [])
@@ -138,12 +136,10 @@ ObjectClass(name) = ObjectClass(name, (), [], [])
 struct RelationshipClass
     name::Symbol
     object_class_names::Tuple{Vararg{Symbol}}
-    default_values::NamedTuple
     relationships::Array{NamedTuple,1}
     values::Array{NamedTuple,1}
     cache::CustomCache
-    RelationshipClass(name, obj_cls_names, default_vals, rels, vals) =
-        new(name, obj_cls_names, default_vals, rels, vals, CustomCache())
+    RelationshipClass(name, obj_cls_names, rels, vals) = new(name, obj_cls_names, rels, vals, CustomCache())
 end
 
 RelationshipClass(name) = RelationshipClass(name, (), (), [], [])
@@ -204,10 +200,7 @@ function lookup_callable(p::Parameter; _optimize=true, kwargs...)
         indices = lookup_indices(class; _optimize=_optimize, kwargs...)
         length(indices) === 1 || continue
         values = class.values[first(indices)]
-        value = get(values, p.name) do
-            class.default_values[p.name]
-        end
-        return value
+        return values[p.name]
     end
     nothing
 end

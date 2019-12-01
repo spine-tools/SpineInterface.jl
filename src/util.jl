@@ -74,23 +74,17 @@ julia> collect(indices(demand))
 function indices(p::Parameter; kwargs...)
     # Get iterators
     if isempty(kwargs)
-        # No kwargs, just zip all entities, values, and the default value
-        itrs = (
-            Iterators.zip(entities(class), class.values, Iterators.repeated(class.default_values[p.name]))
-            for class in p.classes
-        )
+        # No kwargs, just zip all entities and values
+        itrs = (Iterators.zip(entities(class), class.values) for class in p.classes)
     else
-        # Zip entities matching the kwargs, their values, and the default value
+        # Zip entities matching the kwargs, and their values
         itrs = (
-            Map(
-                i -> (entities(class)[i], class.values[i], class.default_values[p.name]), 
-                lookup_indices(class; kwargs...)
-            )
+            Map(i -> (entities(class)[i], class.values[i]), lookup_indices(class; kwargs...))
             for class in p.classes
         )
     end
     # Filtering function, `true` if the value is not nothing
-    flt(x) = get(x[2], p.name, x[3])() !== nothing
+    flt(x) = x[2][p.name]() !== nothing
     Map(first, Iterators.filter(flt, Iterators.flatten(itrs)))
 end
 
@@ -110,8 +104,8 @@ Append `values` to parameter `p`.
 """
 function Base.append!(p::Parameter, values; _optimize=true, kwargs...)
     callable = lookup_callable(p; _optimize=_optimize, kwargs...)
-    callable === nothing && return
-    append!(callable, values)
+    callable isa TimeSeriesCallableLike || return
+    append!(callable.value, values)
     p
 end
 

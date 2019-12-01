@@ -108,12 +108,17 @@ function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
 end
 
-# Append routines
+# Base.append!
 function Base.append!(ts::TimeSeries{T}, other::TimeSeries{T}) where T
     append!(ts.indexes, other.indexes)
     append!(ts.values, other.values)
     ts
 end
+
+# Base.copy
+Base.copy(dur::ArrayDuration) = ArrayDuration(copy(dur.value))
+Base.copy(tp::TimePattern) = TimePattern(Y=tp.Y, M=tp.M, D=tp.D, WD=tp.WD, h=tp.h, m=tp.m, s=tp.s)
+Base.copy(ts::TimeSeries{T}) where T = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
 
 # Callable types
 # These are wrappers around standard Julia types and our special types above,
@@ -287,7 +292,10 @@ Base.isless(v1::ScalarCallable, v2::ScalarCallable) = v1.value < v2.value
 # Show ScalarCallable
 Base.show(io::IO, v::ScalarCallable) = print(io, v.value)
 
-# Append
-Base.append!(v::RepeatingTimeSeriesCallable, values) = (append!(v.value, values); v)
-Base.append!(v::TimeSeriesCallable, values) = (append!(v.value, values); v)
-Base.append!(v::NothingCallable, values) = v
+
+Base.copy(c::NothingCallable) = c
+Base.copy(c::ScalarCallable) = c
+Base.copy(c::ArrayCallable) = ArrayCallable(copy(c.value))
+Base.copy(c::TimePatternCallable) = TimePatternCallable(copy(c.value))
+Base.copy(c::TimeSeriesCallable) = TimeSeriesCallable(copy(c.value))
+Base.copy(c::RepeatingTimeSeriesCallable) = RepeatingTimeSeriesCallable(copy(c.value), c.span, c.valsum, c.len)
