@@ -24,10 +24,10 @@ A type for representing a slice of time.
 struct TimeSlice <: ObjectLike
     start::DateTime
     end_::DateTime
-    duration::Period
+    duration::Float64
     blocks::NTuple{N,Object} where N
     JuMP_name::String
-    TimeSlice(x, y, blk, n) = x > y ? error("out of order") : new(x, y, Minute(y - x), blk, n)
+    TimeSlice(x, y, d, blks, name) = x > y ? error("out of order") : new(x, y, d, blks, name)
 end
 
 """
@@ -35,7 +35,11 @@ end
 
 Construct a `TimeSlice` with bounds given by `start` and `end_`.
 """
-TimeSlice(start::DateTime, end_::DateTime, blocks::Object...) = TimeSlice(start, end_, blocks, "$start...$end_")
+function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_unit=Minute)    
+    dur = Minute(end_ - start) / Minute(duration_unit(1))
+    TimeSlice(start, end_, dur, blocks, "$(start)~>$(end_)")
+end
+
 TimeSlice(other::TimeSlice) = other
 
 Base.show(io::IO, time_slice::TimeSlice) = print(io, time_slice.JuMP_name)
@@ -45,7 +49,7 @@ Base.show(io::IO, time_slice::TimeSlice) = print(io, time_slice.JuMP_name)
 
 The duration of time slice `t` in minutes.
 """
-duration(t::TimeSlice) = t.duration.value
+duration(t::TimeSlice) = t.duration
 
 start(t::TimeSlice) = t.start
 end_(t::TimeSlice) = t.end_
@@ -83,10 +87,10 @@ overlaps(a::TimeSlice, b::TimeSlice) = a.start <= b.start < a.end_ || b.start <=
 The number of minutes where `a` and `b` overlap.
 """
 function overlap_duration(a::TimeSlice, b::TimeSlice)
-    overlaps(a, b) || return 0
+    overlaps(a, b) || return 0.0
     overlap_start = max(a.start, b.start)
     overlap_end = min(a.end_, b.end_)
-    Minute(overlap_end - overlap_start).value
+    a.duration * Minute(overlap_end - overlap_start) / Minute(a.end_ - a.start)
 end
 
 # Iterate single `TimeSlice` as if it were a one-element collection.
@@ -95,9 +99,12 @@ Base.iterate(t::TimeSlice, state::T) where T = iterate((t,), state)
 Base.length(t::TimeSlice) = 1
 
 # Convenience subtraction operator
-Base.:-(t::TimeSlice, p::Period) = TimeSlice(t.start - p, t.end_ - p)
+function Base.:-(t::TimeSlice, p::Period)
+    start = t.start - p
+    end_ = t.end_ - p
+    TimeSlice(start, end_, t.duration, t.blocks, "$(start)~>$(end_)")
+end
 
-# Custom `intersect` - up to 10 times faster for sorted inputs - and `unique`
 Base.intersect(s::Array{TimeSlice,1}, ::Anything) = s
 
 function Base.intersect(s::Array{TimeSlice,1}, s2)

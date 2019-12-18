@@ -15,7 +15,7 @@ include("helpers.jl")
 include("util.jl")
 
 const db_api = PyNULL()
-const required_spinedb_api_version = "0.0.22"
+const required_spinedb_api_version = v"0.0.22"
 
 export Anything
 export ObjectClass
@@ -39,15 +39,12 @@ export t_highest_resolution
 export TimeSeries
 export indices
 export anything
-export update!
 
 
 function __init__()
     copy!(db_api, pyimport("spinedb_api"))
-    current_version = db_api.__version__
-    current_version_split = parse.(Int, split(current_version, "."))
-    required_version_split = parse.(Int, split(required_spinedb_api_version, "."))
-    any(current_version_split .< required_version_split) && error(
+    current_version = VersionNumber(db_api.__version__)
+    current_version >= required_spinedb_api_version || error(
         """
         SpineInterface couldn't find the required version of `spinedb_api` and needs to be rebuilt:
         Please run `import Pkg; Pkg.build("SpineInterface")` to rebuild SpineInterface.

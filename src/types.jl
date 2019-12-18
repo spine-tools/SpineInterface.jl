@@ -124,26 +124,22 @@ ObjectCollection = Union{Object,Vector{Object},Tuple{Vararg{Object}}}
 
 struct ObjectClass
     name::Symbol
-    default_values::NamedTuple
     object_class_names::Tuple{Vararg{Symbol}}
     objects::Array{Object,1}
     values::Array{NamedTuple,1}
     cache::CustomCache
-    ObjectClass(name, default_values, objects, values) =
-        new(name, default_values, (name,), objects, values, CustomCache())
+    ObjectClass(name, objects, vals) = new(name, (name,), objects, vals, CustomCache())
 end
 
 ObjectClass(name) = ObjectClass(name, (), [], [])
 
 struct RelationshipClass
     name::Symbol
-    default_values::NamedTuple
     object_class_names::Tuple{Vararg{Symbol}}
     relationships::Array{NamedTuple,1}
     values::Array{NamedTuple,1}
     cache::CustomCache
-    RelationshipClass(name, def_vals, obj_cls_names, rels, vals) =
-        new(name, def_vals, obj_cls_names, rels, vals, CustomCache())
+    RelationshipClass(name, obj_cls_names, rels, vals) = new(name, obj_cls_names, rels, vals, CustomCache())
 end
 
 RelationshipClass(name) = RelationshipClass(name, (), (), [], [])
@@ -164,7 +160,7 @@ entities(class::ObjectClass) = class.objects
 entities(class::RelationshipClass) = class.relationships
 
 # Lookup functions. These must be optimized as much as possible
-function lookup(oc::ObjectClass; _optimize=true, kwargs...)
+function lookup_indices(oc::ObjectClass; _optimize=true, kwargs...)
     cond(x) = x in Object.(kwargs[oc.name])
     try
         if _optimize
@@ -179,7 +175,7 @@ function lookup(oc::ObjectClass; _optimize=true, kwargs...)
     end
 end
 
-function lookup(rc::RelationshipClass; _optimize=true, kwargs...)
+function lookup_indices(rc::RelationshipClass; _optimize=true, kwargs...)
     cond(x) = all(x[k] in Object.(v) for (k, v) in kwargs)
     try
         if _optimize
@@ -196,6 +192,17 @@ function lookup(rc::RelationshipClass; _optimize=true, kwargs...)
             """
         )
     end
+end
+
+function lookup_callable(p::Parameter; _optimize=true, kwargs...)
+    for class in p.classes
+        length(kwargs) === length(class.object_class_names) || continue
+        indices = lookup_indices(class; _optimize=_optimize, kwargs...)
+        length(indices) === 1 || continue
+        values = class.values[first(indices)]
+        return values[p.name]
+    end
+    nothing
 end
 
 """
@@ -217,13 +224,13 @@ julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "exa
 
 julia> using_spinedb(url)
 
-julia> node()
+julia> sort(node())
 5-element Array{Object,1}:
+ Dublin
+ Espoo
+ Leuven
  Nimes
  Sthlm
- Leuven
- Espoo
- Dublin
 
 julia> commodity(state_of_matter=:gas)
 1-element Array{Object,1}:
@@ -264,13 +271,13 @@ julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "exa
 
 julia> using_spinedb(url)
 
-julia> node__commodity()
-5-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
+julia> sort(node__commodity())
+5-element Array{NamedTuple,1}:
+ (node = Dublin, commodity = wind)
+ (node = Espoo, commodity = wind)
+ (node = Leuven, commodity = wind)
  (node = Nimes, commodity = water)
  (node = Sthlm, commodity = water)
- (node = Leuven, commodity = wind)
- (node = Espoo, commodity = wind)
- (node = Dublin, commodity = wind)
 
 julia> node__commodity(commodity=:water)
 2-element Array{Object,1}:
@@ -281,13 +288,13 @@ julia> node__commodity(node=(:Dublin, :Espoo))
 1-element Array{Object,1}:
  wind
 
-julia> node__commodity(node=anything)
+julia> sort(node__commodity(node=anything))
 2-element Array{Object,1}:
  water
  wind
 
-julia> node__commodity(commodity=:water, _compact=false)
-2-element Array{NamedTuple{(:node, :commodity),Tuple{Object,Object}},1}:
+julia> sort(node__commodity(commodity=:water, _compact=false))
+2-element Array{NamedTuple,1}:
  (node = Nimes, commodity = water)
  (node = Sthlm, commodity = water)
 
@@ -298,7 +305,7 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 """
 function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], _optimize::Bool=true, kwargs...)
     isempty(kwargs) && return rc.relationships
-    indices = lookup(rc; _optimize=_optimize, kwargs...)
+    indices = lookup_indices(rc; _optimize=_optimize, kwargs...)
     isempty(indices) && return _default
     result = rc.relationships[indices]
     _compact || return result
@@ -327,6 +334,7 @@ The value of parameter `p` for a given object or relationship.
   object classes involved in it. The purpose is to retrieve the value of `p` for a specific relationship.
 - `i::Int64`: a specific index to retrieve in case of an array value (ignored otherwise).
 - `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
+- `_strict::Bool`: whether to raise an error or return `nothing` if the parameter is not specified for the given arguments.
 
 
 # Examples
@@ -346,88 +354,10 @@ julia> demand(node=:Sthlm, i=1)
 
 ```
 """
-function (p::Parameter)(;_optimize=true, i=nothing, t=nothing, kwargs...)
-    for class in p.classes
-        length(kwargs) === length(class.object_class_names) || continue
-        indices = lookup(class; _optimize=_optimize, kwargs...)
-        length(indices) === 1 || continue
-        values = class.values[first(indices)]
-        value = get(values, p.name) do
-            class.default_values[p.name]
-        end
-        return value(i=i, t=t)
-    end
-    error("parameter $p is not specified for argument(s) $(kwargs...)")
+function (p::Parameter)(;_optimize=true, i=nothing, t=nothing, _strict=true, kwargs...)
+    callable = lookup_callable(p; _optimize=_optimize, kwargs...)
+    callable != nothing && return callable(i=i, t=t)
+    _strict && error("parameter $p is not specified for argument(s) $(kwargs...)")
+    nothing
 end
 
-"""
-    (<p>::Parameter)(<object::Object>,<new_value>)
-
-The new value for parameter `p` for a certain Object.
-
-# Arguments
-
-- <object> is the object, for which the parameter should be overwritten.
-- <new_value> is the new assigned value.
-
-
-# Examples
-
-```jldoctest
-julia> using SpineInterface;
-
-julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
-
-julia> using_spinedb(url)
-
-julia> number_of_units(unit=:dummy_unit)
-1
-
-julia> number_of_units(dummy_unit,0)
-0
-
-
-```
-"""
-function update!(p::Parameter, object::Object, new_value)
-    for (oc_id,oc) in enumerate(p.classes)
-        for (object_id,param_object) in enumerate(oc.objects)
-            if param_object == object
-                list_name = []
-                list_value = []
-                for key in keys(oc.values[object_id])
-                     push!(list_name,key)
-                     if key == p.name
-                         push!(list_value,typeof(oc.values[object_id][key])(new_value))
-                     else
-                         push!(list_value,oc.values[object_id][key])
-                     end
-                 end
-                 test = NamedTuple{Tuple(list_name)}(list_value)
-                 p.classes[oc_id].values[object_id] = (test)
-            end
-        end
-    end
-end
-
-## To be continued...
-function update!(p::Parameter, relationship::NamedTuple, new_value)
-    for (rc_id,rc) in enumerate(p.classes)
-        for  (rel_id, param_rel) in enumerate(rc.relationships)
-            if param_rel == relationship
-                list_name = []
-                list_value = []
-                for key in keys(rc.values[rel_id])
-                     push!(list_name,key)
-                     if key == p.name
-                         push!(list_value,typeof(rc.values[rel_id][key])(new_value))
-                     else
-                         push!(list_value,rc.values[rel_id][key])
-                     end
-                 end
-                 test = NamedTuple{Tuple(list_name)}(list_value)
-                 p.classes[rc_id].values[rel_id] = (test)
-            end
-        end
-    end
-end

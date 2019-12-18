@@ -20,15 +20,16 @@ See [Spine](http://www.spine-model.org/) for more information.
 From the Julia REPL, press the key `]` to enter the Pkg-REPL mode and run
 
 ```julia
-(v1.0) pkg> add https://github.com/Spine-project/SpineInterface.jl.git
+pkg> add https://github.com/Spine-project/SpineInterface.jl.git
+pkg> build SpineInterface
 ```
 
 To upgrade to the most recent version, enter the Pkg-REPL mode and run
 
 ```julia
-(v1.0) pkg> up SpineInterface
+pkg> up SpineInterface
 ```
-
+and re-build the package.
 
 ### Usage
 

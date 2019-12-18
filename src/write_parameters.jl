@@ -91,7 +91,7 @@ function write_parameters(parameters, dest_url::String; upgrade=false, report=""
         write_parameters(parameters, db_map; report=report, comment=comment)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBAPIError)
-            db_api.create_new_spine_database(dest_url)
+            db_api.create_new_spine_database(dest_url; for_spine_model=true)
             write_parameters(parameters, dest_url; report=report, comment=comment)
         else
             rethrow()

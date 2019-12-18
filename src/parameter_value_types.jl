@@ -37,16 +37,16 @@ end
 
 TimePattern = Dict{PeriodCollection,T} where T
 
-struct TimeSeries{I,V}
-    indexes::I
+struct TimeSeries{V}
+    indexes::Array{DateTime,1}
     values::Array{V,1}
     ignore_year::Bool
     repeat::Bool
-    function TimeSeries(inds::I, vals::Array{V,1}, iy, rep) where {I,V}
+    function TimeSeries(inds, vals::Array{V,1}, iy, rep) where {V}
         if length(inds) != length(vals)
             error("lengths don't match")
         end
-        new{I,V}(inds, vals, iy, rep)
+        new{V}(inds, vals, iy, rep)
     end
 end
 
@@ -96,20 +96,11 @@ function Base.convert(::Type{TimeSeries}, o::PyObject)
     ignore_year = o.ignore_year
     repeat = o.repeat
     values = o.values
-    if pyisinstance(o, db_api.TimeSeriesFixedResolution) && length(o.resolution) == 1
-        # Let's use StepRange here since we can, in case it improves performance
-        start = o.start
-        ignore_year && (start -= Year(start))
-        len = length(values)
-        res = relativedelta_to_period(o.resolution[1])
-        end_ = start + (len - 1) * res
-        indexes = start:res:end_
-    else
-        indexes = py"[s.astype(datetime) for s in $o.indexes]"
-        ignore_year && (indexes = [s - Year(s) for s in indexes])
-    end
+    indexes = py"[s.astype(datetime) for s in $o.indexes]"
+    ignore_year && (indexes = [s - Year(s) for s in indexes])
     TimeSeries(indexes, values, ignore_year, repeat)
 end
+
 
 # PyObject constructors
 # TODO: specify PyObject constructor for other special types
@@ -117,32 +108,46 @@ function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
 end
 
+# Base.append!
+function Base.append!(ts::TimeSeries{T}, other::TimeSeries{T}) where T
+    append!(ts.indexes, other.indexes)
+    append!(ts.values, other.values)
+    ts
+end
+
+# Base.copy
+Base.copy(dur::ArrayDuration) = ArrayDuration(copy(dur.value))
+Base.copy(tp::TimePattern) = TimePattern(Y=tp.Y, M=tp.M, D=tp.D, WD=tp.WD, h=tp.h, m=tp.m, s=tp.s)
+Base.copy(ts::TimeSeries{T}) where T = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
+
 # Callable types
 # These are wrappers around standard Julia types and our special types above,
 # that override the call operator
-struct NothingCallable
+abstract type CallableLike end
+
+struct NothingCallable <: CallableLike
 end
 
-struct ScalarCallable{T}
+struct ScalarCallable{T} <: CallableLike
     value::T
 end
 
-struct ArrayCallable{T,N}
+struct ArrayCallable{T,N} <: CallableLike
     value::Array{T,N}
 end
 
-struct TimePatternCallable{T}
+struct TimePatternCallable{T} <: CallableLike
     value::TimePattern{T}
 end
 
-abstract type TimeSeriesCallableLike end
+abstract type TimeSeriesCallableLike <: CallableLike end
 
-struct TimeSeriesCallable{I,V} <: TimeSeriesCallableLike
-    value::TimeSeries{I,V}
+struct TimeSeriesCallable{V} <: TimeSeriesCallableLike
+    value::TimeSeries{V}
 end
 
-struct RepeatingTimeSeriesCallable{I,V} <: TimeSeriesCallableLike
-    value::TimeSeries{I,V}
+struct RepeatingTimeSeriesCallable{V} <: TimeSeriesCallableLike
+    value::TimeSeries{V}
     span::Union{Period,Nothing}
     valsum::V
     len::Int64
@@ -151,7 +156,7 @@ end
 # Required outer constructors
 ScalarCallable(s::String) = ScalarCallable(Symbol(s))
 
-function TimeSeriesCallableLike(ts::TimeSeries{I,V}) where {I,V}
+function TimeSeriesCallableLike(ts::TimeSeries{V}) where {V}
     if ts.repeat
         span = ts.indexes[end] - ts.indexes[1]
         valsum = sum(ts.values)
@@ -215,7 +220,7 @@ function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...
     t === nothing && return p.value
     t_start = t.start
     p.value.ignore_year && (t_start -= Year(t_start))
-    t_end = t_start + t.duration
+    t_end = t_start + (t.end_ - t.start)
     if t_start > last(p.value.indexes) || t_end <= first(p.value.indexes)
         nothing
     else
@@ -239,8 +244,7 @@ function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, 
         reps = div(mismatch, p.span)
         t_start -= reps * p.span
     end
-    t_duration = t.duration
-    t_end = t_start + t_duration
+    t_end = t_start + (t.end_ - t.start)
     # Move t_end back within time_stamps range
     reps = if t_end > p.value.indexes[end]
         mismatch = t_end - p.value.indexes[1]
@@ -287,3 +291,11 @@ Base.length(v::ScalarCallable) = 1
 Base.isless(v1::ScalarCallable, v2::ScalarCallable) = v1.value < v2.value
 # Show ScalarCallable
 Base.show(io::IO, v::ScalarCallable) = print(io, v.value)
+
+
+Base.copy(c::NothingCallable) = c
+Base.copy(c::ScalarCallable) = c
+Base.copy(c::ArrayCallable) = ArrayCallable(copy(c.value))
+Base.copy(c::TimePatternCallable) = TimePatternCallable(copy(c.value))
+Base.copy(c::TimeSeriesCallable) = TimeSeriesCallable(copy(c.value))
+Base.copy(c::RepeatingTimeSeriesCallable) = RepeatingTimeSeriesCallable(copy(c.value), c.span, c.valsum, c.len)
