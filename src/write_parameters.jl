@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-    write_parameter!(db_map, name, data; report="")
+    write_parameter!(db_map, name, data; for_object=true, report="")
 
 Write parameter to `db_map` with given `name` and `data`.
 Link the parameter to given `report` object.
@@ -27,24 +27,32 @@ function write_parameter!(
         db_map::PyObject,
         name::Symbol,
         data::Dict{Any,Any};
+        for_object::Bool=true,
         report::String="")
     object_classes = []
-    !isempty(report) && pushfirst!(object_classes, "report")
+    object_parameters = []
+    objects = []
+    object_parameter_values = []
     relationship_classes = []
-    parameters = []
+    relationship_parameters = []
+    relationships = []
+    relationship_parameter_values = []
+    !isempty(report) && pushfirst!(object_classes, "report")
     for obj_cls_names in unique(keys(key) for key in keys(data))
         str_obj_cls_names = [string(x) for x in obj_cls_names]
         append!(object_classes, str_obj_cls_names)
         !isempty(report) && pushfirst!(str_obj_cls_names, "report")
-        rel_cls_name = join(str_obj_cls_names, "__")
-        push!(relationship_classes, (rel_cls_name, str_obj_cls_names))
-        push!(parameters, (rel_cls_name, string(name)))
+        if for_object && length(str_obj_cls_names) == 1
+            obj_cls_name = str_obj_cls_names[1]
+            push!(object_parameters, (obj_cls_name, string(name)))
+        else
+            rel_cls_name = join(str_obj_cls_names, "__")
+            push!(relationship_classes, (rel_cls_name, str_obj_cls_names))
+            push!(relationship_parameters, (rel_cls_name, string(name)))
+        end
     end
     unique!(object_classes)
-    objects = []
     !isempty(report) && pushfirst!(objects, ("report", report))
-    relationships = []
-    parameter_values = []
     for (key, value) in data
         str_obj_cls_names = [string(x) for x in keys(key)]
         str_obj_names = [string(x) for x in values(key)]
@@ -55,18 +63,26 @@ function write_parameter!(
             pushfirst!(str_obj_cls_names, "report")
             pushfirst!(str_obj_names, report)
         end
-        rel_cls_name = join(str_obj_cls_names, "__")
-        push!(relationships, (rel_cls_name, str_obj_names))
-        push!(parameter_values, (rel_cls_name, str_obj_names, string(name), value))
+        if for_object && length(str_obj_cls_names) == length(str_obj_names) == 1
+            obj_cls_name = str_obj_cls_names[1]
+            obj_name = str_obj_names[1]
+            push!(object_parameter_values, (obj_cls_name, obj_name, string(name), value))
+        else
+            rel_cls_name = join(str_obj_cls_names, "__")
+            push!(relationships, (rel_cls_name, str_obj_names))
+            push!(relationship_parameter_values, (rel_cls_name, str_obj_names, string(name), value))
+        end
     end
     added, err_log = db_api.import_data(
         db_map,
         object_classes=object_classes,
         relationship_classes=relationship_classes,
-        relationship_parameters=parameters,
+        object_parameters=object_parameters,
+        relationship_parameters=relationship_parameters,
         objects=objects,
         relationships=relationships,
-        relationship_parameter_values=parameter_values,
+        object_parameter_values=object_parameter_values,
+        relationship_parameter_values=relationship_parameter_values,
     )
     isempty(err_log) || @warn join([x.msg for x in err_log], "\n")
 end
@@ -81,18 +97,20 @@ Write `parameters` to the Spine database at the given RFC-1738 `url`.
 # Arguments
 
 - `upgrade::Bool=true`: whether or not the database at `url` should be upgraded to the latest revision.
+- `for_object::Bool=true`: whether to write an object parameter or a 1D relationship parameter in case the number of 
+    dimensions is 1.
 - `report::String=""`: the name of a report object that will be added as an extra dimension to the written parameters.
 - `comment::String=""`: a comment explaining the nature of the writing operation.
 - `<parameters>`: a dictionary mapping
 """
-function write_parameters(parameters, dest_url::String; upgrade=false, report="", comment="")
+function write_parameters(parameters, dest_url::String; upgrade=false, for_object=true, report="", comment="")
     try
         db_map = db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
-        write_parameters(parameters, db_map; report=report, comment=comment)
+        write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBAPIError)
             db_api.create_new_spine_database(dest_url; for_spine_model=true)
-            write_parameters(parameters, dest_url; report=report, comment=comment)
+            write_parameters(parameters, dest_url; for_object=for_object, report=report, comment=comment)
         else
             rethrow()
         end
@@ -100,7 +118,7 @@ function write_parameters(parameters, dest_url::String; upgrade=false, report=""
 end
 
 
-function write_parameters(parameters, db_map::PyObject; report="", comment="")
+function write_parameters(parameters, db_map::PyObject; for_object=true, report="", comment="")
     try
         for (name, data) in parameters
             write_parameter!(db_map, name, data; report=report)
