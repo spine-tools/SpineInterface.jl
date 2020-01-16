@@ -152,7 +152,7 @@ end
 =#
 
 function intersectsorted(s::Array{T,1}, s2) where T
-    result = T[]
+    result = Array{T,1}()
     sizehint!(result, length(s))
     it = iterate(s)
     it2 = iterate(s2)
@@ -181,7 +181,7 @@ function Base.unique(s::Array{TimeSlice,1})
 end
 
 function uniquesorted(s::Array{T,1}) where T
-    result = T[]
+    result = Array{T,1}()
     sizehint!(result, length(s))
     it = iterate(s)
     while it != nothing

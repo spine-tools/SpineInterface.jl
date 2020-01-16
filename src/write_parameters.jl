@@ -92,8 +92,8 @@ end
     write_parameters(parameters, url::String; <keyword arguments>)
 
 Write `parameters` to the Spine database at the given RFC-1738 `url`.
-`parameters` is a dictionary mapping parameter names to values, where each
-value is another dictionary mapping `NamedTuple`s to actual values.
+`parameters` is a dictionary mapping parameter names to another dictionary 
+mapping object or relationship (`NamedTuple`) to values.
 
 # Arguments
 
