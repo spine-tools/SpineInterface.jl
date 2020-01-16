@@ -25,10 +25,10 @@ Link the parameter to given `report` object.
 """
 function write_parameter!(
         db_map::PyObject,
-        name::Symbol,
-        data::Dict{Any,Any};
+        name,
+        data::Dict{K,V};
         for_object::Bool=true,
-        report::String="")
+        report::String="") where {K<:NamedTuple,V}
     object_classes = []
     object_parameters = []
     objects = []
@@ -92,7 +92,8 @@ end
     write_parameters(parameters, url::String; <keyword arguments>)
 
 Write `parameters` to the Spine database at the given RFC-1738 `url`.
-`parameters` is a dictionary mapping parameter names to values.
+`parameters` is a dictionary mapping parameter names to values, where each
+value is another dictionary mapping `NamedTuple`s to actual values.
 
 # Arguments
 
@@ -103,7 +104,9 @@ Write `parameters` to the Spine database at the given RFC-1738 `url`.
 - `comment::String=""`: a comment explaining the nature of the writing operation.
 - `<parameters>`: a dictionary mapping
 """
-function write_parameters(parameters, dest_url::String; upgrade=false, for_object=true, report="", comment="")
+function write_parameters(
+        parameters::Dict{T,Dict{K,V}}, dest_url::String; upgrade=false, for_object=true, report="", comment=""
+    ) where {T,K<:NamedTuple,V}
     try
         db_map = db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
         write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
@@ -118,14 +121,16 @@ function write_parameters(parameters, dest_url::String; upgrade=false, for_objec
 end
 
 
-function write_parameters(parameters, db_map::PyObject; for_object=true, report="", comment="")
+function write_parameters(
+        parameters::Dict{T,Dict{K,V}}, db_map::PyObject; for_object=true, report="", comment=""
+    ) where {T,K<:NamedTuple,V}
+    for (name, data) in parameters
+        write_parameter!(db_map, name, data; report=report)
+    end
+    if isempty(comment)
+        comment = string("Add $(join([string(k) for (k, v) in parameters])), automatically from SpineInterface.jl.")
+    end
     try
-        for (name, data) in parameters
-            write_parameter!(db_map, name, data; report=report)
-        end
-        if isempty(comment)
-            comment = string("Add $(join([string(k) for (k, v) in parameters])), automatically from SpineInterface.jl.")
-        end
         db_map.commit_session(comment)
     catch err
         db_map.rollback_session()
