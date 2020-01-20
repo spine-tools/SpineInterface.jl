@@ -16,18 +16,25 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+
+import Dates: CompoundPeriod
+
 """
     TimeSlice
 
 A type for representing a slice of time.
 """
 struct TimeSlice <: ObjectLike
-    start::DateTime
-    end_::DateTime
+    start::Ref{DateTime}
+    end_::Ref{DateTime}
     duration::Float64
     blocks::NTuple{N,Object} where N
-    JuMP_name::String
-    TimeSlice(x, y, d, blks, name) = x > y ? error("out of order") : new(x, y, d, blks, name)
+    immutableid::UInt64
+    function TimeSlice(start, end_, duration, blocks)
+        start > end_ && error("out of order")
+        immutableid = objectid((start, end_, duration, blocks))
+        new(Ref(start), Ref(end_), duration, blocks, immutableid)
+    end
 end
 
 """
@@ -37,12 +44,12 @@ Construct a `TimeSlice` with bounds given by `start` and `end_`.
 """
 function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_unit=Minute)    
     dur = Minute(end_ - start) / Minute(duration_unit(1))
-    TimeSlice(start, end_, dur, blocks, "$(start)~>$(end_)")
+    TimeSlice(start, end_, dur, blocks)
 end
 
 TimeSlice(other::TimeSlice) = other
 
-Base.show(io::IO, time_slice::TimeSlice) = print(io, time_slice.JuMP_name)
+Base.show(io::IO, t::TimeSlice) = print(io, "$(start(t))~>$(end_(t))")
 
 """
     duration(t::TimeSlice)
@@ -51,19 +58,24 @@ The duration of time slice `t` in minutes.
 """
 duration(t::TimeSlice) = t.duration
 
-start(t::TimeSlice) = t.start
-end_(t::TimeSlice) = t.end_
+start(t::TimeSlice) = t.start[]
+end_(t::TimeSlice) = t.end_[]
 blocks(t::TimeSlice) = t.blocks
 
-Base.isless(a::TimeSlice, b::TimeSlice) = tuple(a.start, a.end_) < tuple(b.start, b.end_)
-Base.:(==)(a::TimeSlice, b::TimeSlice) = tuple(a.start, a.end_) == tuple(b.start, b.end_)
+Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
+
+function Base.:(==)(a::TimeSlice, b::TimeSlice)
+    start(a) == start(b) && end_(a) == end_(b) && blocks(a) == blocks(b) && duration(a) == duration(b)
+end
+
+Base.objectid(t::TimeSlice) = t.immutableid
 
 """
     before(a::TimeSlice, b::TimeSlice)
 
 Determine whether the end point of `a` is exactly the start point of `b`.
 """
-before(a::TimeSlice, b::TimeSlice) = b.start == a.end_
+before(a::TimeSlice, b::TimeSlice) = start(b) == end_(a)
 
 
 """
@@ -71,15 +83,15 @@ before(a::TimeSlice, b::TimeSlice) = b.start == a.end_
 
 Determine whether `b` is contained in `a`.
 """
-iscontained(b::TimeSlice, a::TimeSlice) = b.start >= a.start && b.end_ <= a.end_
-iscontained(b::DateTime, a::TimeSlice) = a.start <= b <= a.end_
+iscontained(b::TimeSlice, a::TimeSlice) = start(b) >= start(a) && end_(b) <= end_(a)
+iscontained(b::DateTime, a::TimeSlice) = start(a) <= b <= end_(a)
 
 """
     overlaps(a::TimeSlice, b::TimeSlice)
 
 Determine whether `a` and `b` overlap.
 """
-overlaps(a::TimeSlice, b::TimeSlice) = a.start <= b.start < a.end_ || b.start <= a.start < b.end_
+overlaps(a::TimeSlice, b::TimeSlice) = start(a) <= start(b) < end_(a) || start(b) <= start(a) < end_(b)
 
 """
     overlap_duration(a::TimeSlice, b::TimeSlice)
@@ -88,9 +100,9 @@ The number of minutes where `a` and `b` overlap.
 """
 function overlap_duration(a::TimeSlice, b::TimeSlice)
     overlaps(a, b) || return 0.0
-    overlap_start = max(a.start, b.start)
-    overlap_end = min(a.end_, b.end_)
-    a.duration * Minute(overlap_end - overlap_start) / Minute(a.end_ - a.start)
+    overlap_start = max(start(a), start(b))
+    overlap_end = min(end_(a), end_(b))
+    a.duration * Minute(overlap_end - overlap_start) / Minute(end_(a) - start(a))
 end
 
 # Iterate single `TimeSlice` as if it were a one-element collection.
@@ -100,9 +112,15 @@ Base.length(t::TimeSlice) = 1
 
 # Convenience subtraction operator
 function Base.:-(t::TimeSlice, p::Period)
-    start = t.start - p
-    end_ = t.end_ - p
-    TimeSlice(start, end_, t.duration, t.blocks, "$(start)~>$(end_)")
+    new_start = start(t) - p
+    new_end = end_(t) - p
+    TimeSlice(new_start, new_end, duration(t), blocks(t))
+end
+
+function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
+    t.start[] += forward
+    t.end_[] += forward
+    t
 end
 
 Base.intersect(s::Array{TimeSlice,1}, ::Anything) = s
@@ -114,7 +132,6 @@ function Base.intersect(s::Array{TimeSlice,1}, s2)
         invoke(intersect, Tuple{AbstractArray,typeof(s2)}, s, s2)
     end
 end
-
 
 #=
 IDEA: Try and use `TimeSlice.blocks`. Not very good at the moment

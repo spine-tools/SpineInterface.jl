@@ -27,9 +27,11 @@ export TimeSlice
 export using_spinedb
 export notusing_spinedb
 export write_parameters
+export blocks
 export duration
 export start
 export end_
+export roll!
 export before
 export iscontained
 export overlaps

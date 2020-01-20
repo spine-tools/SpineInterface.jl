@@ -52,7 +52,7 @@ end
 
 # Convenience constructor that takes the start of the time slice as index
 function TimeSeries(indexes::Array{TimeSlice,1}, values::Array{V,1}, ignore_year::Bool, repeat::Bool) where V
-    TimeSeries([t.start for t in indexes], values, ignore_year, repeat)
+    TimeSeries([start(t) for t in indexes], values, ignore_year, repeat)
 end
 
 # Convenience constructor that takes the `t` element of a NamedTuple as index
@@ -198,7 +198,7 @@ function iscontained(ts::TimeSlice, pc::PeriodCollection)
     for name in fieldnames(PeriodCollection)
         getfield(pc, name) == nothing && continue
         f = fdict[name]
-        b = f(ts.start):f(ts.end_)
+        b = f(start(ts)):f(end_(ts))
         push!(conds, any(iscontained(b, a) for a in getfield(pc, name)))
     end
     all(conds)
@@ -218,9 +218,9 @@ end
 
 function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
-    t_start = t.start
+    t_start = start(t)
     p.value.ignore_year && (t_start -= Year(t_start))
-    t_end = t_start + (t.end_ - t.start)
+    t_end = t_start + (end_(t) - start(t))
     if t_start > last(p.value.indexes) || t_end <= first(p.value.indexes)
         nothing
     else
@@ -236,7 +236,7 @@ end
 
 function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
-    t_start = t.start
+    t_start = start(t)
     p.value.ignore_year && (t_start -= Year(t_start))
     if t_start > p.value.indexes[end]
         # Move t_start back within time_stamps range
@@ -244,7 +244,7 @@ function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, 
         reps = div(mismatch, p.span)
         t_start -= reps * p.span
     end
-    t_end = t_start + (t.end_ - t.start)
+    t_end = t_start + (end_(t) - start(t))
     # Move t_end back within time_stamps range
     reps = if t_end > p.value.indexes[end]
         mismatch = t_end - p.value.indexes[1]
