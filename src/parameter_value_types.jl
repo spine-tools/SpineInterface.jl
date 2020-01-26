@@ -50,19 +50,6 @@ struct TimeSeries{V}
     end
 end
 
-# Convenience constructor that takes the start of the time slice as index
-function TimeSeries(indexes::Array{TimeSlice,1}, values::Array{V,1}, ignore_year::Bool, repeat::Bool) where V
-    TimeSeries([start(t) for t in indexes], values, ignore_year, repeat)
-end
-
-# Convenience constructor that takes the `t` element of a NamedTuple as index
-# TODO: Maybe move this to `SpineModel.jl`
-function TimeSeries(indexes::Array{T,1}, values::Array{V,1}, ignore_year::Bool, repeat::Bool) where {
-        S,T<:NamedTuple{(:t,),S},V
-    }
-    TimeSeries([i.t for i in indexes], values, ignore_year, repeat)
-end
-
 # Convert routines
 # Here we specify how to go from `PyObject` returned by `spinedb_api.from_database` to our special type
 Base.convert(::Type{DateTime_}, o::PyObject) = DateTime_(o.value)
