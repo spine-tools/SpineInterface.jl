@@ -49,7 +49,7 @@ end
 
 TimeSlice(other::TimeSlice) = other
 
-Base.show(io::IO, t::TimeSlice) = print(io, "$(start(t))~>$(end_(t))")
+Base.show(io::IO, t::TimeSlice) = print(io, "$(start(t)) 🡒 $(end_(t))")
 
 """
     duration(t::TimeSlice)
@@ -102,7 +102,7 @@ function overlap_duration(a::TimeSlice, b::TimeSlice)
     overlaps(a, b) || return 0.0
     overlap_start = max(start(a), start(b))
     overlap_end = min(end_(a), end_(b))
-    a.duration * Minute(overlap_end - overlap_start) / Minute(end_(a) - start(a))
+    duration(a) * Minute(overlap_end - overlap_start) / Minute(end_(a) - start(a))
 end
 
 # Iterate single `TimeSlice` as if it were a one-element collection.
