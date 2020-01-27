@@ -131,6 +131,7 @@ abstract type TimeSeriesCallableLike <: CallableLike end
 
 struct TimeSeriesCallable{V} <: TimeSeriesCallableLike
     value::TimeSeries{V}
+    t_map::TimeSliceMap
 end
 
 struct RepeatingTimeSeriesCallable{V} <: TimeSeriesCallableLike
@@ -138,19 +139,22 @@ struct RepeatingTimeSeriesCallable{V} <: TimeSeriesCallableLike
     span::Union{Period,Nothing}
     valsum::V
     len::Int64
+    t_map::TimeSliceMap
 end
 
 # Required outer constructors
 ScalarCallable(s::String) = ScalarCallable(Symbol(s))
 
 function TimeSeriesCallableLike(ts::TimeSeries{V}) where {V}
+    time_slices = [TimeSlice(t...) for t in zip(ts.indexes[1:end - 1], ts.indexes[2:end])]
+    t_map = TimeSliceMap(time_slices)
     if ts.repeat
         span = ts.indexes[end] - ts.indexes[1]
         valsum = sum(ts.values)
         len = length(ts.values)
-        RepeatingTimeSeriesCallable(ts, span, valsum, len)
+        RepeatingTimeSeriesCallable(ts, span, valsum, len, t_map)
     else
-        TimeSeriesCallable(ts)
+        TimeSeriesCallable(ts, t_map)
     end
 end
 
@@ -205,20 +209,10 @@ end
 
 function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
-    t_start = start(t)
-    p.value.ignore_year && (t_start -= Year(t_start))
-    t_end = t_start + (end_(t) - start(t))
-    if t_start > last(p.value.indexes) || t_end <= first(p.value.indexes)
-        nothing
-    else
-        a = findfirst(i -> i >= t_start, p.value.indexes)
-        b = findlast(i -> i < t_end, p.value.indexes)
-        if a > b
-            nothing
-        else
-            mean(p.value.values[a:b])
-        end
-    end
+    p.value.ignore_year && (t -= Year(start(t)))
+    inds = map_indices(p.t_map, t)
+    isempty(inds) && return nothing
+    mean(p.value.values[first(inds):last(inds)])
 end
 
 function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
@@ -240,11 +234,13 @@ function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, 
         0
     end
     t_end -= reps * p.span
-    a = findfirst(i -> i >= t_start, p.value.indexes)
-    b = findlast(i -> i < t_end, p.value.indexes)
-    if a === nothing || b === nothing
+    as = map_indices(p.t_map, t_start)
+    bs = map_indices(p.t_map, t_end)
+    if isempty(as) || isempty(bs)
         nothing
     else
+        a = first(as)
+        b = first(bs) - 1
         if a < b
             (sum(p.value.values[a:b-1]) + reps * p.valsum) / (b - a + reps * p.len)
         else
@@ -284,5 +280,5 @@ Base.copy(c::NothingCallable) = c
 Base.copy(c::ScalarCallable) = c
 Base.copy(c::ArrayCallable) = ArrayCallable(copy(c.value))
 Base.copy(c::TimePatternCallable) = TimePatternCallable(copy(c.value))
-Base.copy(c::TimeSeriesCallable) = TimeSeriesCallable(copy(c.value))
-Base.copy(c::RepeatingTimeSeriesCallable) = RepeatingTimeSeriesCallable(copy(c.value), c.span, c.valsum, c.len)
+Base.copy(c::TimeSeriesCallable) = TimeSeriesCallable(copy(c.value), c.t_map)
+Base.copy(c::RepeatingTimeSeriesCallable) = RepeatingTimeSeriesCallable(copy(c.value), c.span, c.valsum, c.len, c.t_map)
