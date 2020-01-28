@@ -143,7 +143,7 @@ end
 
 function class_handle_entry(class, ::Nothing, class_entities, vals)
     class_objects = [Object(ent["name"], ent["id"]) for ent in class_entities]
-    vals_ = Dict{Tuple{Object},NamedTuple}((obj,) => vals[obj.id] for obj in class_objects)
+    vals_ = Dict{Object,NamedTuple}(obj => vals[obj.id] for obj in class_objects)
     Symbol(class["name"]), class_objects, vals_
 end
 
@@ -154,7 +154,7 @@ function class_handle_entry(class, object_class_names, class_entities, vals)
     for ent in class_entities
         object_name_list = split(ent["object_name_list"], ",")
         object_id_list = parse.(Int, split(ent["object_id_list"], ","))
-        objects =  Object.(object_name_list, object_id_list)
+        objects = Object.(object_name_list, object_id_list)
         push!(class_relationships, NamedTuple{obj_cls_name_tup}(objects))
         vals_[tuple(objects...)] = vals[ent["id"]]
     end

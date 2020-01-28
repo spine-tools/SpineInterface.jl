@@ -39,6 +39,9 @@ Base.IteratorSize(::Type{Map{F,I}}) where {F,I} = Base.IteratorSize(I)
 _lookup_entities(class::ObjectClass; kwargs...) = class()
 _lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
 
+_entity_key(o::Object) = o
+_entity_key(r::Relationship) = tuple(r...)
+
 """
     indices(p::Parameter; kwargs...)
 
@@ -77,7 +80,7 @@ julia> collect(indices(demand))
 """
 function indices(p::Parameter; kwargs...)
     itr = Iterators.flatten(
-        Map(ent -> (ent, class.parameter_values[tuple(ent...)]), _lookup_entities(class; kwargs...)) for class in p.classes
+        Map(ent -> (ent, class.parameter_values[_entity_key(ent)]), _lookup_entities(class; kwargs...)) for class in p.classes
     )
     # Filtering function, `true` if the value is not nothing
     flt(x) = last(x)[p.name]() !== nothing

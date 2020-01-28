@@ -72,10 +72,8 @@ Relationship = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
 
 struct ObjectClass
     name::Symbol
-    object_class_names::Tuple{Vararg{Symbol}}
     objects::Array{Object,1}
-    parameter_values::Dict{Tuple{Object},NamedTuple}
-    ObjectClass(name, objects, vals) = new(name, (name,), objects, vals)
+    parameter_values::Dict{Object,NamedTuple}
 end
 
 struct RelationshipClass
@@ -262,10 +260,18 @@ end
 
 function _lookup_callable(p::Parameter; kwargs...)
     for class in p.classes
-        all(oc in keys(kwargs) for oc in class.object_class_names) || continue
-        lookup_key = tuple((kwargs[oc] for oc in class.object_class_names)...)
+        lookup_key = _lookup_key(class; kwargs...)
         lookup_key in keys(class.parameter_values) || continue
         parameter_values = class.parameter_values[lookup_key]
         return parameter_values[p.name]
     end
 end
+
+_lookup_key(class::ObjectClass; kwargs...) = get(kwargs, class.name, nothing)
+
+function _lookup_key(class::RelationshipClass; kwargs...)
+    objects = [get(kwargs, oc, nothing) for oc in class.object_class_names]
+    nothing in objects && return nothing
+    tuple(objects...)
+end
+
