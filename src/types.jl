@@ -87,6 +87,8 @@ struct RelationshipClass
     RelationshipClass(name, obj_cls_names, rels, vals) = new(name, obj_cls_names, rels, vals, Dict())
 end
 
+RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict())
+
 struct Parameter
     name::Symbol
     classes::Array{Union{ObjectClass,RelationshipClass},1}
