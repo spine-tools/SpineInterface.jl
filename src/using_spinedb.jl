@@ -127,11 +127,9 @@ function class_handle(classes, entities, param_defs, param_vals)
         class_param_defs = get(param_defs, class_id, ())
         default_vals = default_values(class_param_defs)
         class_entities = get(entities, class_id, [])
-        vals = NamedTuple[]
-        for entity in class_entities
-            given_vals = given_values(entity, class_param_defs, param_vals, default_vals)
-            push!(vals, given_vals)
-        end
+        vals = Dict(
+            ent["id"] => given_values(ent, class_param_defs, param_vals, default_vals) for ent in class_entities
+        )
         d[Symbol(class_name)] = class_handle_entry(class, class_entities, vals)
     end
     d
@@ -144,18 +142,23 @@ function class_handle_entry(class, class_entities, vals)
 end
 
 function class_handle_entry(class, ::Nothing, class_entities, vals)
-    class_objects = [Object(ent["name"]) for ent in class_entities]
-    Symbol(class["name"]), class_objects, vals
+    class_objects = [Object(ent["name"], ent["id"]) for ent in class_entities]
+    vals_ = Dict{Tuple{Object},NamedTuple}((obj,) => vals[obj.id] for obj in class_objects)
+    Symbol(class["name"]), class_objects, vals_
 end
 
 function class_handle_entry(class, object_class_names, class_entities, vals)
-    object_class_name_tuple = Tuple(Symbol.(fix_name_ambiguity(split(object_class_names, ","))))
+    obj_cls_name_tup = Tuple(Symbol.(fix_name_ambiguity(split(object_class_names, ","))))
     class_relationships = []
+    vals_ = Dict{Tuple{Vararg{Object}},NamedTuple}()
     for ent in class_entities
         object_name_list = split(ent["object_name_list"], ",")
-        push!(class_relationships, NamedTuple{object_class_name_tuple}(Object.(object_name_list)))
+        object_id_list = parse.(Int, split(ent["object_id_list"], ","))
+        objects =  Object.(object_name_list, object_id_list)
+        push!(class_relationships, NamedTuple{obj_cls_name_tup}(objects))
+        vals_[tuple(objects...)] = vals[ent["id"]]
     end
-    Symbol(class["name"]), object_class_name_tuple, class_relationships, vals
+    Symbol(class["name"]), obj_cls_name_tup, class_relationships, vals_
 end
 
 

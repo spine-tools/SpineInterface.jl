@@ -35,6 +35,10 @@ Base.eltype(::Type{Map{F,I}}) where {F,I} = eltype(I)
 Base.IteratorEltype(::Type{Map{F,I}}) where {F,I} = Base.IteratorEltype(I)
 Base.IteratorSize(::Type{Map{F,I}}) where {F,I} = Base.IteratorSize(I)
 
+
+_lookup_entities(class::ObjectClass; kwargs...) = class()
+_lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
+
 """
     indices(p::Parameter; kwargs...)
 
@@ -72,41 +76,12 @@ julia> collect(indices(demand))
 ```
 """
 function indices(p::Parameter; kwargs...)
-    # Get iterators
-    if isempty(kwargs)
-        # No kwargs, just zip all entities and values
-        itrs = (Iterators.zip(entities(class), class.values) for class in p.classes)
-    else
-        # Zip entities matching the kwargs, and their values
-        itrs = (
-            Map(i -> (entities(class)[i], class.values[i]), lookup_indices(class; kwargs...))
-            for class in p.classes
-        )
-    end
+    itr = Iterators.flatten(
+        Map(ent -> (ent, class.parameter_values[tuple(ent...)]), _lookup_entities(class; kwargs...)) for class in p.classes
+    )
     # Filtering function, `true` if the value is not nothing
-    flt(x) = x[2][p.name]() !== nothing
-    Map(first, Iterators.filter(flt, Iterators.flatten(itrs)))
-end
-
-
-"""
-    append!(p::Parameter, values; kwargs...)
-
-Append `values` to parameter `p`.
-
-# Arguments
-
-- For each object class associated with `p` there is a keyword argument named after it.
-  The purpose is to retrieve the value of `p` for a specific object.
-- For each relationship class associated with `p`, there is a keyword argument named after each of the
-  object classes involved in it. The purpose is to retrieve the value of `p` for a specific relationship.
-
-"""
-function Base.append!(p::Parameter, values; _optimize=true, kwargs...)
-    callable = lookup_callable(p; _optimize=_optimize, kwargs...)
-    callable isa TimeSeriesCallableLike || return
-    append!(callable.value, values)
-    p
+    flt(x) = last(x)[p.name]() !== nothing
+    Map(first, Iterators.filter(flt, itr))
 end
 
 

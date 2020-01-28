@@ -36,12 +36,8 @@ Base.intersect(::Anything, s) = s
 Base.intersect(s::T, ::Anything) where T<:AbstractArray = s
 Base.intersect(s::T, ::Anything) where T<:AbstractSet = s
 Base.in(item, ::Anything) = true
-# Iterating `anything` returns `anything` once and then finishes
-Base.iterate(::Anything) = anything, nothing
-Base.iterate(::Anything, ::Nothing) = nothing
 Base.show(io::IO, ::Anything) = print(io, "anything")
-
-Broadcast.broadcastable(::Anything) = Base.RefValue{Anything}(anything)
+Base.hash(::Anything) = zero(UInt64)
 
 """
     ObjectLike
@@ -57,11 +53,11 @@ A type for representing an object in a Spine db.
 """
 struct Object <: ObjectLike
     name::Symbol
+    id::UInt64
 end
 
-Object(name::AbstractString) = Object(Symbol(name))
+Object(name::AbstractString, id) = Object(Symbol(name), id)
 Object(::Anything) = anything
-Object(other::T) where {T<:ObjectLike} = other
 
 # Iterate single `Object` as collection
 Base.iterate(o::Object) = iterate((o,))
@@ -69,84 +65,31 @@ Base.iterate(o::Object, state::T) where T = iterate((o,), state)
 Base.length(o::Object) = 1
 # Compare `Object`s
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
+Base.show(io::IO, o::Object) = print(io, o.name)
+Base.hash(o::Object) = o.id
 
-"""
-    CustomCache
-
-A custom cache
-"""
-struct CustomCache
-    data::Vector{Pair}
-    breakpoint::Ref{Int}
-    CustomCache() = new([], Ref(0))
-end
-
-function CustomCache(kv::Pair...)
-    cache = CustomCache()
-    for (k, v) in kv
-        cache[k] = v
-    end
-    update_breakpoint!(cache)
-    cache
-end
-
-CustomCache(kv) = CustomCache(kv...)
-
-update_breakpoint!(cache::CustomCache) = (cache.breakpoint[] = max(1, length(cache.data) >> 4))
-
-function Base.setindex!(cache::CustomCache, value, key)
-    pushfirst!(cache.data, key => value)
-    update_breakpoint!(cache)
-    value
-end
-
-function Base.get!(f::Function, cache::CustomCache, key)
-    hashed_key = hash(key)
-    breakpoint = cache.breakpoint[]
-    for (k, v) in Iterators.take(cache.data, breakpoint)
-        k == hashed_key && return v
-    end
-    i = breakpoint + 1
-    for (k, v) in Iterators.drop(cache.data, breakpoint)
-        if k == hashed_key
-            deleteat!(cache.data, i)
-            cache[k] = v
-            return v
-        end
-        i += 1
-    end
-    cache[hashed_key] = f()
-end
-
-Base.empty!(cache::CustomCache) = (cache.breakpoint[] = 0; empty!(cache.data))
-
-ObjectCollection = Union{Object,Vector{Object},Tuple{Vararg{Object}}}
+Relationship = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
 
 struct ObjectClass
     name::Symbol
     object_class_names::Tuple{Vararg{Symbol}}
     objects::Array{Object,1}
-    values::Array{NamedTuple,1}
-    cache::CustomCache
-    ObjectClass(name, objects, vals) = new(name, (name,), objects, vals, CustomCache())
+    parameter_values::Dict{Tuple{Object},NamedTuple}
+    ObjectClass(name, objects, vals) = new(name, (name,), objects, vals)
 end
-
-ObjectClass(name) = ObjectClass(name, (), [], [])
 
 struct RelationshipClass
     name::Symbol
     object_class_names::Tuple{Vararg{Symbol}}
-    relationships::Array{NamedTuple,1}
-    values::Array{NamedTuple,1}
-    cache::CustomCache
-    RelationshipClass(name, obj_cls_names, rels, vals) = new(name, obj_cls_names, rels, vals, CustomCache())
+    relationships::Array{Relationship,1}
+    parameter_values::Dict{Tuple{Vararg{Object}},NamedTuple}
+    lookup_cache::Dict
+    RelationshipClass(name, obj_cls_names, rels, vals) = new(name, obj_cls_names, rels, vals, Dict())
 end
-
-RelationshipClass(name) = RelationshipClass(name, (), (), [], [])
 
 struct Parameter
     name::Symbol
-    classes::Array{Union{ObjectClass,RelationshipClass}}
+    classes::Array{Union{ObjectClass,RelationshipClass},1}
 end
 
 Parameter(name) = Parameter(name, [])
@@ -154,56 +97,6 @@ Parameter(name) = Parameter(name, [])
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
-Base.show(io::IO, o::Object) = print(io, o.name)
-
-entities(class::ObjectClass) = class.objects
-entities(class::RelationshipClass) = class.relationships
-
-# Lookup functions. These must be optimized as much as possible
-function lookup_indices(oc::ObjectClass; _optimize=true, kwargs...)
-    cond(x) = x in Object.(kwargs[oc.name])
-    try
-        if _optimize
-            get!(oc.cache, kwargs) do
-                findall(cond, oc.objects)
-            end
-        else
-            findall(cond, oc.objects)
-        end
-    catch e
-        error("can't find any objects of class $(oc.name) that match arguments $(kwargs...): $(sprint(showerror, e))")
-    end
-end
-
-function lookup_indices(rc::RelationshipClass; _optimize=true, kwargs...)
-    cond(x) = all(x[k] in Object.(v) for (k, v) in kwargs)
-    try
-        if _optimize
-            get!(rc.cache, kwargs) do
-                findall(cond, rc.relationships)
-            end
-        else
-            findall(cond, rc.relationships)
-        end
-    catch e
-        error(
-            """can't find any relationships of class $(rc.name) that match arguments $(kwargs...):
-            $(sprint(showerror, e))
-            """
-        )
-    end
-end
-
-function lookup_callable(p::Parameter; _optimize=true, kwargs...)
-    for class in p.classes
-        length(kwargs) === length(class.object_class_names) || continue
-        indices = lookup_indices(class; _optimize=_optimize, kwargs...)
-        length(indices) === 1 || continue
-        values = class.values[first(indices)]
-        return values[p.name]
-    end
-    nothing
-end
 
 """
     (<oc>::ObjectClass)(;<keyword arguments>)
@@ -239,14 +132,14 @@ julia> commodity(state_of_matter=:gas)
 ```
 """
 function (oc::ObjectClass)(;kwargs...)
-    if isempty(kwargs)
-        oc.objects
-    else
-        # Return objects that match all conditions
-        cond(x) = all(get(x, p, NothingCallable())() === val for (p, val) in kwargs)
-        indices = findall(cond, oc.values)
-        oc.objects[indices]
-    end
+    isempty(kwargs) && return oc.objects
+    cond(o) = all(get(oc.parameter_values[o], p, NothingCallable())() === v for (p, v) in kwargs)
+    filter(cond, oc.objects)
+end
+
+function (oc::ObjectClass)(name::Symbol)
+    i = findfirst(o -> o.name == name, oc.objects)
+    i != nothing && return oc.objects[i]
 end
 
 """
@@ -303,23 +196,28 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 
 ```
 """
-function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], _optimize::Bool=true, kwargs...)
+function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
-    indices = lookup_indices(rc; _optimize=_optimize, kwargs...)
-    isempty(indices) && return _default
-    result = rc.relationships[indices]
-    _compact || return result
+    lookup_key = tuple((_simplify(get(kwargs, oc, anything)) for oc in rc.object_class_names)...)
+    relationships = get!(rc.lookup_cache, lookup_key) do
+        cond(rel) = all(rel[rc] in r for (rc, r) in kwargs)
+        filter(cond, rc.relationships)
+    end
+    isempty(relationships) && return _default
+    _compact || return relationships
     head = setdiff(rc.object_class_names, keys(kwargs))
     if length(head) == 1
-        unique(x[head...] for x in result)
+        unique(x[head...] for x in relationships)
     elseif length(head) > 1
-        # Hanspeter fix to issue #2 in github. TODO: Check if it happens elsewhere
-        # unique(NamedTuple{head}([x[k] for k in head]) for x in result)
-        unique(NamedTuple{tuple(head...)}([x[k] for k in head]) for x in result)
+        unique(NamedTuple{tuple(head...)}([x[k] for k in head]) for x in relationships)
     else
         _default
     end
 end
+
+_simplify(x) = x
+_simplify(arr::T) where T<:AbstractArray = (length(arr) == 1) ? first(arr) : tuple(arr...)
+
 
 """
     (<p>::Parameter)(;<keyword arguments>)
@@ -354,10 +252,18 @@ julia> demand(node=:Sthlm, i=1)
 
 ```
 """
-function (p::Parameter)(;_optimize=true, i=nothing, t=nothing, _strict=true, kwargs...)
-    callable = lookup_callable(p; _optimize=_optimize, kwargs...)
+function (p::Parameter)(;i=nothing, t=nothing, _strict=true, kwargs...)
+    callable = _lookup_callable(p; kwargs...)
     callable != nothing && return callable(i=i, t=t)
     _strict && error("parameter $p is not specified for argument(s) $(kwargs...)")
-    nothing
 end
 
+function _lookup_callable(p::Parameter; kwargs...)
+    for class in p.classes
+        all(oc in keys(kwargs) for oc in class.object_class_names) || continue
+        lookup_key = tuple((kwargs[oc] for oc in class.object_class_names)...)
+        lookup_key in keys(class.parameter_values) || continue
+        parameter_values = class.parameter_values[lookup_key]
+        return parameter_values[p.name]
+    end
+end
