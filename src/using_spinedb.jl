@@ -46,7 +46,7 @@ end
 
 """
 A dictionary mapping tuples of parameter definition and entity ids,
-to a list of corresponding parameter values.
+to a list of corresponding parameter parameter_values.
 """
 function parameter_values_per_entity(param_values)
     d = Dict()
@@ -60,9 +60,9 @@ end
 
 
 """
-A dictionary mapping parameter names to their default values.
+A dictionary mapping parameter names to their default parameter_values.
 """
-function default_values(param_defs)
+function default_parameter_values(param_defs)
     d = Dict()
     for param_def in param_defs
         parameter_name = param_def["name"]
@@ -84,9 +84,9 @@ end
 
 
 """
-A named tuple mapping parameter names to their values for a given entity.
+A named tuple mapping parameter names to their parameter_values for a given entity.
 """
-function given_values(entity, param_defs, param_vals, default_vals)
+function parameter_values(entity, param_defs, param_vals, default_vals)
     d = Dict()
     entity_id = entity["id"]
     entity_name = entity["name"]
@@ -119,16 +119,33 @@ function given_values(entity, param_defs, param_vals, default_vals)
 end
 
 
+function fix_name_ambiguity(object_class_name_list::Array{T,1}) where T
+    fixed = Array{T,1}()
+    object_class_name_ocurrences = Dict{T,Int64}()
+    for (i, object_class_name) in enumerate(object_class_name_list)
+        n_ocurrences = count(x -> x == object_class_name, object_class_name_list)
+        if n_ocurrences == 1
+            push!(fixed, object_class_name)
+        else
+            ocurrence = get(object_class_name_ocurrences, object_class_name, 1)
+            push!(fixed, string(object_class_name, ocurrence))
+            object_class_name_ocurrences[object_class_name] = ocurrence + 1
+        end
+    end
+    fixed
+end
+
+
 function class_handle(classes, entities, param_defs, param_vals)
     d = Dict()
     for class in classes
         class_id = class["id"]
         class_name = class["name"]
         class_param_defs = get(param_defs, class_id, ())
-        default_vals = default_values(class_param_defs)
+        default_vals = default_parameter_values(class_param_defs)
         class_entities = get(entities, class_id, [])
         vals = Dict(
-            ent["id"] => given_values(ent, class_param_defs, param_vals, default_vals) for ent in class_entities
+            ent["id"] => parameter_values(ent, class_param_defs, param_vals, default_vals) for ent in class_entities
         )
         d[Symbol(class_name)] = class_handle_entry(class, class_entities, vals)
     end

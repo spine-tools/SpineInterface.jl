@@ -162,43 +162,4 @@ end
 
 t_highest_resolution(t_iter) = isempty(t_iter) ? [] : t_highest_resolution(collect(t_iter))
 
-# Time slice map
-struct TimeSliceMap
-    time_slices::Array{TimeSlice,1}
-    time_slice_map::Array{Int64,1}
-end
 
-function TimeSliceMap(time_slices::Array{TimeSlice,1})
-    map_start = start(first(time_slices))
-    map_end = end_(last(time_slices))
-    time_slice_map = Array{Int64,1}(undef, Minute(map_end - map_start).value)
-    for (ind, t) in enumerate(time_slices)
-        first_minute = Minute(start(t) - map_start).value + 1
-        last_minute = Minute(end_(t) - map_start).value
-        time_slice_map[first_minute:last_minute] .= ind
-    end
-    TimeSliceMap(time_slices, time_slice_map)
-end
-
-function map_indices(h::TimeSliceMap, t::TimeSlice...)
-    mapped = Array{Int64,1}()
-    map_start = start(first(h.time_slices))
-    map_end = end_(last(h.time_slices))
-    for s in t
-        s_start = max(map_start, start(s))
-        s_end = min(map_end, end_(s))
-        s_end <= s_start && continue
-        first_ind = h.time_slice_map[Minute(s_start - map_start).value + 1]
-        last_ind = h.time_slice_map[Minute(s_end - map_start).value]
-        append!(mapped, collect(first_ind:last_ind))
-    end
-    unique(mapped)
-end
-
-function map_indices(h::TimeSliceMap, t::DateTime...)
-    map_start = start(first(h.time_slices))
-    map_end = end_(last(h.time_slices))
-    unique(h.time_slice_map[Minute(s - map_start).value + 1] for s in t if map_start <= s < map_end)
-end
-
-(h::TimeSliceMap)(t::Union{TimeSlice,DateTime}...) = [h.time_slices[ind] for ind in map_indices(h, t...)]

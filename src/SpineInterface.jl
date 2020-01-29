@@ -11,7 +11,6 @@ include("period_collection.jl")
 include("parameter_value_types.jl")
 include("using_spinedb.jl")
 include("write_parameters.jl")
-include("helpers.jl")
 include("util.jl")
 
 const db_api = PyNULL()

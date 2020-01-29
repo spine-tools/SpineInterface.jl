@@ -256,6 +256,7 @@ function (p::Parameter)(;i=nothing, t=nothing, _strict=true, kwargs...)
     callable = _lookup_callable(p; kwargs...)
     callable != nothing && return callable(i=i, t=t)
     _strict && error("parameter $p is not specified for argument(s) $(kwargs...)")
+    nothing
 end
 
 function _lookup_callable(p::Parameter; kwargs...)

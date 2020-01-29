@@ -17,7 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-
 # Map iterator. It applies the given `map` function over elements of the given `itr`.
 # Used by `indices`
 struct Map{F,I}
@@ -88,3 +87,35 @@ function indices(p::Parameter; kwargs...)
 end
 
 
+# Time slice map
+struct TimeSliceMap
+    time_slices::Array{TimeSlice,1}
+    index::Array{Int64,1}
+end
+
+function TimeSliceMap(time_slices::Array{TimeSlice,1})
+    map_start = start(first(time_slices))
+    map_end = end_(last(time_slices))
+    index = Array{Int64,1}(undef, Minute(map_end - map_start).value)
+    for (ind, t) in enumerate(time_slices)
+        first_minute = Minute(start(t) - map_start).value + 1
+        last_minute = Minute(end_(t) - map_start).value
+        index[first_minute:last_minute] .= ind
+    end
+    TimeSliceMap(time_slices, index)
+end
+
+function (h::TimeSliceMap)(t::TimeSlice...)
+    indices = Array{Int64,1}()
+    map_start = start(first(h.time_slices))
+    map_end = end_(last(h.time_slices))
+    for s in t
+        s_start = max(map_start, start(s))
+        s_end = min(map_end, end_(s))
+        s_end <= s_start && continue
+        first_ind = h.index[Minute(s_start - map_start).value + 1]
+        last_ind = h.index[Minute(s_end - map_start).value]
+        append!(indices, collect(first_ind:last_ind))
+    end
+    unique(h.time_slices[ind] for ind in indices)
+end

@@ -127,11 +127,18 @@ struct TimePatternCallable{T} <: CallableLike
     value::TimePattern{T}
 end
 
+## Time series map
+struct TimeSeriesMap
+    index::Array{Int64,1}
+    map_start::DateTime
+    map_end::DateTime
+end
+
 abstract type TimeSeriesCallableLike <: CallableLike end
 
 struct TimeSeriesCallable{V} <: TimeSeriesCallableLike
     value::TimeSeries{V}
-    t_map::TimeSliceMap
+    t_map::TimeSeriesMap
 end
 
 struct RepeatingTimeSeriesCallable{V} <: TimeSeriesCallableLike
@@ -139,15 +146,14 @@ struct RepeatingTimeSeriesCallable{V} <: TimeSeriesCallableLike
     span::Union{Period,Nothing}
     valsum::V
     len::Int64
-    t_map::TimeSliceMap
+    t_map::TimeSeriesMap
 end
 
 # Required outer constructors
 ScalarCallable(s::String) = ScalarCallable(Symbol(s))
 
 function TimeSeriesCallableLike(ts::TimeSeries{V}) where {V}
-    time_slices = [TimeSlice(t...) for t in zip(ts.indexes[1:end - 1], ts.indexes[2:end])]
-    t_map = TimeSliceMap(time_slices)
+    t_map = TimeSeriesMap(ts.indexes)
     if ts.repeat
         span = ts.indexes[end] - ts.indexes[1]
         valsum = sum(ts.values)
@@ -207,12 +213,39 @@ function (p::TimePatternCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs..
     end
 end
 
+function TimeSeriesMap(stamps::Array{DateTime,1})
+    map_start = first(stamps)
+    map_end = last(stamps)
+    index = Array{Int64,1}(undef, Minute(map_end - map_start).value)
+    for (ind, start) in enumerate(stamps[1:end - 1])
+        end_ = stamps[ind + 1]
+        first_minute = Minute(start - map_start).value + 1
+        last_minute = Minute(end_ - map_start).value
+        index[first_minute] = ind
+        index[first_minute + 1:last_minute] .= ind + 1
+    end
+    push!(index, length(stamps))
+    push!(index, length(stamps) + 1)
+    TimeSeriesMap(index, map_start, map_end)
+end
+
+function lower_upper(h::TimeSeriesMap, t_start::DateTime, t_end::DateTime)
+    (t_start > h.map_end || t_end <= h.map_start) && return ()
+    t_start = max(t_start, h.map_start)
+    t_end = min(t_end, h.map_end + Minute(1))
+    lower = h.index[Minute(t_start - h.map_start).value + 1]
+    upper = h.index[Minute(t_end - h.map_start).value + 1] - 1
+    lower, upper
+end
+
 function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
     p.value.ignore_year && (t -= Year(start(t)))
-    inds = map_indices(p.t_map, t)
-    isempty(inds) && return nothing
-    mean(p.value.values[first(inds):last(inds)])
+    ab = lower_upper(p.t_map, start(t), end_(t))
+    isempty(ab) && return nothing
+    a, b = ab
+    a > b && return nothing
+    mean(p.value.values[a:b])
 end
 
 function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
@@ -234,21 +267,16 @@ function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, 
         0
     end
     t_end -= reps * p.span
-    as = map_indices(p.t_map, t_start)
-    bs = map_indices(p.t_map, t_end)
-    if isempty(as) || isempty(bs)
-        nothing
+    ab = lower_upper(p.t_map, t_start, t_end)
+    isempty(ab) && return nothing
+    a, b = ab
+    if a < b
+        (sum(p.value.values[a:b - 1]) + reps * p.valsum) / (b - a + reps * p.len)
     else
-        a = first(as)
-        b = first(bs) - 1
-        if a < b
-            (sum(p.value.values[a:b-1]) + reps * p.valsum) / (b - a + reps * p.len)
-        else
-            div(
-                sum(p.value.values[1:b]) + sum(p.value.values[a:end]) + (reps - 1) * p.valsum,
-                b - a + 1 + reps * p.len
-            )
-        end
+        div(
+            sum(p.value.values[1:b]) + sum(p.value.values[a:end]) + (reps - 1) * p.valsum,
+            b - a + 1 + reps * p.len
+        )
     end
 end
 
