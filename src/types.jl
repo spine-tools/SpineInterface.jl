@@ -57,7 +57,6 @@ struct Object <: ObjectLike
 end
 
 Object(name::AbstractString, id) = Object(Symbol(name), id)
-Object(::Anything) = anything
 
 # Iterate single `Object` as collection
 Base.iterate(o::Object) = iterate((o,))
