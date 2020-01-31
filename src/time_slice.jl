@@ -64,9 +64,11 @@ blocks(t::TimeSlice) = t.blocks
 
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
 
-function Base.:(==)(a::TimeSlice, b::TimeSlice)
-    start(a) == start(b) && end_(a) == end_(b) && blocks(a) == blocks(b) && duration(a) == duration(b)
-end
+#function Base.:(==)(a::TimeSlice, b::TimeSlice)
+#    start(a) == start(b) && end_(a) == end_(b) && blocks(a) == blocks(b) && duration(a) == duration(b)
+#end
+
+Base.:(==)(a::TimeSlice, b::TimeSlice) = a.immutableid == b.immutableid
 
 Base.objectid(t::TimeSlice) = t.immutableid
 
