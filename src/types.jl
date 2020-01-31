@@ -56,7 +56,7 @@ struct Object <: ObjectLike
     id::UInt64
 end
 
-Object(name::AbstractString, id) = Object(Symbol(name), id)
+Object(name::AbstractString, args...) = Object(Symbol(name), args...)
 
 # Iterate single `Object` as collection
 Base.iterate(o::Object) = iterate((o,))
@@ -65,9 +65,12 @@ Base.length(o::Object) = 1
 # Compare `Object`s
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 Base.show(io::IO, o::Object) = print(io, o.name)
+Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
 Base.hash(o::Object) = o.id
 
-Relationship = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
+Relationship{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
+
+Base.hash(r::Relationship{K}) where {K} = hash(values(r))
 
 struct ObjectClass
     name::Symbol

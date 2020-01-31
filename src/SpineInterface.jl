@@ -22,6 +22,7 @@ export RelationshipClass
 export Parameter
 export ObjectLike
 export Object
+export Relationship
 export TimeSlice
 export using_spinedb
 export notusing_spinedb

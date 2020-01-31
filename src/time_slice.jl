@@ -29,11 +29,11 @@ struct TimeSlice <: ObjectLike
     end_::Ref{DateTime}
     duration::Float64
     blocks::NTuple{N,Object} where N
-    immutableid::UInt64
+    id::UInt64
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
-        immutableid = objectid((start, end_, duration, blocks))
-        new(Ref(start), Ref(end_), duration, blocks, immutableid)
+        id = objectid((start, end_, duration, blocks))
+        new(Ref(start), Ref(end_), duration, blocks, id)
     end
 end
 
@@ -68,9 +68,9 @@ Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start
 #    start(a) == start(b) && end_(a) == end_(b) && blocks(a) == blocks(b) && duration(a) == duration(b)
 #end
 
-Base.:(==)(a::TimeSlice, b::TimeSlice) = a.immutableid == b.immutableid
+Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
 
-Base.objectid(t::TimeSlice) = t.immutableid
+Base.hash(t::TimeSlice) = t.id
 
 """
     before(a::TimeSlice, b::TimeSlice)
