@@ -1,7 +1,7 @@
 using PyCall
 
 try
-    copy!(db_api, pyimport("spinedb_api"))
+    pyimport("spinedb_api")
 catch err
     if err isa PyCall.PyError
         error(
