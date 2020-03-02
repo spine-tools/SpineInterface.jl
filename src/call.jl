@@ -21,18 +21,22 @@ struct Call
     func
     args
     kwargs
+    _is_dynamic::Bool
+    function Call(func, args, kwargs)
+        _is_dynamic = any(is_dynamic(arg) for arg in (args..., kwargs...))
+        new(func, args, kwargs, _is_dynamic)
+    end
 end
 
-# `realize`
-realize(x) = x
+# Outer constructors
+Call(other::Call) = copy(other)
+_identity(x) = x
+Call(n) = Call(_identity, (n,), ())
+Base.show(::IO, ::typeof(_identity)) = nothing
 
-function realize(call::Call)
-    args = realize.(call.args)
-    kwargs = Dict(k => realize(v) for (k, v) in pairs(call.kwargs))
-    call.func(args...; kwargs...)
-end
-
-# print
+# utility
+Base.copy(c::Call) = Call(c.func, c.args, c.kwargs)
+Base.convert(::Type{Call}, x::T) where {T<:Real} = Call(x)
 function Base.show(io::IO, call::Call)
     call_str = string(call.func)
     args_str = join(call.args, ", ")
@@ -41,34 +45,38 @@ function Base.show(io::IO, call::Call)
     print(io, string(call.func, "(", args_str, ")"))
 end
 
-# `Call` constructors
-Call(other::Call) = copy(other)
-_identity(x) = x
-Base.show(::IO, ::typeof(_identity)) = nothing
-Call(n) = Call(_identity, (n,), ())
+# realize
+realize(x) = x
+
+function realize(call::Call)
+    args = (realize(arg) for arg in call.args)
+    kwargs = (k => realize(v) for (k, v) in pairs(call.kwargs))
+    call.func(args...; kwargs...)
+end
+
+is_dynamic(x) = false
+is_dynamic(x::TimeSlice) = true
+is_dynamic(call::Call) = call._is_dynamic
 
 # operators
+Base.zero(::Type{Call}) where T = Call(0.0)
 Base.zero(::Call) = Call(0.0)
-Base.zero(::Type{Call}) = Call(0.0)
 Base.one(::Type{Call}) = Call(1.0)
-Base.:+(c::Call) = c
-Base.:-(c::Call) = Call(-, (0.0, c), ())
-Base.:+(c::Call, x::Call) = Call(+, (c, x), ())
-Base.:-(c::Call, x::Call) = Call(-, (c, x), ())
-Base.:*(c::Call, x::Call) = Call(*, (c, x), ())
-Base.:/(c::Call, x::Call) = Call(/, (c, x), ())
-Base.:+(c::Call, x) = Call(+, (c, x), ())
-Base.:-(c::Call, x) = Call(-, (c, x), ())
-Base.:*(c::Call, x) = Call(*, (c, x), ())
-Base.:/(c::Call, x) = Call(/, (c, x), ())
-Base.:+(x, c::Call) = Call(+, (x, c), ())
-Base.:-(x, c::Call) = Call(-, (x, c), ())
-Base.:*(x, c::Call) = Call(*, (x, c), ())
-Base.:/(x, c::Call) = Call(/, (x, c), ())
-
-Base.copy(c::Call) = Call(c.func, c.args, c.kwargs)
-
-Base.convert(::Type{Call}, x::T) where {T<:Real} = Call(x)
+Base.one(::Call) = Call(1.0)
+Base.:+(x::Call) = x
+Base.:+(x::Call, y) = Call(+, (x, y), ())
+Base.:+(x, y::Call) = Call(+, (x, y), ())
+Base.:+(x::Call, y::Call) = Call(+, (x, y), ())
+Base.:-(x::Call) = Call(-, (0.0, x), ())
+Base.:-(x::Call, y) = Call(-, (x, y), ())
+Base.:-(x, y::Call) = Call(-, (x, y), ())
+Base.:-(x::Call, y::Call) = Call(-, (x, y), ())
+Base.:*(x::Call, y) = Call(*, (x, y), ())
+Base.:*(x, y::Call) = Call(*, (x, y), ())
+Base.:*(x::Call, y::Call) = Call(*, (x, y), ())
+Base.:/(x::Call, y) = Call(/, (x, y), ())
+Base.:/(x, y::Call) = Call(/, (x, y), ())
+Base.:/(x::Call, y::Call) = Call(/, (x, y), ())
 
 macro call(expr::Expr)
     # TODO: finish this
@@ -83,4 +91,3 @@ end
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 Base.getindex(parameter::Parameter, inds::NamedTuple) = Call(parameter, (), inds)
-

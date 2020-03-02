@@ -45,6 +45,7 @@ export indices
 export anything
 export Call
 export realize
+export is_dynamic
 export @call
 
 function __init__()
