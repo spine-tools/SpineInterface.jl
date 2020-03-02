@@ -12,6 +12,7 @@ include("parameter_value_types.jl")
 include("using_spinedb.jl")
 include("write_parameters.jl")
 include("util.jl")
+include("call.jl")
 
 const db_api = PyNULL()
 const required_spinedb_api_version = v"0.0.22"
@@ -42,7 +43,9 @@ export TimeSliceMap
 export TimeSeries
 export indices
 export anything
-
+export Call
+export realize
+export @call
 
 function __init__()
     try
