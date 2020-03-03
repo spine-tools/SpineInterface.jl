@@ -85,6 +85,7 @@ function write_parameter!(
         relationship_parameter_values=relationship_parameter_values,
     )
     isempty(err_log) || @warn join([x.msg for x in err_log], "\n")
+    added
 end
 
 
@@ -107,26 +108,28 @@ mapping object or relationship (`NamedTuple`) to values.
 function write_parameters(
         parameters::Dict{T,Dict{K,V}}, dest_url::String; upgrade=false, for_object=true, report="", comment=""
     ) where {T,K<:NamedTuple,V}
-    try
-        db_map = db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
-        write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
+    db_map = try
+        db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBAPIError)
             db_api.create_new_spine_database(dest_url; for_spine_model=true)
-            write_parameters(parameters, dest_url; for_object=for_object, report=report, comment=comment)
+            db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
         else
             rethrow()
         end
     end
+    write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
 end
 
 
 function write_parameters(
         parameters::Dict{T,Dict{K,V}}, db_map::PyObject; for_object=true, report="", comment=""
     ) where {T,K<:NamedTuple,V}
+    added = 0
     for (name, data) in parameters
-        write_parameter!(db_map, name, data; report=report)
+        added += write_parameter!(db_map, name, data; report=report)
     end
+    added == 0 && return
     if isempty(comment)
         comment = string("Add $(join([string(k) for (k, v) in parameters])), automatically from SpineInterface.jl.")
     end
