@@ -46,9 +46,9 @@ Call(other::Call) = copy(other)
 Perform the given `Call` and return the result.
 """
 realize(x) = x
-realize(call::ParameterCall) = call.parameter(; call.kwargs...)
-realize(call::OperatorCall) = call.operator(realize.(call.args)...)
 realize(call::IdentityCall) = call.value
+realize(call::OperatorCall) = call.operator(realize.(call.args)...)
+realize(call::ParameterCall) = call.parameter(; call.kwargs...)
 
 """
     is_varying(x::Call)
@@ -57,7 +57,6 @@ Whether or not the given `Call` might return a different result if realized a se
 This is true for `ParameterCall`s which are sensitive to the `t` argument.
 """
 is_varying(x) = false
-is_varying(call::IdentityCall) = is_varying(call.value)
 is_varying(call::OperatorCall) = any(is_varying(arg) for arg in call.args)
 is_varying(call::ParameterCall) = true
 
@@ -94,8 +93,6 @@ Base.:/(x::Call, y) = OperatorCall(/, (x, y))
 Base.:/(x, y::Call) = OperatorCall(/, (x, y))
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
-# Base.getindex(parameter::Parameter, inds::NamedTuple) = ParameterCall(parameter, inds)
-
 function Base.getindex(p::Parameter, inds::NamedTuple)
     callable = _lookup_callable(p; inds...)
     if callable isa TimeSeriesCallableLike || callable isa TimePatternCallable
