@@ -45,8 +45,7 @@ export indices
 export anything
 export Call
 export realize
-export is_dynamic
-export @call
+export is_varying
 
 function __init__()
     try

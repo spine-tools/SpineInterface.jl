@@ -51,15 +51,15 @@ realize(call::OperatorCall) = call.operator(realize.(call.args)...)
 realize(call::IdentityCall) = call.value
 
 """
-    is_dynamic(x::Call)
+    is_varying(x::Call)
 
 Whether or not the given `Call` might return a different result if realized a second time.
 This is true for `ParameterCall`s which are sensitive to the `t` argument.
 """
-is_dynamic(x) = false
-is_dynamic(call::IdentityCall) = is_dynamic(call.value)
-is_dynamic(call::OperatorCall) = any(is_dynamic(arg) for arg in call.args)
-is_dynamic(call::ParameterCall) = true
+is_varying(x) = false
+is_varying(call::IdentityCall) = is_varying(call.value)
+is_varying(call::OperatorCall) = any(is_varying(arg) for arg in call.args)
+is_varying(call::ParameterCall) = true
 
 # Base
 Base.copy(c::ParameterCall) = ParameterCall(c.parameter, c.kwargs)
