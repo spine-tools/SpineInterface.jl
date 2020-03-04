@@ -43,7 +43,7 @@ Call(other::Call) = copy(other)
 """
     realize(x::Call)
 
-Return the result of calling the function stored in the given `Call`.
+Perform the given `Call` and return the result.
 """
 realize(x) = x
 realize(call::ParameterCall) = call.parameter(; call.kwargs...)
@@ -53,7 +53,8 @@ realize(call::IdentityCall) = call.value
 """
     is_dynamic(x::Call)
 
-Whether or not the given `Call` involves `TimeSlice` objects.
+Whether or not the given `Call` might return a different result if realized a second time.
+This is true for `ParameterCall`s which are sensitive to the `t` argument.
 """
 is_dynamic(x) = false
 is_dynamic(call::IdentityCall) = is_dynamic(call.value)
