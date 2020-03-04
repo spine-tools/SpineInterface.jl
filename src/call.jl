@@ -34,22 +34,31 @@ struct ParameterCall <: Call
 end
 
 # Outer constructors
-Call(other::Call) = copy(other)
 Call(n) = IdentityCall(n)
 Call(op::Function, args::Tuple) = OperatorCall(op, args)
 Call(param::Parameter, kwargs::NamedTuple) = ParameterCall(param, kwargs)
+Call(other::Call) = copy(other)
 
 # api
+"""
+    realize(x::Call)
+
+Return the result of calling the function stored in the given `Call`.
+"""
 realize(x) = x
 realize(call::ParameterCall) = call.parameter(; call.kwargs...)
 realize(call::OperatorCall) = call.operator(realize.(call.args)...)
 realize(call::IdentityCall) = call.value
 
+"""
+    is_dynamic(x::Call)
+
+Whether or not the given `Call` involves `TimeSlice` objects.
+"""
 is_dynamic(x) = false
-is_dynamic(x::TimeSlice) = true
-is_dynamic(call::ParameterCall) = any(is_dynamic(kwarg) for kwarg in call.kwargs)
-is_dynamic(call::OperatorCall) = any(is_dynamic(arg) for arg in call.args)
 is_dynamic(call::IdentityCall) = is_dynamic(call.value)
+is_dynamic(call::OperatorCall) = any(is_dynamic(arg) for arg in call.args)
+is_dynamic(call::ParameterCall) = true
 
 # Base
 Base.copy(c::ParameterCall) = ParameterCall(c.parameter, c.kwargs)
@@ -66,7 +75,7 @@ end
 # operators
 Base.zero(::Type{T}) where T<:Call = IdentityCall(0.0)
 Base.zero(::Call) = IdentityCall(0.0)
-Base.one(::Type{Call}) = IdentityCall(1.0)
+Base.one(::Type{T}) where T<:Call = IdentityCall(1.0)
 Base.one(::Call) = IdentityCall(1.0)
 Base.:+(x::Call, y::Call) = OperatorCall(+, (x, y))
 Base.:+(x::Call, y) = OperatorCall(+, (x, y))
@@ -83,16 +92,14 @@ Base.:/(x::Call, y::Call) = OperatorCall(/, (x, y))
 Base.:/(x::Call, y) = OperatorCall(/, (x, y))
 Base.:/(x, y::Call) = OperatorCall(/, (x, y))
 
-macro call(expr::Expr)
-    # TODO: finish this
-    expr.head == :call || error("@call must be used with function calls")
-    @show expr.args[3].args
-    @show [(a, typeof(a)) for a in expr.args]
-    func = esc(expr.args[1])
-    @show args = Tuple(arg for arg in expr.args[2:end] if !(arg isa Expr))
-    @show kwargs = (; (arg.args for arg in expr.args[2:end] if arg isa Expr && arg.head == :kw)...)
-    :(Call($func, $args, $kwargs))
-end
-
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
-Base.getindex(parameter::Parameter, inds::NamedTuple) = ParameterCall(parameter, inds)
+# Base.getindex(parameter::Parameter, inds::NamedTuple) = ParameterCall(parameter, inds)
+
+function Base.getindex(p::Parameter, inds::NamedTuple)
+    callable = _lookup_callable(p; inds...)
+    if callable isa TimeSeriesCallableLike || callable isa TimePatternCallable
+        ParameterCall(p, inds)
+    else
+        IdentityCall(p(; inds...))
+    end
+end
