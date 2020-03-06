@@ -46,6 +46,9 @@ export anything
 export Call
 export realize
 export is_varying
+export object_class
+export relationship_class
+export parameter
 
 function __init__()
     try

@@ -268,17 +268,27 @@ See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](
 how to call the convenience functors.
 """
 function using_spinedb(db_map::PyObject, mod=@__MODULE__)
-    @eval mod using SpineInterface
     obj_class_handle, rel_class_handle, param_handle = spinedb_handle(db_map)
+    @eval mod begin
+        using SpineInterface
+        _spine_object_class = Vector{ObjectClass}()
+        _spine_relationship_class = Vector{RelationshipClass}()
+        _spine_parameter = Vector{Parameter}()
+        sizehint!(_spine_object_class, $(length(obj_class_handle)))
+        sizehint!(_spine_relationship_class, $(length(rel_class_handle)))
+        sizehint!(_spine_parameter, $(length(param_handle)))
+    end
     for (name, value) in obj_class_handle
         @eval mod begin
             $name = ObjectClass($value...)
+            push!(_spine_object_class, $name)
             export $name
         end
     end
     for (name, value) in rel_class_handle
         @eval mod begin
             $name = RelationshipClass($value...)
+            push!(_spine_relationship_class, $name)
             export $name
         end
     end
@@ -287,11 +297,17 @@ function using_spinedb(db_map::PyObject, mod=@__MODULE__)
         classes_ = [getfield(mod, x) for x in classes]
         @eval mod begin
             $name = Parameter($(Expr(:quote, name_)), $classes_)
+            push!(_spine_parameter, $name)
             export $name
         end
     end
 end
 
+_getproperty_or_nothing(m::Module, name::Symbol) = (name in names(m; all=true)) ? getproperty(m, name) : nothing
+
+object_class(m=@__MODULE__) = _getproperty_or_nothing(m, :_spine_object_class)
+relationship_class(m=@__MODULE__) = _getproperty_or_nothing(m, :_spine_relationship_class)
+parameter(m=@__MODULE__) = _getproperty_or_nothing(m, :_spine_parameter)
 
 function notusing_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     # Create DatabaseMapping object using Python spinedb_api
