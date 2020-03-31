@@ -165,17 +165,17 @@ function class_handle_entry(class, ::Nothing, class_entities, vals)
 end
 
 function class_handle_entry(class, object_class_names, class_entities, vals)
-    obj_cls_name_tup = Tuple(Symbol.(fix_name_ambiguity(split(object_class_names, ","))))
+    obj_cls_names = Symbol.(fix_name_ambiguity(split(object_class_names, ",")))
     class_relationships = []
     vals_ = Dict{Tuple{Vararg{Object}},NamedTuple}()
     for ent in class_entities
         object_name_list = split(ent["object_name_list"], ",")
         object_id_list = parse.(Int, split(ent["object_id_list"], ","))
         objects = Object.(object_name_list, object_id_list)
-        push!(class_relationships, NamedTuple{obj_cls_name_tup}(objects))
+        push!(class_relationships, NamedTuple{Tuple(obj_cls_names)}(objects))
         vals_[tuple(objects...)] = vals[ent["id"]]
     end
-    Symbol(class["name"]), obj_cls_name_tup, class_relationships, vals_
+    Symbol(class["name"]), obj_cls_names, class_relationships, vals_
 end
 
 

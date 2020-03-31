@@ -80,7 +80,7 @@ end
 
 struct RelationshipClass
     name::Symbol
-    object_class_names::Tuple{Vararg{Symbol}}
+    object_class_names::Array{Symbol,1}
     relationships::Array{Relationship,1}
     parameter_values::Dict{Tuple{Vararg{Object}},NamedTuple}
     lookup_cache::Dict
@@ -200,7 +200,7 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 """
 function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
-    lookup_key = tuple((_simplify(get(kwargs, oc, anything)) for oc in rc.object_class_names)...)
+    lookup_key = tuple((_immutable(get(kwargs, oc, anything)) for oc in rc.object_class_names)...)
     relationships = get!(rc.lookup_cache, lookup_key) do
         cond(rel) = all(rel[rc] in r for (rc, r) in kwargs)
         filter(cond, rc.relationships)
@@ -217,8 +217,8 @@ function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], kwargs.
     end
 end
 
-_simplify(x) = x
-_simplify(arr::T) where T<:AbstractArray = (length(arr) == 1) ? first(arr) : tuple(arr...)
+_immutable(x) = x
+_immutable(arr::T) where T<:AbstractArray = (length(arr) == 1) ? first(arr) : tuple(arr...)
 
 
 """
