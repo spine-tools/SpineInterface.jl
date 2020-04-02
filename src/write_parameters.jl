@@ -109,11 +109,11 @@ function write_parameters(
         parameters::Dict{T,Dict{K,V}}, dest_url::String; upgrade=false, for_object=true, report="", comment=""
     ) where {T,K<:NamedTuple,V}
     db_map = try
-        db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
+        DiffDatabaseMapping(dest_url; upgrade=upgrade)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBAPIError)
-            db_api.create_new_spine_database(dest_url; for_spine_model=true)
-            db_api.DiffDatabaseMapping(dest_url, upgrade=upgrade)
+            db_api.create_new_spine_database(dest_url)
+            DiffDatabaseMapping(dest_url; upgrade=upgrade)
         else
             rethrow()
         end

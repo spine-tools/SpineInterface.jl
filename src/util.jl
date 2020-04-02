@@ -119,3 +119,27 @@ function (h::TimeSliceMap)(t::TimeSlice...)
     end
     unique(h.time_slices[ind] for ind in indices)
 end
+
+
+"""A DatabaseMapping object using Python spinedb_api"""
+function DiffDatabaseMapping(db_url::String; upgrade=false)
+    try
+        db_api.DiffDatabaseMapping(db_url, upgrade=upgrade)
+    catch e
+        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
+            error(
+                """
+                The database at '$db_url' is from an older version of Spine
+                and needs to be upgraded in order to be used with the current version.
+
+                You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
+
+                WARNING: After the upgrade, the database may no longer be used
+                with previous versions of Spine.
+                """
+            )
+        else
+            rethrow()
+        end
+    end
+end

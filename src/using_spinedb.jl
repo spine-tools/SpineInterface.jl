@@ -231,27 +231,8 @@ See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](
 how to call the convenience functors.
 """
 function using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
-    # Create DatabaseMapping object using Python spinedb_api
-    try
-        db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
-        using_spinedb(db_map, mod)
-    catch e
-        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
-            error(
-                """
-                The database at '$db_url' is from an older version of Spine
-                and needs to be upgraded in order to be used with the current version.
-
-                You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
-
-                WARNING: After the upgrade, the database may no longer be used
-                with previous versions of Spine.
-                """
-            )
-        else
-            rethrow()
-        end
-    end
+    db_map = DiffDatabaseMapping(db_url; upgrade=upgrade)
+    using_spinedb(db_map, mod)
 end
 
 
@@ -310,27 +291,8 @@ relationship_class(m=@__MODULE__) = _getproperty_or_nothing(m, :_spine_relations
 parameter(m=@__MODULE__) = _getproperty_or_nothing(m, :_spine_parameter)
 
 function notusing_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
-    # Create DatabaseMapping object using Python spinedb_api
-    try
-        db_map = db_api.DatabaseMapping(db_url, upgrade=upgrade)
-        notusing_spinedb(db_map, mod)
-    catch e
-        if e isa PyCall.PyError && e.T == db_api.exception.SpineDBVersionError
-            error(
-                """
-                The database at '$db_url' is from an older version of Spine
-                and needs to be upgraded in order to be used with the current version.
-
-                You can upgrade it by running `notusing_spinedb(db_url; upgrade=true)`.
-
-                WARNING: After the upgrade, the database may no longer be used
-                with previous versions of Spine.
-                """
-            )
-        else
-            rethrow()
-        end
-    end
+    db_map = db_api.DiffDatabaseMapping(db_url, upgrade=upgrade)
+    notusing_spinedb(db_map, mod)
 end
 
 function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
