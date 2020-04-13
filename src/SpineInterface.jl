@@ -15,7 +15,7 @@ include("util.jl")
 include("call.jl")
 
 const db_api = PyNULL()
-const required_spinedb_api_version = v"0.0.22"
+const required_spinedb_api_version = v"0.4.0"
 
 export Anything
 export ObjectClass
@@ -108,6 +108,7 @@ function __init__()
     pytype_mapping(db_api."parameter_value"."TimePattern", TimePattern)
     pytype_mapping(db_api."parameter_value"."TimeSeriesFixedResolution", TimeSeries)
     pytype_mapping(db_api."parameter_value"."TimeSeriesVariableResolution", TimeSeries)
+    pytype_mapping(db_api."parameter_value"."Array", Array_)
 end
 
 end # module

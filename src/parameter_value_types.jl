@@ -19,7 +19,7 @@
 
 # Special parameter value types
 # types returned by the parsing function `spinedb_api.from_database`
-# are automatically converted to these using `PyCall.pytype_mapping`.
+# are automatically converted to these using `PyCall.pytype_mapping` as defined in the module's __init__ method.
 # This allows us to mutiple dispatch `callable` below
 struct DateTime_
     value::DateTime
@@ -33,6 +33,10 @@ end
 
 struct ArrayDuration <: DurationLike
     value::Array{Period,1}
+end
+
+struct Array_{T}
+    value::Array{T,1}
 end
 
 TimePattern = Dict{PeriodCollection,T} where T
@@ -75,6 +79,10 @@ function Base.convert(::Type{DurationLike}, o::PyObject)
     end
 end
 
+function Base.convert(::Type{Array_}, o::PyObject)
+    Array_(o.values)
+end
+
 function Base.convert(::Type{TimePattern}, o::PyObject)
     Dict(PeriodCollection(ind) => val for (ind, val) in zip(o.indexes, o.values))
 end
@@ -93,13 +101,6 @@ end
 # TODO: specify PyObject constructor for other special types
 function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
-end
-
-# Base.append!
-function Base.append!(ts::TimeSeries{T}, other::TimeSeries{T}) where T
-    append!(ts.indexes, other.indexes)
-    append!(ts.values, other.values)
-    ts
 end
 
 # Base.copy
@@ -290,6 +291,7 @@ callable(parsed_value::Array) = ArrayCallable(parsed_value)
 callable(parsed_value::DateTime_) = ScalarCallable(parsed_value.value)
 callable(parsed_value::ScalarDuration) = ScalarCallable(parsed_value.value)
 callable(parsed_value::ArrayDuration) = ArrayCallable(parsed_value.value)
+callable(parsed_value::Array_) = ArrayCallable(parsed_value.value)
 callable(parsed_value::TimePattern) = TimePatternCallable(parsed_value)
 callable(parsed_value::TimeSeries) = TimeSeriesCallableLike(parsed_value)
 
