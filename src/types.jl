@@ -40,18 +40,18 @@ Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.hash(::Anything) = zero(UInt64)
 
 """
-    ObjectLike
+    AbstractObject
 
 Supertype for [`Object`](@ref) and [`TimeSlice`](@ref).
 """
-abstract type ObjectLike end
+abstract type AbstractObject end
 
 """
     Object
 
 A type for representing an object in a Spine db.
 """
-struct Object <: ObjectLike
+struct Object <: AbstractObject
     name::Symbol
     id::UInt64
 end
@@ -67,6 +67,8 @@ Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 Base.show(io::IO, o::Object) = print(io, o.name)
 Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
 Base.hash(o::Object) = o.id
+
+ObjectLike = Union{AbstractObject,Int64}
 
 Relationship{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
 

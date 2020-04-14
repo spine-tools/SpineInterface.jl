@@ -24,7 +24,7 @@ import Dates: CompoundPeriod
 
 A type for representing a slice of time.
 """
-struct TimeSlice <: ObjectLike
+struct TimeSlice <: AbstractObject
     start::Ref{DateTime}
     end_::Ref{DateTime}
     duration::Float64
