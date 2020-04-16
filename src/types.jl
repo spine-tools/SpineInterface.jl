@@ -21,8 +21,7 @@
 
 A type with no fields that is the type of [`anything`](@ref).
 """
-struct Anything
-end
+struct Anything end
 
 """
     anything
@@ -55,10 +54,12 @@ ObjectLike = Union{AbstractObject,Int64}
 
 Relationship{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
 
+abstract type CallableLike end
+
 struct ObjectClass
     name::Symbol
     objects::Array{Object,1}
-    parameter_values::Dict{Object,NamedTuple}
+    parameter_values::Dict{Object,Dict{Symbol,CallableLike}}
 end
 
 ObjectClass(name, objects) = ObjectClass(name, objects, Dict())
@@ -67,14 +68,13 @@ struct RelationshipClass
     name::Symbol
     object_class_names::Array{Symbol,1}
     relationships::Array{Relationship,1}
-    parameter_values::Dict{Tuple{Vararg{Object}},NamedTuple}
+    parameter_values::Dict{Tuple{Vararg{Object}},Dict{Symbol,CallableLike}}
     lookup_cache::Dict
     RelationshipClass(name, obj_cls_names, rels, vals) = new(name, obj_cls_names, rels, vals, Dict())
 end
 
 RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict())
 
-abstract type CallableLike end
 
 struct Parameter
     name::Symbol
