@@ -17,43 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-# Special parameter value types
-# types returned by the parsing function `spinedb_api.from_database`
-# are automatically converted to these using `PyCall.pytype_mapping` as defined in the module's __init__ method.
-# This allows us to mutiple dispatch `callable` below
-struct DateTime_
-    value::DateTime
-end
-
-abstract type DurationLike end
-
-struct ScalarDuration <: DurationLike
-    value::Period
-end
-
-struct ArrayDuration <: DurationLike
-    value::Array{Period,1}
-end
-
-struct Array_{T}
-    value::Array{T,1}
-end
-
-TimePattern = Dict{PeriodCollection,T} where T
-
-struct TimeSeries{V}
-    indexes::Array{DateTime,1}
-    values::Array{V,1}
-    ignore_year::Bool
-    repeat::Bool
-    function TimeSeries(inds, vals::Array{V,1}, iy, rep) where {V}
-        if length(inds) != length(vals)
-            error("lengths don't match")
-        end
-        new{V}(inds, vals, iy, rep)
-    end
-end
-
 # Convert routines
 # Here we specify how to go from `PyObject` returned by `spinedb_api.from_database` to our special type
 Base.convert(::Type{DateTime_}, o::PyObject) = DateTime_(o.value)
@@ -107,63 +70,6 @@ end
 Base.copy(dur::ArrayDuration) = ArrayDuration(copy(dur.value))
 Base.copy(tp::TimePattern) = TimePattern(Y=tp.Y, M=tp.M, D=tp.D, WD=tp.WD, h=tp.h, m=tp.m, s=tp.s)
 Base.copy(ts::TimeSeries{T}) where T = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
-
-# Callable types
-# These are wrappers around standard Julia types and our special types above,
-# that override the call operator
-abstract type CallableLike end
-
-struct NothingCallable <: CallableLike
-end
-
-struct ScalarCallable{T} <: CallableLike
-    value::T
-end
-
-struct ArrayCallable{T,N} <: CallableLike
-    value::Array{T,N}
-end
-
-struct TimePatternCallable{T} <: CallableLike
-    value::TimePattern{T}
-end
-
-## Time series map
-struct TimeSeriesMap
-    index::Array{Int64,1}
-    map_start::DateTime
-    map_end::DateTime
-end
-
-abstract type TimeSeriesCallableLike <: CallableLike end
-
-struct TimeSeriesCallable{V} <: TimeSeriesCallableLike
-    value::TimeSeries{V}
-    t_map::TimeSeriesMap
-end
-
-struct RepeatingTimeSeriesCallable{V} <: TimeSeriesCallableLike
-    value::TimeSeries{V}
-    span::Union{Period,Nothing}
-    valsum::V
-    len::Int64
-    t_map::TimeSeriesMap
-end
-
-# Required outer constructors
-ScalarCallable(s::String) = ScalarCallable(Symbol(s))
-
-function TimeSeriesCallableLike(ts::TimeSeries{V}) where {V}
-    t_map = TimeSeriesMap(ts.indexes)
-    if ts.repeat
-        span = ts.indexes[end] - ts.indexes[1]
-        valsum = sum(ts.values)
-        len = length(ts.values)
-        RepeatingTimeSeriesCallable(ts, span, valsum, len, t_map)
-    else
-        TimeSeriesCallable(ts, t_map)
-    end
-end
 
 # Call operator override
 # Here we specify how to call our `...Callable` types

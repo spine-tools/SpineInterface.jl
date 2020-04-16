@@ -32,13 +32,6 @@ in calls to [`RelationshipClass()`](@ref).
 """
 anything = Anything()
 
-Base.intersect(::Anything, s) = s
-Base.intersect(s::T, ::Anything) where T<:AbstractArray = s
-Base.intersect(s::T, ::Anything) where T<:AbstractSet = s
-Base.in(item, ::Anything) = true
-Base.show(io::IO, ::Anything) = print(io, "anything")
-Base.hash(::Anything) = zero(UInt64)
-
 """
     AbstractObject
 
@@ -58,27 +51,17 @@ end
 
 Object(name::AbstractString, args...) = Object(Symbol(name), args...)
 
-# Iterate single `Object` as collection
-Base.iterate(o::Object) = iterate((o,))
-Base.iterate(o::Object, state::T) where T = iterate((o,), state)
-Base.length(o::Object) = 1
-# Compare `Object`s
-Base.isless(o1::Object, o2::Object) = o1.name < o2.name
-Base.show(io::IO, o::Object) = print(io, o.name)
-Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
-Base.hash(o::Object) = o.id
-
 ObjectLike = Union{AbstractObject,Int64}
 
 Relationship{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
-
-Base.hash(r::Relationship{K}) where {K} = hash(values(r))
 
 struct ObjectClass
     name::Symbol
     objects::Array{Object,1}
     parameter_values::Dict{Object,NamedTuple}
 end
+
+ObjectClass(name, objects) = ObjectClass(name, objects, Dict())
 
 struct RelationshipClass
     name::Symbol
@@ -91,12 +74,176 @@ end
 
 RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict())
 
+abstract type CallableLike end
+
 struct Parameter
     name::Symbol
-    classes::Array{Union{ObjectClass,RelationshipClass},1}
+    default_values::Dict{Union{ObjectClass,RelationshipClass},CallableLike}
 end
 
-Parameter(name) = Parameter(name, [])
+Parameter(name) = Parameter(name, Dict())
+
+"""
+    TimeSlice
+
+A type for representing a slice of time.
+"""
+struct TimeSlice <: AbstractObject
+    start::Ref{DateTime}
+    end_::Ref{DateTime}
+    duration::Float64
+    blocks::NTuple{N,Object} where N
+    id::UInt64
+    function TimeSlice(start, end_, duration, blocks)
+        start > end_ && error("out of order")
+        id = objectid((start, end_, duration, blocks))
+        new(Ref(start), Ref(end_), duration, blocks, id)
+    end
+end
+
+# Special parameter value types
+# types returned by the parsing function `spinedb_api.from_database`
+# are automatically converted to these using `PyCall.pytype_mapping` as defined in the module's __init__ method.
+# This allows us to mutiple dispatch `callable` below
+struct DateTime_
+    value::DateTime
+end
+
+abstract type DurationLike end
+
+struct ScalarDuration <: DurationLike
+    value::Period
+end
+
+struct ArrayDuration <: DurationLike
+    value::Array{Period,1}
+end
+
+struct Array_{T}
+    value::Array{T,1}
+end
+
+"""
+    PeriodCollection
+"""
+struct PeriodCollection
+    Y::Union{Array{UnitRange{Int64},1},Nothing}
+    M::Union{Array{UnitRange{Int64},1},Nothing}
+    D::Union{Array{UnitRange{Int64},1},Nothing}
+    WD::Union{Array{UnitRange{Int64},1},Nothing}
+    h::Union{Array{UnitRange{Int64},1},Nothing}
+    m::Union{Array{UnitRange{Int64},1},Nothing}
+    s::Union{Array{UnitRange{Int64},1},Nothing}
+    function PeriodCollection(;Y=nothing, M=nothing, D=nothing, WD=nothing, h=nothing, m=nothing, s=nothing)
+        new(Y, M, D, WD, h, m, s)
+    end
+end
+
+TimePattern = Dict{PeriodCollection,T} where T
+
+struct TimeSeries{V}
+    indexes::Array{DateTime,1}
+    values::Array{V,1}
+    ignore_year::Bool
+    repeat::Bool
+    function TimeSeries(inds, vals::Array{V,1}, iy, rep) where {V}
+        if length(inds) != length(vals)
+            error("lengths don't match")
+        end
+        new{V}(inds, vals, iy, rep)
+    end
+end
+
+# CallableLike subtypes
+# These are wrappers around standard Julia types and our special types above,
+# that override the call operator
+
+struct NothingCallable <: CallableLike
+end
+
+struct ScalarCallable{T} <: CallableLike
+    value::T
+end
+
+struct ArrayCallable{T,N} <: CallableLike
+    value::Array{T,N}
+end
+
+struct TimePatternCallable{T} <: CallableLike
+    value::TimePattern{T}
+end
+
+## Time series map
+struct TimeSeriesMap
+    index::Array{Int64,1}
+    map_start::DateTime
+    map_end::DateTime
+end
+
+abstract type TimeSeriesCallableLike <: CallableLike end
+
+struct TimeSeriesCallable{V} <: TimeSeriesCallableLike
+    value::TimeSeries{V}
+    t_map::TimeSeriesMap
+end
+
+struct RepeatingTimeSeriesCallable{V} <: TimeSeriesCallableLike
+    value::TimeSeries{V}
+    span::Union{Period,Nothing}
+    valsum::V
+    len::Int64
+    t_map::TimeSeriesMap
+end
+
+# Required outer constructors
+ScalarCallable(s::String) = ScalarCallable(Symbol(s))
+
+function TimeSeriesCallableLike(ts::TimeSeries{V}) where {V}
+    t_map = TimeSeriesMap(ts.indexes)
+    if ts.repeat
+        span = ts.indexes[end] - ts.indexes[1]
+        valsum = sum(ts.values)
+        len = length(ts.values)
+        RepeatingTimeSeriesCallable(ts, span, valsum, len, t_map)
+    else
+        TimeSeriesCallable(ts, t_map)
+    end
+end
+
+abstract type Call end
+
+struct IdentityCall{T} <: Call
+    value::T
+end
+
+struct OperatorCall <: Call
+    operator::Function
+    args::Tuple
+end
+
+struct ParameterCall <: Call
+    parameter::Parameter
+    kwargs::NamedTuple
+end
+
+Base.intersect(::Anything, s) = s
+Base.intersect(s::T, ::Anything) where T<:AbstractArray = s
+Base.intersect(s::T, ::Anything) where T<:AbstractSet = s
+Base.in(item, ::Anything) = true
+Base.show(io::IO, ::Anything) = print(io, "anything")
+Base.hash(::Anything) = zero(UInt64)
+
+# Iterate single `Object` as collection
+Base.iterate(o::Object) = iterate((o,))
+Base.iterate(o::Object, state::T) where T = iterate((o,), state)
+Base.length(o::Object) = 1
+# Compare `Object`s
+Base.isless(o1::Object, o2::Object) = o1.name < o2.name
+Base.show(io::IO, o::Object) = print(io, o.name)
+Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
+
+Base.hash(o::Object) = o.id
+Base.hash(r::Relationship{K}) where {K} = hash(values(r))
 
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
@@ -144,6 +291,7 @@ end
 function (oc::ObjectClass)(name::Symbol)
     i = findfirst(o -> o.name == name, oc.objects)
     i != nothing && return oc.objects[i]
+    nothing
 end
 
 """
@@ -264,19 +412,19 @@ function (p::Parameter)(;i=nothing, t=nothing, _strict=true, kwargs...)
 end
 
 function _lookup_callable(p::Parameter; kwargs...)
-    for class in p.classes
+    for (class, default_val) in p.default_values
         lookup_key = _lookup_key(class; kwargs...)
         lookup_key in keys(class.parameter_values) || continue
         parameter_values = class.parameter_values[lookup_key]
-        return parameter_values[p.name]
+        return get(parameter_values, p.name, default_val)
     end
 end
 
 _lookup_key(class::ObjectClass; kwargs...) = get(kwargs, class.name, nothing)
 
 function _lookup_key(class::RelationshipClass; kwargs...)
-    objects = [get(kwargs, oc, nothing) for oc in class.object_class_names]
+    objects = Tuple(get(kwargs, oc, nothing) for oc in class.object_class_names)
     nothing in objects && return nothing
-    tuple(objects...)
+    objects
 end
 

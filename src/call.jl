@@ -17,22 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-abstract type Call end
-
-struct IdentityCall{T} <: Call
-    value::T
-end
-
-struct OperatorCall <: Call
-    operator::Function
-    args::Tuple
-end
-
-struct ParameterCall <: Call
-    parameter::Parameter
-    kwargs::NamedTuple
-end
-
 # Outer constructors
 Call(n) = IdentityCall(n)
 Call(op::Function, args::Tuple) = OperatorCall(op, args)

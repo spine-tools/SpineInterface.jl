@@ -79,10 +79,15 @@ julia> collect(indices(demand))
 """
 function indices(p::Parameter; kwargs...)
     itr = Iterators.flatten(
-        Map(ent -> (ent, class.parameter_values[_entity_key(ent)]), _lookup_entities(class; kwargs...)) for class in p.classes
+        Map(ent -> (ent, class.parameter_values[_entity_key(ent)]), _lookup_entities(class; kwargs...))
+        for class in keys(p.default_values)
     )
     # Filtering function, `true` if the value is not nothing
-    flt(x) = last(x)[p.name]() !== nothing
+    function flt(x)
+        value = get(last(x), p.name, nothing)
+        value === nothing && return false
+        value() !== nothing
+    end
     Map(first, Iterators.filter(flt, itr))
 end
 

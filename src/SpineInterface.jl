@@ -6,9 +6,9 @@ using Suppressor
 using Statistics
 
 include("types.jl")
-include("time_slice.jl")
 include("period_collection.jl")
-include("parameter_value_types.jl")
+include("parameter_value.jl")
+include("time_slice.jl")
 include("using_spinedb.jl")
 include("write_parameters.jl")
 include("util.jl")
@@ -49,6 +49,8 @@ export is_varying
 export object_class
 export relationship_class
 export parameter
+export callable
+export db_api
 
 function __init__()
     try

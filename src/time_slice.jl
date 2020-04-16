@@ -20,24 +20,6 @@
 import Dates: CompoundPeriod
 
 """
-    TimeSlice
-
-A type for representing a slice of time.
-"""
-struct TimeSlice <: AbstractObject
-    start::Ref{DateTime}
-    end_::Ref{DateTime}
-    duration::Float64
-    blocks::NTuple{N,Object} where N
-    id::UInt64
-    function TimeSlice(start, end_, duration, blocks)
-        start > end_ && error("out of order")
-        id = objectid((start, end_, duration, blocks))
-        new(Ref(start), Ref(end_), duration, blocks, id)
-    end
-end
-
-"""
     TimeSlice(start::DateTime, end_::DateTime)
 
 Construct a `TimeSlice` with bounds given by `start` and `end_`.

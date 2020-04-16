@@ -17,21 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-"""
-    PeriodCollection
-"""
-struct PeriodCollection
-    Y::Union{Array{UnitRange{Int64},1},Nothing}
-    M::Union{Array{UnitRange{Int64},1},Nothing}
-    D::Union{Array{UnitRange{Int64},1},Nothing}
-    WD::Union{Array{UnitRange{Int64},1},Nothing}
-    h::Union{Array{UnitRange{Int64},1},Nothing}
-    m::Union{Array{UnitRange{Int64},1},Nothing}
-    s::Union{Array{UnitRange{Int64},1},Nothing}
-    function PeriodCollection(;Y=nothing, M=nothing, D=nothing, WD=nothing, h=nothing, m=nothing, s=nothing)
-        new(Y, M, D, WD, h, m, s)
-    end
-end
 
 """
     PeriodCollection(spec::String)
