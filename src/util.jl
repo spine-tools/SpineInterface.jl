@@ -17,29 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-# Map iterator. It applies the given `map` function over elements of the given `itr`.
-# Used by `indices`
-struct Map{F,I}
-    map::F
-    itr::I
-end
-
-function Base.iterate(m::Map, state...)
-    y = iterate(m.itr, state...)
-    y === nothing && return nothing
-    m.map(y[1]), y[2]
-end
-
-Base.eltype(::Type{Map{F,I}}) where {F,I} = eltype(I)
-Base.IteratorEltype(::Type{Map{F,I}}) where {F,I} = Base.IteratorEltype(I)
-Base.IteratorSize(::Type{Map{F,I}}) where {F,I} = Base.IteratorSize(I)
-
-
-_lookup_entities(class::ObjectClass; kwargs...) = class()
-_lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
-
-_entity_key(o::Object) = o
-_entity_key(r::Relationship) = tuple(r...)
 
 """
     indices(p::Parameter; kwargs...)
@@ -78,19 +55,19 @@ julia> collect(indices(demand))
 ```
 """
 function indices(p::Parameter; kwargs...)
-    itr = Iterators.flatten(
-        Map(ent -> (ent, class.parameter_values[_entity_key(ent)]), _lookup_entities(class; kwargs...))
-        for class in keys(p.default_values)
+    (
+        ent 
+        for (class, default_val) in p.default_values
+        for ent in _lookup_entities(class; kwargs...)
+        if get(class.parameter_values[_entity_key(ent)], p.name, default_val)() !== nothing
     )
-    # Filtering function, `true` if the value is not nothing
-    function flt(x)
-        value = get(last(x), p.name, nothing)
-        value === nothing && return false
-        value() !== nothing
-    end
-    Map(first, Iterators.filter(flt, itr))
 end
 
+_lookup_entities(class::ObjectClass; kwargs...) = class()
+_lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
+
+_entity_key(o::Object) = o
+_entity_key(r::Relationship) = tuple(r...)
 
 # Time slice map
 struct TimeSliceMap
