@@ -57,9 +57,9 @@ julia> collect(indices(demand))
 function indices(p::Parameter; kwargs...)
     (
         ent 
-        for (class, default_val) in p.default_values
+        for class in p.classes
         for ent in _lookup_entities(class; kwargs...)
-        if get(class.parameter_values[_entity_key(ent)], p.name, default_val)() !== nothing
+        if class.parameter_values[_entity_key(ent)][p.name]() !== nothing
     )
 end
 

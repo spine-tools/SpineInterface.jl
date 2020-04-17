@@ -22,6 +22,7 @@ export ObjectClass
 export RelationshipClass
 export Parameter
 export ObjectLike
+export AbstractCallable
 export Object
 export Relationship
 export TimeSlice

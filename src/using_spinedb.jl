@@ -58,33 +58,58 @@ function parameter_values_per_entity(param_values)
     d
 end
 
+"""
+A dictionary mapping parameter names to their default parameter_values.
+"""
+function default_parameter_values(param_defs)
+    d = Dict()
+    for param_def in param_defs
+        parameter_name = param_def["name"]
+        default_value = param_def["default_value"]
+        d[parameter_name] = try
+            callable(db_api.from_database(default_value))
+        catch e
+            if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
+                rethrow(
+                    ErrorException("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
+                )
+            else
+                rethrow()
+            end
+        end
+    end
+    d
+end
 
 """
 A Dict mapping parameter names to their parameter_values for a given entity.
 """
-function parameter_values(entity, param_defs, param_vals)
-    d = Dict{Symbol,CallableLike}()
+function parameter_values(entity, param_defs, param_vals, default_vals)
+    d = Dict{Symbol,AbstractCallable}()
     entity_id = entity["id"]
     entity_name = entity["name"]
     for param_def in param_defs
         parameter_id = param_def["id"]
         parameter_name = param_def["name"]
         value = get(param_vals, (parameter_id, entity_id), nothing)
-        value === nothing && continue
-        d[Symbol(parameter_name)] = try
-            callable(db_api.from_database(value))
-        catch e
-            if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
-                rethrow(
-                    ErrorException(
-                        """
-                        unable to parse value of '$parameter_name' for '$entity_name':
-                        $(sprint(showerror, e))
-                        """
+        d[Symbol(parameter_name)] = if value === nothing
+            copy(default_vals[parameter_name])
+        else
+            try
+                callable(db_api.from_database(value))
+            catch e
+                if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
+                    rethrow(
+                        ErrorException(
+                            """
+                            unable to parse value of '$parameter_name' for '$entity_name':
+                            $(sprint(showerror, e))
+                            """
+                        )
                     )
-                )
-            else
-                rethrow()
+                else
+                    rethrow()
+                end
             end
         end
     end
@@ -115,8 +140,11 @@ function class_handle(classes, entities, param_defs, param_vals)
         class_id = class["id"]
         class_name = class["name"]
         class_param_defs = get(param_defs, class_id, ())
+        default_vals = default_parameter_values(class_param_defs)
         class_entities = get(entities, class_id, [])
-        vals = Dict(ent["id"] => parameter_values(ent, class_param_defs, param_vals) for ent in class_entities)
+        vals = Dict(
+            ent["id"] => parameter_values(ent, class_param_defs, param_vals, default_vals) for ent in class_entities
+        )
         d[Symbol(class_name)] = class_handle_entry(class, class_entities, vals)
     end
     d
@@ -130,14 +158,14 @@ end
 
 function class_handle_entry(class, ::Nothing, class_entities, vals)
     class_objects = [Object(ent["name"], ent["id"]) for ent in class_entities]
-    vals_ = Dict{Object,Dict{Symbol,CallableLike}}(obj => vals[obj.id] for obj in class_objects)
+    vals_ = Dict{Object,Dict{Symbol,AbstractCallable}}(obj => vals[obj.id] for obj in class_objects)
     Symbol(class["name"]), class_objects, vals_
 end
 
 function class_handle_entry(class, object_class_names, class_entities, vals)
     obj_cls_names = Symbol.(fix_name_ambiguity(split(object_class_names, ",")))
     class_relationships = []
-    vals_ = Dict{Tuple{Vararg{Object}},Dict{Symbol,CallableLike}}()
+    vals_ = Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractCallable}}()
     for ent in class_entities
         object_name_list = split(ent["object_name_list"], ",")
         object_id_list = parse.(Int, split(ent["object_id_list"], ","))
@@ -162,28 +190,10 @@ function parameter_handle(classes, param_defs)
         dim_count = length(split(get(class, "object_class_id_list", ""), ","))
         for param_def in class_param_defs
             parameter_name = param_def["name"]
-            default_val = try
-                callable(db_api.from_database(param_def["default_value"]))
-            catch e
-                if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
-                    rethrow(
-                        ErrorException("unable to parse default value of '$parameter_name': $(sprint(showerror, e))")
-                    )
-                else
-                    rethrow()
-                end
-            end
-            push!(
-                get!(
-                    d, 
-                    Symbol(parameter_name), 
-                    Tuple{Pair{Symbol,CallableLike},Int64}[]
-                ), 
-                (Symbol(class_name) => default_val, dim_count)
-            )
+            push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), dim_count))
         end
     end
-    Dict(name => (name, Dict(first.(sort(tups; by=last, rev=true)))) for (name, tups) in d)
+    Dict(name => (name, first.(sort(tups; by=last, rev=true))) for (name, tups) in d)
 end
 
 
@@ -238,7 +248,6 @@ how to call the convenience functors.
 function using_spinedb(db_map::PyObject, mod=@__MODULE__)
     obj_class_handle, rel_class_handle, param_handle = spinedb_handle(db_map)
     @eval mod begin
-        using SpineInterface
         _spine_object_class = Vector{ObjectClass}()
         _spine_relationship_class = Vector{RelationshipClass}()
         _spine_parameter = Vector{Parameter}()
@@ -260,22 +269,24 @@ function using_spinedb(db_map::PyObject, mod=@__MODULE__)
             export $name
         end
     end
-    for (name, value) in param_handle
-        name_, default_values_ = value
-        default_values = Dict(getfield(mod, class) => default_value for (class, default_value) in default_values_)
+    for (name, value) in param_handle            
+        name_, class_names = value
+        classes = [getfield(mod, x) for x in class_names]
         @eval mod begin
-            $name = Parameter($(Expr(:quote, name_)), $default_values)
+            $name = Parameter($(Expr(:quote, name_)), $classes)
             push!(_spine_parameter, $name)
             export $name
         end
     end
 end
 
-_getproperty_or_nothing(m::Module, name::Symbol) = (name in names(m; all=true)) ? getproperty(m, name) : nothing
+function _getproperty_or_default(m::Module, name::Symbol, default=nothing)
+    (name in names(m; all=true)) ? getproperty(m, name) : default
+end
 
-object_class(m=@__MODULE__) = _getproperty_or_nothing(m, :_spine_object_class)
-relationship_class(m=@__MODULE__) = _getproperty_or_nothing(m, :_spine_relationship_class)
-parameter(m=@__MODULE__) = _getproperty_or_nothing(m, :_spine_parameter)
+object_class(m=@__MODULE__) = _getproperty_or_default(m, :_spine_object_class)
+relationship_class(m=@__MODULE__) = _getproperty_or_default(m, :_spine_relationship_class)
+parameter(m=@__MODULE__) = _getproperty_or_default(m, :_spine_parameter)
 
 function notusing_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     db_map = db_api.DiffDatabaseMapping(db_url, upgrade=upgrade)

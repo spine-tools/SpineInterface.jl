@@ -145,7 +145,7 @@ function lower_upper(h::TimeSeriesMap, t_start::DateTime, t_end::DateTime)
     lower, upper
 end
 
-function (p::TimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
+function (p::StandardTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
     p.value.ignore_year && (t -= Year(start(t)))
     ab = lower_upper(p.t_map, start(t), end_(t))
@@ -199,7 +199,7 @@ callable(parsed_value::ScalarDuration) = ScalarCallable(parsed_value.value)
 callable(parsed_value::ArrayDuration) = ArrayCallable(parsed_value.value)
 callable(parsed_value::Array_) = ArrayCallable(parsed_value.value)
 callable(parsed_value::TimePattern) = TimePatternCallable(parsed_value)
-callable(parsed_value::TimeSeries) = TimeSeriesCallableLike(parsed_value)
+callable(parsed_value::TimeSeries) = TimeSeriesCallable(parsed_value)
 
 
 # Iterate single ScalarCallable as collection
@@ -216,5 +216,5 @@ Base.copy(c::NothingCallable) = c
 Base.copy(c::ScalarCallable) = c
 Base.copy(c::ArrayCallable) = ArrayCallable(copy(c.value))
 Base.copy(c::TimePatternCallable) = TimePatternCallable(copy(c.value))
-Base.copy(c::TimeSeriesCallable) = TimeSeriesCallable(copy(c.value), c.t_map)
+Base.copy(c::StandardTimeSeriesCallable) = StandardTimeSeriesCallable(copy(c.value), c.t_map)
 Base.copy(c::RepeatingTimeSeriesCallable) = RepeatingTimeSeriesCallable(copy(c.value), c.span, c.valsum, c.len, c.t_map)

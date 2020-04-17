@@ -54,12 +54,12 @@ ObjectLike = Union{AbstractObject,Int64}
 
 Relationship{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
 
-abstract type CallableLike end
+abstract type AbstractCallable end
 
 struct ObjectClass
     name::Symbol
     objects::Array{Object,1}
-    parameter_values::Dict{Object,Dict{Symbol,CallableLike}}
+    parameter_values::Dict{Object,Dict{Symbol,AbstractCallable}}
 end
 
 ObjectClass(name, objects) = ObjectClass(name, objects, Dict())
@@ -68,20 +68,20 @@ struct RelationshipClass
     name::Symbol
     object_class_names::Array{Symbol,1}
     relationships::Array{Relationship,1}
-    parameter_values::Dict{Tuple{Vararg{Object}},Dict{Symbol,CallableLike}}
+    parameter_values::Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractCallable}}
     lookup_cache::Dict
     RelationshipClass(name, obj_cls_names, rels, vals) = new(name, obj_cls_names, rels, vals, Dict())
 end
 
 RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict())
 
-
 struct Parameter
     name::Symbol
-    default_values::Dict{Union{ObjectClass,RelationshipClass},CallableLike}
+    classes::Array{Union{ObjectClass,RelationshipClass},1}
 end
 
-Parameter(name) = Parameter(name, Dict())
+Parameter(name) = Parameter(name, [])
+
 
 """
     TimeSlice
@@ -154,22 +154,22 @@ struct TimeSeries{V}
     end
 end
 
-# CallableLike subtypes
+# AbstractCallable subtypes
 # These are wrappers around standard Julia types and our special types above,
 # that override the call operator
 
-struct NothingCallable <: CallableLike
+struct NothingCallable <: AbstractCallable
 end
 
-struct ScalarCallable{T} <: CallableLike
+struct ScalarCallable{T} <: AbstractCallable
     value::T
 end
 
-struct ArrayCallable{T,N} <: CallableLike
+struct ArrayCallable{T,N} <: AbstractCallable
     value::Array{T,N}
 end
 
-struct TimePatternCallable{T} <: CallableLike
+struct TimePatternCallable{T} <: AbstractCallable
     value::TimePattern{T}
 end
 
@@ -180,14 +180,14 @@ struct TimeSeriesMap
     map_end::DateTime
 end
 
-abstract type TimeSeriesCallableLike <: CallableLike end
+abstract type AbstractTimeSeriesCallable <: AbstractCallable end
 
-struct TimeSeriesCallable{V} <: TimeSeriesCallableLike
+struct StandardTimeSeriesCallable{V} <: AbstractTimeSeriesCallable
     value::TimeSeries{V}
     t_map::TimeSeriesMap
 end
 
-struct RepeatingTimeSeriesCallable{V} <: TimeSeriesCallableLike
+struct RepeatingTimeSeriesCallable{V} <: AbstractTimeSeriesCallable
     value::TimeSeries{V}
     span::Union{Period,Nothing}
     valsum::V
@@ -198,7 +198,7 @@ end
 # Required outer constructors
 ScalarCallable(s::String) = ScalarCallable(Symbol(s))
 
-function TimeSeriesCallableLike(ts::TimeSeries{V}) where {V}
+function TimeSeriesCallable(ts::TimeSeries{V}) where {V}
     t_map = TimeSeriesMap(ts.indexes)
     if ts.repeat
         span = ts.indexes[end] - ts.indexes[1]
@@ -206,7 +206,7 @@ function TimeSeriesCallableLike(ts::TimeSeries{V}) where {V}
         len = length(ts.values)
         RepeatingTimeSeriesCallable(ts, span, valsum, len, t_map)
     else
-        TimeSeriesCallable(ts, t_map)
+        StandardTimeSeriesCallable(ts, t_map)
     end
 end
 
@@ -284,7 +284,13 @@ julia> commodity(state_of_matter=:gas)
 """
 function (oc::ObjectClass)(;kwargs...)
     isempty(kwargs) && return oc.objects
-    cond(o) = all(get(oc.parameter_values[o], p, NothingCallable())() === v for (p, v) in kwargs)
+    function cond(o)
+        for (p, v) in kwargs
+            value = get(oc.parameter_values[o], p, nothing)
+            (value !== nothing && value() === v) || return false
+        end
+        true
+    end
     filter(cond, oc.objects)
 end
 
@@ -412,11 +418,11 @@ function (p::Parameter)(;i=nothing, t=nothing, _strict=true, kwargs...)
 end
 
 function _lookup_callable(p::Parameter; kwargs...)
-    for (class, default_val) in p.default_values
+    for class in p.classes
         lookup_key = _lookup_key(class; kwargs...)
-        lookup_key in keys(class.parameter_values) || continue
-        parameter_values = class.parameter_values[lookup_key]
-        return get(parameter_values, p.name, default_val)
+        parameter_values = get(class.parameter_values, lookup_key, nothing)
+        parameter_values === nothing && continue
+        return parameter_values[p.name]
     end
 end
 

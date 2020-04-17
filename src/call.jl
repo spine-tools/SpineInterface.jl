@@ -79,7 +79,7 @@ Base.:/(x, y::Call) = OperatorCall(/, (x, y))
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
     callable = _lookup_callable(p; inds...)
-    if callable isa TimeSeriesCallableLike || callable isa TimePatternCallable
+    if callable isa AbstractTimeSeriesCallable || callable isa TimePatternCallable
         ParameterCall(p, inds)
     else
         IdentityCall(p(; inds...))
