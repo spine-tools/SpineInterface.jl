@@ -109,41 +109,27 @@ end
 
 
 """
-    t_lowest_resolution(t_itr)
+    t_lowest_resolution!(t_arr::Array{TimeSlice,1})
 
-An `Array` holding only the lowest resolution `TimeSlice`s from `t_itr` (those that are not contained in any other).
+Keep only time slices that aren't contained in any other.
 """
-function t_lowest_resolution(t_arr::Array{TimeSlice,1})
-    isempty(t_arr) && return TimeSlice[]
-    t_arr = sort(t_arr)
-    result = [t_arr[1]]
-    for t in Iterators.drop(t_arr, 1)
-        if iscontained(result[end], t)
-            result[end] = t
-        elseif !iscontained(t, result[end])
-            push!(result, t)
-        end
-    end
-    result
+function t_lowest_resolution!(t_arr::Array{TimeSlice,1})
+    length(t_arr) <= 1 && return t_arr
+    sort!(t_arr)
+    unique!(t_arr)
+    inds_to_drop = (k for (k, (t1, t2)) in enumerate(zip(t_arr[1:end - 1], t_arr[2:end])) if iscontained(t1, t2))
+    deleteat!(t_arr, inds_to_drop)
 end
 
-t_lowest_resolution(t_iter) = isempty(t_iter) ? [] : t_lowest_resolution(collect(t_iter))
-
 """
-    t_highest_resolution(t_itr)
+    t_highest_resolution!(t_arr)
 
-An `Array` holding only the highest resolution `TimeSlice`s from `t_itr` (those that do not contain any other).
+Keep only time slices that do not contain any other.
 """
-function t_highest_resolution(t_arr::Array{TimeSlice,1})
-    isempty(t_arr) && return TimeSlice[]
-    t_arr = sort(t_arr)
-    result = [t_arr[1]]
-    for t in Iterators.drop(t_arr, 1)
-        iscontained(result[end], t) || push!(result, t)
-    end
-    result
+function t_highest_resolution!(t_arr::Array{TimeSlice,1})
+    length(t_arr) <= 1 && return t_arr
+    sort!(t_arr)
+    unique!(t_arr)
+    inds_to_drop = (k + 1 for (k, (t1, t2)) in enumerate(zip(t_arr[1:end - 1], t_arr[2:end])) if iscontained(t1, t2))
+    deleteat!(t_arr, inds_to_drop)
 end
-
-t_highest_resolution(t_iter) = isempty(t_iter) ? [] : t_highest_resolution(collect(t_iter))
-
-

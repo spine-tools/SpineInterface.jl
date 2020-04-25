@@ -38,8 +38,8 @@ export before
 export iscontained
 export overlaps
 export overlap_duration
-export t_lowest_resolution
-export t_highest_resolution
+export t_lowest_resolution!
+export t_highest_resolution!
 export TimeSliceMap
 export TimeSeries
 export indices

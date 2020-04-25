@@ -356,25 +356,25 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 """
 function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
-    lookup_key = tuple((_immutable(get(kwargs, oc, anything)) for oc in rc.object_class_names)...)
+    lookup_key = Tuple(_immutable(get(kwargs, oc, anything)) for oc in rc.object_class_names)
     relationships = get!(rc.lookup_cache, lookup_key) do
         cond(rel) = all(rel[rc] in r for (rc, r) in kwargs)
         filter(cond, rc.relationships)
     end
     isempty(relationships) && return _default
     _compact || return relationships
-    head = setdiff(rc.object_class_names, keys(kwargs))
-    if length(head) == 1
-        unique(x[head...] for x in relationships)
-    elseif length(head) > 1
-        unique(NamedTuple{tuple(head...)}([x[k] for k in head]) for x in relationships)
-    else
+    object_class_names = setdiff(rc.object_class_names, keys(kwargs))
+    if isempty(object_class_names)
         _default
+    elseif length(object_class_names) == 1
+        unique(x[object_class_names[1]] for x in relationships)
+    else
+        unique(NamedTuple{Tuple(object_class_names)}([x[k] for k in object_class_names]) for x in relationships)
     end
 end
 
 _immutable(x) = x
-_immutable(arr::T) where T<:AbstractArray = (length(arr) == 1) ? first(arr) : tuple(arr...)
+_immutable(arr::T) where T<:AbstractArray = (length(arr) == 1) ? first(arr) : Tuple(arr)
 
 
 """

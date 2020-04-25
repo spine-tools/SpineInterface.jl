@@ -85,3 +85,6 @@ function Base.getindex(p::Parameter, inds::NamedTuple)
         IdentityCall(p(; inds...))
     end
 end
+
+# Patches: these just work-around `MethodError`s, but we should try something more consistent
+Base.abs(call::IdentityCall) = IdentityCall(abs(realize(call)))
