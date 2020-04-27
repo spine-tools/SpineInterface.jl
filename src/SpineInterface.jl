@@ -18,16 +18,21 @@ const db_api = PyNULL()
 const required_spinedb_api_version = v"0.4.0"
 
 export Anything
+export Object
+export ObjectLike
+export Relationship
 export ObjectClass
 export RelationshipClass
 export Parameter
-export ObjectLike
 export AbstractCallable
-export Object
-export Relationship
 export TimeSlice
+export TimeSliceMap
+export TimeSeries
+export Call
 export using_spinedb
 export notusing_spinedb
+export anything
+export indices
 export write_parameters
 export blocks
 export duration
@@ -39,18 +44,15 @@ export iscontained
 export overlaps
 export overlap_duration
 export t_lowest_resolution!
+export t_lowest_resolution
 export t_highest_resolution!
-export TimeSliceMap
-export TimeSeries
-export indices
-export anything
-export Call
+export t_highest_resolution
+export callable
 export realize
 export is_varying
 export object_class
 export relationship_class
 export parameter
-export callable
 export db_api
 
 function __init__()
