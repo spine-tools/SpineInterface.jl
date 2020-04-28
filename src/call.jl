@@ -75,6 +75,9 @@ Base.:*(x, y::Call) = OperatorCall(*, (x, y))
 Base.:/(x::Call, y::Call) = OperatorCall(/, (x, y))
 Base.:/(x::Call, y) = OperatorCall(/, (x, y))
 Base.:/(x, y::Call) = OperatorCall(/, (x, y))
+Base.:min(x::Call, y::Call) = OperatorCall(min, (x, y))
+Base.:min(x::Call, y) = OperatorCall(min, (x, y))
+Base.:min(x, y::Call) = OperatorCall(min, (x, y))
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
