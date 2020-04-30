@@ -31,7 +31,7 @@ end
 
 TimeSlice(other::TimeSlice) = other
 
-Base.show(io::IO, t::TimeSlice) = print(io, "$(start(t))")
+Base.show(io::IO, t::TimeSlice) = print(io, "$(start(t)) ~> $(end_(t))")
 
 """
     duration(t::TimeSlice)
