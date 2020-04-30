@@ -56,7 +56,7 @@ julia> collect(indices(demand))
 """
 function indices(p::Parameter; kwargs...)
     (
-        ent 
+        ent
         for class in p.classes
         for ent in _lookup_entities(class; kwargs...)
         if class.parameter_values[_entity_key(ent)][p.name]() !== nothing
@@ -124,4 +124,15 @@ function DiffDatabaseMapping(db_url::String; upgrade=false)
             rethrow()
         end
     end
+end
+
+function new_rel_with_defaults(relationship_class, inds)
+    push!(relationship_class.relationships, inds)
+    relationship_class.parameter_values[values(inds)]=copy(relationship_class.parameter_defaults)
+end
+
+function new_obj_with_defaults(object_class, name)
+    new_o = Object(name, 0)
+    push!(object_class.objects, new_o)
+    object_class.parameter_values[new_o] = copy(object_class.parameter_defaults)
 end
