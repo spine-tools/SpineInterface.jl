@@ -147,7 +147,7 @@ function class_handle(classes, entities, param_defs, param_vals)
         vals = Dict(
             ent["id"] => parameter_values(ent, class_param_defs, param_vals, default_vals) for ent in class_entities
         )
-        copyable_defaults=Dict(
+        copyable_defaults = Dict(
             Symbol(p_name) => default
             for (p_name, default) in default_vals
         )
