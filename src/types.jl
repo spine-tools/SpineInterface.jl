@@ -76,6 +76,7 @@ struct RelationshipClass
 end
 
 RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict(), Dict())
+RelationshipClass(name, obj_cls_names, rels, vals) = RelationshipClass(name, obj_cls_names, rels, vals, Dict())
 
 struct Parameter
     name::Symbol

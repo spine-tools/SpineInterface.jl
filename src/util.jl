@@ -128,6 +128,7 @@ end
 
 function push_default_relationship!(relationship_class, inds)
     push!(relationship_class.relationships, inds)
+    empty!(relationship_class.lookup_cache)
     relationship_class.parameter_values[values(inds)]=copy(relationship_class.parameter_defaults)
 end
 
