@@ -69,8 +69,9 @@ struct RelationshipClass
     object_class_names::Array{Symbol,1}
     relationships::Array{Relationship,1}
     parameter_values::Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractCallable}}
-    lookup_cache::Dict
-    RelationshipClass(name, obj_cls_names, rels, vals) = new(name, obj_cls_names, rels, vals, Dict())
+    lookup_cache::Dict{Bool,Dict}
+    RelationshipClass(name, obj_cls_names, rels, vals) =
+        new(name, obj_cls_names, rels, vals, Dict(:true => Dict(), :false => Dict()))
 end
 
 RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict())
@@ -357,19 +358,26 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
     lookup_key = Tuple(_immutable(get(kwargs, oc, anything)) for oc in rc.object_class_names)
-    relationships = get!(rc.lookup_cache, lookup_key) do
+    relationships = get!(rc.lookup_cache[_compact], lookup_key) do
         cond(rel) = all(rel[rc] in r for (rc, r) in kwargs)
-        filter(cond, rc.relationships)
+        filtered = filter(cond, rc.relationships)
+        if !_compact
+            filtered
+        else
+            object_class_names = setdiff(rc.object_class_names, keys(kwargs))
+            if isempty(object_class_names)
+                []
+            elseif length(object_class_names) == 1
+                unique(x[object_class_names[1]] for x in filtered)
+            else
+                unique(NamedTuple{Tuple(object_class_names)}([x[k] for k in object_class_names]) for x in filtered)
+            end
+        end
     end
-    isempty(relationships) && return _default
-    _compact || return relationships
-    object_class_names = setdiff(rc.object_class_names, keys(kwargs))
-    if isempty(object_class_names)
-        _default
-    elseif length(object_class_names) == 1
-        unique(x[object_class_names[1]] for x in relationships)
+    if !isempty(relationships)
+        relationships
     else
-        unique(NamedTuple{Tuple(object_class_names)}([x[k] for k in object_class_names]) for x in relationships)
+        _default
     end
 end
 
