@@ -54,6 +54,9 @@ export object_class
 export relationship_class
 export parameter
 export db_api
+export push_default_object!
+export push_default_relationship!
+
 
 function __init__()
     try
@@ -72,7 +75,7 @@ function __init__()
 
                     $(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
 
-                B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run 
+                B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run
 
                     ENV["PYTHON"] = "... path of the python executable ..."
                     Pkg.build("PyCall")
@@ -90,14 +93,14 @@ function __init__()
         The required version of `spinedb_api` could not be found in the current Python environment
 
             $(PyCall.pyprogramname)
-            
+
         You can fix this in two different ways:
 
         A. Upgrade `spinedb_api` to its latest version in the current Python environment; open a terminal (command prompt on Windows) and run
 
             $(PyCall.pyprogramname) -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'
 
-        B. Switch to another Python environment that has the latest version of `spinedb_api` installed; from Julia, run 
+        B. Switch to another Python environment that has the latest version of `spinedb_api` installed; from Julia, run
 
             ENV["PYTHON"] = "... path of the python executable ..."
             Pkg.build("PyCall")
