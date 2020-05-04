@@ -66,7 +66,7 @@ function default_parameter_values(param_defs)
         parameter_name = param_def["name"]
         default_value = param_def["default_value"]
         d[parameter_name] = try
-            callable(db_api.from_database(default_value))
+            parameter_value(db_api.from_database(default_value))
         catch e
             if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
                 rethrow(
@@ -84,7 +84,7 @@ end
 A Dict mapping parameter names to their parameter_values for a given entity.
 """
 function parameter_values(entity, param_defs, param_vals, default_vals)
-    d = Dict{Symbol,AbstractCallable}()
+    d = Dict{Symbol,AbstractParameterValue}()
     entity_id = entity["id"]
     entity_name = entity["name"]
     for param_def in param_defs
@@ -95,7 +95,7 @@ function parameter_values(entity, param_defs, param_vals, default_vals)
             copy(default_vals[parameter_name])
         else
             try
-                callable(db_api.from_database(value))
+                parameter_value(db_api.from_database(value))
             catch e
                 if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
                     rethrow(
@@ -161,14 +161,14 @@ end
 
 function class_handle_entry(class, ::Nothing, class_entities, vals, default_vals)
     class_objects = [Object(ent["name"], ent["id"]) for ent in class_entities]
-    vals_ = Dict{Object,Dict{Symbol,AbstractCallable}}(obj => vals[obj.id] for obj in class_objects)
+    vals_ = Dict{Object,Dict{Symbol,AbstractParameterValue}}(obj => vals[obj.id] for obj in class_objects)
     Symbol(class["name"]), class_objects, vals_, default_vals
 end
 
 function class_handle_entry(class, object_class_names, class_entities, vals, default_vals)
     obj_cls_names = Symbol.(fix_name_ambiguity(split(object_class_names, ",")))
     class_relationships = []
-    vals_ = Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractCallable}}()
+    vals_ = Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractParameterValue}}()
     for ent in class_entities
         object_name_list = split(ent["object_name_list"], ",")
         object_id_list = parse.(Int, split(ent["object_id_list"], ","))

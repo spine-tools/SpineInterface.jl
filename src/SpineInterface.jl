@@ -22,7 +22,7 @@ export Relationship
 export ObjectClass
 export RelationshipClass
 export Parameter
-export AbstractCallable
+export AbstractParameterValue
 export TimeSlice
 export TimeSliceMap
 export TimeSeries
@@ -45,7 +45,7 @@ export t_lowest_resolution!
 export t_lowest_resolution
 export t_highest_resolution!
 export t_highest_resolution
-export callable
+export parameter_value
 export realize
 export is_varying
 export object_class

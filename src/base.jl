@@ -27,16 +27,16 @@ Base.iterate(o::Object) = iterate((o,))
 Base.iterate(o::Object, state::T) where T = iterate((o,), state)
 Base.iterate(t::TimeSlice) = iterate((t,))
 Base.iterate(t::TimeSlice, state::T) where T = iterate((t,), state)
-Base.iterate(v::ScalarCallable) = iterate((v,))
-Base.iterate(v::ScalarCallable, state::T) where T = iterate((v,), state)
+Base.iterate(v::ScalarParameterValue) = iterate((v,))
+Base.iterate(v::ScalarParameterValue, state::T) where T = iterate((v,), state)
 
 Base.length(t::TimeSlice) = 1
 Base.length(o::Object) = 1
-Base.length(v::ScalarCallable) = 1
+Base.length(v::ScalarParameterValue) = 1
 
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
-Base.isless(v1::ScalarCallable, v2::ScalarCallable) = v1.value < v2.value
+Base.isless(v1::ScalarParameterValue, v2::ScalarParameterValue) = v1.value < v2.value
 
 Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
 Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
@@ -52,7 +52,7 @@ Base.show(io::IO, t::TimeSlice) = print(io, "$(start(t)) ~> $(end_(t))")
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
-Base.show(io::IO, v::ScalarCallable) = print(io, v.value)
+Base.show(io::IO, v::ScalarParameterValue) = print(io, v.value)
 Base.show(io::IO, call::IdentityCall) = print(io, call.value)
 Base.show(io::IO, call::OperatorCall) = print(io, join(call.args, string(" ", call.operator, " ")))
 function Base.show(io::IO, call::ParameterCall)
@@ -108,12 +108,14 @@ Base.convert(::Type{Call}, x::T) where {T<:Real} = IdentityCall(x)
 Base.copy(dur::ArrayDuration) = ArrayDuration(copy(dur.value))
 Base.copy(tp::TimePattern) = TimePattern(Y=tp.Y, M=tp.M, D=tp.D, WD=tp.WD, h=tp.h, m=tp.m, s=tp.s)
 Base.copy(ts::TimeSeries{T}) where T = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
-Base.copy(c::NothingCallable) = c
-Base.copy(c::ScalarCallable) = c
-Base.copy(c::ArrayCallable) = ArrayCallable(copy(c.value))
-Base.copy(c::TimePatternCallable) = TimePatternCallable(copy(c.value))
-Base.copy(c::StandardTimeSeriesCallable) = StandardTimeSeriesCallable(copy(c.value), c.t_map)
-Base.copy(c::RepeatingTimeSeriesCallable) = RepeatingTimeSeriesCallable(copy(c.value), c.span, c.valsum, c.len, c.t_map)
+Base.copy(c::NothingParameterValue) = c
+Base.copy(c::ScalarParameterValue) = c
+Base.copy(c::ArrayParameterValue) = ArrayParameterValue(copy(c.value))
+Base.copy(c::TimePatternParameterValue) = TimePatternParameterValue(copy(c.value))
+Base.copy(c::StandardTimeSeriesParameterValue) = StandardTimeSeriesParameterValue(copy(c.value), c.t_map)
+function Base.copy(c::RepeatingTimeSeriesParameterValue)
+	RepeatingTimeSeriesParameterValue(copy(c.value), c.span, c.valsum, c.len, c.t_map)
+end
 Base.copy(c::ParameterCall) = ParameterCall(c.parameter, c.kwargs)
 Base.copy(c::OperatorCall) = OperatorCall(c.operator, c.args)
 Base.copy(c::IdentityCall) = IdentityCall(c.value)
@@ -151,8 +153,8 @@ Base.:min(x, y::Call) = OperatorCall(min, (x, y))
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
-    callable = _lookup_callable(p; inds...)
-    if callable isa AbstractTimeSeriesCallable || callable isa TimePatternCallable
+    parameter_value = _lookup_parameter_value(p; inds...)
+    if parameter_value isa AbstractTimeSeriesParameterValue || parameter_value isa TimePatternParameterValue
         ParameterCall(p, inds)
     else
         IdentityCall(p(; inds...))

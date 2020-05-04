@@ -105,17 +105,17 @@ function TimeSeriesMap(stamps::Array{DateTime,1})
     TimeSeriesMap(index, map_start, map_end)
 end
 
-ScalarCallable(s::String) = ScalarCallable(Symbol(s))
+ScalarParameterValue(s::String) = ScalarParameterValue(Symbol(s))
 
-function TimeSeriesCallable(ts::TimeSeries{V}) where {V}
+function TimeSeriesParameterValue(ts::TimeSeries{V}) where {V}
     t_map = TimeSeriesMap(ts.indexes)
     if ts.repeat
         span = ts.indexes[end] - ts.indexes[1]
         valsum = sum(ts.values)
         len = length(ts.values)
-        RepeatingTimeSeriesCallable(ts, span, valsum, len, t_map)
+        RepeatingTimeSeriesParameterValue(ts, span, valsum, len, t_map)
     else
-        StandardTimeSeriesCallable(ts, t_map)
+        StandardTimeSeriesParameterValue(ts, t_map)
     end
 end
 
@@ -123,20 +123,6 @@ end
 function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
 end
-
-# Create callable from value parsed from database
-callable(parsed_value::Nothing) = NothingCallable()
-callable(parsed_value::Bool) = ScalarCallable(parsed_value)
-callable(parsed_value::Int64) = ScalarCallable(parsed_value)
-callable(parsed_value::Float64) = ScalarCallable(parsed_value)
-callable(parsed_value::String) = ScalarCallable(parsed_value)
-callable(parsed_value::Array) = ArrayCallable(parsed_value)
-callable(parsed_value::DateTime_) = ScalarCallable(parsed_value.value)
-callable(parsed_value::ScalarDuration) = ScalarCallable(parsed_value.value)
-callable(parsed_value::ArrayDuration) = ArrayCallable(parsed_value.value)
-callable(parsed_value::Array_) = ArrayCallable(parsed_value.value)
-callable(parsed_value::TimePattern) = TimePatternCallable(parsed_value)
-callable(parsed_value::TimeSeries) = TimeSeriesCallable(parsed_value)
 
 Call(n) = IdentityCall(n)
 Call(op::Function, args::Tuple) = OperatorCall(op, args)

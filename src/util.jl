@@ -22,7 +22,7 @@ _next_id(id_factory::ObjectIdFactory) = id_factory.max_object_id[] += 1
 _immutable(x) = x
 _immutable(arr::T) where T<:AbstractArray = (length(arr) == 1) ? first(arr) : Tuple(arr)
 
-function _lookup_callable(p::Parameter; kwargs...)
+function _lookup_parameter_value(p::Parameter; kwargs...)
     for class in p.classes
         lookup_key = _lookup_key(class; kwargs...)
         parameter_values = get(class.parameter_values, lookup_key, nothing)
@@ -69,15 +69,15 @@ function _getproperty_or_default(m::Module, name::Symbol, default=nothing)
     (name in names(m; all=true)) ? getproperty(m, name) : default
 end
 
-(p::NothingCallable)(;kwargs...) = nothing
-(p::ScalarCallable)(;kwargs...) = p.value
+(p::NothingParameterValue)(;kwargs...) = nothing
+(p::ScalarParameterValue)(;kwargs...) = p.value
 
-function (p::ArrayCallable)(;i::Union{Int64,Nothing}=nothing, kwargs...)
+function (p::ArrayParameterValue)(;i::Union{Int64,Nothing}=nothing, kwargs...)
     i === nothing && return p.value
     get(p.value, i, nothing)
 end
 
-function (p::TimePatternCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
+function (p::TimePatternParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
     values = [val for (tp, val) in p.value if iscontained(t, tp)]
     if isempty(values)
@@ -87,7 +87,7 @@ function (p::TimePatternCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs..
     end
 end
 
-function (p::StandardTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
+function (p::StandardTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
     p.value.ignore_year && (t -= Year(start(t)))
     ab = _lower_upper(p.t_map, start(t), end_(t))
@@ -97,7 +97,7 @@ function (p::StandardTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, k
     mean(p.value.values[a:b])
 end
 
-function (p::RepeatingTimeSeriesCallable)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
+function (p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
     t_start = start(t)
     p.value.ignore_year && (t_start -= Year(t_start))

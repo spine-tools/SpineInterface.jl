@@ -17,11 +17,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 """
-    AbstractCallable
+    AbstractParameterValue
 
 Supertype for all parameter value callables.
 """
-abstract type AbstractCallable end
+abstract type AbstractParameterValue end
 
 """
     AbstractObject
@@ -61,16 +61,16 @@ end
 struct ObjectClass
     name::Symbol
     objects::Array{Object,1}
-    parameter_values::Dict{Object,Dict{Symbol,AbstractCallable}}
-    parameter_defaults::Dict{Symbol,AbstractCallable}
+    parameter_values::Dict{Object,Dict{Symbol,AbstractParameterValue}}
+    parameter_defaults::Dict{Symbol,AbstractParameterValue}
 end
 
 struct RelationshipClass
     name::Symbol
     object_class_names::Array{Symbol,1}
     relationships::Array{Relationship,1}
-    parameter_values::Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractCallable}}
-    parameter_defaults::Dict{Symbol,AbstractCallable}
+    parameter_values::Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractParameterValue}}
+    parameter_defaults::Dict{Symbol,AbstractParameterValue}
     lookup_cache::Dict{Bool,Dict}
     RelationshipClass(name, obj_cls_names, rels, vals, defaults) =
         new(name, obj_cls_names, rels, vals, defaults, Dict(:true => Dict(), :false => Dict()))
@@ -157,20 +157,20 @@ struct TimeSeries{V}
     end
 end
 
-# AbstractCallable subtypes
+# AbstractParameterValue subtypes
 # These are wrappers around standard Julia types and our parameter value types, that override the call operator
-struct NothingCallable <: AbstractCallable
+struct NothingParameterValue <: AbstractParameterValue
 end
 
-struct ScalarCallable{T} <: AbstractCallable
+struct ScalarParameterValue{T} <: AbstractParameterValue
     value::T
 end
 
-struct ArrayCallable{T,N} <: AbstractCallable
+struct ArrayParameterValue{T,N} <: AbstractParameterValue
     value::Array{T,N}
 end
 
-struct TimePatternCallable{T} <: AbstractCallable
+struct TimePatternParameterValue{T} <: AbstractParameterValue
     value::TimePattern{T}
 end
 
@@ -181,14 +181,14 @@ struct TimeSeriesMap
     map_end::DateTime
 end
 
-abstract type AbstractTimeSeriesCallable <: AbstractCallable end
+abstract type AbstractTimeSeriesParameterValue <: AbstractParameterValue end
 
-struct StandardTimeSeriesCallable{V} <: AbstractTimeSeriesCallable
+struct StandardTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     value::TimeSeries{V}
     t_map::TimeSeriesMap
 end
 
-struct RepeatingTimeSeriesCallable{V} <: AbstractTimeSeriesCallable
+struct RepeatingTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     value::TimeSeries{V}
     span::Union{Period,Nothing}
     valsum::V

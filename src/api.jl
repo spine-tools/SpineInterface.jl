@@ -190,8 +190,8 @@ julia> demand(node=:Sthlm, i=1)
 ```
 """
 function (p::Parameter)(;i=nothing, t=nothing, _strict=true, kwargs...)
-    callable = _lookup_callable(p; kwargs...)
-    callable != nothing && return callable(i=i, t=t)
+    parameter_value = _lookup_parameter_value(p; kwargs...)
+    parameter_value != nothing && return parameter_value(i=i, t=t)
     _strict && error("parameter $p is not specified for argument(s) $(kwargs...)")
     nothing
 end
@@ -502,7 +502,6 @@ function write_parameter!(
     added
 end
 
-
 """
     write_parameters(parameters, url::String; <keyword arguments>)
 
@@ -575,3 +574,23 @@ function DiffDatabaseMapping(db_url::String; upgrade=false)
         end
     end
 end
+
+
+# Create parameter_value from value parsed from database
+"""
+    parameter_value(parsed_db_value)
+
+An `AbstractParameterValue` object from the given parsed db value.
+"""
+parameter_value(::Nothing) = NothingParameterValue()
+parameter_value(parsed_db_value::Bool) = ScalarParameterValue(parsed_db_value)
+parameter_value(parsed_db_value::Int64) = ScalarParameterValue(parsed_db_value)
+parameter_value(parsed_db_value::Float64) = ScalarParameterValue(parsed_db_value)
+parameter_value(parsed_db_value::String) = ScalarParameterValue(parsed_db_value)
+parameter_value(parsed_db_value::Array) = ArrayParameterValue(parsed_db_value)
+parameter_value(parsed_db_value::DateTime_) = ScalarParameterValue(parsed_db_value.value)
+parameter_value(parsed_db_value::ScalarDuration) = ScalarParameterValue(parsed_db_value.value)
+parameter_value(parsed_db_value::ArrayDuration) = ArrayParameterValue(parsed_db_value.value)
+parameter_value(parsed_db_value::Array_) = ArrayParameterValue(parsed_db_value.value)
+parameter_value(parsed_db_value::TimePattern) = TimePatternParameterValue(parsed_db_value)
+parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_db_value)
