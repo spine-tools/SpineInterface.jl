@@ -6,13 +6,11 @@ using Suppressor
 using Statistics
 
 include("types.jl")
-include("period_collection.jl")
-include("parameter_value.jl")
-include("time_slice.jl")
-include("using_spinedb.jl")
-include("write_parameters.jl")
 include("util.jl")
-include("call.jl")
+include("base.jl")
+include("constructors.jl")
+include("using_spinedb.jl")
+include("api.jl")
 
 const db_api = PyNULL()
 const required_spinedb_api_version = v"0.4.0"

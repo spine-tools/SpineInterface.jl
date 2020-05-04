@@ -17,7 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-
 """
 A dictionary mapping class ids to a list of entities in that class.
 """
@@ -200,7 +199,6 @@ function parameter_handle(classes, param_defs)
     Dict(name => (name, first.(sort(tups; by=last, rev=true))) for (name, tups) in d)
 end
 
-
 function spinedb_handle(db_map::PyObject)
     object_classes = py"[x._asdict() for x in $db_map.query($db_map.object_class_sq)]"
     relationship_classes = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_class_sq)]"
@@ -239,7 +237,7 @@ function using_spinedb(db_map::PyObject, mod=@__MODULE__)
     id_factory = ObjectIdFactory(UInt64(max_obj_id))
     @eval mod begin
         function SpineInterface.Object(name::Symbol; id_factory=$id_factory)
-            Object(name, SpineInterface.next_id(id_factory))
+            Object(name, SpineInterface._next_id(id_factory))
         end
     end
     @eval mod begin
@@ -277,14 +275,6 @@ function using_spinedb(db_map::PyObject, mod=@__MODULE__)
         end
     end
 end
-
-function _getproperty_or_default(m::Module, name::Symbol, default=nothing)
-    (name in names(m; all=true)) ? getproperty(m, name) : default
-end
-
-object_class(m=@__MODULE__) = _getproperty_or_default(m, :_spine_object_class)
-relationship_class(m=@__MODULE__) = _getproperty_or_default(m, :_spine_relationship_class)
-parameter(m=@__MODULE__) = _getproperty_or_default(m, :_spine_parameter)
 
 function notusing_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     db_map = db_api.DiffDatabaseMapping(db_url, upgrade=upgrade)
