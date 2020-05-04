@@ -17,6 +17,21 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 """
+    AbstractCallable
+
+Supertype for all parameter value callables.
+"""
+abstract type AbstractCallable end
+
+"""
+    AbstractObject
+
+Supertype for [`Object`](@ref) and [`TimeSlice`](@ref).
+"""
+abstract type AbstractObject end
+
+
+"""
     Anything
 
 A type with no fields that is the type of [`anything`](@ref).
@@ -32,13 +47,6 @@ in calls to [`RelationshipClass()`](@ref).
 anything = Anything()
 
 """
-    AbstractObject
-
-Supertype for [`Object`](@ref) and [`TimeSlice`](@ref).
-"""
-abstract type AbstractObject end
-
-"""
     Object
 
 A type for representing an object in a Spine db.
@@ -48,13 +56,14 @@ struct Object <: AbstractObject
     id::UInt64
 end
 
-Object(name::AbstractString, args...) = Object(Symbol(name), args...)
-
 ObjectLike = Union{AbstractObject,Int64}
 
 Relationship{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
 
-abstract type AbstractCallable end
+struct ObjectIdFactory
+    max_object_id::Ref{UInt64}
+    ObjectIdFactory(i) = new(Ref(i))
+end
 
 struct ObjectClass
     name::Symbol
@@ -85,7 +94,6 @@ struct Parameter
 end
 
 Parameter(name) = Parameter(name, [])
-
 
 """
     TimeSlice
@@ -229,6 +237,11 @@ struct ParameterCall <: Call
     parameter::Parameter
     kwargs::NamedTuple
 end
+
+Object(name::AbstractString, args...) = Object(Symbol(name), args...)
+Object(name::Symbol) = Base.invokelatest(Object, name)  # NOTE: this allows us to override `Object` in `using_spinedb`
+
+next_id(id_factory::ObjectIdFactory) = id_factory.max_object_id[] += 1
 
 Base.intersect(::Anything, s) = s
 Base.intersect(s::T, ::Anything) where T<:AbstractArray = s

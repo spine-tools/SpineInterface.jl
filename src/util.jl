@@ -126,15 +126,13 @@ function DiffDatabaseMapping(db_url::String; upgrade=false)
     end
 end
 
-function push_default_relationship!(relationship_class, inds)
-    push!(relationship_class.relationships, inds)
+function push_default_relationship!(relationship_class::RelationshipClass, relationship::Relationship)
+    push!(relationship_class.relationships, relationship)
     empty!(relationship_class.lookup_cache)
-    relationship_class.parameter_values[values(inds)]=copy(relationship_class.parameter_defaults)
+    relationship_class.parameter_values[values(relationship)] = copy(relationship_class.parameter_defaults)
 end
 
-function push_default_object!(object_class, name)
-    global _max_object_id += 1
-    new_o = Object(name, _max_object_id)
-    push!(object_class.objects, new_o)
-    object_class.parameter_values[new_o] = copy(object_class.parameter_defaults)
+function push_default_object!(object_class::ObjectClass, object::Object)
+    push!(object_class.objects, object)
+    object_class.parameter_values[object] = copy(object_class.parameter_defaults)
 end

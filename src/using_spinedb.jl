@@ -23,12 +23,10 @@ A dictionary mapping class ids to a list of entities in that class.
 """
 function entities_per_class(entities)
     d = Dict()
-    max_id = 0
     for ent in entities
         push!(get!(d, ent["class_id"], Dict[]), ent)
-        (ent["id"] > max_id) && (max_id = ent["id"])
     end
-    d, max_id
+    d
 end
 
 not_nothing(x, ::Nothing) = x
@@ -210,25 +208,23 @@ function spinedb_handle(db_map::PyObject)
     relationships = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_sq)]"
     param_defs = py"[x._asdict() for x in $db_map.query($db_map.parameter_definition_sq)]"
     param_vals = py"[x._asdict() for x in $db_map.query($db_map.parameter_value_sq)]"
-    objects, max_obj_id = entities_per_class(objects)
-    relationships, max_rel_id = entities_per_class(relationships)
-    param_defs = parameter_definitions_per_class(param_defs)
-    param_vals = parameter_values_per_entity(param_vals)
-    obj_class_handle = class_handle(object_classes, objects, param_defs, param_vals)
-    rel_class_handle = class_handle(relationship_classes, relationships, param_defs, param_vals)
-    param_handle = parameter_handle([object_classes; relationship_classes], param_defs)
+    objs_per_cls = entities_per_class(objects)
+    rels_per_cls = entities_per_class(relationships)
+    param_defs_per_cls = parameter_definitions_per_class(param_defs)
+    param_vals_per_cls = parameter_values_per_entity(param_vals)
+    obj_class_handle = class_handle(object_classes, objs_per_cls, param_defs_per_cls, param_vals_per_cls)
+    rel_class_handle = class_handle(relationship_classes, rels_per_cls, param_defs_per_cls, param_vals_per_cls)
+    param_handle = parameter_handle([object_classes; relationship_classes], param_defs_per_cls)
+    max_obj_id = reduce(max, (obj["id"] for obj in objects); init=0)
     obj_class_handle, rel_class_handle, param_handle, max_obj_id
 end
 
 
 """
-    using_spinedb(db_url::String; upgrade=false)
+    using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
 
-Take the Spine database at the given RFC-1738 `url`,
-and export convenience *functors* named after each object class, relationship class,
-and parameter in it. These functors can be used to retrieve specific contents in the db.
-
-If `upgrade` is `true`, then the database at `url` is upgraded to the latest revision.
+Extend module `mod` with convenience functions to access the contents of the Spine db at the given RFC-1738 `url`.
+If `upgrade` is `true`, then the database is upgraded to the latest revision.
 
 See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details on
 how to call the convenience functors.
@@ -238,23 +234,13 @@ function using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     using_spinedb(db_map, mod)
 end
 
-
-"""
-    using_spinedb(db_map::PyObject)
-
-Take the given `db_map` (a `spinedb_api.DiffDatabaseMapping` object),
-and export convenience *functors* named after each object class, relationship class,
-and parameter in it. These functors can be used to retrieve specific contents in the db.
-
-If `upgrade` is `true`, then the database at `url` is upgraded to the latest revision.
-
-See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details on
-how to call the convenience functors.
-"""
 function using_spinedb(db_map::PyObject, mod=@__MODULE__)
     obj_class_handle, rel_class_handle, param_handle, max_obj_id = spinedb_handle(db_map)
+    id_factory = ObjectIdFactory(UInt64(max_obj_id))
     @eval mod begin
-        _max_object_id = $max_obj_id
+        function SpineInterface.Object(name::Symbol; id_factory=$id_factory)
+            Object(name, SpineInterface.next_id(id_factory))
+        end
     end
     @eval mod begin
         _spine_object_class = Vector{ObjectClass}()
@@ -264,25 +250,28 @@ function using_spinedb(db_map::PyObject, mod=@__MODULE__)
         sizehint!(_spine_relationship_class, $(length(rel_class_handle)))
         sizehint!(_spine_parameter, $(length(param_handle)))
     end
-    for (name, value) in obj_class_handle
+    for (name, handle) in obj_class_handle
+        object_class = ObjectClass(handle...)
         @eval mod begin
-            $name = ObjectClass($value...)
+            $name = $object_class
             push!(_spine_object_class, $name)
             export $name
         end
     end
-    for (name, value) in rel_class_handle
+    for (name, handle) in rel_class_handle
+        relationship_class = RelationshipClass(handle...)
         @eval mod begin
-            $name = RelationshipClass($value...)
+            $name = $relationship_class
             push!(_spine_relationship_class, $name)
             export $name
         end
     end
-    for (name, value) in param_handle
-        name_, class_names = value
+    for (name, handle) in param_handle
+        name_, class_names = handle
         classes = [getfield(mod, x) for x in class_names]
+        parameter = Parameter(name_, classes)
         @eval mod begin
-            $name = Parameter($(Expr(:quote, name_)), $classes)
+            $name = $parameter
             push!(_spine_parameter, $name)
             export $name
         end
