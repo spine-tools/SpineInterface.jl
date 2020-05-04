@@ -60,21 +60,24 @@ struct ObjectClass
     name::Symbol
     objects::Array{Object,1}
     parameter_values::Dict{Object,Dict{Symbol,AbstractCallable}}
+    parameter_defaults::Dict{Symbol,AbstractCallable}
 end
 
-ObjectClass(name, objects) = ObjectClass(name, objects, Dict())
+ObjectClass(name, objects) = ObjectClass(name, objects, Dict(), Dict())
 
 struct RelationshipClass
     name::Symbol
     object_class_names::Array{Symbol,1}
     relationships::Array{Relationship,1}
     parameter_values::Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractCallable}}
+    parameter_defaults::Dict{Symbol,AbstractCallable}
     lookup_cache::Dict{Bool,Dict}
-    RelationshipClass(name, obj_cls_names, rels, vals) =
-        new(name, obj_cls_names, rels, vals, Dict(:true => Dict(), :false => Dict()))
+    RelationshipClass(name, obj_cls_names, rels, vals, defaults) =
+        new(name, obj_cls_names, rels, vals, defaults, Dict(:true => Dict(), :false => Dict()))
 end
 
-RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict())
+RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict(), Dict())
+RelationshipClass(name, obj_cls_names, rels, vals) = RelationshipClass(name, obj_cls_names, rels, vals, Dict())
 
 struct Parameter
     name::Symbol
@@ -441,4 +444,3 @@ function _lookup_key(class::RelationshipClass; kwargs...)
     nothing in objects && return nothing
     objects
 end
-

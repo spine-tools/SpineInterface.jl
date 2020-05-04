@@ -24,14 +24,14 @@ import Dates: CompoundPeriod
 
 Construct a `TimeSlice` with bounds given by `start` and `end_`.
 """
-function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_unit=Minute)    
+function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_unit=Minute)
     dur = Minute(end_ - start) / Minute(duration_unit(1))
     TimeSlice(start, end_, dur, blocks)
 end
 
 TimeSlice(other::TimeSlice) = other
 
-Base.show(io::IO, t::TimeSlice) = print(io, "$(start(t)) 🡒 $(end_(t))")
+Base.show(io::IO, t::TimeSlice) = print(io, "$(start(t)) ~> $(end_(t))")
 
 """
     duration(t::TimeSlice)
