@@ -289,8 +289,25 @@ The duration of time slice `t`.
 """
 duration(t::TimeSlice) = t.duration
 
+"""
+    start(t::TimeSlice)
+
+The start of time slice `t`.
+"""
 start(t::TimeSlice) = t.start[]
+
+"""
+    end_(t::TimeSlice)
+
+The end of time slice `t`.
+"""
 end_(t::TimeSlice) = t.end_[]
+
+"""
+    blocks(t::TimeSlice)
+
+The temporal blocks where time slice `t` is found.
+"""
 blocks(t::TimeSlice) = t.blocks
 
 """
@@ -362,7 +379,7 @@ end
 """
     t_lowest_resolution!(t_arr::Array{TimeSlice,1})
 
-Keep only time slices that aren't contained in any other.
+Remove time slices that are contained in any other from `t_arr`, and return the modified `t_arr`.
 """
 function t_lowest_resolution!(t_arr::Array{TimeSlice,1})
     length(t_arr) <= 1 && return t_arr
@@ -371,12 +388,11 @@ function t_lowest_resolution!(t_arr::Array{TimeSlice,1})
     inds_to_drop = (k for (k, (t1, t2)) in enumerate(zip(t_arr[1:end - 1], t_arr[2:end])) if iscontained(t1, t2))
     deleteat!(t_arr, inds_to_drop)
 end
-t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 
 """
     t_highest_resolution!(t_arr)
 
-Keep only time slices that do not contain any other.
+Remove time slices that contain any other from `t_arr`, and return the modified `t_arr`.
 """
 function t_highest_resolution!(t_arr::Array{TimeSlice,1})
     length(t_arr) <= 1 && return t_arr
@@ -385,7 +401,20 @@ function t_highest_resolution!(t_arr::Array{TimeSlice,1})
     inds_to_drop = (k + 1 for (k, (t1, t2)) in enumerate(zip(t_arr[1:end - 1], t_arr[2:end])) if iscontained(t1, t2))
     deleteat!(t_arr, inds_to_drop)
 end
+
+"""
+    t_highest_resolution(t_iter)
+
+Return an `Array` containing only time slices from `t_iter` that do not contain any other.
+"""
 t_highest_resolution(t_iter) = t_highest_resolution!(collect(TimeSlice, t_iter))
+
+"""
+    t_lowest_resolution(t_iter)
+
+Return an `Array` containing only time slices from `t_iter` that aren't contained in any other.
+"""
+t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 
 """
     push_default_relationship!(relationship_class, relationship)
@@ -427,7 +456,7 @@ is_varying(call::ParameterCall) = true
 """
     write_parameter!(db_map, name, data; for_object=true, report="")
 
-Write parameter to `db_map` with given `name` and `data`.
+Create parameter in `db_map`, with given `name` and `data`.
 Link the parameter to given `report` object.
 """
 function write_parameter!(

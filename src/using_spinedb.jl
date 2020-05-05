@@ -18,9 +18,9 @@
 #############################################################################
 
 """
-A dictionary mapping class ids to a list of entities in that class.
+A Dict mapping class ids to an Array of entities in that class.
 """
-function entities_per_class(entities)
+function _entities_per_class(entities)
     d = Dict()
     for ent in entities
         push!(get!(d, ent["class_id"], Dict[]), ent)
@@ -32,9 +32,9 @@ _not_nothing(x, ::Nothing) = x
 _not_nothing(::Nothing, x) = x
 
 """
-A dictionary mapping entity class ids to a list of parameter definitions associated to that class.
+A Dict mapping entity class ids to an Array of parameter definitions associated to that class.
 """
-function parameter_definitions_per_class(param_defs)
+function _parameter_definitions_per_class(param_defs)
     d = Dict()
     for param_def in param_defs
         class_id = _not_nothing(param_def["object_class_id"], param_def["relationship_class_id"])
@@ -44,10 +44,9 @@ function parameter_definitions_per_class(param_defs)
 end
 
 """
-A dictionary mapping tuples of parameter definition and entity ids,
-to a list of corresponding parameter parameter_values.
+A Dict mapping tuples of parameter definition and entity ids, to an Array of corresponding parameter values.
 """
-function parameter_values_per_entity(param_values)
+function _parameter_values_per_entity(param_values)
     d = Dict()
     for param_val in param_values
         parameter_id = param_val["parameter_definition_id"]
@@ -58,14 +57,14 @@ function parameter_values_per_entity(param_values)
 end
 
 """
-A dictionary mapping parameter names to their default parameter_values.
+A Dict mapping parameter names to their default values.
 """
-function default_parameter_values(param_defs)
+function _default_parameter_values(param_defs)
     d = Dict()
     for param_def in param_defs
         parameter_name = param_def["name"]
         default_value = param_def["default_value"]
-        d[parameter_name] = try
+        d[Symbol(parameter_name)] = try
             parameter_value(db_api.from_database(default_value))
         catch e
             if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
@@ -81,9 +80,9 @@ function default_parameter_values(param_defs)
 end
 
 """
-A Dict mapping parameter names to their parameter_values for a given entity.
+A Dict mapping parameter names to their values for a given entity.
 """
-function parameter_values(entity, param_defs, param_vals, default_vals)
+function _parameter_values(entity, param_defs, param_vals, default_vals)
     d = Dict{Symbol,AbstractParameterValue}()
     entity_id = entity["id"]
     entity_name = entity["name"]
@@ -92,7 +91,7 @@ function parameter_values(entity, param_defs, param_vals, default_vals)
         parameter_name = param_def["name"]
         value = get(param_vals, (parameter_id, entity_id), nothing)
         d[Symbol(parameter_name)] = if value === nothing
-            copy(default_vals[parameter_name])
+            copy(default_vals[Symbol(parameter_name)])
         else
             try
                 parameter_value(db_api.from_database(value))
@@ -115,62 +114,50 @@ function parameter_values(entity, param_defs, param_vals, default_vals)
     d
 end
 
-function fix_name_ambiguity(object_class_name_list::Array{T,1}) where T
-    fixed = Array{T,1}()
-    object_class_name_ocurrences = Dict{T,Int64}()
-    for (i, object_class_name) in enumerate(object_class_name_list)
-        n_ocurrences = count(x -> x == object_class_name, object_class_name_list)
-        if n_ocurrences == 1
-            push!(fixed, object_class_name)
-        else
-            ocurrence = get(object_class_name_ocurrences, object_class_name, 1)
-            push!(fixed, string(object_class_name, ocurrence))
-            object_class_name_ocurrences[object_class_name] = ocurrence + 1
+function _fix_name_ambiguity!(name_list::Array{Symbol,1})
+    for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
+        for (k, index) in enumerate(findall(name_list .== ambiguous))
+            name_list[index] = Symbol(name_list[index], k)
         end
     end
-    fixed
 end
 
-function class_handle(classes, entities, param_defs, param_vals)
+function _class_handle(classes, entities, param_defs, param_vals)
     d = Dict()
     for class in classes
         class_id = class["id"]
         class_name = class["name"]
         class_param_defs = get(param_defs, class_id, ())
-        default_vals = default_parameter_values(class_param_defs)
+        default_vals = _default_parameter_values(class_param_defs)
         class_entities = get(entities, class_id, [])
         vals = Dict(
-            ent["id"] => parameter_values(ent, class_param_defs, param_vals, default_vals) for ent in class_entities
+            ent["id"] => _parameter_values(ent, class_param_defs, param_vals, default_vals) for ent in class_entities
         )
-        copyable_defaults = Dict(
-            Symbol(p_name) => default
-            for (p_name, default) in default_vals
-        )
-        d[Symbol(class_name)] = class_handle_entry(class, class_entities, vals, copyable_defaults)
+        d[Symbol(class_name)] = _class_handle_entry(class, class_entities, vals, default_vals)
     end
     d
 end
 
-function class_handle_entry(class, class_entities, vals, default_vals)
+function _class_handle_entry(class, class_entities, vals, default_vals)
     object_class_names = get(class, "object_class_name_list", nothing)
-    class_handle_entry(class, object_class_names, class_entities, vals, default_vals)
+    _class_handle_entry(class, object_class_names, class_entities, vals, default_vals)
 end
-function class_handle_entry(class, ::Nothing, class_entities, vals, default_vals)
-    class_objects = [Object(ent["name"], ent["id"]) for ent in class_entities]
-    vals_ = Dict{Object,Dict{Symbol,AbstractParameterValue}}(obj => vals[obj.id] for obj in class_objects)
+function _class_handle_entry(class, ::Nothing, class_entities, vals, default_vals)
+    vals_ = Dict(Object(ent["name"], ent["id"]) => vals[ent["id"]] for ent in class_entities)
+    class_objects = collect(keys(vals_))
     Symbol(class["name"]), class_objects, vals_, default_vals
 end
-function class_handle_entry(class, object_class_names, class_entities, vals, default_vals)
-    obj_cls_names = Symbol.(fix_name_ambiguity(split(object_class_names, ",")))
-    class_relationships = []
-    vals_ = Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractParameterValue}}()
-    for ent in class_entities
-        object_name_list = split(ent["object_name_list"], ",")
-        object_id_list = parse.(Int, split(ent["object_id_list"], ","))
-        objects = Object.(object_name_list, object_id_list)
-        push!(class_relationships, NamedTuple{Tuple(obj_cls_names)}(objects))
-        vals_[tuple(objects...)] = vals[ent["id"]]
-    end
+function _class_handle_entry(class, object_class_names, class_entities, vals, default_vals)
+    obj_cls_names = Symbol.(split(object_class_names, ","))
+    _fix_name_ambiguity!(obj_cls_names)
+    vals_ = Dict(
+        Tuple(Object.(object_name_list, object_id_list)) => vals[ent_id]
+        for (object_name_list, object_id_list, ent_id) in (
+            (split(ent["object_name_list"], ","), parse.(Int, split(ent["object_id_list"], ",")), ent["id"])
+            for ent in class_entities
+        )
+    )
+    class_relationships = [(; zip(obj_cls_names, objects)...) for objects in keys(vals_)]
     Symbol(class["name"]), obj_cls_names, class_relationships, vals_, default_vals
 end
 
@@ -179,7 +166,7 @@ A dictionary mapping parameter names to a collection of class names where the pa
 The collection of class names is sorted by decreasing number of dimensions in the class.
 Note that for object classes, the number of dimensions is one.
 """
-function parameter_handle(classes, param_defs)
+function _parameter_handle(classes, param_defs)
     d = Dict()
     for class in classes
         class_id = class["id"]
@@ -194,20 +181,20 @@ function parameter_handle(classes, param_defs)
     Dict(name => (name, first.(sort(tups; by=last, rev=true))) for (name, tups) in d)
 end
 
-function spinedb_handle(db_map::PyObject)
+function _spinedb_handle(db_map::PyObject)
     object_classes = py"[x._asdict() for x in $db_map.query($db_map.object_class_sq)]"
     relationship_classes = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_class_sq)]"
     objects = py"[x._asdict() for x in $db_map.query($db_map.object_sq)]"
     relationships = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_sq)]"
     param_defs = py"[x._asdict() for x in $db_map.query($db_map.parameter_definition_sq)]"
     param_vals = py"[x._asdict() for x in $db_map.query($db_map.parameter_value_sq)]"
-    objs_per_cls = entities_per_class(objects)
-    rels_per_cls = entities_per_class(relationships)
-    param_defs_per_cls = parameter_definitions_per_class(param_defs)
-    param_vals_per_cls = parameter_values_per_entity(param_vals)
-    obj_class_handle = class_handle(object_classes, objs_per_cls, param_defs_per_cls, param_vals_per_cls)
-    rel_class_handle = class_handle(relationship_classes, rels_per_cls, param_defs_per_cls, param_vals_per_cls)
-    param_handle = parameter_handle([object_classes; relationship_classes], param_defs_per_cls)
+    objs_per_cls = _entities_per_class(objects)
+    rels_per_cls = _entities_per_class(relationships)
+    param_defs_per_cls = _parameter_definitions_per_class(param_defs)
+    param_vals_per_cls = _parameter_values_per_entity(param_vals)
+    obj_class_handle = _class_handle(object_classes, objs_per_cls, param_defs_per_cls, param_vals_per_cls)
+    rel_class_handle = _class_handle(relationship_classes, rels_per_cls, param_defs_per_cls, param_vals_per_cls)
+    param_handle = _parameter_handle([object_classes; relationship_classes], param_defs_per_cls)
     max_obj_id = reduce(max, (obj["id"] for obj in objects); init=0)
     obj_class_handle, rel_class_handle, param_handle, max_obj_id
 end
@@ -227,7 +214,7 @@ function using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     using_spinedb(db_map, mod)
 end
 function using_spinedb(db_map::PyObject, mod=@__MODULE__)
-    obj_class_handle, rel_class_handle, param_handle, max_obj_id = spinedb_handle(db_map)
+    obj_class_handle, rel_class_handle, param_handle, max_obj_id = _spinedb_handle(db_map)
     id_factory = ObjectIdFactory(UInt64(max_obj_id))
     @eval mod begin
         function SpineInterface.Object(name::Symbol; id_factory=$id_factory)
@@ -275,7 +262,7 @@ function notusing_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     notusing_spinedb(db_map, mod)
 end
 function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
-    obj_class_handle, rel_class_handle, param_handle = spinedb_handle(db_map)
+    obj_class_handle, rel_class_handle, param_handle = _spinedb_handle(db_map)
     for (name, value) in obj_class_handle
         name in names(mod) || continue
         functor = getfield(mod, name)
