@@ -22,12 +22,18 @@ _next_id(id_factory::ObjectIdFactory) = id_factory.max_object_id[] += 1
 _immutable(x) = x
 _immutable(arr::T) where T<:AbstractArray = (length(arr) == 1) ? first(arr) : Tuple(arr)
 
+function _get(d1, key, d2)
+    get(d1, key) do
+        d2[key]
+    end
+end
+
 function _lookup_parameter_value(p::Parameter; kwargs...)
     for class in p.classes
         lookup_key = _lookup_key(class; kwargs...)
         parameter_values = get(class.parameter_values, lookup_key, nothing)
         parameter_values === nothing && continue
-        return parameter_values[p.name]
+        return _get(parameter_values, p.name, class.parameter_defaults)
     end
 end
 

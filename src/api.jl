@@ -278,7 +278,7 @@ function indices(p::Parameter; kwargs...)
         ent
         for class in p.classes
         for ent in _lookup_entities(class; kwargs...)
-        if class.parameter_values[_entity_key(ent)][p.name]() !== nothing
+        if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
 end
 
