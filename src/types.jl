@@ -16,12 +16,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-"""
-    AbstractParameterValue
-
-Supertype for all parameter value callables.
-"""
-abstract type AbstractParameterValue end
 
 """
     AbstractObject
@@ -29,6 +23,15 @@ abstract type AbstractParameterValue end
 Supertype for [`Object`](@ref) and [`TimeSlice`](@ref).
 """
 abstract type AbstractObject end
+
+"""
+    AbstractParameterValue
+
+Supertype for all parameter value callables.
+"""
+abstract type AbstractParameterValue end
+
+abstract type AbstractTimeSeriesParameterValue <: AbstractParameterValue end
 
 abstract type Call end
 
@@ -158,7 +161,7 @@ struct TimeSeries{V}
 end
 
 # AbstractParameterValue subtypes
-# These are wrappers around standard Julia types and our parameter value types, that override the call operator
+# These are wrappers around some standard Julia types and our parameter value types, that override the call operator
 struct NothingParameterValue <: AbstractParameterValue
 end
 
@@ -174,14 +177,11 @@ struct TimePatternParameterValue{T} <: AbstractParameterValue
     value::TimePattern{T}
 end
 
-## Time series map
 struct TimeSeriesMap
     index::Array{Int64,1}
     map_start::DateTime
     map_end::DateTime
 end
-
-abstract type AbstractTimeSeriesParameterValue <: AbstractParameterValue end
 
 struct StandardTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     value::TimeSeries{V}

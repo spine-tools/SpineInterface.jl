@@ -120,7 +120,6 @@ Base.copy(c::ParameterCall) = ParameterCall(c.parameter, c.kwargs)
 Base.copy(c::OperatorCall) = OperatorCall(c.operator, c.args)
 Base.copy(c::IdentityCall) = IdentityCall(c.value)
 
-# operators
 Base.zero(::Type{T}) where T<:Call = IdentityCall(0.0)
 Base.zero(::Call) = IdentityCall(0.0)
 

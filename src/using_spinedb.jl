@@ -28,8 +28,8 @@ function entities_per_class(entities)
     d
 end
 
-not_nothing(x, ::Nothing) = x
-not_nothing(::Nothing, x) = x
+_not_nothing(x, ::Nothing) = x
+_not_nothing(::Nothing, x) = x
 
 """
 A dictionary mapping entity class ids to a list of parameter definitions associated to that class.
@@ -37,7 +37,7 @@ A dictionary mapping entity class ids to a list of parameter definitions associa
 function parameter_definitions_per_class(param_defs)
     d = Dict()
     for param_def in param_defs
-        class_id = not_nothing(param_def["object_class_id"], param_def["relationship_class_id"])
+        class_id = _not_nothing(param_def["object_class_id"], param_def["relationship_class_id"])
         push!(get!(d, class_id, Dict[]), param_def)
     end
     d
@@ -51,7 +51,7 @@ function parameter_values_per_entity(param_values)
     d = Dict()
     for param_val in param_values
         parameter_id = param_val["parameter_definition_id"]
-        entity_id = not_nothing(param_val["object_id"], param_val["relationship_id"])
+        entity_id = _not_nothing(param_val["object_id"], param_val["relationship_id"])
         d[parameter_id, entity_id] = param_val["value"]
     end
     d
@@ -115,7 +115,6 @@ function parameter_values(entity, param_defs, param_vals, default_vals)
     d
 end
 
-
 function fix_name_ambiguity(object_class_name_list::Array{T,1}) where T
     fixed = Array{T,1}()
     object_class_name_ocurrences = Dict{T,Int64}()
@@ -131,7 +130,6 @@ function fix_name_ambiguity(object_class_name_list::Array{T,1}) where T
     end
     fixed
 end
-
 
 function class_handle(classes, entities, param_defs, param_vals)
     d = Dict()
@@ -153,18 +151,15 @@ function class_handle(classes, entities, param_defs, param_vals)
     d
 end
 
-
 function class_handle_entry(class, class_entities, vals, default_vals)
     object_class_names = get(class, "object_class_name_list", nothing)
     class_handle_entry(class, object_class_names, class_entities, vals, default_vals)
 end
-
 function class_handle_entry(class, ::Nothing, class_entities, vals, default_vals)
     class_objects = [Object(ent["name"], ent["id"]) for ent in class_entities]
     vals_ = Dict{Object,Dict{Symbol,AbstractParameterValue}}(obj => vals[obj.id] for obj in class_objects)
     Symbol(class["name"]), class_objects, vals_, default_vals
 end
-
 function class_handle_entry(class, object_class_names, class_entities, vals, default_vals)
     obj_cls_names = Symbol.(fix_name_ambiguity(split(object_class_names, ",")))
     class_relationships = []
@@ -231,7 +226,6 @@ function using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     db_map = DiffDatabaseMapping(db_url; upgrade=upgrade)
     using_spinedb(db_map, mod)
 end
-
 function using_spinedb(db_map::PyObject, mod=@__MODULE__)
     obj_class_handle, rel_class_handle, param_handle, max_obj_id = spinedb_handle(db_map)
     id_factory = ObjectIdFactory(UInt64(max_obj_id))
@@ -280,7 +274,6 @@ function notusing_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     db_map = db_api.DiffDatabaseMapping(db_url, upgrade=upgrade)
     notusing_spinedb(db_map, mod)
 end
-
 function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
     obj_class_handle, rel_class_handle, param_handle = spinedb_handle(db_map)
     for (name, value) in obj_class_handle

@@ -70,6 +70,7 @@ function _getproperty_or_default(m::Module, name::Symbol, default=nothing)
 end
 
 (p::NothingParameterValue)(;kwargs...) = nothing
+
 (p::ScalarParameterValue)(;kwargs...) = p.value
 
 function (p::ArrayParameterValue)(;i::Union{Int64,Nothing}=nothing, kwargs...)

@@ -293,17 +293,12 @@ start(t::TimeSlice) = t.start[]
 end_(t::TimeSlice) = t.end_[]
 blocks(t::TimeSlice) = t.blocks
 
-#function Base.:(==)(a::TimeSlice, b::TimeSlice)
-#    start(a) == start(b) && end_(a) == end_(b) && blocks(a) == blocks(b) && duration(a) == duration(b)
-#end
-
 """
     before(a::TimeSlice, b::TimeSlice)
 
 Determine whether the end point of `a` is exactly the start point of `b`.
 """
 before(a::TimeSlice, b::TimeSlice) = start(b) == end_(a)
-
 
 """
     iscontained(b, a)
@@ -376,7 +371,6 @@ function t_lowest_resolution!(t_arr::Array{TimeSlice,1})
     inds_to_drop = (k for (k, (t1, t2)) in enumerate(zip(t_arr[1:end - 1], t_arr[2:end])) if iscontained(t1, t2))
     deleteat!(t_arr, inds_to_drop)
 end
-
 t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 
 """
@@ -391,7 +385,6 @@ function t_highest_resolution!(t_arr::Array{TimeSlice,1})
     inds_to_drop = (k + 1 for (k, (t1, t2)) in enumerate(zip(t_arr[1:end - 1], t_arr[2:end])) if iscontained(t1, t2))
     deleteat!(t_arr, inds_to_drop)
 end
-
 t_highest_resolution(t_iter) = t_highest_resolution!(collect(TimeSlice, t_iter))
 
 """
@@ -575,8 +568,6 @@ function DiffDatabaseMapping(db_url::String; upgrade=false)
     end
 end
 
-
-# Create parameter_value from value parsed from database
 """
     parameter_value(parsed_db_value)
 

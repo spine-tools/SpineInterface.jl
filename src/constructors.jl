@@ -20,10 +20,11 @@
 Object(name::AbstractString, args...) = Object(Symbol(name), args...)
 Object(name::Symbol) = Base.invokelatest(Object, name)  # NOTE: this allows us to override `Object` in `using_spinedb`
 
-ObjectClass(name, objects) = ObjectClass(name, objects, Dict(), Dict())
+ObjectClass(name, objects, vals) = ObjectClass(name, objects, vals, Dict())
+ObjectClass(name, objects) = ObjectClass(name, objects, Dict())
 
-RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict(), Dict())
 RelationshipClass(name, obj_cls_names, rels, vals) = RelationshipClass(name, obj_cls_names, rels, vals, Dict())
+RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict())
 
 Parameter(name) = Parameter(name, [])
 
@@ -37,6 +38,7 @@ function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_
     TimeSlice(start, end_, dur, blocks)
 end
 
+# TODO: this doesn't seem right
 TimeSlice(other::TimeSlice) = other
 
 """
@@ -119,7 +121,7 @@ function TimeSeriesParameterValue(ts::TimeSeries{V}) where {V}
     end
 end
 
-# TODO: specify PyObject constructors for other special types?
+# TODO: specify PyObject constructors for other types?
 function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
 end
