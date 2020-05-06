@@ -202,18 +202,16 @@ end
 An `Array` of `TimeSlice`s in the map that match the given `t`.
 """
 function (m::TimeSliceMap)(t::TimeSlice...)
-    indices = Array{Int64,1}()
-    map_start = start(first(m.time_slices))
-    map_end = end_(last(m.time_slices))
-    for s in t
-        s_start = max(map_start, start(s))
-        s_end = min(map_end, end_(s))
-        s_end <= s_start && continue
-        first_ind = m.index[Minute(s_start - map_start).value + 1]
-        last_ind = m.index[Minute(s_end - map_start).value]
-        append!(indices, collect(first_ind:last_ind))
-    end
-    unique(m.time_slices[ind] for ind in indices)
+    from_to_minutes = (
+        _from_to_minute(m.start, s_start, s_end)
+        for (s_start, s_end) in ((max(m.start, start(s)), min(m.end_, end_(s))) for s in t)
+        if s_start < s_end
+    )
+    unique(
+        m.time_slices[ind] 
+        for (from_minute, to_minute) in from_to_minutes
+        for ind in m.index[from_minute]:m.index[to_minute]
+    )
 end
 
 """

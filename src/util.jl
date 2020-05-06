@@ -17,6 +17,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+function _getproperty_or_default(m::Module, name::Symbol, default=nothing)
+    (name in names(m; all=true)) ? getproperty(m, name) : default
+end
+
 _next_id(id_factory::ObjectIdFactory) = id_factory.max_object_id[] += 1
 
 _immutable(x) = x
@@ -62,17 +66,8 @@ function _relativedelta_to_period(delta::PyObject)
     end
 end
 
-function _lower_upper(h::TimeSeriesMap, t_start::DateTime, t_end::DateTime)
-    (t_start > h.map_end || t_end <= h.map_start) && return ()
-    t_start = max(t_start, h.map_start)
-    t_end = min(t_end, h.map_end + Minute(1))
-    lower = h.index[Minute(t_start - h.map_start).value + 1]
-    upper = h.index[Minute(t_end - h.map_start).value + 1] - 1
-    lower, upper
-end
-
-function _getproperty_or_default(m::Module, name::Symbol, default=nothing)
-    (name in names(m; all=true)) ? getproperty(m, name) : default
+function _from_to_minute(m_start::DateTime, t_start::DateTime, t_end::DateTime)
+    Minute(t_start - m_start).value + 1, Minute(t_end - m_start).value
 end
 
 (p::NothingParameterValue)(;kwargs...) = nothing
@@ -92,6 +87,15 @@ function (p::TimePatternParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kw
     else
         mean(values)
     end
+end
+
+function _lower_upper(h::TimeSeriesMap, t_start::DateTime, t_end::DateTime)
+    (t_start > h.map_end || t_end <= h.map_start) && return ()
+    t_start = max(t_start, h.map_start)
+    t_end = min(t_end, h.map_end + Minute(1))
+    lower = h.index[Minute(t_start - h.map_start).value + 1]
+    upper = h.index[Minute(t_end - h.map_start).value + 1] - 1
+    lower, upper
 end
 
 function (p::StandardTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
