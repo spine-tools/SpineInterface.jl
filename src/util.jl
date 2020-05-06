@@ -137,4 +137,5 @@ function push_default_object!(object_class, name)
     new_o = Object(name, _max_object_id)
     push!(object_class.objects, new_o)
     object_class.parameter_values[new_o] = copy(object_class.parameter_defaults)
+    new_o
 end
