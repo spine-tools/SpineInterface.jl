@@ -17,50 +17,31 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+_next_id(id_factory::ObjectIdFactory) = id_factory.max_object_id[] += 1
 
-"""
-    indices(p::Parameter; kwargs...)
+_immutable(x) = x
+_immutable(arr::T) where T<:AbstractArray = (length(arr) == 1) ? first(arr) : Tuple(arr)
 
-An iterator over all objects and relationships where the value of `p` is different than `nothing`.
+function _get(d1, key, d2)
+    get(d1, key) do
+        d2[key]
+    end
+end
 
-# Arguments
+function _lookup_parameter_value(p::Parameter; kwargs...)
+    for class in p.classes
+        lookup_key = _lookup_key(class; kwargs...)
+        parameter_values = get(class.parameter_values, lookup_key, nothing)
+        parameter_values === nothing && continue
+        return _get(parameter_values, p.name, class.parameter_defaults)
+    end
+end
 
-- For each object class where `p` is defined, there is a keyword argument named after it;
-  similarly, for each relationship class where `p` is defined, there is a keyword argument
-  named after each object class in it.
-  The purpose of these arguments is to filter the result by an object or list of objects of an specific class,
-  or to accept all objects of that class by specifying `anything` for the corresponding argument.
-
-# Examples
-
-```jldoctest
-julia> using SpineInterface;
-
-julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
-
-julia> using_spinedb(url)
-
-julia> collect(indices(tax_net_flow))
-1-element Array{NamedTuple{(:commodity, :node),Tuple{Object,Object}},1}:
- (commodity = water, node = Sthlm)
-
-julia> collect(indices(demand))
-5-element Array{Object,1}:
- Nimes
- Sthlm
- Leuven
- Espoo
- Dublin
-
-```
-"""
-function indices(p::Parameter; kwargs...)
-    (
-        ent
-        for class in p.classes
-        for ent in _lookup_entities(class; kwargs...)
-        if class.parameter_values[_entity_key(ent)][p.name]() !== nothing
-    )
+_lookup_key(class::ObjectClass; kwargs...) = get(kwargs, class.name, nothing)
+function _lookup_key(class::RelationshipClass; kwargs...)
+    objects = Tuple(get(kwargs, oc, nothing) for oc in class.object_class_names)
+    nothing in objects && return nothing
+    objects
 end
 
 _lookup_entities(class::ObjectClass; kwargs...) = class()
@@ -69,73 +50,88 @@ _lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, 
 _entity_key(o::Object) = o
 _entity_key(r::Relationship) = tuple(r...)
 
-# Time slice map
-struct TimeSliceMap
-    time_slices::Array{TimeSlice,1}
-    index::Array{Int64,1}
-end
-
-function TimeSliceMap(time_slices::Array{TimeSlice,1})
-    map_start = start(first(time_slices))
-    map_end = end_(last(time_slices))
-    index = Array{Int64,1}(undef, Minute(map_end - map_start).value)
-    for (ind, t) in enumerate(time_slices)
-        first_minute = Minute(start(t) - map_start).value + 1
-        last_minute = Minute(end_(t) - map_start).value
-        index[first_minute:last_minute] .= ind
-    end
-    TimeSliceMap(time_slices, index)
-end
-
-function (h::TimeSliceMap)(t::TimeSlice...)
-    indices = Array{Int64,1}()
-    map_start = start(first(h.time_slices))
-    map_end = end_(last(h.time_slices))
-    for s in t
-        s_start = max(map_start, start(s))
-        s_end = min(map_end, end_(s))
-        s_end <= s_start && continue
-        first_ind = h.index[Minute(s_start - map_start).value + 1]
-        last_ind = h.index[Minute(s_end - map_start).value]
-        append!(indices, collect(first_ind:last_ind))
-    end
-    unique(h.time_slices[ind] for ind in indices)
-end
-
-
-"""A DatabaseMapping object using Python spinedb_api"""
-function DiffDatabaseMapping(db_url::String; upgrade=false)
-    try
-        db_api.DiffDatabaseMapping(db_url, upgrade=upgrade)
-    catch e
-        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
-            error(
-                """
-                The database at '$db_url' is from an older version of Spine
-                and needs to be upgraded in order to be used with the current version.
-
-                You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
-
-                WARNING: After the upgrade, the database may no longer be used
-                with previous versions of Spine.
-                """
-            )
-        else
-            rethrow()
-        end
+function _relativedelta_to_period(delta::PyObject)
+    # Add up till the day level
+    minutes = delta.minutes + 60 * (delta.hours + 24 * delta.days)
+    if minutes > 0
+        # No way the `relativedelta` implementation added beyond this point
+        Minute(minutes)
+    else
+        months = delta.months + 12 * delta.years
+        Month(months)
     end
 end
 
-function push_default_relationship!(relationship_class, inds)
-    push!(relationship_class.relationships, inds)
-    empty!(relationship_class.lookup_cache)
-    relationship_class.parameter_values[values(inds)]=copy(relationship_class.parameter_defaults)
+function _lower_upper(h::TimeSeriesMap, t_start::DateTime, t_end::DateTime)
+    (t_start > h.map_end || t_end <= h.map_start) && return ()
+    t_start = max(t_start, h.map_start)
+    t_end = min(t_end, h.map_end + Minute(1))
+    lower = h.index[Minute(t_start - h.map_start).value + 1]
+    upper = h.index[Minute(t_end - h.map_start).value + 1] - 1
+    lower, upper
 end
 
-function push_default_object!(object_class, name)
-    global _max_object_id += 1
-    new_o = Object(name, _max_object_id)
-    push!(object_class.objects, new_o)
-    object_class.parameter_values[new_o] = copy(object_class.parameter_defaults)
-    new_o
+function _getproperty_or_default(m::Module, name::Symbol, default=nothing)
+    (name in names(m; all=true)) ? getproperty(m, name) : default
+end
+
+(p::NothingParameterValue)(;kwargs...) = nothing
+
+(p::ScalarParameterValue)(;kwargs...) = p.value
+
+function (p::ArrayParameterValue)(;i::Union{Int64,Nothing}=nothing, kwargs...)
+    i === nothing && return p.value
+    get(p.value, i, nothing)
+end
+
+function (p::TimePatternParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
+    t === nothing && return p.value
+    values = [val for (tp, val) in p.value if iscontained(t, tp)]
+    if isempty(values)
+        nothing
+    else
+        mean(values)
+    end
+end
+
+function (p::StandardTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
+    t === nothing && return p.value
+    p.value.ignore_year && (t -= Year(start(t)))
+    ab = _lower_upper(p.t_map, start(t), end_(t))
+    isempty(ab) && return nothing
+    a, b = ab
+    a > b && return nothing
+    mean(p.value.values[a:b])
+end
+
+function (p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
+    t === nothing && return p.value
+    t_start = start(t)
+    p.value.ignore_year && (t_start -= Year(t_start))
+    if t_start > p.value.indexes[end]
+        # Move t_start back within time_stamps range
+        mismatch = t_start - p.value.indexes[1]
+        reps = div(mismatch, p.span)
+        t_start -= reps * p.span
+    end
+    t_end = t_start + (end_(t) - start(t))
+    # Move t_end back within time_stamps range
+    reps = if t_end > p.value.indexes[end]
+        mismatch = t_end - p.value.indexes[1]
+        div(mismatch, p.span)
+    else
+        0
+    end
+    t_end -= reps * p.span
+    ab = _lower_upper(p.t_map, t_start, t_end)
+    isempty(ab) && return nothing
+    a, b = ab
+    if a < b
+        (sum(p.value.values[a:b - 1]) + reps * p.valsum) / (b - a + reps * p.len)
+    else
+        div(
+            sum(p.value.values[1:b]) + sum(p.value.values[a:end]) + (reps - 1) * p.valsum,
+            b - a + 1 + reps * p.len
+        )
+    end
 end
