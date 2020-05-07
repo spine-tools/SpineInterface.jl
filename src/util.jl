@@ -51,8 +51,8 @@ end
 _lookup_entities(class::ObjectClass; kwargs...) = class()
 _lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
 
-_entity_key(o::Object) = o
-_entity_key(r::Relationship) = tuple(r...)
+_entity_key(o::ObjectLike) = o
+_entity_key(r::RelationshipLike) = tuple(r...)
 
 function _relativedelta_to_period(delta::PyObject)
     # Add up till the day level

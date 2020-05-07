@@ -18,7 +18,7 @@ const required_spinedb_api_version = v"0.4.0"
 export Anything
 export Object
 export ObjectLike
-export Relationship
+export RelationshipLike
 export ObjectClass
 export RelationshipClass
 export Parameter

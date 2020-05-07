@@ -44,7 +44,7 @@ Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
 Base.hash(::Anything) = zero(UInt64)
 Base.hash(o::Object) = o.id
 Base.hash(t::TimeSlice) = t.id
-Base.hash(r::Relationship{K}) where {K} = hash(values(r))
+Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
