@@ -52,8 +52,8 @@ export object_class
 export relationship_class
 export parameter
 export db_api
-export push_default_object!
-export push_default_relationship!
+export add_objects!
+export add_relationships!
 
 
 function __init__()
