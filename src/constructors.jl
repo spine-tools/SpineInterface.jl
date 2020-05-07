@@ -84,11 +84,10 @@ function TimeSliceMap(time_slices::Array{TimeSlice,1})
     map_end = end_(last(time_slices))
     index = Array{Int64,1}(undef, Minute(map_end - map_start).value)
     for (ind, t) in enumerate(time_slices)
-        first_minute = Minute(start(t) - map_start).value + 1
-        last_minute = Minute(end_(t) - map_start).value
-        index[first_minute:last_minute] .= ind
+        from_minute, to_minute = _from_to_minute(map_start, start(t), end_(t))
+        index[from_minute:to_minute] .= ind
     end
-    TimeSliceMap(time_slices, index)
+    TimeSliceMap(time_slices, index, map_start, map_end)
 end
 
 function TimeSeriesMap(stamps::Array{DateTime,1})

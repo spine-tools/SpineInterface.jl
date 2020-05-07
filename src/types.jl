@@ -105,6 +105,8 @@ end
 struct TimeSliceMap
     time_slices::Array{TimeSlice,1}
     index::Array{Int64,1}
+    start::DateTime
+    end_::DateTime
 end
 
 # parameter value types
