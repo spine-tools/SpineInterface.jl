@@ -416,6 +416,9 @@ t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 
 """
     add_relationships!(relationship_class, relationships)
+
+Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
+Return the modified `relationship_class`
 """
 function add_relationships!(relationship_class::RelationshipClass, relationships::Array{T,1}) where T<:RelationshipLike
     setdiff!(relationships, relationship_class.relationships)
@@ -427,6 +430,9 @@ end
 
 """
     add_objects!(object_class, objects)
+
+Remove from `objects` everything that's already in `object_class`, and append the rest.
+Return the modified `object_class`
 """
 function add_objects!(object_class::ObjectClass, objects::Array{T,1}) where T<:ObjectLike
     setdiff!(objects, object_class.objects)
