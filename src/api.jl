@@ -208,7 +208,7 @@ function (m::TimeSliceMap)(t::TimeSlice...)
         if s_start < s_end
     )
     unique(
-        m.time_slices[ind] 
+        m.time_slices[ind]
         for (from_minute, to_minute) in from_to_minutes
         for ind in m.index[from_minute]:m.index[to_minute]
     )
@@ -442,6 +442,16 @@ function add_objects!(object_class::ObjectClass, objects::Array{T,1}) where T<:O
 end
 
 """
+    add_object!(object_class, objects)
+
+Append single object to object_class if it doesn't already exist.
+Return the modified `object_class`
+"""
+function add_object!(object_class::ObjectClass, object::ObjectLike)
+    add_objects!(object_class, [object])
+end
+
+"""
     realize(x::Call)
 
 Perform the given `Call` and return the result.
@@ -536,13 +546,13 @@ end
     write_parameters(parameters, url::String; <keyword arguments>)
 
 Write `parameters` to the Spine database at the given RFC-1738 `url`.
-`parameters` is a dictionary mapping parameter names to another dictionary 
+`parameters` is a dictionary mapping parameter names to another dictionary
 mapping object or relationship (`NamedTuple`) to values.
 
 # Arguments
 
 - `upgrade::Bool=true`: whether or not the database at `url` should be upgraded to the latest revision.
-- `for_object::Bool=true`: whether to write an object parameter or a 1D relationship parameter in case the number of 
+- `for_object::Bool=true`: whether to write an object parameter or a 1D relationship parameter in case the number of
     dimensions is 1.
 - `report::String=""`: the name of a report object that will be added as an extra dimension to the written parameters.
 - `comment::String=""`: a comment explaining the nature of the writing operation.
