@@ -415,20 +415,30 @@ Return an `Array` containing only time slices from `t_iter` that aren't containe
 t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 
 """
-    push_default_relationship!(relationship_class, relationship)
+    add_relationships!(relationship_class, relationships)
+
+Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
+Return the modified `relationship_class`
 """
-function push_default_relationship!(relationship_class::RelationshipClass, relationship::Relationship)
-    push!(relationship_class.relationships, relationship)
-    empty!(relationship_class.lookup_cache)
-    relationship_class.parameter_values[values(relationship)] = copy(relationship_class.parameter_defaults)
+function add_relationships!(relationship_class::RelationshipClass, relationships::Array{T,1}) where T<:RelationshipLike
+    setdiff!(relationships, relationship_class.relationships)
+    append!(relationship_class.relationships, relationships)
+    merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
+    isempty(relationships) || empty!(relationship_class.lookup_cache)
+    relationship_class
 end
 
 """
-    push_default_object!(object_class, object)
+    add_objects!(object_class, objects)
+
+Remove from `objects` everything that's already in `object_class`, and append the rest.
+Return the modified `object_class`
 """
-function push_default_object!(object_class::ObjectClass, object::Object)
-    push!(object_class.objects, object)
-    object_class.parameter_values[object] = copy(object_class.parameter_defaults)
+function add_objects!(object_class::ObjectClass, objects::Array{T,1}) where T<:ObjectLike
+    setdiff!(objects, object_class.objects)
+    append!(object_class.objects, objects)
+    merge!(object_class.parameter_values, Dict(obj => Dict() for obj in objects))
+    object_class
 end
 
 """

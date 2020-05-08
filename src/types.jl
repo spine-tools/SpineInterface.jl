@@ -52,9 +52,9 @@ struct Object <: AbstractObject
     id::UInt64
 end
 
-ObjectLike = Union{AbstractObject,Int64}
+ObjectLike = Union{T,Int64} where T<:AbstractObject
 
-Relationship{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
+RelationshipLike{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
 
 struct ObjectIdFactory
     max_object_id::Ref{UInt64}
@@ -63,7 +63,7 @@ end
 
 struct ObjectClass
     name::Symbol
-    objects::Array{Object,1}
+    objects::Array{ObjectLike,1}
     parameter_values::Dict{Object,Dict{Symbol,AbstractParameterValue}}
     parameter_defaults::Dict{Symbol,AbstractParameterValue}
 end
@@ -71,7 +71,7 @@ end
 struct RelationshipClass
     name::Symbol
     object_class_names::Array{Symbol,1}
-    relationships::Array{Relationship,1}
+    relationships::Array{RelationshipLike,1}
     parameter_values::Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractParameterValue}}
     parameter_defaults::Dict{Symbol,AbstractParameterValue}
     lookup_cache::Dict{Bool,Dict}

@@ -18,7 +18,7 @@ const required_spinedb_api_version = v"0.4.0"
 export Anything
 export Object
 export ObjectLike
-export Relationship
+export RelationshipLike
 export ObjectClass
 export RelationshipClass
 export Parameter
@@ -52,8 +52,8 @@ export object_class
 export relationship_class
 export parameter
 export db_api
-export push_default_object!
-export push_default_relationship!
+export add_objects!
+export add_relationships!
 
 
 function __init__()
