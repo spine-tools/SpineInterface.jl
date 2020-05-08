@@ -96,15 +96,13 @@ function TimeSeriesMap(stamps::Array{DateTime,1})
     map_start = first(stamps)
     map_end = last(stamps)
     index = Array{Int64,1}(undef, Minute(map_end - map_start).value)
-    for (ind, start) in enumerate(stamps[1:end - 1])
-        end_ = stamps[ind + 1]
-        first_minute = Minute(start - map_start).value + 1
-        last_minute = Minute(end_ - map_start).value
-        index[first_minute] = ind
-        index[first_minute + 1:last_minute] .= ind + 1
+    for (ind, (start, end_)) in enumerate(zip(stamps[1:end - 1], stamps[2:end]))
+        from_minute, to_minute = _from_to_minute(map_start, start, end_)
+        index[from_minute] = ind
+        index[from_minute + 1:to_minute] .= ind + 1
     end
-    push!(index, length(stamps))
-    push!(index, length(stamps) + 1)
+    last_ind = length(stamps)
+    append!(index, [last_ind, last_ind + 1])
     TimeSeriesMap(index, map_start, map_end)
 end
 
