@@ -53,6 +53,7 @@ export relationship_class
 export parameter
 export db_api
 export add_objects!
+export add_object!
 export add_relationships!
 
 
