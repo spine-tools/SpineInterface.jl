@@ -117,14 +117,8 @@ struct DateTime_
     value::DateTime
 end
 
-abstract type DurationLike end
-
-struct ScalarDuration <: DurationLike
+struct Duration
     value::Period
-end
-
-struct ArrayDuration <: DurationLike
-    value::Array{Period,1}
 end
 
 struct Array_{T}

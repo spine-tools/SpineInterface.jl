@@ -82,12 +82,8 @@ function Base.show(io::IO, period_collection::PeriodCollection)
 end
 
 Base.convert(::Type{DateTime_}, o::PyObject) = DateTime_(o.value)
-function Base.convert(::Type{DurationLike}, o::PyObject)
-    ScalarDuration(_relativedelta_to_period(o.value))
-end
-function Base.convert(::Type{Array_}, o::PyObject)
-    Array_(o.values)
-end
+Base.convert(::Type{Duration}, o::PyObject) = Duration(_relativedelta_to_period(o.value))
+Base.convert(::Type{Array_}, o::PyObject) = Array_(o.values)
 function Base.convert(::Type{TimePattern}, o::PyObject)
     Dict(PeriodCollection(ind) => val for (ind, val) in zip(o.indexes, o.values))
 end
@@ -101,7 +97,6 @@ function Base.convert(::Type{TimeSeries}, o::PyObject)
 end
 Base.convert(::Type{Call}, x::T) where {T<:Real} = IdentityCall(x)
 
-Base.copy(dur::ArrayDuration) = ArrayDuration(copy(dur.value))
 Base.copy(tp::TimePattern) = TimePattern(Y=tp.Y, M=tp.M, D=tp.D, WD=tp.WD, h=tp.h, m=tp.m, s=tp.s)
 Base.copy(ts::TimeSeries{T}) where T = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
 Base.copy(c::NothingParameterValue) = c

@@ -111,7 +111,7 @@ function __init__()
     from datetime import datetime
     """
     pytype_mapping(db_api."parameter_value"."DateTime", DateTime_)
-    pytype_mapping(db_api."parameter_value"."Duration", DurationLike)
+    pytype_mapping(db_api."parameter_value"."Duration", Duration)
     pytype_mapping(db_api."parameter_value"."TimePattern", TimePattern)
     pytype_mapping(db_api."parameter_value"."TimeSeriesFixedResolution", TimeSeries)
     pytype_mapping(db_api."parameter_value"."TimeSeriesVariableResolution", TimeSeries)
