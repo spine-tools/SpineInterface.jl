@@ -83,11 +83,7 @@ end
 
 Base.convert(::Type{DateTime_}, o::PyObject) = DateTime_(o.value)
 function Base.convert(::Type{DurationLike}, o::PyObject)
-    if length(o.value) == 1
-        ScalarDuration(_relativedelta_to_period(o.value[1]))
-    else
-        ArrayDuration([_relativedelta_to_period(val) for val in o.value])
-    end
+    ScalarDuration(_relativedelta_to_period(o.value))
 end
 function Base.convert(::Type{Array_}, o::PyObject)
     Array_(o.values)
