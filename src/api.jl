@@ -424,7 +424,10 @@ function add_relationships!(relationship_class::RelationshipClass, relationships
     setdiff!(relationships, relationship_class.relationships)
     append!(relationship_class.relationships, relationships)
     merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
-    isempty(relationships) || empty!(relationship_class.lookup_cache)
+    if !isempty(relationships)
+        empty!(relationship_class.lookup_cache[:true])
+        empty!(relationship_class.lookup_cache[:false])
+    end
     relationship_class
 end
 
