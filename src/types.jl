@@ -156,6 +156,14 @@ struct TimeSeries{V}
     end
 end
 
+"""
+    Map
+"""
+struct Map
+    indexes::Array{Any,1}
+    values::Array{Any,1}
+end
+
 # AbstractParameterValue subtypes
 # These are wrappers around some standard Julia types and our parameter value types, that override the call operator
 struct NothingParameterValue <: AbstractParameterValue
@@ -190,6 +198,10 @@ struct RepeatingTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     valsum::V
     len::Int64
     t_map::TimeSeriesMap
+end
+
+struct MapParameterValue <: AbstractParameterValue
+    value::Map
 end
 
 struct IdentityCall{T} <: Call

@@ -139,3 +139,7 @@ function (p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=not
         )
     end
 end
+
+function (p::MapParameterValue)(;kwargs...)
+    p.value
+end

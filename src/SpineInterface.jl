@@ -116,6 +116,7 @@ function __init__()
     pytype_mapping(db_api."parameter_value"."TimeSeriesFixedResolution", TimeSeries)
     pytype_mapping(db_api."parameter_value"."TimeSeriesVariableResolution", TimeSeries)
     pytype_mapping(db_api."parameter_value"."Array", Array_)
+    pytype_mapping(db_api."parameter_value"."Map", Map)
 end
 
 end # module

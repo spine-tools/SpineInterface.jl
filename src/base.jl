@@ -95,6 +95,11 @@ function Base.convert(::Type{TimeSeries}, o::PyObject)
     ignore_year && (indexes = [s - Year(s) for s in indexes])
     TimeSeries(indexes, values, ignore_year, repeat)
 end
+function Base.convert(::Type{Map}, o::PyObject)
+    indexes = o.indexes
+    values = o.values
+    Map(indexes, values)
+end
 Base.convert(::Type{Call}, x::T) where {T<:Real} = IdentityCall(x)
 
 Base.copy(tp::TimePattern) = TimePattern(Y=tp.Y, M=tp.M, D=tp.D, WD=tp.WD, h=tp.h, m=tp.m, s=tp.s)
