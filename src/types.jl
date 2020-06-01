@@ -159,8 +159,8 @@ end
 """
     Map
 """
-struct Map{T,V}
-    indexes::Array{T,1}
+struct Map{K,V}
+    indexes::Array{K,1}
     values::Array{V,1}
     index_type::DataType
 end
@@ -201,8 +201,8 @@ struct RepeatingTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     t_map::TimeSeriesMap
 end
 
-struct MapParameterValue{T,V} <: AbstractParameterValue
-    value::Map{T,V}
+struct MapParameterValue{K,V} <: AbstractParameterValue
+    value::Map{K,V}
 end
 
 struct IdentityCall{T} <: Call
