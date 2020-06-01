@@ -201,8 +201,8 @@ struct RepeatingTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     t_map::TimeSeriesMap
 end
 
-struct MapParameterValue <: AbstractParameterValue
-    value::Map
+struct MapParameterValue{T,V} <: AbstractParameterValue
+    value::Map{T,V}
 end
 
 struct IdentityCall{T} <: Call
