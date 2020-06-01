@@ -159,9 +159,10 @@ end
 """
     Map
 """
-struct Map
-    indexes::Array{Any,1}
-    values::Array{Any,1}
+struct Map{T,V}
+    indexes::Array{T,1}
+    values::Array{V,1}
+    index_type::DataType
 end
 
 # AbstractParameterValue subtypes

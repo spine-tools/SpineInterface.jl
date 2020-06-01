@@ -96,9 +96,10 @@ function Base.convert(::Type{TimeSeries}, o::PyObject)
     TimeSeries(indexes, values, ignore_year, repeat)
 end
 function Base.convert(::Type{Map}, o::PyObject)
-    indexes = o.indexes
+    indexes = py"[s for s in $o.indexes]"
     values = o.values
-    Map(indexes, values)
+    index_type = typeof(first(indexes))
+    Map(indexes, values, index_type)
 end
 Base.convert(::Type{Call}, x::T) where {T<:Real} = IdentityCall(x)
 
