@@ -634,3 +634,4 @@ parameter_value(parsed_db_value::Duration) = ScalarParameterValue(parsed_db_valu
 parameter_value(parsed_db_value::Array_) = ArrayParameterValue(parsed_db_value.value)
 parameter_value(parsed_db_value::TimePattern) = TimePatternParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_db_value)
+parameter_value(parsed_db_value::Map) = MapParameterValue(parsed_db_value)
