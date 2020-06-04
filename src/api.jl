@@ -169,6 +169,7 @@ The value of parameter `p` for a given object or relationship.
   object classes involved in it. The purpose is to retrieve the value of `p` for a specific relationship.
 - `i::Int64`: a specific index to retrieve in case of an array value (ignored otherwise).
 - `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
+- `inds`: indexes for navigating a `Map` (ignored otherwise). Tuples correspond to navigating nested `Maps`.
 - `_strict::Bool`: whether to raise an error or return `nothing` if the parameter is not specified for the given arguments.
 
 
@@ -189,9 +190,9 @@ julia> demand(node=:Sthlm, i=1)
 
 ```
 """
-function (p::Parameter)(;i=nothing, t=nothing, _strict=true, kwargs...)
+function (p::Parameter)(;i=nothing, t=nothing, inds=nothing, _strict=true, kwargs...)
     parameter_value = _lookup_parameter_value(p; kwargs...)
-    parameter_value != nothing && return parameter_value(i=i, t=t)
+    parameter_value != nothing && return parameter_value(i=i, t=t, inds=inds)
     _strict && error("parameter $p is not specified for argument(s) $(kwargs...)")
     nothing
 end
