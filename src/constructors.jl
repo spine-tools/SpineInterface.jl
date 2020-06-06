@@ -121,6 +121,10 @@ function TimeSeriesParameterValue(ts::TimeSeries{V}) where {V}
 end
 
 # TODO: specify PyObject constructors for other types?
+PyObject(x::DateTime_) = @pycall db_api.DateTime(x.value)::PyObject
+PyObject(x::Duration) = @pycall db_api.Duration(x.value)::PyObject
+PyObject(x::Array_) = @pycall db_api.Array(x.value)::PyObject
+PyObject(x::TimePattern) = @pycall db_api.Array(x.value)::PyObject
 function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
 end
