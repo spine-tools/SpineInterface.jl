@@ -139,3 +139,20 @@ function (p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=not
         )
     end
 end
+
+# TODO: Typing is pretty challenging, since the `Map` can have different types of nested indices
+function (p::MapParameterValue)(;inds=nothing, kwargs...)
+    inds === nothing && return p.value
+    if inds isa Tuple 
+        if length(inds) > 1 # Recursive call if `inds` is a Tuple with more than one element
+            pv = parameter_value(p(;inds=inds[1], kwargs...))
+            return pv(;inds=inds[2:end], kwargs...)
+        else # Otherwise, access the provided index
+            inds = first(inds)
+        end
+    end
+    i = first(findall(i -> i == inds, p.value.indexes))
+    isempty(i) && return nothing
+    pv = parameter_value(p.value.values[i])
+    return pv(;kwargs...)
+end
