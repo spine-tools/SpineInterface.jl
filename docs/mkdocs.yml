@@ -17,7 +17,8 @@ markdown_extensions:
   - tables
   - fenced_code
   - mdx_math
-
+  - admonition
+  
 docs_dir: 'build'
 
 pages:

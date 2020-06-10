@@ -55,6 +55,8 @@ export db_api
 export add_objects!
 export add_object!
 export add_relationships!
+export create_spinedb_map
+export import_and_commit
 
 
 function __init__()
