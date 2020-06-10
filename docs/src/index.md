@@ -42,8 +42,8 @@ To generate convenience functions for a Spine database, just run:
 julia> using_spinedb("...url of a Spine database...")
 ```
 
-The recomended way of creating, populating, and maintaining Spine databases is through 
-[Spine Toolbox](https://github.com/Spine-project/Spine-Toolbox).
+**The recomended way of creating, populating, and maintaining Spine databases is through 
+[Spine Toolbox](https://github.com/Spine-project/Spine-Toolbox).**
 However, here we present an alternative method that only requires `SpineInterface`,
 just so you get an idea of how `using_spinedb` works.
 
