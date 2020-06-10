@@ -1,13 +1,13 @@
 using PyCall
 
-function install_spinedb_api()
-    if get(ENV, "CI", nothing) == "true"
-        run(`$(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'`)
-        return
-    try
-        pyimport("spinedb_api")
-    catch err
-        if err isa PyCall.PyError
+try
+    pyimport("spinedb_api")
+catch err
+    if err isa PyCall.PyError
+        @show ENV
+        if get(ENV, "CI", nothing) == "true"
+            run(`$(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'`)
+        else
             error(
                 """
                 The required Python package `spinedb_api` could not be found in the current Python environment
@@ -28,10 +28,8 @@ function install_spinedb_api()
                 And restart Julia.
                 """
             )
-        else
-            rethrow()
         end
+    else
+        rethrow()
     end
 end
-
-install_spinedb_api()
