@@ -1,10 +1,11 @@
 using PyCall
 
+run(`$(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'`)
+
 try
     pyimport("spinedb_api")
 catch err
     if err isa PyCall.PyError
-        @show ENV
         if get(ENV, "CI", nothing) == "true"
             run(`$(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'`)
         else
