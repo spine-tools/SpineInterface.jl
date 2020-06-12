@@ -157,12 +157,24 @@ struct TimeSeries{V}
 end
 
 """
-    Map
+    Map{K,V}
+
+A nested general purpose indexed value corresponding to the similarly named `spinedb_api` class.
+
+Consists of an `indexes::Array{K,1}`, a `values::Array{V,1}` of matching length, and a `index_type::DataType` defining
+the type of `K`. See `MapParameterValue` for the corresponding `AbstractParameterValue` type for accessing `Map` type
+parameters.
 """
 struct Map{K,V}
     indexes::Array{K,1}
     values::Array{V,1}
     index_type::DataType
+    function Map(inds::Array{K,1}, vals::Array{V,1}, itype::DataType) where {K,V}
+        if length(inds) != length(vals)
+            error("`indexes` and `values` must be of the same length!")
+        end
+        new{K,V}(inds, vals, itype)
+    end
 end
 
 # AbstractParameterValue subtypes
