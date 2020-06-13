@@ -119,7 +119,7 @@ Object
 ```
 Things got a little bit more interesting.
 
-Now let's see what happens if we add relationships:
+Now let's see what happens if we add some relationships to the database:
 
 ```jldoctest quick_start_guide
 julia> relationship_classes = [["actor__film", ["actor", "film"]]];
@@ -160,7 +160,7 @@ julia> actor__film(film=film(:Her))
 
 ```
 
-Finally, let's add some parameters and some values to database:
+Finally, let's add some parameters and some values to the database:
 
 ```jldoctest quick_start_guide
 julia> object_parameters = [["film", "release_year"]];
