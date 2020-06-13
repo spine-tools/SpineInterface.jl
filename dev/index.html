@@ -41,7 +41,7 @@ Her
 
 julia&gt; typeof(ans)
 Object
-</code></pre><p>Things got a little bit more interesting.</p><p>Now let&#39;s see what happens if we add relationships:</p><pre><code class="language-julia-repl">julia&gt; relationship_classes = [[&quot;actor__film&quot;, [&quot;actor&quot;, &quot;film&quot;]]];
+</code></pre><p>Things got a little bit more interesting.</p><p>Now let&#39;s see what happens if we add some relationships to the database:</p><pre><code class="language-julia-repl">julia&gt; relationship_classes = [[&quot;actor__film&quot;, [&quot;actor&quot;, &quot;film&quot;]]];
 
 julia&gt; relationships = [
 	[&quot;actor__film&quot;, [&quot;Phoenix&quot;, &quot;Joker&quot;]], 
@@ -68,7 +68,7 @@ julia&gt; actor__film(film=film(:Her))
 2-element Array{Object,1}:
  Johansson
  Phoenix
-</code></pre><p>Finally, let&#39;s add some parameters and some values to database:</p><pre><code class="language-julia-repl">julia&gt; object_parameters = [[&quot;film&quot;, &quot;release_year&quot;]];
+</code></pre><p>Finally, let&#39;s add some parameters and some values to the database:</p><pre><code class="language-julia-repl">julia&gt; object_parameters = [[&quot;film&quot;, &quot;release_year&quot;]];
 
 julia&gt; relationship_parameters = [[&quot;actor__film&quot;, &quot;character_name&quot;]];
 
