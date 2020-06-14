@@ -47,23 +47,22 @@ julia> using_spinedb("...url of a Spine database...")
 However, here we present an alternative method that only requires `SpineInterface`,
 just so you get an idea of how `using_spinedb` works.
 
-Create a new Spine database and mapping by running:
+Create a new Spine database by running:
 
 ```jldoctest quick_start_guide
 julia> url = "sqlite:///example.db";
 
-julia> db_map = create_spinedb_map(url);
+julia> db_api.create_new_spine_database(url);
 
 ```
 
 The above will create a SQLite file called `example.db` in the present working directory
-with the Spine database schema, together with a database mapping object, `db_map`,
-which is a handle to the database in Julia.
+with the Spine database schema.
 
 The next step is to add some content to the database. Run:
 
 ```jldoctest quick_start_guide
-julia> import_and_commit(db_map; object_classes=["actor", "film"])
+julia> db_api.import_data_to_url(url; object_classes=["actor", "film"])
 
 ```
 
@@ -96,7 +95,7 @@ julia> objects = [
 	["film", "Joker"]
 ];
 
-julia> import_and_commit(db_map; objects=objects)
+julia> db_api.import_data_to_url(url; objects=objects)
 
 julia> using_spinedb(url)
 
@@ -130,8 +129,8 @@ julia> relationships = [
 	["actor__film", ["Johansson", "Her"]]
 ];
 
-julia> import_and_commit(
-	db_map; relationship_classes=relationship_classes, relationships=relationships
+julia> db_api.import_data_to_url(
+	url; relationship_classes=relationship_classes, relationships=relationships
 )
 
 ```
@@ -178,8 +177,8 @@ julia> relationship_parameter_values = [
 	["actor__film", ["Johansson", "Her"], "character_name", "Samantha"]
 ];
 
-julia> import_and_commit(
-	db_map;
+julia> db_api.import_data_to_url(
+	url;
 	object_parameters=object_parameters, 
 	relationship_parameters=relationship_parameters, 
 	object_parameter_values=object_parameter_values,

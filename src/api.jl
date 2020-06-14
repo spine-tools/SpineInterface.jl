@@ -636,15 +636,3 @@ parameter_value(parsed_db_value::Array_) = ArrayParameterValue(parsed_db_value.v
 parameter_value(parsed_db_value::TimePattern) = TimePatternParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::Map) = MapParameterValue(parsed_db_value)
-
-
-function create_spinedb_map(url::String)
-    db_api.create_new_spine_database(url)
-    db_api.DiffDatabaseMapping(url)
-end
-
-function import_and_commit(db_map::PyObject; kwargs...)
-    msg = "Add $kwargs"
-    db_api.import_data(db_map; kwargs...)
-    db_map.commit_session(msg)
-end
