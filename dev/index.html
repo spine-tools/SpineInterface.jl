@@ -4,10 +4,10 @@
 julia&gt; pkg&quot;registry add https://github.com/Spine-project/SpineJuliaRegistry&quot;
 
 julia&gt; pkg&quot;add SpineInterface&quot;
-</code></pre><h2><a class="nav-anchor" id="Quick-start-guide-1" href="#Quick-start-guide-1">Quick start guide</a></h2><p>Once <code>SpineInterface</code> is installed, to use it in your programs you just need to say:</p><pre><code class="language-julia-repl">julia&gt; using SpineInterface</code></pre><p>To generate convenience functions for a Spine database, just run:</p><pre><code class="language-julia">julia&gt; using_spinedb(&quot;...url of a Spine database...&quot;)</code></pre><p><strong>The recomended way of creating, populating, and maintaining Spine databases is through  <a href="https://github.com/Spine-project/Spine-Toolbox">Spine Toolbox</a>.</strong> However, here we present an alternative method that only requires <code>SpineInterface</code>, just so you get an idea of how <code>using_spinedb</code> works.</p><p>Create a new Spine database and mapping by running:</p><pre><code class="language-julia-repl">julia&gt; url = &quot;sqlite:///example.db&quot;;
+</code></pre><h2><a class="nav-anchor" id="Quick-start-guide-1" href="#Quick-start-guide-1">Quick start guide</a></h2><p>Once <code>SpineInterface</code> is installed, to use it in your programs you just need to say:</p><pre><code class="language-julia-repl">julia&gt; using SpineInterface</code></pre><p>To generate convenience functions for a Spine database, just run:</p><pre><code class="language-julia">julia&gt; using_spinedb(&quot;...url of a Spine database...&quot;)</code></pre><p><strong>The recomended way of creating, populating, and maintaining Spine databases is through  <a href="https://github.com/Spine-project/Spine-Toolbox">Spine Toolbox</a>.</strong> However, here we present an alternative method that only requires <code>SpineInterface</code>, just so you get an idea of how <code>using_spinedb</code> works.</p><p>Create a new Spine database by running:</p><pre><code class="language-julia-repl">julia&gt; url = &quot;sqlite:///example.db&quot;;
 
-julia&gt; db_map = create_spinedb_map(url);
-</code></pre><p>The above will create a SQLite file called <code>example.db</code> in the present working directory with the Spine database schema, together with a database mapping object, <code>db_map</code>, which is a handle to the database in Julia.</p><p>The next step is to add some content to the database. Run:</p><pre><code class="language-julia-repl">julia&gt; import_and_commit(db_map; object_classes=[&quot;actor&quot;, &quot;film&quot;])
+julia&gt; db_api.create_new_spine_database(url);
+</code></pre><p>The above will create a SQLite file called <code>example.db</code> in the present working directory with the Spine database schema.</p><p>The next step is to add some content to the database. Run:</p><pre><code class="language-julia-repl">julia&gt; db_api.import_data_to_url(url; object_classes=[&quot;actor&quot;, &quot;film&quot;])
 </code></pre><p>The above will add two object classes called <code>&quot;actor&quot;</code> and <code>&quot;film&quot;</code> to the database, and commit the changes so they become visible.</p><p>At this point, calling <code>using_spinedb</code> will already generate a convenience function for each of these object classes. Run:</p><pre><code class="language-julia-repl">julia&gt; using_spinedb(url)
 
 julia&gt; actor()
@@ -22,7 +22,7 @@ julia&gt; film()
 	[&quot;film&quot;, &quot;Joker&quot;]
 ];
 
-julia&gt; import_and_commit(db_map; objects=objects)
+julia&gt; db_api.import_data_to_url(url; objects=objects)
 
 julia&gt; using_spinedb(url)
 
@@ -49,8 +49,8 @@ julia&gt; relationships = [
 	[&quot;actor__film&quot;, [&quot;Johansson&quot;, &quot;Her&quot;]]
 ];
 
-julia&gt; import_and_commit(
-	db_map; relationship_classes=relationship_classes, relationships=relationships
+julia&gt; db_api.import_data_to_url(
+	url; relationship_classes=relationship_classes, relationships=relationships
 )
 </code></pre><p>The above will add a relationship class called <code>&quot;actor__film&quot;</code>  between the <code>&quot;actor&quot;</code> and <code>&quot;film&quot;</code> object classes, and a couple of relationships of that class. Now let&#39;s see the effect of calling <code>using_spinedb</code>:</p><pre><code class="language-julia-repl">julia&gt; using_spinedb(url)
 
@@ -83,8 +83,8 @@ julia&gt; relationship_parameter_values = [
 	[&quot;actor__film&quot;, [&quot;Johansson&quot;, &quot;Her&quot;], &quot;character_name&quot;, &quot;Samantha&quot;]
 ];
 
-julia&gt; import_and_commit(
-	db_map;
+julia&gt; db_api.import_data_to_url(
+	url;
 	object_parameters=object_parameters, 
 	relationship_parameters=relationship_parameters, 
 	object_parameter_values=object_parameter_values,
