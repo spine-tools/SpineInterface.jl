@@ -344,6 +344,10 @@ function iscontained(ts::TimeSlice, pc::PeriodCollection)
     end
     all(conds)
 end
+iscontained(::Nothing, ::T) where T = false
+
+contains(a, b) = iscontained(b, a)
+contains(::Nothing, ::T) where T = false
 
 """
     overlaps(a::TimeSlice, b::TimeSlice)
@@ -382,10 +386,10 @@ Remove time slices that are contained in any other from `t_arr`, and return the 
 """
 function t_lowest_resolution!(t_arr::Array{TimeSlice,1})
     length(t_arr) <= 1 && return t_arr
-    sort!(t_arr)
+    sort!(t_arr; lt=contains)
     unique!(t_arr)
-    inds_to_drop = (k for (k, (t1, t2)) in enumerate(zip(t_arr[1:end - 1], t_arr[2:end])) if iscontained(t1, t2))
-    deleteat!(t_arr, inds_to_drop)
+    f = _IsLowestResolution()
+    filter!(f, t_arr)
 end
 
 """
@@ -395,10 +399,10 @@ Remove time slices that contain any other from `t_arr`, and return the modified 
 """
 function t_highest_resolution!(t_arr::Array{TimeSlice,1})
     length(t_arr) <= 1 && return t_arr
-    sort!(t_arr)
+    sort!(t_arr; lt=iscontained)
     unique!(t_arr)
-    inds_to_drop = (k + 1 for (k, (t1, t2)) in enumerate(zip(t_arr[1:end - 1], t_arr[2:end])) if iscontained(t1, t2))
-    deleteat!(t_arr, inds_to_drop)
+    f = _IsHighestResolution()
+    filter!(f, t_arr)
 end
 
 """

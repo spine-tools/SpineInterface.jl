@@ -51,14 +51,14 @@ just so you get an idea of how `using_spinedb` works.
 Create a new Spine database by running:
 
 ```jldoctest quick_start_guide
-julia> url = "sqlite:///example.db";
+julia> url = "sqlite:///quick_start.db";
 
 julia> db_api.create_new_spine_database(url);
 
 ```
 
-The above will create a SQLite file called `example.db` in the present working directory
-with the Spine database schema.
+The above will create a SQLite file called `quick_start.db` in the present working directory,
+with the Spine database schema in it.
 
 The next step is to add some content to the database. Run:
 

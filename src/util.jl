@@ -170,3 +170,21 @@ function (p::MapParameterValue)(;inds=nothing, _strict=true, kwargs...)
     pv = parameter_value(p.value.values[first(i)])
     pv(;kwargs...)
 end
+
+function (x::_IsLowestResolution)(t::TimeSlice)
+    if contains(x.ref, t)
+        false
+    else
+        x.ref = t
+        true
+    end
+end
+
+function (x::_IsHighestResolution)(t::TimeSlice)
+    if iscontained(x.ref, t)
+        false
+    else
+        x.ref = t
+        true
+    end
+end

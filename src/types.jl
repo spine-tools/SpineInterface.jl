@@ -230,3 +230,13 @@ struct ParameterCall <: Call
     parameter::Parameter
     kwargs::NamedTuple
 end
+
+mutable struct _IsLowestResolution
+    ref::Union{TimeSlice,Nothing}
+    _IsLowestResolution() = new(nothing)
+end
+
+mutable struct _IsHighestResolution
+    ref::Union{TimeSlice,Nothing}
+    _IsHighestResolution() = new(nothing)
+end
