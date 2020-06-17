@@ -139,11 +139,8 @@ Base.:*(x, y::Call) = OperatorCall(*, (x, y))
 Base.:/(x::Call, y::Call) = OperatorCall(/, (x, y))
 Base.:/(x::Call, y) = OperatorCall(/, (x, y))
 Base.:/(x, y::Call) = OperatorCall(/, (x, y))
-function Base.:-(t::TimeSlice, p::Period)
-    new_start = start(t) - p
-    new_end = end_(t) - p
-    TimeSlice(new_start, new_end, duration(t), blocks(t))
-end
+Base.:+(t::TimeSlice, p::Period) = TimeSlice(start(t) + p, end_(t) + p, duration(t), blocks(t))
+Base.:-(t::TimeSlice, p::Period) = (+)(t, -p)
 
 Base.:min(x::Call, y::Call) = OperatorCall(min, (x, y))
 Base.:min(x::Call, y) = OperatorCall(min, (x, y))
