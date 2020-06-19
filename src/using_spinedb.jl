@@ -124,21 +124,21 @@ function _class_args(class, ents_per_cls, param_defs_per_cls, param_vals_per_ent
 end
 
 function _ents_and_vals(::Nothing, entities, param_defs, param_vals_per_ent)
+    objects = [Object(ent["name"], ent["id"]) for ent in entities]
     param_vals = Dict(
-        Object(ent["name"], ent["id"]) => _parameter_values(ent, param_defs, param_vals_per_ent)
-        for ent in entities
+        obj => _parameter_values(ent, param_defs, param_vals_per_ent) for (obj, ent) in zip(objects, entities)
     )
-    objects = collect(keys(param_vals))
     objects, param_vals
 end
 function _ents_and_vals(object_class_name_list, entities, param_defs, param_vals_per_ent)
     object_class_names = Symbol.(split(object_class_name_list, ","))
     _fix_name_ambiguity!(object_class_names)
+    object_tuples = (_object_tuple_from_relationship(ent) for ent in entities)
+    relationships = [(; zip(object_class_names, objects)...) for objects in object_tuples]
     param_vals = Dict(
-        _object_tuple_from_relationship(ent) => _parameter_values(ent, param_defs, param_vals_per_ent)
-        for ent in entities
+        objects => _parameter_values(ent, param_defs, param_vals_per_ent)
+        for (objects, ent) in zip(object_tuples, entities)
     )
-    relationships = [(; zip(object_class_names, objects)...) for objects in keys(param_vals)]
     object_class_names, relationships, param_vals
 end
 
