@@ -132,7 +132,7 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 """
 function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
-    lookup_key = Tuple(_immutable(get(kwargs, oc, anything)) for oc in rc.object_class_names)
+    lookup_key = Tuple(_immutable(get(kwargs, oc, nothing)) for oc in rc.object_class_names)
     relationships = get!(rc.lookup_cache[_compact], lookup_key) do
         cond(rel) = all(rel[rc] in r for (rc, r) in kwargs)
         filtered = filter(cond, rc.relationships)
