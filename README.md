@@ -2,6 +2,7 @@
 
 [![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://spine-project.github.io/SpineInterface.jl/latest/index.html)
 [![Build Status](https://travis-ci.com/Spine-project/SpineInterface.jl.svg?branch=master)](https://travis-ci.com/Spine-project/SpineInterface.jl)
+[![Coverage Status](https://coveralls.io/repos/github/Spine-project/SpineInterface.jl/badge.svg?branch=master)](https://coveralls.io/github/Spine-project/SpineInterface.jl?branch=master)
 [![codecov](https://codecov.io/gh/Spine-project/SpineInterface.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Spine-project/SpineInterface.jl)
 
 A package to interact with Spine databases from a Julia session.

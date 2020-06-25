@@ -240,32 +240,3 @@ function using_spinedb(db_map::PyObject, mod=@__MODULE__)
         end
     end
 end
-
-function notusing_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
-    db_map = db_api.DiffDatabaseMapping(db_url, upgrade=upgrade)
-    notusing_spinedb(db_map, mod)
-end
-function notusing_spinedb(db_map::PyObject, mod=@__MODULE__)
-    obj_class_handle, rel_class_handle, param_handle = _spinedb_handle(db_map)
-    for (name, value) in obj_class_handle
-        name in names(mod) || continue
-        functor = getfield(mod, name)
-        name, objects = value
-        setdiff!(functor.objects, objects)
-        empty!(functor.cache)
-    end
-    for (name, value) in rel_class_handle
-        name in names(mod) || continue
-        functor = getfield(mod, name)
-        name, obj_cls_name_tup, relationships = value
-        obj_cls_name_tup == functor.object_class_names || continue
-        setdiff!(functor.relationships, relationships)
-        empty!(functor.cache)
-    end
-    for (name, value) in param_handle
-        name in names(mod) || continue
-        functor = getfield(mod, name)
-        name, classes = value
-        setdiff!(functor.classes, [getfield(mod, x) for x in classes])
-    end
-end

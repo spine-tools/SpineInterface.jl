@@ -28,7 +28,6 @@ export TimeSliceMap
 export TimeSeries
 export Call
 export using_spinedb
-export notusing_spinedb
 export anything
 export indices
 export write_parameters
