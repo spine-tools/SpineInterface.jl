@@ -19,6 +19,8 @@
 
 using SpineInterface
 using Test
+using PyCall
+using Dates
 
 @testset begin
     include("using_spinedb.jl")

@@ -19,11 +19,11 @@
 
 @testset "using_spinedb" begin
     url = "sqlite:///$(@__DIR__)/test.sqlite"
-    @testset "object_class" begin
-	    object_classes = ["institution"]
-	    institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
-	    objects = [["institution", x] for x in institutions]
-    	db_api.create_new_spine_database(url)
+    @testset "object_class basics" begin
+        object_classes = ["institution"]
+        institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
+        objects = [["institution", x] for x in institutions]
+        db_api.create_new_spine_database(url)
         db_api.import_data_to_url(url; object_classes=object_classes, objects=objects)
         using_spinedb(url)
         @test length(institution()) === 5
@@ -33,77 +33,77 @@
         @test length(object_class()) === 1
         @test all(x isa ObjectClass for x in object_class())
     end
-    @testset "relationship_class" begin
-	    object_classes = ["institution", "country"]
-	    relationship_classes = [["institution__country", ["institution", "country"]]]
-	    institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
-	    countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
-	    objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
-	    object_tuples = [
-	    	["VTT", "Finland"],
-			["KTH", "Sweden"],
-			["KTH", "France"],
-			["KUL", "Belgium"],
-			["UCD", "Ireland"],
-			["ER", "Ireland"],
-			["ER", "France"],
-	    ]
-	    relationships = [["institution__country", x] for x in object_tuples]
-    	db_api.create_new_spine_database(url)
+    @testset "relationship_class basics" begin
+        object_classes = ["institution", "country"]
+        relationship_classes = [["institution__country", ["institution", "country"]]]
+        institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
+        countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
+        objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
+        object_tuples = [
+            ["VTT", "Finland"],
+            ["KTH", "Sweden"],
+            ["KTH", "France"],
+            ["KUL", "Belgium"],
+            ["UCD", "Ireland"],
+            ["ER", "Ireland"],
+            ["ER", "France"],
+        ]
+        relationships = [["institution__country", x] for x in object_tuples]
+        db_api.create_new_spine_database(url)
         db_api.import_data_to_url(
-        	url; 
-        	object_classes=object_classes, 
-        	relationship_classes=relationship_classes, 
-        	objects=objects, 
-        	relationships=relationships
-       	)
+            url; 
+            object_classes=object_classes, 
+            relationship_classes=relationship_classes, 
+            objects=objects, 
+            relationships=relationships
+           )
         using_spinedb(url)
         @test length(institution__country()) === 7
         @test all(x isa RelationshipLike for x in institution__country())
         @test [x.name for x in institution__country(country=country(:France))] == [:KTH, :ER]
         @test [x.name for x in institution__country(institution=institution(:KTH))] == [:Sweden, :France]
         @test [(x.name, y.name) for (x, y) in institution__country(country=country(:France), _compact=false)] == [
-        	(:KTH, :France), (:ER, :France)
+            (:KTH, :France), (:ER, :France)
         ]
         @test [(x.name, y.name) for (x, y) in institution__country()] == [
-        	(Symbol(x), Symbol(y)) for (x, y) in object_tuples
+            (Symbol(x), Symbol(y)) for (x, y) in object_tuples
         ]
         @test isempty(institution__country(country=country(:France), institution=institution(:KTH)))
         @test institution__country(
-        	country=country(:France), institution=institution(:VTT), _compact=false, _default=10
+            country=country(:France), institution=institution(:VTT), _compact=false, _default=10
         ) == 10
         @test length(relationship_class()) === 1
         @test all(x isa RelationshipClass for x in relationship_class())
     end
-    @testset "parameters" begin
-	    object_classes = ["institution", "country"]
-	    relationship_classes = [["institution__country", ["institution", "country"]]]
-	    object_parameters = [["institution", "since_year"]]
-	    relationship_parameters = [["institution__country", "people_count"]]
-	    institutions = ["KTH"]
-	    countries = ["Sweden", "France"]
-	    objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
-	    relationships = [
-	    	["institution__country", ["KTH", "Sweden"]],
-	    	["institution__country", ["KTH", "France"]],
-	    ]
-	    object_parameter_values = [["institution", "KTH", "since_year", 1827]]
-	    relationship_parameter_values = [
-	    	["institution__country", ["KTH", "Sweden"], "people_count", 3],
-	    	["institution__country", ["KTH", "France"], "people_count", 1],
-	    ]
-    	db_api.create_new_spine_database(url)
+    @testset "parameter basics" begin
+        object_classes = ["institution", "country"]
+        relationship_classes = [["institution__country", ["institution", "country"]]]
+        object_parameters = [["institution", "since_year"]]
+        relationship_parameters = [["institution__country", "people_count"]]
+        institutions = ["KTH"]
+        countries = ["Sweden", "France"]
+        objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
+        relationships = [
+            ["institution__country", ["KTH", "Sweden"]],
+            ["institution__country", ["KTH", "France"]],
+        ]
+        object_parameter_values = [["institution", "KTH", "since_year", 1827]]
+        relationship_parameter_values = [
+            ["institution__country", ["KTH", "Sweden"], "people_count", 3],
+            ["institution__country", ["KTH", "France"], "people_count", 1],
+        ]
+        db_api.create_new_spine_database(url)
         db_api.import_data_to_url(
-        	url; 
-        	object_classes=object_classes, 
-        	relationship_classes=relationship_classes, 
-        	objects=objects, 
-        	relationships=relationships,
-        	object_parameters=object_parameters,
-        	relationship_parameters=relationship_parameters,
-        	object_parameter_values=object_parameter_values,
-        	relationship_parameter_values=relationship_parameter_values,
-       	)
+            url; 
+            object_classes=object_classes, 
+            relationship_classes=relationship_classes, 
+            objects=objects, 
+            relationships=relationships,
+            object_parameters=object_parameters,
+            relationship_parameters=relationship_parameters,
+            object_parameter_values=object_parameter_values,
+            relationship_parameter_values=relationship_parameter_values,
+           )
         using_spinedb(url)
         @test all(x isa RelationshipLike for x in institution__country())
         @test people_count(institution=institution(:KTH), country=country(:France)) == 1
@@ -112,5 +112,62 @@
         @test [x.name for x in institution(since_year=1827.0)] == [:KTH]
         @test length(parameter()) === 2
         @test all(x isa Parameter for x in parameter())
+    end
+end
+@testset "using_spinedb - parameter value types" begin
+    url = "sqlite:///$(@__DIR__)/test.sqlite"
+    object_classes = ["country"]
+    objects = [["country", "France"]]
+    object_parameters = [["country", "apero_time"]]
+    db_api.create_new_spine_database(url)
+    db_api.import_data_to_url(
+        url; 
+        object_classes=object_classes, 
+        objects=objects, 
+        object_parameters=object_parameters
+    )
+    @testset "true" begin
+        object_parameter_values = [["country", "France", "apero_time", true]]
+        db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
+        using_spinedb(url)
+        @test apero_time(country=country(:France))
+    end
+    @testset "false" begin
+        object_parameter_values = [["country", "France", "apero_time", false]]
+        db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
+        using_spinedb(url)
+        @test !apero_time(country=country(:France))
+    end
+    @testset "string" begin
+        object_parameter_values = [["country", "France", "apero_time", "now!"]]
+        db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
+        using_spinedb(url)
+        @test apero_time(country=country(:France)) == Symbol("now!")
+    end
+    @testset "array" begin
+        data = [4, 8, 7]
+        value = Dict("type" => "array", "data" => PyVector(data))
+        object_parameter_values = [["country", "France", "apero_time", value]]
+        db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
+        using_spinedb(url)
+        @test apero_time(country=country(:France)) == data
+        @test all(apero_time(country=country(:France), i=i) == v for (i, v) in enumerate(data))
+    end
+    @testset "date_time" begin
+        data = "2000-01-01T00:00:00"
+        value = Dict("type" => "date_time", "data" => data)
+        object_parameter_values = [["country", "France", "apero_time", value]]
+        db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
+        using_spinedb(url)
+        @test apero_time(country=country(:France)) == DateTime(data)
+    end
+    @testset "duration" begin
+        @testset for (k, (t, data)) in enumerate([(Minute, "m"), (Hour, "h"), (Day, "D"), (Month, "M"), (Year, "Y")])
+            value = Dict("type" => "duration", "data" => string(k, data))
+            object_parameter_values = [["country", "France", "apero_time", value]]
+            db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
+            using_spinedb(url)
+            @test apero_time(country=country(:France)) == t(k)
+        end
     end
 end
