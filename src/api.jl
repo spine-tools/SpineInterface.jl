@@ -383,9 +383,9 @@ Remove time slices that are contained in any other from `t_arr`, and return the 
 """
 function t_lowest_resolution!(t_arr::Array{TimeSlice,1})
     length(t_arr) <= 1 && return t_arr
-    sort!(t_arr; lt=contains)
+    sort!(t_arr; lt=!iscontained)
     unique!(t_arr)
-    f = _IsLowestResolution()
+    f = _IsLowestResolution(t_arr)
     filter!(f, t_arr)
 end
 
@@ -396,9 +396,9 @@ Remove time slices that contain any other from `t_arr`, and return the modified 
 """
 function t_highest_resolution!(t_arr::Array{TimeSlice,1})
     length(t_arr) <= 1 && return t_arr
-    sort!(t_arr; lt=iscontained)
+    sort!(t_arr; lt=!contains)
     unique!(t_arr)
-    f = _IsHighestResolution()
+    f = _IsHighestResolution(t_arr)
     filter!(f, t_arr)
 end
 

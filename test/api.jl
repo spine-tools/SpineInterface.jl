@@ -75,4 +75,10 @@ end
 	@test overlaps(t2_4, t0_3)
 	@test !overlaps(t2_4, t4_6)
 	@test overlap_duration(t4_6, t3_6) == Hour(24 * (365 + 366)).value
+	@show t = (t0_2, t2_4, t4_6, t0_3, t3_6)
+	@test isempty(symdiff(t_lowest_resolution(t), [t2_4, t0_3, t3_6]))
+	@test isempty(symdiff(t_highest_resolution(t), [t0_2, t2_4, t4_6]))
+	roll!(t0_2, Minute(44))
+	@test start(t0_2) == DateTime(0, 1, 1, 0, 44)
+	@test end_(t0_2) == DateTime(2, 1, 1, 0, 44)
 end

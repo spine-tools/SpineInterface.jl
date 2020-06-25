@@ -232,11 +232,19 @@ struct ParameterCall <: Call
 end
 
 mutable struct _IsLowestResolution
-    ref::Union{TimeSlice,Nothing}
-    _IsLowestResolution() = new(nothing)
+    ref::Array{Union{TimeSlice,Nothing},1}
+    function _IsLowestResolution(t_arr::Array{TimeSlice,1})
+        ref = [nothing]
+        sizehint!(ref, length(t_arr))
+        new(ref)
+    end
 end
 
 mutable struct _IsHighestResolution
-    ref::Union{TimeSlice,Nothing}
-    _IsHighestResolution() = new(nothing)
+    ref::Array{Union{TimeSlice,Nothing},1}
+    function _IsHighestResolution(t_arr::Array{TimeSlice,1})
+        ref = [nothing]
+        sizehint!(ref, length(t_arr))
+        new(ref)
+    end
 end

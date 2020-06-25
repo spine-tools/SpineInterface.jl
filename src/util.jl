@@ -172,19 +172,19 @@ function (p::MapParameterValue)(;inds=nothing, _strict=true, kwargs...)
 end
 
 function (x::_IsLowestResolution)(t::TimeSlice)
-    if contains(x.ref, t)
+    if any(contains(r, t) for r in x.ref)
         false
     else
-        x.ref = t
+        push!(x.ref, t)
         true
     end
 end
 
 function (x::_IsHighestResolution)(t::TimeSlice)
-    if iscontained(x.ref, t)
+    if any(iscontained(r, t) for r in x.ref)
         false
     else
-        x.ref = t
+        push!(x.ref, t)
         true
     end
 end
