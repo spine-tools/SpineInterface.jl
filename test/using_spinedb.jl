@@ -26,8 +26,12 @@
     	db_api.create_new_spine_database(url)
         db_api.import_data_to_url(url; object_classes=object_classes, objects=objects)
         using_spinedb(url)
+        @test length(institution()) === 5
         @test all(x isa Object for x in institution())
         @test [x.name for x in institution()] == Symbol.(institutions)
+        @test institution(:FIFA) === nothing
+        @test length(object_class()) === 1
+        @test all(x isa ObjectClass for x in object_class())
     end
     @testset "relationship_class" begin
 	    object_classes = ["institution", "country"]
@@ -35,15 +39,16 @@
 	    institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
 	    countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
 	    objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
-	    relationships = [
-	    	["institution__country", ["VTT", "Finland"]],
-	    	["institution__country", ["KTH", "Sweden"]],
-	    	["institution__country", ["KTH", "France"]],
-	    	["institution__country", ["KUL", "Belgium"]],
-	    	["institution__country", ["UCD", "Ireland"]],
-	    	["institution__country", ["ER", "Ireland"]],
-	    	["institution__country", ["ER", "France"]],
+	    object_tuples = [
+	    	["VTT", "Finland"],
+			["KTH", "Sweden"],
+			["KTH", "France"],
+			["KUL", "Belgium"],
+			["UCD", "Ireland"],
+			["ER", "Ireland"],
+			["ER", "France"],
 	    ]
+	    relationships = [["institution__country", x] for x in object_tuples]
     	db_api.create_new_spine_database(url)
         db_api.import_data_to_url(
         	url; 
@@ -53,9 +58,22 @@
         	relationships=relationships
        	)
         using_spinedb(url)
+        @test length(institution__country()) === 7
         @test all(x isa RelationshipLike for x in institution__country())
         @test [x.name for x in institution__country(country=country(:France))] == [:KTH, :ER]
         @test [x.name for x in institution__country(institution=institution(:KTH))] == [:Sweden, :France]
+        @test [(x.name, y.name) for (x, y) in institution__country(country=country(:France), _compact=false)] == [
+        	(:KTH, :France), (:ER, :France)
+        ]
+        @test [(x.name, y.name) for (x, y) in institution__country()] == [
+        	(Symbol(x), Symbol(y)) for (x, y) in object_tuples
+        ]
+        @test isempty(institution__country(country=country(:France), institution=institution(:KTH)))
+        @test institution__country(
+        	country=country(:France), institution=institution(:VTT), _compact=false, _default=10
+        ) == 10
+        @test length(relationship_class()) === 1
+        @test all(x isa RelationshipClass for x in relationship_class())
     end
     @testset "parameters" begin
 	    object_classes = ["institution", "country"]
@@ -91,5 +109,8 @@
         @test people_count(institution=institution(:KTH), country=country(:France)) == 1
         @test people_count(institution=institution(:KTH), country=country(:Sweden)) == 3
         @test since_year(institution=institution(:KTH)) == 1827
+        @test [x.name for x in institution(since_year=1827.0)] == [:KTH]
+        @test length(parameter()) === 2
+        @test all(x isa Parameter for x in parameter())
     end
 end
