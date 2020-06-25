@@ -1,5 +1,7 @@
 ## Documentation: http://docs.travis-ci.com/user/languages/julia/
 language: julia
+codecov: true
+coveralls: true
 os:
   - linux
   # - osx
@@ -33,5 +35,9 @@ before_script: # homebrew for mac
 
 script:
   - julia --project=docs/ -e 'using Pkg; Pkg.add(PackageSpec(path=pwd())); Pkg.instantiate()'
+  - /home/travis/.julia/conda/3/bin/python -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
   - julia --project=docs/ docs/make.jl
-after_success: skip
+
+after_success:
+  - julia -e 'using Pkg; Pkg.test("SpineInterface", coverage=true)'
+  - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder()); Coveralls.submit(process_folder())'
