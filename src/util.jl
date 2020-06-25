@@ -81,11 +81,11 @@ end
 
 function (p::TimePatternParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
-    values = [val for (tp, val) in p.value if iscontained(t, tp)]
-    if isempty(values)
+    vals = [val for (tp, val) in p.value if overlaps(t, tp)]
+    if isempty(vals)
         nothing
     else
-        mean(values)
+        mean(vals)
     end
 end
 

@@ -323,27 +323,6 @@ Determine whether `b` is contained in `a`.
 """
 iscontained(b::TimeSlice, a::TimeSlice) = start(b) >= start(a) && end_(b) <= end_(a)
 iscontained(b::DateTime, a::TimeSlice) = start(a) <= b <= end_(a)
-iscontained(b::UnitRange{Int64}, a::UnitRange{Int64}) = b.start >= a.start && b.stop <= a.stop
-function iscontained(ts::TimeSlice, pc::PeriodCollection)
-    fdict = Dict{Symbol,Function}(
-        :Y => year,
-        :M => month,
-        :D => day,
-        :WD => dayofweek,
-        :h => hour,
-        :m => minute,
-        :s => second,
-    )
-    conds = Array{Bool,1}()
-    sizehint!(conds, 7)
-    for name in fieldnames(PeriodCollection)
-        getfield(pc, name) == nothing && continue
-        f = fdict[name]
-        b = f(start(ts)):f(end_(ts))
-        push!(conds, any(iscontained(b, a) for a in getfield(pc, name)))
-    end
-    all(conds)
-end
 iscontained(::Nothing, ::T) where T = false
 
 contains(a, b) = iscontained(b, a)
@@ -355,6 +334,24 @@ contains(::Nothing, ::T) where T = false
 Determine whether `a` and `b` overlap.
 """
 overlaps(a::TimeSlice, b::TimeSlice) = start(a) <= start(b) < end_(a) || start(b) <= start(a) < end_(b)
+function overlaps(t::TimeSlice, pc::PeriodCollection)
+    funcs = Dict{Symbol,Function}(
+        :Y => year,
+        :M => month,
+        :D => day,
+        :WD => dayofweek,
+        :h => hour,
+        :m => minute,
+        :s => second,
+    )
+    for name in fieldnames(PeriodCollection)
+        getfield(pc, name) == nothing && continue
+        func = funcs[name]
+        b = func(start(t)):func(end_(t))
+        any(!isempty(intersect(a, b)) for a in getfield(pc, name)) && return true
+    end
+    false
+end
 
 """
     overlap_duration(a::TimeSlice, b::TimeSlice)
@@ -633,7 +630,6 @@ parameter_value(parsed_db_value::Bool) = ScalarParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::Int64) = ScalarParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::Float64) = ScalarParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::String) = ScalarParameterValue(parsed_db_value)
-parameter_value(parsed_db_value::Array) = ArrayParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::DateTime_) = ScalarParameterValue(parsed_db_value.value)
 parameter_value(parsed_db_value::Duration) = ScalarParameterValue(parsed_db_value.value)
 parameter_value(parsed_db_value::Array_) = ArrayParameterValue(parsed_db_value.value)

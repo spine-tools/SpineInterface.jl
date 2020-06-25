@@ -170,4 +170,28 @@ end
             @test apero_time(country=country(:France)) == t(k)
         end
     end
+    @testset "time_pattern" begin
+	    data = Dict("M1-4,M9-12" => 300, "M5-8" => 221.5)
+        value = Dict("type" => "time_pattern", "data" => data)
+        object_parameter_values = [["country", "France", "apero_time", value]]
+        db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
+        using_spinedb(url)
+        France = country(:France)
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == 300
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 10), DateTime(0, 12))) == 300
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 5), DateTime(0, 8))) == 221.5
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 12))) == (221.5 + 300) / 2
+    end
+    @testset "std_time_series" begin
+	    data = [1, 4, 5, 3, 7]
+	    index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
+        value = Dict("type" => "time_series", "data" => PyVector(data), "index" => index)
+        object_parameter_values = [["country", "France", "apero_time", value]]
+        db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
+        using_spinedb(url)
+        France = country(:France)
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
+    end
 end
