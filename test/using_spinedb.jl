@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-
 @testset "using_spinedb" begin
     url = "sqlite:///$(@__DIR__)/test.sqlite"
     @testset "object_class basics" begin
@@ -171,7 +170,7 @@ end
         end
     end
     @testset "time_pattern" begin
-	    data = Dict("M1-4,M9-12" => 300, "M5-8" => 221.5)
+        data = Dict("M1-4,M9-12" => 300, "M5-8" => 221.5)
         value = Dict("type" => "time_pattern", "data" => data)
         object_parameter_values = [["country", "France", "apero_time", value]]
         db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
@@ -183,8 +182,8 @@ end
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 12))) == (221.5 + 300) / 2
     end
     @testset "std_time_series" begin
-	    data = [1, 4, 5, 3, 7]
-	    index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
+        data = [1, 4, 5, 3, 7]
+        index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
         value = Dict("type" => "time_series", "data" => PyVector(data), "index" => index)
         object_parameter_values = [["country", "France", "apero_time", value]]
         db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
@@ -193,5 +192,20 @@ end
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) === nothing
+    end
+    @testset "repeating_time_series" begin
+        data = [1, 4, 5, 3, 7]
+        index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => true, "ignore_year" => true)
+        value = Dict("type" => "time_series", "data" => PyVector(data), "index" => index)
+        object_parameter_values = [["country", "France", "apero_time", value]]
+        db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
+        using_spinedb(url)
+        France = country(:France)
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) == sum(data[2:3]) / 2
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 7))) == sum([data; data[1:3]]) / 8
     end
 end

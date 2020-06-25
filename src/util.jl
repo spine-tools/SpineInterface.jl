@@ -131,7 +131,7 @@ function (p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=not
     isempty(ab) && return nothing
     a, b = ab
     if a < b
-        (sum(p.value.values[a:b - 1]) + reps * p.valsum) / (b - a + reps * p.len)
+        (sum(p.value.values[a:b]) + reps * p.valsum) / (b - a + 1 + reps * p.len)
     else
         div(
             sum(p.value.values[1:b]) + sum(p.value.values[a:end]) + (reps - 1) * p.valsum,
