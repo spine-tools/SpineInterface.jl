@@ -38,6 +38,7 @@ export end_
 export roll!
 export before
 export iscontained
+export contains
 export overlaps
 export overlap_duration
 export t_lowest_resolution!

@@ -16,9 +16,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-@testset "using_spinedb" begin
+@testset "using_spinedb - basics" begin
     url = "sqlite:///$(@__DIR__)/test.sqlite"
-    @testset "object_class basics" begin
+    @testset "object_class" begin
         object_classes = ["institution"]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         objects = [["institution", x] for x in institutions]
@@ -32,7 +32,7 @@
         @test length(object_class()) === 1
         @test all(x isa ObjectClass for x in object_class())
     end
-    @testset "relationship_class basics" begin
+    @testset "relationship_class" begin
         object_classes = ["institution", "country"]
         relationship_classes = [["institution__country", ["institution", "country"]]]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
@@ -74,12 +74,12 @@
         @test length(relationship_class()) === 1
         @test all(x isa RelationshipClass for x in relationship_class())
     end
-    @testset "parameter basics" begin
+    @testset "parameter" begin
         object_classes = ["institution", "country"]
         relationship_classes = [["institution__country", ["institution", "country"]]]
         object_parameters = [["institution", "since_year"]]
         relationship_parameters = [["institution__country", "people_count"]]
-        institutions = ["KTH"]
+        institutions = ["KTH", "VTT"]
         countries = ["Sweden", "France"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
         relationships = [
@@ -108,6 +108,8 @@
         @test people_count(institution=institution(:KTH), country=country(:France)) == 1
         @test people_count(institution=institution(:KTH), country=country(:Sweden)) == 3
         @test since_year(institution=institution(:KTH)) == 1827
+        @test since_year(institution=institution(:VTT), _strict=false) === nothing
+        @test_throws ErrorException people_count(institution=institution(:VTT), country=country(:France))
         @test [x.name for x in institution(since_year=1827.0)] == [:KTH]
         @test length(parameter()) === 2
         @test all(x isa Parameter for x in parameter())
