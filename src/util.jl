@@ -169,16 +169,16 @@ function (p::MapParameterValue)(;prefix::Tuple=(), kwargs...)
     p(prefix...; kwargs...)
 end
 
-function (p::MapParameterValue)(k, args...; kwargs...)
+function (p::MapParameterValue)(k, prefix...; kwargs...)
     pvs = get(p.value.mapping, k, nothing)
     pvs === nothing && return nothing
-    first(pvs)(args...; kwargs...)
+    first(pvs)(;prefix=prefix, kwargs...)
 end
 
-function (p::MapParameterValue{Symbol,V})(o::ObjectLike, args...; kwargs...) where V
+function (p::MapParameterValue{Symbol,V})(o::ObjectLike, prefix...; kwargs...) where V
     pvs = get(p.value.mapping, o.name, nothing)
     pvs === nothing && return nothing
-    first(pvs)(args...; kwargs...)
+    first(pvs)(;prefix=prefix, kwargs...)
 end
 
 function (x::_IsLowestResolution)(t::TimeSlice)
