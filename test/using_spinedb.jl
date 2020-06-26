@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+
 @testset "using_spinedb - basics" begin
     url = "sqlite:///$(@__DIR__)/test.sqlite"
     @testset "object_class" begin
@@ -34,11 +35,13 @@
     end
     @testset "relationship_class" begin
         object_classes = ["institution", "country"]
-        relationship_classes = [["institution__country", ["institution", "country"]]]
+        relationship_classes = [
+            ["institution__country", ["institution", "country"]], ["country__neighbour", ["country", "country"]]
+        ]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
-        object_tuples = [
+        institution_country_tuples = [
             ["VTT", "Finland"],
             ["KTH", "Sweden"],
             ["KTH", "France"],
@@ -47,7 +50,11 @@
             ["ER", "Ireland"],
             ["ER", "France"],
         ]
-        relationships = [["institution__country", x] for x in object_tuples]
+        country_neighbour_tuples = [["Sweden", "Finland"], ["France", "Belgium"]]
+        relationships = vcat(
+            [["institution__country", x] for x in institution_country_tuples],
+            [["country__neighbour", x] for x in country_neighbour_tuples]
+        )
         db_api.create_new_spine_database(url)
         db_api.import_data_to_url(
             url; 
@@ -65,13 +72,17 @@
             (:KTH, :France), (:ER, :France)
         ]
         @test [(x.name, y.name) for (x, y) in institution__country()] == [
-            (Symbol(x), Symbol(y)) for (x, y) in object_tuples
+            (Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples
         ]
         @test isempty(institution__country(country=country(:France), institution=institution(:KTH)))
         @test institution__country(
             country=country(:France), institution=institution(:VTT), _compact=false, _default=10
         ) == 10
-        @test length(relationship_class()) === 1
+        @test length(country__neighbour()) === 2
+        @test all(x isa RelationshipLike for x in country__neighbour())
+        @test [x.name for x in country__neighbour(country1=country(:France))] == [:Belgium]
+        @test [x.name for x in country__neighbour(country2=country(:Finland))] == [:Sweden]
+        @test length(relationship_class()) === 2
         @test all(x isa RelationshipClass for x in relationship_class())
     end
     @testset "parameter" begin
@@ -172,16 +183,16 @@ end
         end
     end
     @testset "time_pattern" begin
-        data = Dict("M1-4,M9-12" => 300, "M5-8" => 221.5)
+        data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
         value = Dict("type" => "time_pattern", "data" => data)
         object_parameter_values = [["country", "France", "apero_time", value]]
         db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
         using_spinedb(url)
         France = country(:France)
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == 300
-        @test apero_time(country=France, t=TimeSlice(DateTime(0, 10), DateTime(0, 12))) == 300
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 5), DateTime(0, 8))) == 221.5
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 12))) == (221.5 + 300) / 2
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 11), DateTime(0, 12))) === nothing
     end
     @testset "std_time_series" begin
         data = [1, 4, 5, 3, 7]
@@ -209,5 +220,36 @@ end
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) == sum(data[2:3]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 7))) == sum([data; data[1:3]]) / 8
+    end
+    @testset "map" begin
+        object_classes = ["scenario"]
+        objects = [["scenario", "drunk"], ["scenario", "sober"]]
+        data = Dict(
+            "drunk" => Dict(
+                "type" => "map", "index_type" => "date_time", "data" => Dict(
+                    "2000-01-01T00:00" => 4.0, "2000-02-01T00:00" => 5.6
+                )
+            ),
+            "sober" => Dict(
+                "type" => "map", "index_type" => "date_time", "data" => Dict(
+                    "2000-01-01T00:00" => 2.1, "2000-02-01T00:00" => 1.8
+                )
+            )
+        )
+        value = Dict("type" => "map", "index_type" => "str", "data" => data)
+        object_parameter_values = [["country", "France", "apero_time", value]]
+        db_api.import_data_to_url(
+            url; object_classes=object_classes, objects=objects, object_parameter_values=object_parameter_values
+        )
+        using_spinedb(url)
+        France = country(:France)
+        drunk = scenario(:drunk)
+        sober = scenario(:sober)
+        hangover = Object(:hangover)
+        @test apero_time(;country=France, s=drunk, t=TimeSlice(DateTime(2000, 2), DateTime(2000, 3))) == 5.6
+        @test apero_time(;country=France, s=drunk, t=TimeSlice(DateTime(2000, 1), DateTime(2000, 3))) == (4.0 + 5.6) / 2
+        @test apero_time(;country=France, s=sober, t=TimeSlice(DateTime(2000, 1), DateTime(2000, 2))) == 2.1
+        @test apero_time(;country=France, s=sober, t=TimeSlice(DateTime(2000, 1), DateTime(2000, 3))) == (2.1 + 1.8) / 2
+        @test apero_time(;country=France, s=hangover, t=TimeSlice(DateTime(2000, 1), DateTime(2000, 3))) ===  nothing
     end
 end

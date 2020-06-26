@@ -41,6 +41,19 @@ end
 # TODO: this doesn't seem right
 TimeSlice(other::TimeSlice) = other
 
+Map(inds::Array{String,1}, vals::Array{V,1}) where V = Map(Symbol.(inds), vals)
+function Map(inds::Array{DateTime_,1}, vals::Array{V,1}) where V
+    TimeSeries([ind.value for ind in inds], _first.(vals), false, false)
+end
+function Map(inds::Array{K,1}, vals::Array{V,1}) where {K,V}
+    mapping = Dict{K,Array{V,1}}()
+    sizehint!(mapping, length(inds))
+    for (ind, val) in zip(inds, vals)
+        push!(get!(mapping, ind, []), val)
+    end
+    Map(mapping)
+end
+
 """
     PeriodCollection(spec::String)
 

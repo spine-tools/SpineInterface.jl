@@ -190,9 +190,9 @@ julia> demand(node=:Sthlm, i=1)
 
 ```
 """
-function (p::Parameter)(;i=nothing, t=nothing, inds=nothing, _strict=true, kwargs...)
+function (p::Parameter)(;i=nothing, s=nothing, t=nothing, _strict=true, kwargs...)
     parameter_value = _lookup_parameter_value(p; kwargs...)
-    parameter_value != nothing && return parameter_value(i=i, t=t, inds=inds)
+    parameter_value != nothing && return parameter_value(i=i, s=s, t=t)
     _strict && error("parameter $p is not specified for argument(s) $(kwargs...)")
     nothing
 end
@@ -630,4 +630,8 @@ parameter_value(parsed_db_value::Duration) = ScalarParameterValue(parsed_db_valu
 parameter_value(parsed_db_value::Array_) = ArrayParameterValue(parsed_db_value.value)
 parameter_value(parsed_db_value::TimePattern) = TimePatternParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_db_value)
-parameter_value(parsed_db_value::Map) = MapParameterValue(parsed_db_value)
+function parameter_value(parsed_db_value::Map)
+    mapping = Dict(key => [parameter_value(v) for v in vals] for (key, vals) in parsed_db_value.mapping)
+    MapParameterValue(Map(mapping))
+end
+parameter_value(parsed_db_value::PyObject) = error("Can't parse $parsed_db_value")

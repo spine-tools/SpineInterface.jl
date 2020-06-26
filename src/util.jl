@@ -57,6 +57,9 @@ _entity_key(r::RelationshipLike) = tuple(r...)
 _call(p::Parameter, inds::NamedTuple, ::TimeVaryingParameterValue) = Call(p, inds)
 _call(p::Parameter, inds::NamedTuple, x) = Call(p(; inds...))
 
+_first(x::Array) = first(x)
+_first(x) = x
+
 function _relativedelta_to_period(delta::PyObject)
     # Add up till the day level
     minutes = delta.minutes + 60 * (delta.hours + 24 * delta.days)
@@ -96,13 +99,13 @@ end
 
 (p::ScalarParameterValue)(;kwargs...) = p.value
 
-function (p::ArrayParameterValue)(;i::Union{Int64,Nothing}=nothing, kwargs...)
-    i === nothing && return p.value
-    get(p.value, i, nothing)
-end
+(p::ArrayParameterValue)(;i::Union{Int64,Nothing}=nothing, kwargs...) = p(i)
+(p::ArrayParameterValue)(::Nothing) = p.value
+(p::ArrayParameterValue)(i::Int64) = get(p.value, i, nothing)
 
-function (p::TimePatternParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
-    t === nothing && return p.value
+(p::TimePatternParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::TimePatternParameterValue)(::Nothing) = p.value
+function (p::TimePatternParameterValue)(t::TimeSlice)
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
     isempty(vals) && return nothing
     mean(vals)
@@ -117,8 +120,9 @@ function _lower_upper(h::TimeSeriesMap, t_start::DateTime, t_end::DateTime)
     lower, upper
 end
 
-function (p::StandardTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
-    t === nothing && return p.value
+(p::StandardTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::StandardTimeSeriesParameterValue)(::Nothing) = p.value
+function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     p.value.ignore_year && (t -= Year(start(t)))
     ab = _lower_upper(p.t_map, start(t), end_(t))
     isempty(ab) && return nothing
@@ -127,8 +131,9 @@ function (p::StandardTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=noth
     mean(p.value.values[a:b])
 end
 
-function (p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
-    t === nothing && return p.value
+(p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::RepeatingTimeSeriesParameterValue)(::Nothing) = p.value
+function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     t_start = start(t)
     p.value.ignore_year && (t_start -= Year(t_start))
     if t_start > p.value.indexes[end]
@@ -159,36 +164,14 @@ function (p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=not
     end
 end
 
-"""
-    (p::MapParameterValue)(;inds=nothing, _strict=true, kwargs...)
-
-Access `MapParameterValue` with the desired `inds`.
-
-`inds` can be either a single index, or a Tuple of indices, in which case `MapParameterValue` calls itself
-recursively. The recursive call is not `_strict`, meaning that if an index isn't found, the call still continues to
-search for the remaining indices instead of returning `nothing`.
-"""
-function (p::MapParameterValue)(;inds=nothing, _strict=true, kwargs...)
-    inds === nothing && return p.value
-    if inds isa Tuple 
-        if length(inds) > 1
-            pv = parameter_value(p(;inds=inds[1], _strict=false, kwargs...))
-            return pv(;inds=inds[2:end], kwargs...)
-        else
-            inds = first(inds)
-        end
-    end
-    i = findall(i -> i == inds, p.value.indexes)
-    if isempty(i)
-        if _strict
-            return nothing
-        else
-            return p.value
-        end
-    end
-    pv = parameter_value(p.value.values[first(i)])
-    pv(;kwargs...)
+(p::MapParameterValue{Symbol,V})(;s::Union{ObjectLike,Nothing}=nothing, kwargs...) where V = p(s; kwargs...)
+function (p::MapParameterValue{Symbol,V})(s::ObjectLike; kwargs...) where V
+    pvs = get(p.value.mapping, s.name, nothing)
+    pvs === nothing && return nothing
+    first(pvs)(; kwargs...)
 end
+
+(p::MapParameterValue)(::Nothing; kwargs...) = p.value
 
 function (x::_IsLowestResolution)(t::TimeSlice)
     if any(contains(r, t) for r in x.ref)
