@@ -75,7 +75,7 @@ end
     @test overlaps(t2_4, t0_3)
     @test !overlaps(t2_4, t4_6)
     @test overlap_duration(t4_6, t3_6) == Hour(24 * (365 + 366)).value
-    @show t = (t0_2, t2_4, t4_6, t0_3, t3_6)
+    t = (t0_2, t2_4, t4_6, t0_3, t3_6)
     @test isempty(symdiff(t_lowest_resolution(t), [t2_4, t0_3, t3_6]))
     @test isempty(symdiff(t_highest_resolution(t), [t0_2, t2_4, t4_6]))
     roll!(t0_2, Minute(44))
@@ -143,11 +143,7 @@ end
 @testset "write_parameters" begin
     url = "sqlite:///$(@__DIR__)/test.sqlite"
     @testset "int & string" begin
-        parameters = Dict(
-            :apero_time => Dict(
-                (country=:France,) => 5, (country=:Sweden, drink=:vodka) => "now!"
-            )
-        )
+        parameters = Dict(:apero_time => Dict((country=:France,) => 5, (country=:Sweden, drink=:vodka) => "now!"))
         write_parameters(parameters, url)
         using_spinedb(url)
         @test convert(Int64, apero_time(country=country(:France))) === 5
@@ -188,5 +184,11 @@ end
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(2))) == 4
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(2), DateTime(3))) == 5
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(3))) == 4.5
+    end
+    @testset "with report" begin
+        parameters = Dict(:apero_time => Dict((country=:France,) => "later..."))
+        write_parameters(parameters, url; report="report_x")
+        using_spinedb(url)
+        @test apero_time(country=country(:France), report=report(:report_x)) === Symbol("later...")
     end
 end
