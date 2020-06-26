@@ -72,6 +72,19 @@ function _period_to_duration_string(period::T) where T <: Period
     string(period.value, suffix)
 end
 
+function _period_collection_to_time_pattern_string(pc::PeriodCollection)    
+    union_op = ","
+    intersection_op = ";"
+    range_op = "-"
+    arr = []
+    for name in fieldnames(PeriodCollection)
+        field = getfield(pc, name)
+        field === nothing && continue
+        push!(arr, join([string(name, first(a), range_op, last(a)) for a in field], union_op))
+    end
+    join(arr, intersection_op)
+end
+
 function _from_to_minute(m_start::DateTime, t_start::DateTime, t_end::DateTime)
     Minute(t_start - m_start).value + 1, Minute(t_end - m_start).value
 end

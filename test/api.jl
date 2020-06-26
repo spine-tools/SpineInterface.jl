@@ -151,7 +151,7 @@ end
         @test apero_time(country=country(:Sweden), drink=drink(:vodka)) === Symbol("now!")
     end
     @testset "date_time & duration" begin
-		parameters = Dict(
+        parameters = Dict(
             :apero_time => Dict(
                 (country=:France,) => SpineInterface.DateTime_(DateTime(1)), 
                 (country=:Sweden, drink=:vodka) => SpineInterface.Duration(Hour(1))
@@ -163,9 +163,27 @@ end
         @test apero_time(country=country(:Sweden), drink=drink(:vodka)) == Hour(1)
     end
     @testset "array" begin
-		parameters = Dict(:apero_time => Dict((country=:France,) => SpineInterface.Array_([1.0, 2.0, 3.0])))
+        parameters = Dict(:apero_time => Dict((country=:France,) => SpineInterface.Array_([1.0, 2.0, 3.0])))
         write_parameters(parameters, url)
         using_spinedb(url)
         @test apero_time(country=country(:France)) == [1, 2, 3]
+    end
+    @testset "time_pattern" begin
+        val = Dict(SpineInterface.PeriodCollection("D1-5") => 30.5, SpineInterface.PeriodCollection("D6-7") => 24.7)
+        @test val isa SpineInterface.TimePattern
+        parameters = Dict(:apero_time => Dict((country=:France,) => val))
+        write_parameters(parameters, url)
+        using_spinedb(url)
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 3), DateTime(0, 1, 5))) == 30.5
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 6), DateTime(0, 1, 6, 10))) == 24.7
+    end
+    @testset "time_series" begin
+        val = TimeSeries([DateTime(1), DateTime(2), DateTime(3)], [4, 5, 6], false, false)
+        parameters = Dict(:apero_time => Dict((country=:France,) => val))
+        write_parameters(parameters, url)
+        using_spinedb(url)
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(2))) == 4
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(2), DateTime(3))) == 5
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(3))) == 4.5
     end
 end

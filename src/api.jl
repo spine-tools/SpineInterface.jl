@@ -336,19 +336,14 @@ Determine whether `a` and `b` overlap.
 overlaps(a::TimeSlice, b::TimeSlice) = start(a) <= start(b) < end_(a) || start(b) <= start(a) < end_(b)
 function overlaps(t::TimeSlice, pc::PeriodCollection)
     funcs = Dict{Symbol,Function}(
-        :Y => year,
-        :M => month,
-        :D => day,
-        :WD => dayofweek,
-        :h => hour,
-        :m => minute,
-        :s => second,
+        :Y => year, :M => month, :D => day, :WD => dayofweek, :h => hour, :m => minute, :s => second,
     )
     for name in fieldnames(PeriodCollection)
-        getfield(pc, name) == nothing && continue
+        field = getfield(pc, name)
+        field === nothing && continue
         func = funcs[name]
         b = func(start(t)):func(end_(t))
-        any(!isempty(intersect(a, b)) for a in getfield(pc, name)) && return true
+        any(!isempty(intersect(a, b)) for a in field) && return true
     end
     false
 end
