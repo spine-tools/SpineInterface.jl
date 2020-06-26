@@ -227,12 +227,20 @@ end
         data = Dict(
             "drunk" => Dict(
                 "type" => "map", "index_type" => "date_time", "data" => Dict(
-                    "2000-01-01T00:00" => 4.0, "2000-02-01T00:00" => 5.6
+                    "1999-12-01T00:00" => Dict(
+                        "type" => "map", "index_type" => "date_time", "data" => Dict(
+                            "2000-01-01T00:00" => 4.0, "2000-02-01T00:00" => 5.6
+                        )
+                    )
                 )
             ),
             "sober" => Dict(
                 "type" => "map", "index_type" => "date_time", "data" => Dict(
-                    "2000-01-01T00:00" => 2.1, "2000-02-01T00:00" => 1.8
+                    "1999-12-01T00:00" => Dict(
+                        "type" => "map", "index_type" => "date_time", "data" => Dict(
+                            "2000-01-01T00:00" => 2.1, "2000-02-01T00:00" => 1.8
+                        )
+                    )
                 )
             )
         )
@@ -246,10 +254,14 @@ end
         drunk = scenario(:drunk)
         sober = scenario(:sober)
         hangover = Object(:hangover)
-        @test apero_time(;country=France, s=drunk, t=TimeSlice(DateTime(2000, 2), DateTime(2000, 3))) == 5.6
-        @test apero_time(;country=France, s=drunk, t=TimeSlice(DateTime(2000, 1), DateTime(2000, 3))) == (4.0 + 5.6) / 2
-        @test apero_time(;country=France, s=sober, t=TimeSlice(DateTime(2000, 1), DateTime(2000, 2))) == 2.1
-        @test apero_time(;country=France, s=sober, t=TimeSlice(DateTime(2000, 1), DateTime(2000, 3))) == (2.1 + 1.8) / 2
-        @test apero_time(;country=France, s=hangover, t=TimeSlice(DateTime(2000, 1), DateTime(2000, 3))) ===  nothing
+        t0 = DateTime(1999, 12)
+        t1_2 = TimeSlice(DateTime(2000, 1), DateTime(2000, 2))
+        t1_3 = TimeSlice(DateTime(2000, 1), DateTime(2000, 3))
+        t2_3 = TimeSlice(DateTime(2000, 2), DateTime(2000, 3))
+        @test apero_time(;country=France, prefix=(drunk, t0), t=t2_3) == 5.6
+        @test apero_time(;country=France, prefix=(drunk, t0), t=t1_3) == (4.0 + 5.6) / 2
+        @test apero_time(;country=France, prefix=(sober, t0), t=t1_2) == 2.1
+        @test apero_time(;country=France, prefix=(sober, t0), t=t1_3) == (2.1 + 1.8) / 2
+        @test apero_time(;country=France, prefix=(hangover, t0), t=t1_3) ===  nothing
     end
 end

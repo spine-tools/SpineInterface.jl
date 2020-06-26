@@ -24,7 +24,7 @@ pkg"add SpineInterface"
 
 ```julia
 using SpineInterface
-using_spinedb(<url of your Spine database>)
+using_spinedb("...url of a Spine database...")
 ```
 
 ## Reporting Issues and Contributing

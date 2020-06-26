@@ -26,9 +26,9 @@ _next_id(id_factory::ObjectIdFactory) = id_factory.max_object_id[] += 1
 _immutable(x) = x
 _immutable(arr::T) where T<:AbstractArray = (length(arr) == 1) ? first(arr) : Tuple(arr)
 
-function _get(d1, key, d2)
-    get(d1, key) do
-        d2[key]
+function _get(d, key, backup)
+    get(d, key) do
+        backup[key]
     end
 end
 
@@ -164,14 +164,22 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     end
 end
 
-(p::MapParameterValue{Symbol,V})(;s::Union{ObjectLike,Nothing}=nothing, kwargs...) where V = p(s; kwargs...)
-function (p::MapParameterValue{Symbol,V})(s::ObjectLike; kwargs...) where V
-    pvs = get(p.value.mapping, s.name, nothing)
-    pvs === nothing && return nothing
-    first(pvs)(; kwargs...)
+function (p::MapParameterValue)(;prefix::Tuple=(), kwargs...)
+    isempty(prefix) && return p.value
+    p(prefix...; kwargs...)
 end
 
-(p::MapParameterValue)(::Nothing; kwargs...) = p.value
+function (p::MapParameterValue)(k, args...; kwargs...) where V
+    pvs = get(p.value.mapping, k, nothing)
+    pvs === nothing && return nothing
+    first(pvs)(args...; kwargs...)
+end
+
+function (p::MapParameterValue{Symbol,V})(o::ObjectLike, args...; kwargs...) where V
+    pvs = get(p.value.mapping, o.name, nothing)
+    pvs === nothing && return nothing
+    first(pvs)(args...; kwargs...)
+end
 
 function (x::_IsLowestResolution)(t::TimeSlice)
     if any(contains(r, t) for r in x.ref)
