@@ -161,7 +161,7 @@ end
 
 A nested general purpose indexed value corresponding to the similarly named `spinedb_api` class.
 
-Consists of an `mapping::Dict{K,Array{V,1}}` mapping keys to any number of values. 
+Consists of a `mapping::Dict{K,Array{V,1}}` mapping keys to any number of values. 
 See `MapParameterValue` for the corresponding `AbstractParameterValue` type for accessing `Map` type
 parameters.
 """

@@ -169,7 +169,7 @@ function (p::MapParameterValue)(;prefix::Tuple=(), kwargs...)
     p(prefix...; kwargs...)
 end
 
-function (p::MapParameterValue)(k, args...; kwargs...) where V
+function (p::MapParameterValue)(k, args...; kwargs...)
     pvs = get(p.value.mapping, k, nothing)
     pvs === nothing && return nothing
     first(pvs)(args...; kwargs...)
