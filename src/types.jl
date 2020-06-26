@@ -217,6 +217,8 @@ struct MapParameterValue{K,V} <: AbstractParameterValue
     value::Map{K,V}
 end
 
+TimeVaryingParameterValue = Union{AbstractTimeSeriesParameterValue,TimePatternParameterValue}
+
 struct IdentityCall{T} <: Call
     value::T
 end

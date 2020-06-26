@@ -149,11 +149,7 @@ Base.:min(x, y::Call) = OperatorCall(min, (x, y))
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
     parameter_value = _lookup_parameter_value(p; inds...)
-    if parameter_value isa AbstractTimeSeriesParameterValue || parameter_value isa TimePatternParameterValue
-        ParameterCall(p, inds)
-    else
-        IdentityCall(p(; inds...))
-    end
+    _call(p, inds, parameter_value)
 end
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent

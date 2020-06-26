@@ -54,6 +54,9 @@ _lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, 
 _entity_key(o::ObjectLike) = o
 _entity_key(r::RelationshipLike) = tuple(r...)
 
+_call(p::Parameter, inds::NamedTuple, ::TimeVaryingParameterValue) = Call(p, inds)
+_call(p::Parameter, inds::NamedTuple, x) = Call(p(; inds...))
+
 function _relativedelta_to_period(delta::PyObject)
     # Add up till the day level
     minutes = delta.minutes + 60 * (delta.hours + 24 * delta.days)
@@ -101,11 +104,8 @@ end
 function (p::TimePatternParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...)
     t === nothing && return p.value
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
-    if isempty(vals)
-        nothing
-    else
-        mean(vals)
-    end
+    isempty(vals) && return nothing
+    mean(vals)
 end
 
 function _lower_upper(h::TimeSeriesMap, t_start::DateTime, t_end::DateTime)
