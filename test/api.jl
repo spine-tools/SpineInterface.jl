@@ -82,3 +82,58 @@ end
 	@test start(t0_2) == DateTime(0, 1, 1, 0, 44)
 	@test end_(t0_2) == DateTime(2, 1, 1, 0, 44)
 end
+@testset "add_entities" begin
+    url = "sqlite:///$(@__DIR__)/test.sqlite"
+    @testset "add_objects" begin
+        object_classes = ["institution"]
+        institutions = ["VTT", "KTH"]
+        objects = [["institution", x] for x in institutions]
+        db_api.create_new_spine_database(url)
+        db_api.import_data_to_url(url; object_classes=object_classes, objects=objects)
+        using_spinedb(url)
+        @test length(institution()) === 2
+        add_objects!(institution, [institution()[1], Object(:KUL), Object(:ER)])
+        @test length(institution()) === 4
+        @test [x.name for x in institution()] == [Symbol.(institutions); [:KUL, :ER]]
+        add_object!(institution, Object(:UCD))
+        @test length(institution()) === 5
+        @test last(institution()).name === :UCD
+    end
+    @testset "add_relationships" begin
+        object_classes = ["institution", "country"]
+        relationship_classes = [["institution__country", ["institution", "country"]]]
+        institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
+        countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
+        objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
+        object_tuples = [
+            ["VTT", "Finland"],
+            ["KTH", "Sweden"],
+            ["KTH", "France"],
+            ["KUL", "Belgium"],
+            ["UCD", "Ireland"]
+        ]
+        relationships = [["institution__country", x] for x in object_tuples]
+        db_api.create_new_spine_database(url)
+        db_api.import_data_to_url(
+            url; 
+            object_classes=object_classes, 
+            relationship_classes=relationship_classes, 
+            objects=objects, 
+            relationships=relationships
+           )
+        using_spinedb(url)
+        @test length(institution__country()) === 5
+        add_relationships!(
+        	institution__country, 
+        	[
+        		institution__country()[3], 
+        		(institution=Object(:ER), country=Object(:France)), 
+        		(institution=Object(:ER), country=Object(:Ireland))
+        	]
+        )
+        @test length(institution__country()) === 7
+        @test [(x.name, y.name) for (x, y) in institution__country()] == [
+            [(Symbol(x), Symbol(y)) for (x, y) in object_tuples]; [(:ER, :France), (:ER, :Ireland)]
+        ]
+    end
+end
