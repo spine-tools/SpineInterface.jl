@@ -192,3 +192,21 @@ end
         @test apero_time(country=country(:France), report=report(:report_x)) === Symbol("later...")
     end
 end
+@testset "Call" begin
+	call = Call(5)
+	@test realize(call) == 5
+	@test !is_varying(call)
+	call = Call(+, (3, 4))
+	@test realize(call) == 7
+	@test !is_varying(call)
+	France = Object(:France)
+	ts = TimeSeries([DateTime(0), DateTime(1)], [40, 70], false, false)
+	country = ObjectClass(:country, [France], Dict(France => Dict(:apero_time => parameter_value(ts))))
+	apero_time = Parameter(:apero_time, [country])
+	call = apero_time[(; country=France, t=TimeSlice(DateTime(0), DateTime(1)))]
+	@test realize(call) == 40
+	@test is_varying(call)
+	another_call = Call(*, (3, call))
+	@test realize(another_call) == 120
+	@test is_varying(another_call)
+end
