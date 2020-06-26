@@ -55,32 +55,32 @@
     ]
 end
 @testset "time-slices" begin
-	t0_2 = TimeSlice(DateTime(0), DateTime(2); duration_unit=Hour)
-	t2_4 = TimeSlice(DateTime(2), DateTime(4); duration_unit=Hour)
-	t4_6 = TimeSlice(DateTime(4), DateTime(6); duration_unit=Hour)
-	t0_3 = TimeSlice(DateTime(0), DateTime(3); duration_unit=Hour)
-	t3_6 = TimeSlice(DateTime(3), DateTime(6); duration_unit=Hour)
-	@test duration(t0_2) == Hour(24 * (366 + 365)).value
-	@test duration(t0_3) == Hour(24 * (366 + 2 * 365)).value
-	@test before(t0_2, t2_4)
-	@test !before(t0_2, t3_6)
-	@test iscontained(t0_2, t0_3)
-	@test iscontained(DateTime(2), t0_3)
-	@test !iscontained(t0_2, t2_4)
-	@test !iscontained(nothing, t3_6)
-	@test contains(t3_6, t4_6)
-	@test contains(t0_3, DateTime(0))
-	@test !contains(t0_3, t4_6)
-	@test !contains(nothing, t0_2)
-	@test overlaps(t2_4, t0_3)
-	@test !overlaps(t2_4, t4_6)
-	@test overlap_duration(t4_6, t3_6) == Hour(24 * (365 + 366)).value
-	@show t = (t0_2, t2_4, t4_6, t0_3, t3_6)
-	@test isempty(symdiff(t_lowest_resolution(t), [t2_4, t0_3, t3_6]))
-	@test isempty(symdiff(t_highest_resolution(t), [t0_2, t2_4, t4_6]))
-	roll!(t0_2, Minute(44))
-	@test start(t0_2) == DateTime(0, 1, 1, 0, 44)
-	@test end_(t0_2) == DateTime(2, 1, 1, 0, 44)
+    t0_2 = TimeSlice(DateTime(0), DateTime(2); duration_unit=Hour)
+    t2_4 = TimeSlice(DateTime(2), DateTime(4); duration_unit=Hour)
+    t4_6 = TimeSlice(DateTime(4), DateTime(6); duration_unit=Hour)
+    t0_3 = TimeSlice(DateTime(0), DateTime(3); duration_unit=Hour)
+    t3_6 = TimeSlice(DateTime(3), DateTime(6); duration_unit=Hour)
+    @test duration(t0_2) == Hour(24 * (366 + 365)).value
+    @test duration(t0_3) == Hour(24 * (366 + 2 * 365)).value
+    @test before(t0_2, t2_4)
+    @test !before(t0_2, t3_6)
+    @test iscontained(t0_2, t0_3)
+    @test iscontained(DateTime(2), t0_3)
+    @test !iscontained(t0_2, t2_4)
+    @test !iscontained(nothing, t3_6)
+    @test contains(t3_6, t4_6)
+    @test contains(t0_3, DateTime(0))
+    @test !contains(t0_3, t4_6)
+    @test !contains(nothing, t0_2)
+    @test overlaps(t2_4, t0_3)
+    @test !overlaps(t2_4, t4_6)
+    @test overlap_duration(t4_6, t3_6) == Hour(24 * (365 + 366)).value
+    @show t = (t0_2, t2_4, t4_6, t0_3, t3_6)
+    @test isempty(symdiff(t_lowest_resolution(t), [t2_4, t0_3, t3_6]))
+    @test isempty(symdiff(t_highest_resolution(t), [t0_2, t2_4, t4_6]))
+    roll!(t0_2, Minute(44))
+    @test start(t0_2) == DateTime(0, 1, 1, 0, 44)
+    @test end_(t0_2) == DateTime(2, 1, 1, 0, 44)
 end
 @testset "add_entities" begin
     url = "sqlite:///$(@__DIR__)/test.sqlite"
@@ -124,16 +124,48 @@ end
         using_spinedb(url)
         @test length(institution__country()) === 5
         add_relationships!(
-        	institution__country, 
-        	[
-        		institution__country()[3], 
-        		(institution=Object(:ER), country=Object(:France)), 
-        		(institution=Object(:ER), country=Object(:Ireland))
-        	]
+            institution__country, 
+            [
+                institution__country()[3], 
+                (institution=Object(:ER), country=Object(:France)), 
+                (institution=Object(:ER), country=Object(:Ireland))
+            ]
         )
         @test length(institution__country()) === 7
         @test [(x.name, y.name) for (x, y) in institution__country()] == [
             [(Symbol(x), Symbol(y)) for (x, y) in object_tuples]; [(:ER, :France), (:ER, :Ireland)]
         ]
+    end
+end
+@testset "write_parameters" begin
+    url = "sqlite:///$(@__DIR__)/test.sqlite"
+    @testset "int & string" begin
+        parameters = Dict(
+            :apero_time => Dict(
+                (country=:France,) => 5, (country=:Sweden, drink=:vodka) => "now!"
+            )
+        )
+        write_parameters(parameters, url)
+        using_spinedb(url)
+        @test convert(Int64, apero_time(country=country(:France))) === 5
+        @test apero_time(country=country(:Sweden), drink=drink(:vodka)) === Symbol("now!")
+    end
+    @testset "date_time & duration" begin
+		parameters = Dict(
+            :apero_time => Dict(
+                (country=:France,) => SpineInterface.DateTime_(DateTime(1)), 
+                (country=:Sweden, drink=:vodka) => SpineInterface.Duration(Hour(1))
+            )
+        )
+        write_parameters(parameters, url)
+        using_spinedb(url)
+        @test apero_time(country=country(:France)) == DateTime(1)
+        @test apero_time(country=country(:Sweden), drink=drink(:vodka)) == Hour(1)
+    end
+    @testset "array" begin
+		parameters = Dict(:apero_time => Dict((country=:France,) => SpineInterface.Array_([1.0, 2.0, 3.0])))
+        write_parameters(parameters, url)
+        using_spinedb(url)
+        @test apero_time(country=country(:France)) == [1, 2, 3]
     end
 end

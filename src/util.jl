@@ -66,6 +66,12 @@ function _relativedelta_to_period(delta::PyObject)
     end
 end
 
+function _period_to_duration_string(period::T) where T <: Period
+    d = Dict(Minute => "m", Hour => "h", Day => "D", Month => "M", Year => "Y")
+    suffix = get(d, T, "m")
+    string(period.value, suffix)
+end
+
 function _from_to_minute(m_start::DateTime, t_start::DateTime, t_end::DateTime)
     Minute(t_start - m_start).value + 1, Minute(t_end - m_start).value
 end
