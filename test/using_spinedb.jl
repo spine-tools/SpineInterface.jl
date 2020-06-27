@@ -192,6 +192,7 @@ end
         db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
         using_spinedb(url)
         France = country(:France)
+        @test apero_time(country=France) isa SpineInterface.TimePattern
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == 300
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 5), DateTime(0, 8))) == 221.5
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 12))) == (221.5 + 300) / 2
@@ -205,6 +206,7 @@ end
         db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
         using_spinedb(url)
         France = country(:France)
+        @test apero_time(country=France) isa TimeSeries
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
@@ -218,6 +220,7 @@ end
         db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
         using_spinedb(url)
         France = country(:France)
+        @test apero_time(country=France) isa TimeSeries
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
