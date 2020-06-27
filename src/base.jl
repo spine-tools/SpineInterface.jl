@@ -103,7 +103,6 @@ function Base.convert(::Type{Map}, o::PyObject)
 end
 Base.convert(::Type{Call}, x::T) where {T<:Real} = IdentityCall(x)
 
-Base.copy(tp::TimePattern) = TimePattern(Y=tp.Y, M=tp.M, D=tp.D, WD=tp.WD, h=tp.h, m=tp.m, s=tp.s)
 Base.copy(ts::TimeSeries{T}) where T = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
 Base.copy(c::NothingParameterValue) = c
 Base.copy(c::ScalarParameterValue) = c

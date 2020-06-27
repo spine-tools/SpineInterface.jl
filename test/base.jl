@@ -25,8 +25,8 @@
     # in, iterate, length, isless
     @test "Spine" in anything
     @test [4, 5, 6] in anything
-    Spine = Object(:Spine)
-    Julia = Object(:Julia)
+    Spine = Object(:Spine, 1)
+    Julia = Object(:Julia, 2)
     @test [x for x in Spine] == [Spine]
     @test length(Spine) == 1
     @test Julia < Spine
@@ -64,6 +64,44 @@
     call = convert(Call, 9)
     @test call isa Call
     @test realize(call) === 9
+    # copy
+    val = parameter_value(nothing)
+    val_copy = copy(val)
+    @test val_copy isa SpineInterface.NothingParameterValue
+    @test val_copy() === nothing
+    val = parameter_value(10)
+    val_copy = copy(val)
+    @test val_copy isa SpineInterface.ScalarParameterValue
+    @test val_copy() === 10
+    val = parameter_value(SpineInterface.Array_([4, 5, 6]))
+    val_copy = copy(val)
+    @test val_copy isa SpineInterface.ArrayParameterValue
+    @test val_copy(i=1) === 4
+    @test val_copy(i=2) === 5
+    @test val_copy(i=3) === 6
+    val = parameter_value(Dict(pc => 14))
+    val_copy = copy(val)
+    @test val_copy isa SpineInterface.TimePatternParameterValue
+    @test convert(Int64, val_copy(t=TimeSlice(DateTime(1), DateTime(4)))) === 14
+    ts = TimeSeries([DateTime(4), DateTime(5)], [100, 8], false, false)
+    val = parameter_value(ts)
+    val_copy = copy(val)
+    @test val_copy isa SpineInterface.StandardTimeSeriesParameterValue
+    @test convert(Int64, val_copy(t=TimeSlice(DateTime(4), DateTime(5)))) === 100
+    ts = TimeSeries([DateTime(4), DateTime(5)], [100, 8], false, true)
+    val = parameter_value(ts)
+    val_copy = copy(val)
+    @test val_copy isa SpineInterface.RepeatingTimeSeriesParameterValue
+    @test val_copy(t=TimeSlice(DateTime(6), DateTime(7))) === div(100 + 8, 2)
+    call_copy = copy(id_call)
+    @test call_copy isa SpineInterface.IdentityCall
+    @test string(call_copy) === "13"
+    call_copy = copy(op_call)
+    @test call_copy isa SpineInterface.OperatorCall
+    @test string(call_copy) === "2 + 3"
+    call_copy = copy(param_call)
+    @test call_copy isa SpineInterface.ParameterCall
+    @test string(call_copy) === "uses_pants(duck=Daffy)"
     # Call zero
     zero_call = zero(call)
     @test zero_call isa Call
@@ -75,8 +113,11 @@
     @test one_call isa Call
     @test isone(one_call)
     @test isone(realize(one_call))
-    # Call plus
     @test one_call === one(Call)
+    # Call plus
+    call = +one_call
+    @test op_call isa Call
+    @test convert(Int, realize(call)) === 1
     op_call = zero_call + one_call
     @test op_call isa SpineInterface.OperatorCall
     @test convert(Int, realize(op_call)) === 1
@@ -87,6 +128,9 @@
     @test op_call isa SpineInterface.OperatorCall
     @test convert(Int, realize(op_call)) === 1
     # Call minus
+    call = -one_call
+    @test op_call isa Call
+    @test convert(Int, realize(call)) === -1
     op_call = zero_call - one_call
     @test op_call isa SpineInterface.OperatorCall
     @test convert(Int, realize(op_call)) === -1
