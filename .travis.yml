@@ -18,6 +18,9 @@ git:
 #  allow_failures:
 #  - julia: nightly
 env: PYTHON=3.6
+  global:
+    - DISABLE_AMEND_COVERAGE_FROM_SRC=yes
+
 dist: xenial
 ## uncomment and modify the following lines to manually install system packages
 addons:
