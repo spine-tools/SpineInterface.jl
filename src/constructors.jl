@@ -38,9 +38,6 @@ function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_
     TimeSlice(start, end_, dur, blocks)
 end
 
-# TODO: this doesn't seem right
-TimeSlice(other::TimeSlice) = other
-
 Map(inds::Array{String,1}, vals::Array{V,1}) where V = Map(Symbol.(inds), vals)
 Map(inds::Array{DateTime_,1}, vals::Array{V,1}) where V = Map([ind.value for ind in inds], vals)
 function Map(inds::Array{DateTime_,1}, vals::Array{V,1}) where V <: Real

@@ -32,6 +32,9 @@
         @test institution(:FIFA) === nothing
         @test length(object_class()) === 1
         @test all(x isa ObjectClass for x in object_class())
+        max_object_id = maximum(obj.id for obj in institution())
+        FIFA = Object(:FIFA)
+        @test FIFA.id === max_object_id + 1
     end
     @testset "relationship_class" begin
         object_classes = ["institution", "country"]

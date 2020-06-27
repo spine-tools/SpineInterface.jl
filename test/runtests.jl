@@ -25,4 +25,5 @@ using Dates
 @testset begin
     include("using_spinedb.jl")
     include("api.jl")
+    include("constructors.jl")
 end

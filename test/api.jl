@@ -142,10 +142,10 @@ end
     end
 end
 @testset "write_parameters" begin
-	path = "$(@__DIR__)/test_out.sqlite"
+    path = "$(@__DIR__)/test_out.sqlite"
     url = "sqlite:///$(path)"
     @testset "int & string" begin
-    	isfile(path) && rm(path)
+        isfile(path) && rm(path)
         parameters = Dict(:apero_time => Dict((country=:France,) => 5, (country=:Sweden, drink=:vodka) => "now!"))
         write_parameters(parameters, url)
         using_spinedb(url)
@@ -153,7 +153,7 @@ end
         @test apero_time(country=country(:Sweden), drink=drink(:vodka)) === Symbol("now!")
     end
     @testset "date_time & duration" begin
-    	isfile(path) && rm(path)
+        isfile(path) && rm(path)
         parameters = Dict(
             :apero_time => Dict(
                 (country=:France,) => SpineInterface.DateTime_(DateTime(1)), 
@@ -166,14 +166,14 @@ end
         @test apero_time(country=country(:Sweden), drink=drink(:vodka)) == Hour(1)
     end
     @testset "array" begin
-    	isfile(path) && rm(path)
+        isfile(path) && rm(path)
         parameters = Dict(:apero_time => Dict((country=:France,) => SpineInterface.Array_([1.0, 2.0, 3.0])))
         write_parameters(parameters, url)
         using_spinedb(url)
         @test apero_time(country=country(:France)) == [1, 2, 3]
     end
     @testset "time_pattern" begin
-    	isfile(path) && rm(path)
+        isfile(path) && rm(path)
         val = Dict(SpineInterface.PeriodCollection("D1-5") => 30.5, SpineInterface.PeriodCollection("D6-7") => 24.7)
         @test val isa SpineInterface.TimePattern
         parameters = Dict(:apero_time => Dict((country=:France,) => val))
@@ -183,7 +183,7 @@ end
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 6), DateTime(0, 1, 6, 10))) == 24.7
     end
     @testset "time_series" begin
-    	isfile(path) && rm(path)
+        isfile(path) && rm(path)
         val = TimeSeries([DateTime(1), DateTime(2), DateTime(3)], [4, 5, 6], false, false)
         parameters = Dict(:apero_time => Dict((country=:France,) => val))
         write_parameters(parameters, url)
@@ -193,7 +193,7 @@ end
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(3))) == 4.5
     end
     @testset "with report" begin
-    	isfile(path) && rm(path)
+        isfile(path) && rm(path)
         parameters = Dict(:apero_time => Dict((country=:France,) => "later..."))
         write_parameters(parameters, url; report="report_x")
         using_spinedb(url)
@@ -201,21 +201,21 @@ end
     end
 end
 @testset "Call" begin
-	@test realize("hey") == "hey"
-	call = Call(5)
-	@test realize(call) == 5
-	@test !is_varying(call)
-	call = Call(+, (3, 4))
-	@test realize(call) == 7
-	@test !is_varying(call)
-	France = Object(:France)
-	ts = TimeSeries([DateTime(0), DateTime(1)], [40, 70], false, false)
-	country = ObjectClass(:country, [France], Dict(France => Dict(:apero_time => parameter_value(ts))))
-	apero_time = Parameter(:apero_time, [country])
-	call = apero_time[(; country=France, t=TimeSlice(DateTime(0), DateTime(1)))]
-	@test realize(call) == 40
-	@test is_varying(call)
-	another_call = Call(*, (3, call))
-	@test realize(another_call) == 120
-	@test is_varying(another_call)
+    @test realize("hey") == "hey"
+    call = Call(5)
+    @test realize(call) == 5
+    @test !is_varying(call)
+    call = Call(+, (3, 4))
+    @test realize(call) == 7
+    @test !is_varying(call)
+    France = Object(:France)
+    ts = TimeSeries([DateTime(0), DateTime(1)], [40, 70], false, false)
+    country = ObjectClass(:country, [France], Dict(France => Dict(:apero_time => parameter_value(ts))))
+    apero_time = Parameter(:apero_time, [country])
+    call = apero_time[(; country=France, t=TimeSlice(DateTime(0), DateTime(1)))]
+    @test realize(call) == 40
+    @test is_varying(call)
+    another_call = Call(*, (3, call))
+    @test realize(another_call) == 120
+    @test is_varying(another_call)
 end
