@@ -19,7 +19,6 @@
 
 Base.intersect(::Anything, s) = s
 Base.intersect(s::T, ::Anything) where T<:AbstractArray = s
-Base.intersect(s::T, ::Anything) where T<:AbstractSet = s
 
 Base.in(item, ::Anything) = true
 
@@ -80,7 +79,7 @@ function Base.show(io::IO, period_collection::PeriodCollection)
             push!(ranges, str)
         end
     end
-    print(io, join(ranges, ",\nand "))
+    print(io, join(ranges, ", and "))
 end
 
 Base.convert(::Type{DateTime_}, o::PyObject) = DateTime_(o.value)

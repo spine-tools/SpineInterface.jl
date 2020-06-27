@@ -26,4 +26,5 @@ using Dates
     include("using_spinedb.jl")
     include("api.jl")
     include("constructors.jl")
+    include("base.jl")
 end
