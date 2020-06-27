@@ -13,8 +13,6 @@ git:
   depth: 99999999
 
 env: PYTHON=3.6
-  global:
-    - DISABLE_AMEND_COVERAGE_FROM_SRC=yes
 
 dist: xenial
 
