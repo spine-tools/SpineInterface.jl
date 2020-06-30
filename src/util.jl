@@ -171,13 +171,13 @@ end
 
 function (p::MapParameterValue)(k, prefix...; kwargs...)
     pvs = get(p.value.mapping, k, nothing)
-    pvs === nothing && return nothing
+    pvs === nothing && return p(;prefix=prefix, kwargs...)
     first(pvs)(;prefix=prefix, kwargs...)
 end
 
 function (p::MapParameterValue{Symbol,V})(o::ObjectLike, prefix...; kwargs...) where V
     pvs = get(p.value.mapping, o.name, nothing)
-    pvs === nothing && return nothing
+    pvs === nothing && return p(;prefix=prefix, kwargs...)
     first(pvs)(;prefix=prefix, kwargs...)
 end
 
