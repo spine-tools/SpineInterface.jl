@@ -22,15 +22,12 @@ Base.intersect(s::T, ::Anything) where T<:AbstractArray = s
 
 Base.in(item, ::Anything) = true
 
-Base.iterate(o::Object) = iterate((o,))
-Base.iterate(o::Object, state::T) where T = iterate((o,), state)
-Base.iterate(t::TimeSlice) = iterate((t,))
-Base.iterate(t::TimeSlice, state::T) where T = iterate((t,), state)
+Base.iterate(o::Union{Object,TimeSlice}) = iterate((o,))
+Base.iterate(o::Union{Object,TimeSlice}, state::T) where T = iterate((o,), state)
 Base.iterate(v::ScalarParameterValue) = iterate((v,))
 Base.iterate(v::ScalarParameterValue, state::T) where T = iterate((v,), state)
 
-Base.length(t::TimeSlice) = 1
-Base.length(o::Object) = 1
+Base.length(t::Union{Object,TimeSlice}) = 1
 Base.length(v::ScalarParameterValue) = 1
 
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
@@ -41,8 +38,7 @@ Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
 Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
 
 Base.hash(::Anything) = zero(UInt64)
-Base.hash(o::Object) = o.id
-Base.hash(t::TimeSlice) = t.id
+Base.hash(o::Union{Object,TimeSlice}) = o.id
 Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
 
 Base.show(io::IO, ::Anything) = print(io, "anything")

@@ -18,13 +18,6 @@
 #############################################################################
 
 """
-    AbstractObject
-
-Supertype for [`Object`](@ref) and [`TimeSlice`](@ref).
-"""
-abstract type AbstractObject end
-
-"""
     AbstractParameterValue
 
 Supertype for all parameter value callables.
@@ -47,12 +40,32 @@ struct Anything end
 
 A type for representing an object in a Spine db.
 """
-struct Object <: AbstractObject
+struct Object
     name::Symbol
     id::UInt64
+    members::Array{Object,1}
+    groups::Array{Object,1}
 end
 
-ObjectLike = Union{T,Int64} where T<:AbstractObject
+"""
+    TimeSlice
+
+A type for representing a slice of time.
+"""
+struct TimeSlice
+    start::Ref{DateTime}
+    end_::Ref{DateTime}
+    duration::Float64
+    blocks::NTuple{N,Object} where N
+    id::UInt64
+    function TimeSlice(start, end_, duration, blocks)
+        start > end_ && error("out of order")
+        id = objectid((start, end_, duration, blocks))
+        new(Ref(start), Ref(end_), duration, blocks, id)
+    end
+end
+
+ObjectLike = Union{Object,TimeSlice,Int64}
 
 RelationshipLike{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
 
@@ -64,7 +77,7 @@ end
 struct ObjectClass
     name::Symbol
     objects::Array{ObjectLike,1}
-    parameter_values::Dict{Object,Dict{Symbol,AbstractParameterValue}}
+    parameter_values::Dict{ObjectLike,Dict{Symbol,AbstractParameterValue}}
     parameter_defaults::Dict{Symbol,AbstractParameterValue}
 end
 
@@ -72,7 +85,7 @@ struct RelationshipClass
     name::Symbol
     object_class_names::Array{Symbol,1}
     relationships::Array{RelationshipLike,1}
-    parameter_values::Dict{Tuple{Vararg{Object}},Dict{Symbol,AbstractParameterValue}}
+    parameter_values::Dict{Tuple{Vararg{ObjectLike}},Dict{Symbol,AbstractParameterValue}}
     parameter_defaults::Dict{Symbol,AbstractParameterValue}
     lookup_cache::Dict{Bool,Dict}
     RelationshipClass(name, obj_cls_names, rels, vals, defaults) =
@@ -82,24 +95,6 @@ end
 struct Parameter
     name::Symbol
     classes::Array{Union{ObjectClass,RelationshipClass},1}
-end
-
-"""
-    TimeSlice
-
-A type for representing a slice of time.
-"""
-struct TimeSlice <: AbstractObject
-    start::Ref{DateTime}
-    end_::Ref{DateTime}
-    duration::Float64
-    blocks::NTuple{N,Object} where N
-    id::UInt64
-    function TimeSlice(start, end_, duration, blocks)
-        start > end_ && error("out of order")
-        id = objectid((start, end_, duration, blocks))
-        new(Ref(start), Ref(end_), duration, blocks, id)
-    end
 end
 
 struct TimeSliceMap
@@ -205,7 +200,7 @@ struct RepeatingTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     t_map::TimeSeriesMap
 end
 
-struct MapParameterValue{K,V} <: AbstractParameterValue where V<:AbstractParameterValue
+struct MapParameterValue{K,V} <: AbstractParameterValue where V <: AbstractParameterValue
     value::Map{K,V}
 end
 

@@ -31,6 +31,8 @@ export using_spinedb
 export anything
 export indices
 export write_parameters
+export members
+export groups
 export blocks
 export duration
 export start

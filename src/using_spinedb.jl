@@ -29,20 +29,32 @@ function _members_per_group(groups)
 end
 
 """
-A Dict mapping `Int64` ids to the corresponding `Object` or `ObjectGroup`.
+A Dict mapping member ids to an Array of entity group ids.
 """
-function _full_objects_per_id(objects, members_per_group)
-    objects_per_id = Dict(obj["id"] => Object(obj["name"], obj["id"]) for obj in objects)
-    group_ids = intersect(keys(objects_per_id), keys(members_per_group))
-    # Promote `Object` to `ObjectGroup`
-    for group_id in group_ids
-        objects_per_id[group_id] = ObjectGroup(objects_per_id[group_id])
+function _groups_per_member(groups)
+    d = Dict()
+    for grp in groups
+        push!(get!(d, grp["member_id"], []), grp["entity_id"])
     end
-    # Specify `members` for each `ObjectGroup`
-    for group_id in group_ids
-        obj_grp = objects_per_id[group_id]
-        members = [objects_per_id[member_id] for member_id in members_per_group[group_id]]
-        append!(obj_grp.members, members)
+    d
+end
+
+"""
+A Dict mapping `Int64` ids to the corresponding `Object`.
+"""
+function _full_objects_per_id(objects, members_per_group, groups_per_member)
+    objects_per_id = Dict{Int64,Object}(obj["id"] => Object(obj["name"], obj["id"]) for obj in objects)
+    # Specify `members` for each group
+    for (id, object) in objects_per_id
+        member_ids = get(members_per_group, id, ())
+        members = isempty(member_ids) ? [object] : [objects_per_id[member_id] for member_id in member_ids]
+        append!(object.members, members)
+    end
+    # Specify `groups` for each member
+    for (id, object) in objects_per_id
+        group_ids = get(groups_per_member, id, ())
+        groups = [objects_per_id[group_id] for group_id in group_ids]
+        append!(object.groups, groups)
     end
     objects_per_id
 end
@@ -225,7 +237,8 @@ function using_spinedb(db_map::PyObject, mod=@__MODULE__)
     param_defs = py"[x._asdict() for x in $db_map.query($db_map.parameter_definition_sq)]"
     param_vals = py"[x._asdict() for x in $db_map.query($db_map.parameter_value_sq)]"
     members_per_group = _members_per_group(groups)
-    full_objs_per_id = _full_objects_per_id(objects, members_per_group)
+    groups_per_member = _groups_per_member(groups)
+    full_objs_per_id = _full_objects_per_id(objects, members_per_group, groups_per_member)
     objs_per_cls = _entities_per_class(objects)
     rels_per_cls = _entities_per_class(relationships)
     param_defs_per_cls = _parameter_definitions_per_class(param_defs)

@@ -22,19 +22,27 @@
     @testset "object_class" begin
         object_classes = ["institution"]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
-        objects = [["institution", x] for x in institutions]
+        objects = [["institution", x] for x in (institutions..., "Spine")]
+        object_groups =[["institution", "Spine", [x for x in institutions]]]
         db_api.create_new_spine_database(url)
-        db_api.import_data_to_url(url; object_classes=object_classes, objects=objects)
+        db_api.import_data_to_url(url; object_classes=object_classes, objects=objects, object_groups=object_groups)
         using_spinedb(url)
-        @test length(institution()) === 5
+        @test length(institution()) === 6
         @test all(x isa Object for x in institution())
-        @test [x.name for x in institution()] == Symbol.(institutions)
+        @test [x.name for x in institution()] == vcat(Symbol.(institutions), :Spine)
         @test institution(:FIFA) === nothing
         @test length(object_class()) === 1
         @test all(x isa ObjectClass for x in object_class())
         max_object_id = maximum(obj.id for obj in institution())
         FIFA = Object(:FIFA)
         @test FIFA.id === max_object_id + 1
+        Spine = institution(:Spine)
+        @test members(Spine) == institution()[1:end - 1]
+        @test isempty(groups(Spine))
+        @testset for i in institution()[1:end - 1]
+            @test members(i) == [i]
+            @test groups(i) == [Spine]
+        end
     end
     @testset "relationship_class" begin
         object_classes = ["institution", "country"]

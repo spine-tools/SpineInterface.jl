@@ -17,10 +17,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+Object(name::Symbol, id) = Object(name, id, [], [])
 Object(name::AbstractString, args...) = Object(Symbol(name), args...)
 Object(name::Symbol) = Base.invokelatest(Object, name)  # NOTE: this allows us to override `Object` in `using_spinedb`
-
-ObjectGroup(obj::Object) = ObjectGroup(obj.name, obj.id, [])
 
 ObjectClass(name, objects, vals) = ObjectClass(name, objects, vals, Dict())
 ObjectClass(name, objects) = ObjectClass(name, objects, Dict())
