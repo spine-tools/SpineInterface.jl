@@ -259,7 +259,6 @@ end
         France = country(:France)
         drunk = scenario(:drunk)
         sober = scenario(:sober)
-        hangover = Object(:hangover)
         t0 = DateTime(1999, 12)
         t1_2 = TimeSlice(DateTime(2000, 1), DateTime(2000, 2))
         t1_3 = TimeSlice(DateTime(2000, 1), DateTime(2000, 3))
@@ -268,6 +267,5 @@ end
         @test apero_time(;country=France, prefix=(drunk, t0), t=t1_3) == (4.0 + 5.6) / 2
         @test apero_time(;country=France, prefix=(sober, t0), t=t1_2) == 2.1
         @test apero_time(;country=France, prefix=(sober, t0), t=t1_3) == (2.1 + 1.8) / 2
-        @test apero_time(;country=France, prefix=(hangover, t0), t=t1_3) ===  nothing
     end
 end
