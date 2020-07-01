@@ -20,6 +20,8 @@
 Object(name::AbstractString, args...) = Object(Symbol(name), args...)
 Object(name::Symbol) = Base.invokelatest(Object, name)  # NOTE: this allows us to override `Object` in `using_spinedb`
 
+ObjectGroup(obj::Object) = ObjectGroup(obj.name, obj.id, [])
+
 ObjectClass(name, objects, vals) = ObjectClass(name, objects, vals, Dict())
 ObjectClass(name, objects) = ObjectClass(name, objects, Dict())
 

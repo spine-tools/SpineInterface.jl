@@ -18,6 +18,36 @@
 #############################################################################
 
 """
+A Dict mapping entity group ids to an Array of member ids.
+"""
+function _members_per_group(groups)
+    d = Dict()
+    for grp in groups
+        push!(get!(d, grp["entity_id"], []), grp["member_id"])
+    end
+    d
+end
+
+"""
+A Dict mapping `Int64` ids to the corresponding `Object` or `ObjectGroup`.
+"""
+function _full_objects_per_id(objects, members_per_group)
+    objects_per_id = Dict(obj["id"] => Object(obj["name"], obj["id"]) for obj in objects)
+    group_ids = intersect(keys(objects_per_id), keys(members_per_group))
+    # Promote `Object` to `ObjectGroup`
+    for group_id in group_ids
+        objects_per_id[group_id] = ObjectGroup(objects_per_id[group_id])
+    end
+    # Specify `members` for each `ObjectGroup`
+    for group_id in group_ids
+        obj_grp = objects_per_id[group_id]
+        members = [objects_per_id[member_id] for member_id in members_per_group[group_id]]
+        append!(obj_grp.members, members)
+    end
+    objects_per_id
+end
+
+"""
 A Dict mapping class ids to an Array of entities in that class.
 """
 function _entities_per_class(entities)
@@ -107,33 +137,32 @@ function _fix_name_ambiguity!(name_list::Array{Symbol,1})
     end
 end
 
-function _object_tuple_from_relationship(rel::Dict)
-    object_names = split(rel["object_name_list"], ",")
+function _object_tuple_from_relationship(rel::Dict, full_objs_per_id)
     object_ids = parse.(Int, split(rel["object_id_list"], ","))
-    Tuple(Object.(object_names, object_ids))
+    Tuple(full_objs_per_id[id] for id in object_ids)
 end
 
-function _class_args(class, ents_per_cls, param_defs_per_cls, param_vals_per_ent)
+function _class_args(class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     entities = get(ents_per_cls, class["id"], ())
     param_defs = get(param_defs_per_cls, class["id"], ())
     object_class_name_list = get(class, "object_class_name_list", nothing)
     (
-        _ents_and_vals(object_class_name_list, entities, param_defs, param_vals_per_ent)...,
+        _ents_and_vals(object_class_name_list, entities, full_objs_per_id, param_defs, param_vals_per_ent)...,
         _default_parameter_values(param_defs)
     )
 end
 
-function _ents_and_vals(::Nothing, entities, param_defs, param_vals_per_ent)
-    objects = [Object(ent["name"], ent["id"]) for ent in entities]
+function _ents_and_vals(::Nothing, entities, full_objs_per_id, param_defs, param_vals_per_ent)
+    objects = [full_objs_per_id[ent["id"]] for ent in entities]
     param_vals = Dict(
         obj => _parameter_values(ent, param_defs, param_vals_per_ent) for (obj, ent) in zip(objects, entities)
     )
     objects, param_vals
 end
-function _ents_and_vals(object_class_name_list, entities, param_defs, param_vals_per_ent)
+function _ents_and_vals(object_class_name_list, entities, full_objs_per_id, param_defs, param_vals_per_ent)
     object_class_names = Symbol.(split(object_class_name_list, ","))
     _fix_name_ambiguity!(object_class_names)
-    object_tuples = (_object_tuple_from_relationship(ent) for ent in entities)
+    object_tuples = (_object_tuple_from_relationship(ent, full_objs_per_id) for ent in entities)
     relationships = [(; zip(object_class_names, objects)...) for objects in object_tuples]
     param_vals = Dict(
         objects => _parameter_values(ent, param_defs, param_vals_per_ent)
@@ -145,9 +174,11 @@ end
 """
 A Dict mapping class names to arguments.
 """
-function _args_per_class(classes, ents_per_cls, param_defs_per_cls, param_vals_per_ent)
+function _args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     Dict(
-        Symbol(class["name"]) => _class_args(class, ents_per_cls, param_defs_per_cls, param_vals_per_ent)
+        Symbol(class["name"]) => _class_args(
+            class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
+        )
         for class in classes
     )
 end
@@ -189,15 +220,22 @@ function using_spinedb(db_map::PyObject, mod=@__MODULE__)
     object_classes = py"[x._asdict() for x in $db_map.query($db_map.object_class_sq)]"
     relationship_classes = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_class_sq)]"
     objects = py"[x._asdict() for x in $db_map.query($db_map.object_sq)]"
+    groups = py"[x._asdict() for x in $db_map.query($db_map.entity_group_sq)]"
     relationships = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_sq)]"
     param_defs = py"[x._asdict() for x in $db_map.query($db_map.parameter_definition_sq)]"
     param_vals = py"[x._asdict() for x in $db_map.query($db_map.parameter_value_sq)]"
+    members_per_group = _members_per_group(groups)
+    full_objs_per_id = _full_objects_per_id(objects, members_per_group)
     objs_per_cls = _entities_per_class(objects)
     rels_per_cls = _entities_per_class(relationships)
     param_defs_per_cls = _parameter_definitions_per_class(param_defs)
     param_vals_per_ent = _parameter_values_per_entity(param_vals)
-    args_per_obj_cls = _args_per_class(object_classes, objs_per_cls, param_defs_per_cls, param_vals_per_ent)
-    args_per_rel_cls = _args_per_class(relationship_classes, rels_per_cls, param_defs_per_cls, param_vals_per_ent)
+    args_per_obj_cls = _args_per_class(
+        object_classes, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
+    )
+    args_per_rel_cls = _args_per_class(
+        relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
+    )
     class_names_per_param = _class_names_per_parameter([object_classes; relationship_classes], param_defs_per_cls)
     max_obj_id = reduce(max, (obj["id"] for obj in objects); init=0)
     id_factory = ObjectIdFactory(UInt64(max_obj_id))
