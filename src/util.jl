@@ -181,6 +181,16 @@ function (p::MapParameterValue{Symbol,V})(o::ObjectLike, prefix...; kwargs...) w
     first(pvs)(;prefix=prefix, kwargs...)
 end
 
+function (p::MapParameterValue{DateTime,V})(d::DateTime, prefix...; kwargs...) where V
+    pvs = get(p.value.mapping, d, nothing)
+    if pvs === nothing
+        d_floor = d - minimum(filter!(x -> x > Hour(0), d .- keys(p.value.mapping)))
+        pvs = get(p.value.mapping, d_floor, nothing)
+    end
+    pvs === nothing && return p(;prefix=prefix, kwargs...)
+    first(pvs)(;prefix=prefix, kwargs...)
+end
+
 function (x::_IsLowestResolution)(t::TimeSlice)
     if any(contains(r, t) for r in x.ref)
         false
