@@ -170,24 +170,24 @@ end
 
 function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
     isempty(kwargs) && return p.value
-    popped_kwargs = collect(kwargs)
-    pair = popfirst!(popped_kwargs)
-    p(pair; t=t, i=i, popped_kwargs...)
+    arg = first(values(kwargs))
+    new_kargs = Base.tail((;kwargs...))
+    p(arg; t=t, i=i, new_kargs...)
 end
-function (p::MapParameterValue)(k::Pair; kwargs...)
-    pvs = get(p.value.mapping, k[2], nothing)
+function (p::MapParameterValue)(k; kwargs...)
+    pvs = get(p.value.mapping, k, nothing)
     pvs === nothing && return p(;kwargs...)
     first(pvs)(;kwargs...)
 end
-function (p::MapParameterValue{Symbol,V})(o::Pair{K,ObjectLike}; kwargs...) where V where K
-    pvs = get(p.value.mapping, o[2].name, nothing)
+function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where V where K
+    pvs = get(p.value.mapping, o.name, nothing)
     pvs === nothing && return p(;kwargs...)
     first(pvs)(;kwargs...)
 end
-function (p::MapParameterValue{DateTime,V})(d::Pair{K,DateTime}; kwargs...) where V where K
-    pvs = get(p.value.mapping, d[2], nothing)
+function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where V where K
+    pvs = get(p.value.mapping, d, nothing)
     if pvs === nothing
-        d_floor = d[2] - minimum(filter!(x -> x > Hour(0), d[2] .- keys(p.value.mapping)))
+        d_floor = d - minimum(filter!(x -> x > Hour(0), d .- keys(p.value.mapping)))
         pvs = get(p.value.mapping, d_floor, nothing)
     end
     pvs === nothing && return p(;kwargs...)
