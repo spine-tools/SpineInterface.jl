@@ -53,11 +53,11 @@
     @test string(studio_duck) === "studio_duck"
     id_call = Call(13)
     op_call = Call(+, (2, 3))
-    uses_pants = Parameter(:uses_pants)
-    param_call = Call(uses_pants, (duck=:Daffy,))
+    apero_time = parameter_value("apero_time")
+    param_val_call = Call(apero_time, (scenario=:covid,))
     @test string(id_call) === "13"
     @test string(op_call) === "2 + 3"
-    @test string(param_call) === "uses_pants(duck=Daffy)"
+    @test string(param_val_call) === "apero_time(scenario=covid)"
     pc = SpineInterface.PeriodCollection("Y1-5;M1-4,M6-9")
     @test string(pc) === "year from 1 to 5, and month from 1 to 4, or 6 to 9"
     # convert
@@ -99,9 +99,9 @@
     call_copy = copy(op_call)
     @test call_copy isa SpineInterface.OperatorCall
     @test string(call_copy) === "2 + 3"
-    call_copy = copy(param_call)
-    @test call_copy isa SpineInterface.ParameterCall
-    @test string(call_copy) === "uses_pants(duck=Daffy)"
+    call_copy = copy(param_val_call)
+    @test call_copy isa SpineInterface.ParameterValueCall
+    @test string(call_copy) === "apero_time(scenario=covid)"
     # Call zero
     zero_call = zero(call)
     @test zero_call isa Call

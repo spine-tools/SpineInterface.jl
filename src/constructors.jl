@@ -146,5 +146,5 @@ end
 
 Call(n) = IdentityCall(n)
 Call(op::Function, args::Tuple) = OperatorCall(op, args)
-Call(param::Parameter, kwargs::NamedTuple) = ParameterCall(param, kwargs)
+Call(val::T, kwargs::NamedTuple) where T <: AbstractParameterValue = ParameterValueCall(val, kwargs)
 Call(other::Call) = copy(other)

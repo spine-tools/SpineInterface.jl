@@ -52,9 +52,9 @@ Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, v::ScalarParameterValue) = print(io, v.value)
 Base.show(io::IO, call::IdentityCall) = print(io, call.value)
 Base.show(io::IO, call::OperatorCall) = print(io, join(call.args, string(" ", call.operator, " ")))
-function Base.show(io::IO, call::ParameterCall)
+function Base.show(io::IO, call::ParameterValueCall)
     kwargs_str = join([join(kw, "=") for kw in pairs(call.kwargs)], ", ")
-    print(io, string(call.parameter, "(", kwargs_str, ")"))
+    print(io, string(call.parameter_value, "(", kwargs_str, ")"))
 end
 function Base.show(io::IO, period_collection::PeriodCollection)
     d = Dict{Symbol,String}(
@@ -108,7 +108,7 @@ Base.copy(c::StandardTimeSeriesParameterValue) = StandardTimeSeriesParameterValu
 function Base.copy(c::RepeatingTimeSeriesParameterValue)
 	RepeatingTimeSeriesParameterValue(copy(c.value), c.span, c.valsum, c.len, c.t_map)
 end
-Base.copy(c::ParameterCall) = ParameterCall(c.parameter, c.kwargs)
+Base.copy(c::ParameterValueCall) = ParameterValueCall(c.parameter_value, c.kwargs)
 Base.copy(c::OperatorCall) = OperatorCall(c.operator, c.args)
 Base.copy(c::IdentityCall) = IdentityCall(c.value)
 
@@ -141,8 +141,8 @@ Base.:min(x, y::Call) = OperatorCall(min, (x, y))
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
-    parameter_value, _inds = _lookup_parameter_value(p; inds...)
-    _call(p, inds, parameter_value)
+    parameter_value, new_inds = _lookup_parameter_value(p; inds...)
+    _call(parameter_value, new_inds)
 end
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent

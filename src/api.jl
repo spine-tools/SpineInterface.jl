@@ -469,17 +469,17 @@ Perform the given `Call` and return the result.
 realize(x) = x
 realize(call::IdentityCall) = call.value
 realize(call::OperatorCall) = call.operator(realize.(call.args)...)
-realize(call::ParameterCall) = call.parameter(; call.kwargs...)
+realize(call::ParameterValueCall) = call.parameter_value(; call.kwargs...)
 
 """
     is_varying(x::Call)
 
 Whether or not the given `Call` might return a different result if realized a second time.
-This is true for `ParameterCall`s which are sensitive to the `t` argument.
+This is true for `ParameterValueCall`s which are sensitive to the `t` argument.
 """
 is_varying(x) = false
 is_varying(call::OperatorCall) = any(is_varying(arg) for arg in call.args)
-is_varying(call::ParameterCall) = true
+is_varying(call::ParameterValueCall) = true
 
 """
     write_parameter!(db_map, name, data; for_object=true, report="")
