@@ -190,9 +190,12 @@ julia> demand(node=:Sthlm, i=1)
 
 ```
 """
-function (p::Parameter)(;_strict=true, prefix=(), i=nothing, t=nothing, kwargs...)
-    parameter_value = _lookup_parameter_value(p; kwargs...)
-    parameter_value != nothing && return parameter_value(prefix=prefix, i=i, t=t)
+function (p::Parameter)(;_strict=true, kwargs...)
+    x = _lookup_parameter_value(p; kwargs...)
+    if x !== nothing
+        parameter_value, new_kwargs = x
+        return parameter_value(; new_kwargs...)
+    end
     _strict && error("parameter $p is not specified for argument(s) $(kwargs...)")
     nothing
 end

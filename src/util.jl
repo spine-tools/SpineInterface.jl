@@ -34,18 +34,22 @@ end
 
 function _lookup_parameter_value(p::Parameter; kwargs...)
     for class in p.classes
-        lookup_key = _lookup_key(class; kwargs...)
+        lookup_key, new_kwargs = _lookup_key(class; kwargs...)
         parameter_values = get(class.parameter_values, lookup_key, nothing)
         parameter_values === nothing && continue
-        return _get(parameter_values, p.name, class.parameter_defaults)
+        return _get(parameter_values, p.name, class.parameter_defaults), new_kwargs
     end
 end
 
-_lookup_key(class::ObjectClass; kwargs...) = get(kwargs, class.name, nothing)
+function _lookup_key(class::ObjectClass; kwargs...) 
+    new_kwargs = Dict(kwargs...)
+    pop!(new_kwargs, class.name, nothing), (; new_kwargs...)
+end
 function _lookup_key(class::RelationshipClass; kwargs...)
-    objects = Tuple(get(kwargs, oc, nothing) for oc in class.object_class_names)
-    nothing in objects && return nothing
-    objects
+    new_kwargs = Dict(kwargs...)
+    objects = Tuple(pop!(new_kwargs, oc, nothing) for oc in class.object_class_names)
+    nothing in objects && return nothing, (; new_kwargs...)
+    objects, (; new_kwargs...)
 end
 
 _lookup_entities(class::ObjectClass; kwargs...) = class()
@@ -164,31 +168,30 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     end
 end
 
-function (p::MapParameterValue)(;prefix::Tuple=(), kwargs...)
-    isempty(prefix) && return p.value
-    p(prefix...; kwargs...)
+function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
+    isempty(kwargs) && return p.value
+    arg = first(values(kwargs))
+    new_kargs = Base.tail((;kwargs...))
+    p(arg; t=t, i=i, new_kargs...)
 end
-
-function (p::MapParameterValue)(k, prefix...; kwargs...)
+function (p::MapParameterValue)(k; kwargs...)
     pvs = get(p.value.mapping, k, nothing)
-    pvs === nothing && return p(;prefix=prefix, kwargs...)
-    first(pvs)(;prefix=prefix, kwargs...)
+    pvs === nothing && return p(;kwargs...)
+    first(pvs)(;kwargs...)
 end
-
-function (p::MapParameterValue{Symbol,V})(o::ObjectLike, prefix...; kwargs...) where V
+function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where V where K
     pvs = get(p.value.mapping, o.name, nothing)
-    pvs === nothing && return p(;prefix=prefix, kwargs...)
-    first(pvs)(;prefix=prefix, kwargs...)
+    pvs === nothing && return p(;kwargs...)
+    first(pvs)(;kwargs...)
 end
-
-function (p::MapParameterValue{DateTime,V})(d::DateTime, prefix...; kwargs...) where V
+function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where V where K
     pvs = get(p.value.mapping, d, nothing)
     if pvs === nothing
         d_floor = d - minimum(filter!(x -> x > Hour(0), d .- keys(p.value.mapping)))
         pvs = get(p.value.mapping, d_floor, nothing)
     end
-    pvs === nothing && return p(;prefix=prefix, kwargs...)
-    first(pvs)(;prefix=prefix, kwargs...)
+    pvs === nothing && return p(;kwargs...)
+    first(pvs)(;kwargs...)
 end
 
 function (x::_IsLowestResolution)(t::TimeSlice)

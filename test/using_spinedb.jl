@@ -271,9 +271,12 @@ end
         t1_2 = TimeSlice(DateTime(2000, 1), DateTime(2000, 2))
         t1_3 = TimeSlice(DateTime(2000, 1), DateTime(2000, 3))
         t2_3 = TimeSlice(DateTime(2000, 2), DateTime(2000, 3))
-        @test apero_time(;country=France, prefix=(drunk, t0), t=t2_3) == 5.6
-        @test apero_time(;country=France, prefix=(drunk, t0), t=t1_3) == (4.0 + 5.6) / 2
-        @test apero_time(;country=France, prefix=(sober, t0), t=t1_2) == 2.1
-        @test apero_time(;country=France, prefix=(sober, t0), t=t1_3) == (2.1 + 1.8) / 2
+        @test apero_time(;country=France, s=drunk, t0=t0, t=t2_3) == 5.6
+        @test apero_time(;country=France, s=drunk, t0=t0, t=t1_3) == (4.0 + 5.6) / 2
+        @test apero_time(;country=France, s=sober, t0=t0, t=t1_2) == 2.1
+        @test apero_time(;country=France, s=sober, t0=t0, t=t1_3) == (2.1 + 1.8) / 2
+        @test apero_time(;country=France, s=drunk, whatever=:whatever, t0=t0, t=t2_3) == 5.6
+        @test apero_time(;country=France, s=drunk, t0=t0, whocares=t0, t=t2_3) == 5.6
+        @test apero_time(;country=France, t0=t0, s=drunk, t=t2_3) == 5.6
     end
 end
