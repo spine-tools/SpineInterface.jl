@@ -169,29 +169,29 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
 end
 
 function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
-    # The map `prefix` is whatever keyword arguments are passed that aren't the reserved ones, `t` and `i`
-    prefix = values(kwargs)
-    isempty(prefix) && return p.value
-    p(prefix...; t=t, i=i)
+    isempty(kwargs) && return p.value
+    popped_kwargs = collect(kwargs)
+    pair = popfirst!(popped_kwargs)
+    p(pair; t=t, i=i, popped_kwargs...)
 end
-function (p::MapParameterValue)(k, prefix...; kwargs...)
-    pvs = get(p.value.mapping, k, nothing)
-    pvs === nothing && return p(prefix...; kwargs...)
-    first(pvs)(prefix...; kwargs...)
+function (p::MapParameterValue)(k::Pair; kwargs...)
+    pvs = get(p.value.mapping, k[2], nothing)
+    pvs === nothing && return p(;kwargs...)
+    first(pvs)(;kwargs...)
 end
-function (p::MapParameterValue{Symbol,V})(o::ObjectLike, prefix...; kwargs...) where V
-    pvs = get(p.value.mapping, o.name, nothing)
-    pvs === nothing && return p(prefix...; kwargs...)
-    first(pvs)(prefix...; kwargs...)
+function (p::MapParameterValue{Symbol,V})(o::Pair{K,ObjectLike}; kwargs...) where V where K
+    pvs = get(p.value.mapping, o[2].name, nothing)
+    pvs === nothing && return p(;kwargs...)
+    first(pvs)(;kwargs...)
 end
-function (p::MapParameterValue{DateTime,V})(d::DateTime, prefix...; kwargs...) where V
-    pvs = get(p.value.mapping, d, nothing)
+function (p::MapParameterValue{DateTime,V})(d::Pair{K,DateTime}; kwargs...) where V where K
+    pvs = get(p.value.mapping, d[2], nothing)
     if pvs === nothing
-        d_floor = d - minimum(filter!(x -> x > Hour(0), d .- keys(p.value.mapping)))
+        d_floor = d[2] - minimum(filter!(x -> x > Hour(0), d[2] .- keys(p.value.mapping)))
         pvs = get(p.value.mapping, d_floor, nothing)
     end
-    pvs === nothing && return p(prefix...; kwargs...)
-    first(pvs)(prefix...; kwargs...)
+    pvs === nothing && return p(;kwargs...)
+    first(pvs)(;kwargs...)
 end
 
 function (x::_IsLowestResolution)(t::TimeSlice)
