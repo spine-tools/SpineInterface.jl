@@ -375,9 +375,16 @@ end
 
 Roll the given `t` in time by the period specified by `forward`.
 """
-function roll!(t::Union{TimeSlice,TimeSliceMap}, forward::Union{Period,CompoundPeriod})
+function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
     t.start[] += forward
     t.end_[] += forward
+    t
+end
+
+function roll!(t::TimeSliceMap, forward::Union{Period,CompoundPeriod})
+    t.start[] += forward
+    t.end_[] += forward
+    roll!.(t.time_slices, forward)
     t
 end
 
