@@ -214,8 +214,8 @@ An `Array` of `TimeSlice`s in the map that match the given `t`.
 """
 function (m::TimeSliceMap)(t::TimeSlice...)
     from_to_minutes = (
-        _from_to_minute(m.start, s_start, s_end)
-        for (s_start, s_end) in ((max(m.start, start(s)), min(m.end_, end_(s))) for s in t)
+        _from_to_minute(start(m), s_start, s_end)
+        for (s_start, s_end) in ((max(start(m), start(s)), min(end_(m), end_(s))) for s in t)
         if s_start < s_end
     )
     unique(
@@ -299,18 +299,18 @@ The duration of time slice `t`.
 duration(t::TimeSlice) = t.duration
 
 """
-    start(t::TimeSlice)
+    start(t::Union{TimeSlice,TimeSliceMap})
 
-The start of time slice `t`.
+The start of time slice or time slice map `t`.
 """
-start(t::TimeSlice) = t.start[]
+start(t::Union{TimeSlice,TimeSliceMap}) = t.start[]
 
 """
-    end_(t::TimeSlice)
+    end_(t::Union{TimeSlice,TimeSliceMap})
 
-The end of time slice `t`.
+The end of time slice or time slice map `t`.
 """
-end_(t::TimeSlice) = t.end_[]
+end_(t::Union{TimeSlice,TimeSliceMap}) = t.end_[]
 
 """
     blocks(t::TimeSlice)
@@ -371,11 +371,11 @@ function overlap_duration(a::TimeSlice, b::TimeSlice)
 end
 
 """
-    roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
+    roll!(t::Union{TimeSlice,TimeSliceMap}, forward::Union{Period,CompoundPeriod})
 
 Roll the given `t` in time by the period specified by `forward`.
 """
-function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
+function roll!(t::Union{TimeSlice,TimeSliceMap}, forward::Union{Period,CompoundPeriod})
     t.start[] += forward
     t.end_[] += forward
     t

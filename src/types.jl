@@ -100,8 +100,11 @@ end
 struct TimeSliceMap
     time_slices::Array{TimeSlice,1}
     index::Array{Int64,1}
-    start::DateTime
-    end_::DateTime
+    start::Ref{DateTime}
+    end_::Ref{DateTime}
+    function TimeSliceMap(time_slices, index, start, end_)
+        new(time_slices, index, Ref(start), Ref(end_))
+    end
 end
 
 # parameter value types
