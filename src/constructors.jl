@@ -99,7 +99,7 @@ function TimeSliceMap(time_slices::Array{TimeSlice,1})
     index = fill(last_ind, index_size)  # Init index with the last so we can skip the last time slice in the loop below
     for (ind, (t, next_t)) in enumerate(zip(time_slices[1:end - 1], time_slices[2:end]))
         from_minute, to_minute = _from_to_minute(map_start, start(t), start(next_t))
-        index[from_minute:to_minute - 1] .= ind
+        index[from_minute:to_minute] .= ind
     end
     TimeSliceMap(time_slices, index, map_start, map_end)
 end
