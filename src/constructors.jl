@@ -41,9 +41,6 @@ end
 
 Map(inds::Array{String,1}, vals::Array{V,1}) where V = Map(Symbol.(inds), vals)
 Map(inds::Array{DateTime_,1}, vals::Array{V,1}) where V = Map([ind.value for ind in inds], vals)
-function Map(inds::Array{DateTime_,1}, vals::Array{V,1}) where V <: Real
-    TimeSeries([ind.value for ind in inds], _first.(vals), false, false)
-end
 function Map(inds::Array{K,1}, vals::Array{V,1}) where {K,V}
     mapping = Dict{K,Array{V,1}}()
     sizehint!(mapping, length(inds))
