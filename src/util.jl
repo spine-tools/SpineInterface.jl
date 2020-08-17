@@ -32,13 +32,14 @@ function _get(d, key, backup)
     end
 end
 
-function _lookup_parameter_value(p::Parameter; kwargs...)
+function _lookup_parameter_value(p::Parameter; _strict=true, kwargs...)
     for class in p.classes
         lookup_key, new_kwargs = _lookup_key(class; kwargs...)
         parameter_values = get(class.parameter_values, lookup_key, nothing)
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults), new_kwargs
     end
+    _strict && error("parameter $p is not specified for argument(s) $(join(kwargs, ", "))")
 end
 
 function _lookup_key(class::ObjectClass; kwargs...) 
