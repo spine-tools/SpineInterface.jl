@@ -39,7 +39,9 @@ function _lookup_parameter_value(p::Parameter; _strict=true, kwargs...)
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults), new_kwargs
     end
-    _strict && error("parameter $p is not specified for argument(s) $(join(kwargs, ", "))")
+    if _strict
+        error("parameter $p is not specified for argument(s) $(join(kwargs, ", "))")
+    end
 end
 
 function _lookup_key(class::ObjectClass; kwargs...) 
