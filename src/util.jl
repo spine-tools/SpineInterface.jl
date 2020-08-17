@@ -61,8 +61,13 @@ _lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, 
 _entity_key(o::ObjectLike) = o
 _entity_key(r::RelationshipLike) = tuple(r...)
 
-_call(pv::TimeVaryingParameterValue, inds::NamedTuple) = Call(pv, inds)
-_call(pv::T, inds::NamedTuple) where T <: AbstractParameterValue = Call(pv(; inds...))
+_call(pv::T, inds::NamedTuple) where T <: AbstractParameterValue = _call(_tempo(T), pv, inds)
+_call(::_TimeFixed, pv::T, inds::NamedTuple) where T <: AbstractParameterValue = Call(pv(; inds...))
+_call(::_TimeVarying, pv::T, inds::NamedTuple) where T <: AbstractParameterValue = Call(pv, inds)
+
+_tempo(::Type{MapParameterValue{K,V}}) where {K,V} = _tempo(V)
+_tempo(::Type{T}) where T <: TimeVaryingParameterValue = _TimeVarying()
+_tempo(::Type{T}) where T <: AbstractParameterValue = _TimeFixed()
 
 _first(x::Array) = first(x)
 _first(x) = x
