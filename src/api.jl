@@ -199,11 +199,9 @@ function (p::Parameter)(;_strict=true, kwargs...)
 end
 
 members(::Anything) = anything
-members(x::Object...) = unique(member for obj in x for member in obj.members)
-members(x::Array{Object,1}) = unique(member for obj in x for member in obj.members)
+members(x) = unique(member for obj in x for member in obj.members)
 
-groups(x::Object...) = unique(group for obj in x for group in obj.groups)
-groups(x::Array{Object,1}) = unique(group for obj in x for group in obj.groups)
+groups(x) = unique(group for obj in x for group in obj.groups)
 
 """
     (<m>::TimeSliceMap)(t::TimeSlice...)
