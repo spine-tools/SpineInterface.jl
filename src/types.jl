@@ -147,10 +147,24 @@ struct TimeSeries{V}
     ignore_year::Bool
     repeat::Bool
     function TimeSeries(inds, vals::Array{V,1}, iy, rep) where {V}
-        if length(inds) != length(vals)
-            error("lengths don't match")
+        ind_count = length(inds)
+        val_count = length(vals)
+        trimmed_inds, trimmed_vals = if ind_count == val_count
+            inds, vals
+        elseif ind_count > val_count
+            @warn("too many indices, taking only first $val_count")
+            inds[1:val_count], vals
+        else
+            @warn("too many values, taking only first $ind_count")
+            inds, vals[1:ind_count]
         end
-        new{V}(inds, vals, iy, rep)
+        sorted_inds, sorted_vals = if issorted(trimmed_inds)
+            trimmed_inds, trimmed_vals
+        else
+            p = sortperm(trimmed_inds)
+            trimmed_inds[p], trimmed_vals[p]
+        end
+        new{V}(sorted_inds, sorted_vals, iy, rep)
     end
 end
 
