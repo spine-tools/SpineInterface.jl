@@ -141,9 +141,9 @@ Base.:min(x, y::Call) = OperatorCall(min, (x, y))
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
-    x = _lookup_parameter_value(p; inds...)
-    if x !== nothing
-        parameter_value, new_inds = x
+    pv_new_kwargs = _lookup_parameter_value(p; inds...)
+    if pv_new_kwargs !== nothing
+        parameter_value, new_inds = pv_new_kwargs
         _call(parameter_value, new_inds)
     else
         Call(nothing)

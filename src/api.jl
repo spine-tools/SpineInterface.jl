@@ -190,10 +190,10 @@ julia> demand(node=:Sthlm, i=1)
 
 ```
 """
-function (p::Parameter)(;_strict=true, kwargs...)
-    x = _lookup_parameter_value(p; _strict=_strict, kwargs...)
-    if x !== nothing
-        parameter_value, new_kwargs = x
+function (p::Parameter)(; _strict=true, kwargs...)
+    pv_new_kwargs = _lookup_parameter_value(p; _strict=_strict, kwargs...)
+    if pv_new_kwargs !== nothing
+        parameter_value, new_kwargs = pv_new_kwargs
         parameter_value(; new_kwargs...)
     end
 end
