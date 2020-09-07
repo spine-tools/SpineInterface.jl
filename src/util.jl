@@ -66,6 +66,7 @@ _call(::_TimeFixed, pv::T, inds::NamedTuple) where T <: AbstractParameterValue =
 _call(::_TimeVarying, pv::T, inds::NamedTuple) where T <: AbstractParameterValue = Call(pv, inds)
 
 _tempo(::Type{MapParameterValue{K,V}}) where {K,V} = _tempo(V)
+_tempo(::Type{MapParameterValue{DateTime,V}}) where V = _TimeVarying()
 _tempo(::Type{T}) where T <: TimeVaryingParameterValue = _TimeVarying()
 _tempo(::Type{T}) where T <: AbstractParameterValue = _TimeFixed()
 
