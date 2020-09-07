@@ -179,20 +179,20 @@ end
 function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
     isempty(kwargs) && return p.value
     arg = first(values(kwargs))
-    new_kargs = Base.tail((;kwargs...))
-    p(arg; t=t, i=i, new_kargs...)
+    new_kwargs = Base.tail((;kwargs...))
+    p(arg; t=t, i=i, new_kwargs...)
 end
 function (p::MapParameterValue)(k; kwargs...)
     pvs = get(p.value.mapping, k, nothing)
     pvs === nothing && return p(;kwargs...)
     first(pvs)(;kwargs...)
 end
-function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where V where K
+function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where V
     pvs = get(p.value.mapping, o.name, nothing)
     pvs === nothing && return p(;kwargs...)
     first(pvs)(;kwargs...)
 end
-function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where V where K
+function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where V
     pvs = get(p.value.mapping, d, nothing)
     if pvs === nothing
         d_floor = d - minimum(filter!(x -> x > Hour(0), d .- keys(p.value.mapping)))
