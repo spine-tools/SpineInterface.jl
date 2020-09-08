@@ -4,6 +4,7 @@ using PyCall
 using Dates
 using Suppressor
 using Statistics
+using DataStructures
 
 include("types.jl")
 include("util.jl")

@@ -45,11 +45,11 @@ function _lookup_parameter_value(p::Parameter; _strict=true, kwargs...)
 end
 
 function _lookup_key(class::ObjectClass; kwargs...) 
-    new_kwargs = Dict(kwargs...)
+    new_kwargs = OrderedDict(kwargs...)
     pop!(new_kwargs, class.name, nothing), (; new_kwargs...)
 end
 function _lookup_key(class::RelationshipClass; kwargs...)
-    new_kwargs = Dict(kwargs...)
+    new_kwargs = OrderedDict(kwargs...)
     objects = Tuple(pop!(new_kwargs, oc, nothing) for oc in class.object_class_names)
     nothing in objects && return nothing, (; new_kwargs...)
     objects, (; new_kwargs...)
