@@ -202,6 +202,9 @@ function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where V
     pvs === nothing && return p(;kwargs...)
     first(pvs)(;kwargs...)
 end
+function (p::MapParameterValue{DateTime,V})(d::Ref{DateTime}; kwargs...) where V
+    p(d[]; kwargs...)
+end
 
 function (x::_IsLowestResolution)(t::TimeSlice)
     if any(contains(r, t) for r in x.ref)
