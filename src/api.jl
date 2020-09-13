@@ -297,9 +297,16 @@ duration(t::TimeSlice) = t.duration
 """
     start(t::Union{TimeSlice,TimeSliceMap})
 
-The start of time slice or time slice map `t`.
+The start of time slice or time slice map `t` as the referenced `DateTime`.
 """
 start(t::Union{TimeSlice,TimeSliceMap}) = t.start[]
+
+"""
+    startref(t::Union{TimeSlice,TimeSliceMap})
+
+The start of time slice or time slice map `t` as a `Ref{DateTime}` reference.
+"""
+startref(t::Union{TimeSlice,TimeSliceMap}) = t.start
 
 """
     end_(t::Union{TimeSlice,TimeSliceMap})
