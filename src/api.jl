@@ -478,7 +478,7 @@ Perform the given `Call` and return the result.
 """
 realize(x) = x
 realize(call::IdentityCall) = call.value
-realize(call::OperatorCall) = call.operator(realize.(call.args)...)
+realize(call::OperatorCall) = reduce(call.operator, realize.(call.args))
 realize(call::ParameterValueCall) = call.parameter_value(; call.kwargs...)
 
 """

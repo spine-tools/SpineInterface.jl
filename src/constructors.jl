@@ -142,6 +142,20 @@ function PyObject(ts::TimeSeries)
 end
 
 Call(n) = IdentityCall(n)
-Call(op::Function, args::Tuple) = OperatorCall(op, args)
+Call(op::Function, args...) = OperatorCall(op, args...)
 Call(val::T, kwargs::NamedTuple) where T <: AbstractParameterValue = ParameterValueCall(val, kwargs)
 Call(other::Call) = copy(other)
+
+function OperatorCall(op::T, x::OperatorCall{T}, y) where T <: Function
+    new_args = [x.args; y]
+    OperatorCall(op, new_args)
+end
+function OperatorCall(op::T, x, y::OperatorCall{T}) where T <: Function
+    new_args = [x; y.args]
+    OperatorCall(op, new_args)
+end
+function OperatorCall(op::T, x::OperatorCall{T}, y::OperatorCall{T}) where T <: Function
+    new_args = [x.args; y.args]
+    OperatorCall(op, new_args)
+end
+OperatorCall(op::Function, x, y) = OperatorCall(op, [x, y])
