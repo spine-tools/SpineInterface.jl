@@ -231,10 +231,10 @@ struct IdentityCall{T} <: Call
     value::T
 end
 
-struct OperatorCall{T} <: Call where T
-    operator::Function
+struct OperatorCall{T} <: Call where T <: Function
+    operator::T
     args::Array{Any,1}
-    OperatorCall(operator, args) = new{typeof(operator)}(operator, args)
+    OperatorCall(operator::T, args) where T <: Function = new{T}(operator, args)
 end
 
 struct ParameterValueCall{T} <: Call where T <: AbstractParameterValue
