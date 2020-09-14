@@ -223,10 +223,6 @@ end
 
 TimeVaryingParameterValue = Union{AbstractTimeSeriesParameterValue,TimePatternParameterValue}
 
-struct _TimeFixed end
-
-struct _TimeVarying end
-
 struct IdentityCall{T} <: Call
     value::T
 end

@@ -118,35 +118,35 @@ Base.zero(::Call) = IdentityCall(0.0)
 Base.one(::Type{T}) where T<:Call = IdentityCall(1.0)
 Base.one(::Call) = IdentityCall(1.0)
 
-Base.:+(x::Call, y::Call) = Call(+, x, y)
-Base.:+(x::Call, y) = Call(+, x, y)
-Base.:+(x, y::Call) = Call(+, x, y)
+Base.:+(x::Call, y::Call) = OperatorCall(+, x, y)
+Base.:+(x::Call, y) = OperatorCall(+, x, y)
+Base.:+(x, y::Call) = OperatorCall(+, x, y)
 Base.:+(x::Call) = x
-Base.:-(x::Call, y::Call) = Call(-, x, y)
-Base.:-(x::Call, y) = Call(-, x, y)
-Base.:-(x, y::Call) = Call(-, x, y)
-Base.:-(x::Call) = (-)(0.0, x)
-Base.:*(x::Call, y::Call) = Call(*, x, y)
-Base.:*(x::Call, y) = Call(*, x, y)
-Base.:*(x, y::Call) = Call(*, x, y)
-Base.:/(x::Call, y::Call) = Call(/, x, y)
-Base.:/(x::Call, y) = Call(/, x, y)
-Base.:/(x, y::Call) = Call(/, x, y)
+Base.:-(x::Call, y::Call) = OperatorCall(+, x, -y)
+Base.:-(x::Call, y) = OperatorCall(+, x, -y)
+Base.:-(x, y::Call) = OperatorCall(+, x, -y)
+Base.:-(x::Call) = OperatorCall(+, zero(Call), x)
+Base.:*(x::Call, y::Call) = OperatorCall(*, x, y)
+Base.:*(x::Call, y) = OperatorCall(*, x, y)
+Base.:*(x, y::Call) = OperatorCall(*, x, y)
+Base.:/(x::Call, y::Call) = OperatorCall(/, x, y)
+Base.:/(x::Call, y) = OperatorCall(/, x, y)
+Base.:/(x, y::Call) = OperatorCall(/, x, y)
 Base.:+(t::TimeSlice, p::Period) = TimeSlice(start(t) + p, end_(t) + p, duration(t), blocks(t))
 Base.:-(t::TimeSlice, p::Period) = (+)(t, -p)
 
-Base.:min(x::Call, y::Call) = Call(min, x, y)
-Base.:min(x::Call, y) = Call(min, x, y)
-Base.:min(x, y::Call) = Call(min, x, y)
+Base.:min(x::Call, y::Call) = OperatorCall(min, x, y)
+Base.:min(x::Call, y) = OperatorCall(min, x, y)
+Base.:min(x, y::Call) = OperatorCall(min, x, y)
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
     pv_new_kwargs = _lookup_parameter_value(p; inds...)
     if pv_new_kwargs !== nothing
         parameter_value, new_inds = pv_new_kwargs
-        _call(parameter_value, new_inds)
+        _pv_call(parameter_value, new_inds)
     else
-        Call(nothing)
+        nothing
     end
 end
 

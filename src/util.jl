@@ -61,14 +61,20 @@ _lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, 
 _entity_key(o::ObjectLike) = o
 _entity_key(r::RelationshipLike) = tuple(r...)
 
-_call(pv::T, inds::NamedTuple) where T <: AbstractParameterValue = _call(_tempo(T), pv, inds)
-_call(::_TimeFixed, pv::T, inds::NamedTuple) where T <: AbstractParameterValue = Call(pv(; inds...))
-_call(::_TimeVarying, pv::T, inds::NamedTuple) where T <: AbstractParameterValue = Call(pv, inds)
+_pv_call(pv::T, inds::NamedTuple) where T <: AbstractParameterValue = _pv_call(_is_time_varying(T), pv, inds)
+_pv_call(is_time_varying::Val{false}, pv::T, inds::NamedTuple) where T <: AbstractParameterValue = pv(; inds...)
+function _pv_call(is_time_varying::Val{true}, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
+    ParameterValueCall(pv, inds)
+end
 
-_tempo(::Type{MapParameterValue{K,V}}) where {K,V} = _tempo(V)
-_tempo(::Type{MapParameterValue{DateTime,V}}) where V = _TimeVarying()
-_tempo(::Type{T}) where T <: TimeVaryingParameterValue = _TimeVarying()
-_tempo(::Type{T}) where T <: AbstractParameterValue = _TimeFixed()
+_is_time_varying(::Type{MapParameterValue{K,V}}) where {K,V} = _is_time_varying(V)
+_is_time_varying(::Type{MapParameterValue{DateTime,V}}) where V = Val(true)
+_is_time_varying(::Type{T}) where T <: TimeVaryingParameterValue = Val(true)
+_is_time_varying(::Type{T}) where T <: AbstractParameterValue = Val(false)
+
+_is_associative(x) = Val(false)
+_is_associative(::typeof(+)) = Val(true)
+_is_associative(::typeof(*)) = Val(true)
 
 _first(x::Array) = first(x)
 _first(x) = x

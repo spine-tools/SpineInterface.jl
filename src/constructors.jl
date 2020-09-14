@@ -141,12 +141,26 @@ function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
 end
 
-Call(n) = IdentityCall(n)
-Call(op::Function, args...) = OperatorCall(op, args...)
-Call(val::T, kwargs::NamedTuple) where T <: AbstractParameterValue = ParameterValueCall(val, kwargs)
 Call(other::Call) = copy(other)
+Call(n) = IdentityCall(n)
 
-OperatorCall(op::T, x::OperatorCall{T}, y) where T <: Function = OperatorCall(op, [x.args; y])
-OperatorCall(op::T, x, y::OperatorCall{T}) where T <: Function = OperatorCall(op, [x; y.args])
-OperatorCall(op::T, x::OperatorCall{T}, y::OperatorCall{T}) where T <: Function = OperatorCall(op, [x.args; y.args])
 OperatorCall(op::Function, x, y) = OperatorCall(op, [x, y])
+function OperatorCall(op::Function, x::OperatorCall{T}, y::OperatorCall{S}) where {T <: Function, S <: Function}
+    OperatorCall(op, [x, y])
+end
+OperatorCall(op::T, x::OperatorCall{T}, y) where T <: Function = OperatorCall(_is_associative(T), op, x, y)
+OperatorCall(op::T, x, y::OperatorCall{T}) where T <: Function = OperatorCall(_is_associative(T), op, x, y)
+function OperatorCall(op::T, x::OperatorCall{T}, y::OperatorCall{T}) where T <: Function
+    OperatorCall(_is_associative(T), op, x, y)
+end
+
+OperatorCall(is_associative::Val{true}, op::T, x::OperatorCall{T}, y) where T <: Function = OperatorCall(op, [x.args; y])
+OperatorCall(is_associative::Val{true}, op::T, x, y::OperatorCall{T}) where T <: Function = OperatorCall(op, [x; y.args])
+function OperatorCall(is_associative::Val{true}, op::T, x::OperatorCall{T}, y::OperatorCall{T}) where T <: Function
+    OperatorCall(op, [x.args; y.args])
+end
+OperatorCall(is_associative::Val{false}, op::T, x, y::OperatorCall{T}) where T <: Function = OperatorCall(op, [x, y])
+OperatorCall(is_associative::Val{false}, op::T, x::OperatorCall{T}, y) where T <: Function = OperatorCall(op, [x, y])
+function OperatorCall(is_associative::Val{false}, op::T, x::OperatorCall{T}, y::OperatorCall{T}) where T <: Function
+    OperatorCall(op, [x, y])
+end
