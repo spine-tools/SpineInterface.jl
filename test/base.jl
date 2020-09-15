@@ -52,9 +52,9 @@
     @test string(duck) === "duck"
     @test string(studio_duck) === "studio_duck"
     id_call = Call(13)
-    op_call = Call(+, (2, 3))
+    op_call = SpineInterface.OperatorCall(+, 2, 3)
     apero_time = parameter_value("apero_time")
-    param_val_call = Call(apero_time, (scenario=:covid,))
+    param_val_call = SpineInterface.ParameterValueCall(:apero_time, apero_time, (scenario=:covid,))
     @test string(id_call) === "13"
     @test string(op_call) === "2 + 3"
     @test string(param_val_call) === "apero_time(scenario=covid)"

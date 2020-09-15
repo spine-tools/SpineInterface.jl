@@ -23,7 +23,7 @@
         object_classes = ["institution"]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         objects = [["institution", x] for x in (institutions..., "Spine")]
-        object_groups =[["institution", "Spine", [x for x in institutions]]]
+        object_groups = [["institution", "Spine", x] for x in institutions]
         db_api.create_new_spine_database(url)
         db_api.import_data_to_url(url; object_classes=object_classes, objects=objects, object_groups=object_groups)
         using_spinedb(url)

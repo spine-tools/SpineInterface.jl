@@ -234,6 +234,7 @@ struct OperatorCall{T} <: Call where T <: Function
 end
 
 struct ParameterValueCall{T} <: Call where T <: AbstractParameterValue
+    parameter_name::Symbol
     parameter_value::T
     kwargs::NamedTuple
 end

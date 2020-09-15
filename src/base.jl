@@ -54,7 +54,7 @@ Base.show(io::IO, call::IdentityCall) = print(io, call.value)
 Base.show(io::IO, call::OperatorCall) = print(io, join(call.args, string(" ", call.operator, " ")))
 function Base.show(io::IO, call::ParameterValueCall)
     kwargs_str = join([join(kw, "=") for kw in pairs(call.kwargs)], ", ")
-    print(io, string(call.parameter_value, "(", kwargs_str, ")"))
+    print(io, string(call.parameter_name, "(", kwargs_str, ")"))
 end
 function Base.show(io::IO, period_collection::PeriodCollection)
     d = Dict{Symbol,String}(
@@ -108,7 +108,7 @@ Base.copy(c::StandardTimeSeriesParameterValue) = StandardTimeSeriesParameterValu
 function Base.copy(c::RepeatingTimeSeriesParameterValue)
 	RepeatingTimeSeriesParameterValue(copy(c.value), c.span, c.valsum, c.len, c.t_map)
 end
-Base.copy(c::ParameterValueCall) = ParameterValueCall(c.parameter_value, c.kwargs)
+Base.copy(c::ParameterValueCall) = ParameterValueCall(c.parameter_name, c.parameter_value, c.kwargs)
 Base.copy(c::OperatorCall) = OperatorCall(c.operator, c.args)
 Base.copy(c::IdentityCall) = IdentityCall(c.value)
 
@@ -125,7 +125,7 @@ Base.:+(x::Call) = x
 Base.:-(x::Call, y::Call) = OperatorCall(+, x, -y)
 Base.:-(x::Call, y) = OperatorCall(+, x, -y)
 Base.:-(x, y::Call) = OperatorCall(+, x, -y)
-Base.:-(x::Call) = OperatorCall(+, zero(Call), x)
+Base.:-(x::Call) = OperatorCall(-, zero(Call), x)
 Base.:*(x::Call, y::Call) = OperatorCall(*, x, y)
 Base.:*(x::Call, y) = OperatorCall(*, x, y)
 Base.:*(x, y::Call) = OperatorCall(*, x, y)
@@ -144,7 +144,7 @@ function Base.getindex(p::Parameter, inds::NamedTuple)
     pv_new_kwargs = _lookup_parameter_value(p; inds...)
     if pv_new_kwargs !== nothing
         parameter_value, new_inds = pv_new_kwargs
-        _pv_call(parameter_value, new_inds)
+        _pv_call(p.name, parameter_value, new_inds)
     else
         nothing
     end

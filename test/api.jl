@@ -205,7 +205,7 @@ end
     call = Call(5)
     @test realize(call) == 5
     @test !is_varying(call)
-    call = Call(+, (3, 4))
+    call = SpineInterface.OperatorCall(+, 3, 4)
     @test realize(call) == 7
     @test !is_varying(call)
     France = Object(:France)
@@ -215,7 +215,7 @@ end
     call = apero_time[(; country=France, t=TimeSlice(DateTime(0), DateTime(1)))]
     @test realize(call) == 40
     @test is_varying(call)
-    another_call = Call(*, (3, call))
+    another_call = SpineInterface.OperatorCall(*, 3, call)
     @test realize(another_call) == 120
     @test is_varying(another_call)
 end

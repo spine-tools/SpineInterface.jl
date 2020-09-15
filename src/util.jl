@@ -61,10 +61,14 @@ _lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, 
 _entity_key(o::ObjectLike) = o
 _entity_key(r::RelationshipLike) = tuple(r...)
 
-_pv_call(pv::T, inds::NamedTuple) where T <: AbstractParameterValue = _pv_call(_is_time_varying(T), pv, inds)
-_pv_call(is_time_varying::Val{false}, pv::T, inds::NamedTuple) where T <: AbstractParameterValue = pv(; inds...)
-function _pv_call(is_time_varying::Val{true}, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
-    ParameterValueCall(pv, inds)
+function _pv_call(pn::Symbol, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
+    _pv_call(_is_time_varying(T), pn, pv, inds)
+end
+function _pv_call(is_time_varying::Val{false}, pn::Symbol, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
+    pv(; inds...)
+end
+function _pv_call(is_time_varying::Val{true}, pn::Symbol, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
+    ParameterValueCall(pn, pv, inds)
 end
 
 _is_time_varying(::Type{MapParameterValue{K,V}}) where {K,V} = _is_time_varying(V)
