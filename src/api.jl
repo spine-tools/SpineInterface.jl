@@ -480,18 +480,16 @@ realize(x) = x
 realize(call::IdentityCall) = call.value
 realize(call::ParameterValueCall) = call.parameter_value(; call.kwargs...)
 function realize(call::OperatorCall)
-    vals = Dict{Int64,Array}()
+    realized_vals = Dict{Int64,Array}()
     st = _OperatorCallTraversalState(call)
     while true
-        st.parent_ids[st.current_id] = st.parent_id
+        _visit_node(st)
         _visit_child(st) && continue
-        parent_vals = get!(vals, st.parent_id, [])
-        current_val = _realize(st.current, st.current_id, vals)
-        push!(parent_vals, current_val)
+        _update_realized_vals!(realized_vals, st)
         _visit_sibling(st) && continue
         _revisit_parent(st) || break
     end
-    _realize(call, 1, vals)
+    reduce(call.operator, realized_vals[1])
 end
 
 """
@@ -506,7 +504,7 @@ function is_varying(call::OperatorCall)
     st = _OperatorCallTraversalState(call)
     while true
         st.current isa ParameterValueCall && return true
-        st.parent_ids[st.current_id] = st.parent_id
+        _visit_node(st)
         _visit_child(st) && continue
         _visit_sibling(st) && continue
         _revisit_parent(st) || break

@@ -248,6 +248,8 @@ mutable struct _OperatorCallTraversalState
     end
 end
 
+_visit_node(st::_OperatorCallTraversalState) = (st.parent_ids[st.current_id] = st.parent_id)
+
 function _visit_child(st::_OperatorCallTraversalState)
     if !st.children_visited && st.current isa OperatorCall
         push!(st.parents, st.current)
@@ -281,6 +283,12 @@ function _revisit_parent(st::_OperatorCallTraversalState)
     st.current = pop!(st.parents)
     st.children_visited = true
     true
+end
+
+function _update_realized_vals!(vals, st::_OperatorCallTraversalState)
+    parent_vals = get!(vals, st.parent_id, [])
+    current_val = _realize(st.current, st.current_id, vals)
+    push!(parent_vals, current_val)
 end
 
 _realize(call::OperatorCall, id::Int64, vals::Dict) = reduce(call.operator, vals[id])
