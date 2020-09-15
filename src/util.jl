@@ -233,3 +233,55 @@ function (x::_IsHighestResolution)(t::TimeSlice)
         true
     end
 end
+
+mutable struct _OperatorCallTraversalState
+    node_idx::Dict{Int64,Int64}
+    parent_ids::Dict{Int64,Int64}
+    next_id::Int64
+    parent_id::Int64
+    current_id::Int64
+    parents::Array{Any,1}
+    current::Any
+    children_visited::Bool
+    function _OperatorCallTraversalState(current)
+        new(Dict(), Dict(), 1, 0, 1, [], current, false)
+    end
+end
+
+function _visit_child(st::_OperatorCallTraversalState)
+    if !st.children_visited && st.current isa OperatorCall
+        push!(st.parents, st.current)
+        st.parent_id = st.current_id
+        st.current_id = st.next_id += 1
+        st.node_idx[st.parent_id] = 1
+        st.current = st.current.args[1]
+        true
+    else
+        false
+    end
+end
+
+function _visit_sibling(st::_OperatorCallTraversalState)
+    next_index = st.node_idx[st.parent_id] + 1
+    if next_index <= length(st.parents[end].args)
+        st.children_visited = false
+        st.node_idx[st.parent_id] = next_index
+        st.current_id = st.next_id += 1
+        st.current = st.parents[end].args[next_index]
+        true
+    else
+        false
+    end
+end
+
+function _revisit_parent(st::_OperatorCallTraversalState)
+    st.current_id = st.parent_id
+    st.parent_id = st.parent_ids[st.current_id]
+    st.parent_id == 0 && return false
+    st.current = pop!(st.parents)
+    st.children_visited = true
+    true
+end
+
+_realize(call::OperatorCall, id::Int64, vals::Dict) = reduce(call.operator, vals[id])
+_realize(x, ::Int64, ::Dict) = realize(x)

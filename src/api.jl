@@ -478,8 +478,21 @@ Perform the given `Call` and return the result.
 """
 realize(x) = x
 realize(call::IdentityCall) = call.value
-realize(call::OperatorCall) = reduce(call.operator, realize.(call.args))
 realize(call::ParameterValueCall) = call.parameter_value(; call.kwargs...)
+function realize(call::OperatorCall)
+    vals = Dict{Int64,Array}()
+    st = _OperatorCallTraversalState(call)
+    while true
+        st.parent_ids[st.current_id] = st.parent_id
+        _visit_child(st) && continue
+        parent_vals = get!(vals, st.parent_id, [])
+        current_val = _realize(st.current, st.current_id, vals)
+        push!(parent_vals, current_val)
+        _visit_sibling(st) && continue
+        _revisit_parent(st) || break
+    end
+    _realize(call, 1, vals)
+end
 
 """
     is_varying(x::Call)
@@ -488,8 +501,18 @@ Whether or not the given `Call` might return a different result if realized a se
 This is true for `ParameterValueCall`s which are sensitive to the `t` argument.
 """
 is_varying(x) = false
-is_varying(call::OperatorCall) = any(is_varying(arg) for arg in call.args)
 is_varying(call::ParameterValueCall) = true
+function is_varying(call::OperatorCall)
+    st = _OperatorCallTraversalState(call)
+    while true
+        st.current isa ParameterValueCall && return true
+        st.parent_ids[st.current_id] = st.parent_id
+        _visit_child(st) && continue
+        _visit_sibling(st) && continue
+        _revisit_parent(st) || break
+    end
+    false
+end
 
 """
     write_parameter!(db_map, name, data; for_object=true, report="")
