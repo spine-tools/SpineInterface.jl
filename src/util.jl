@@ -291,3 +291,22 @@ end
 
 _realize(call::OperatorCall, id::Int64, vals::Dict) = reduce(call.operator, vals[id])
 _realize(x, ::Int64, ::Dict) = realize(x)
+
+_maximum_parameter_value(pv::NothingParameterValue) = pv
+_maximum_parameter_value(pv::ScalarParameterValue) = pv.value
+_maximum_parameter_value(pv::ArrayParameterValue) = maximum(pv.value.value)
+_maximum_parameter_value(pv::AbstractTimeSeriesParameterValue) = maximum(pv.value.values)
+function _maximum_parameter_value(pv::MapParameterValue)
+    max_value = NothingParameterValue()
+    for new_pv in values(pv.value.mapping)
+        new_max_value = _maximum_parameter_value(new_pv[])
+        if new_max_value != NothingParameterValue()
+            if max_value != NothingParameterValue()
+                max_value = max(max_value, new_max_value)
+            else
+                max_value = new_max_value
+            end
+        end
+    end
+    return max_value
+end
