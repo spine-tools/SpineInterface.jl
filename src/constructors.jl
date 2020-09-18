@@ -88,44 +88,16 @@ function PeriodCollection(spec::String)
     PeriodCollection(;kwargs...)
 end
 
-function TimeSliceMap(time_slices::Array{TimeSlice,1})
-    map_start = start(first(time_slices))
-    map_end = end_(last(time_slices))
-    index_size = Minute(map_end - map_start).value
-    last_ind = length(time_slices)
-    index = fill(last_ind, index_size)  # Init index with the last so we can skip the last time slice in the loop below
-    for (ind, (t, next_t)) in enumerate(zip(time_slices[1:end - 1], time_slices[2:end]))
-        from_minute, to_minute = _from_to_minute(map_start, start(t), start(next_t))
-        index[from_minute:to_minute] .= ind
-    end
-    TimeSliceMap(time_slices, index, map_start, map_end)
-end
-
-function TimeSeriesMap(stamps::Array{DateTime,1})
-    map_start = first(stamps)
-    map_end = last(stamps)
-    index = Array{Int64,1}(undef, Minute(map_end - map_start).value)
-    for (ind, (start, end_)) in enumerate(zip(stamps[1:end - 1], stamps[2:end]))
-        from_minute, to_minute = _from_to_minute(map_start, start, end_)
-        index[from_minute] = ind
-        index[from_minute + 1:to_minute] .= ind + 1
-    end
-    last_ind = length(stamps)
-    append!(index, [last_ind, last_ind + 1])
-    TimeSeriesMap(index, map_start, map_end)
-end
-
 ScalarParameterValue(s::String) = ScalarParameterValue(Symbol(s))
 
 function TimeSeriesParameterValue(ts::TimeSeries{V}) where {V}
-    t_map = TimeSeriesMap(ts.indexes)
     if ts.repeat
         span = ts.indexes[end] - ts.indexes[1]
         valsum = sum(ts.values)
         len = length(ts.values)
-        RepeatingTimeSeriesParameterValue(ts, span, valsum, len, t_map)
+        RepeatingTimeSeriesParameterValue(ts, span, valsum, len)
     else
-        StandardTimeSeriesParameterValue(ts, t_map)
+        StandardTimeSeriesParameterValue(ts)
     end
 end
 

@@ -134,20 +134,18 @@ function (p::TimePatternParameterValue)(t::TimeSlice)
     mean(vals)
 end
 
-function _lower_upper(h::TimeSeriesMap, t_start::DateTime, t_end::DateTime)
-    (t_start > h.map_end || t_end <= h.map_start) && return ()
-    t_start = max(t_start, h.map_start)
-    t_end = min(t_end, h.map_end + Minute(1))
-    lower = h.index[Minute(t_start - h.map_start).value + 1]
-    upper = h.index[Minute(t_end - h.map_start).value + 1] - 1
-    lower, upper
+function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
+    (t_start <= ts.indexes[end] && t_end > ts.indexes[1]) || return ()
+    a = searchsortedfirst(ts.indexes, t_start)
+    b = searchsortedfirst(ts.indexes, t_end) - 1
+    (a, b)
 end
 
 (p::StandardTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::StandardTimeSeriesParameterValue)(::Nothing) = p.value
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     p.value.ignore_year && (t -= Year(start(t)))
-    ab = _lower_upper(p.t_map, start(t), end_(t))
+    ab = _search_overlap(p.value, start(t), end_(t))
     isempty(ab) && return nothing
     a, b = ab
     a > b && return nothing
@@ -174,7 +172,7 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
         0
     end
     t_end -= reps * p.span
-    ab = _lower_upper(p.t_map, t_start, t_end)
+    ab = _search_overlap(p.value, t_start, t_end)
     isempty(ab) && return nothing
     a, b = ab
     if a < b

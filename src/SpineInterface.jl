@@ -25,7 +25,6 @@ export RelationshipClass
 export Parameter
 export AbstractParameterValue
 export TimeSlice
-export TimeSliceMap
 export TimeSeries
 export Call
 export using_spinedb

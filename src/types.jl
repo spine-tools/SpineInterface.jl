@@ -97,16 +97,6 @@ struct Parameter
     classes::Array{Union{ObjectClass,RelationshipClass},1}
 end
 
-struct TimeSliceMap
-    time_slices::Array{TimeSlice,1}
-    index::Array{Int64,1}
-    start::Ref{DateTime}
-    end_::Ref{DateTime}
-    function TimeSliceMap(time_slices, index, start, end_)
-        new(time_slices, index, Ref(start), Ref(end_))
-    end
-end
-
 # parameter value types
 # types returned by the parsing function `spinedb_api.from_database`
 # are automatically converted to these using `PyCall.pytype_mapping` as defined in the module's __init__ method.
@@ -198,15 +188,9 @@ struct TimePatternParameterValue{T} <: AbstractParameterValue
     value::TimePattern{T}
 end
 
-struct TimeSeriesMap
-    index::Array{Int64,1}
-    map_start::DateTime
-    map_end::DateTime
-end
 
 struct StandardTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     value::TimeSeries{V}
-    t_map::TimeSeriesMap
 end
 
 struct RepeatingTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
@@ -214,7 +198,6 @@ struct RepeatingTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     span::Union{Period,Nothing}
     valsum::V
     len::Int64
-    t_map::TimeSeriesMap
 end
 
 struct MapParameterValue{K,V} <: AbstractParameterValue where V <: AbstractParameterValue

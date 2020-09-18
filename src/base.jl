@@ -104,9 +104,9 @@ Base.copy(c::NothingParameterValue) = c
 Base.copy(c::ScalarParameterValue) = c
 Base.copy(c::ArrayParameterValue) = ArrayParameterValue(copy(c.value))
 Base.copy(c::TimePatternParameterValue) = TimePatternParameterValue(copy(c.value))
-Base.copy(c::StandardTimeSeriesParameterValue) = StandardTimeSeriesParameterValue(copy(c.value), c.t_map)
+Base.copy(c::StandardTimeSeriesParameterValue) = StandardTimeSeriesParameterValue(copy(c.value))
 function Base.copy(c::RepeatingTimeSeriesParameterValue)
-	RepeatingTimeSeriesParameterValue(copy(c.value), c.span, c.valsum, c.len, c.t_map)
+	RepeatingTimeSeriesParameterValue(copy(c.value), c.span, c.valsum, c.len)
 end
 Base.copy(c::ParameterValueCall) = ParameterValueCall(c.parameter_name, c.parameter_value, c.kwargs)
 Base.copy(c::OperatorCall) = OperatorCall(c.operator, c.args)
