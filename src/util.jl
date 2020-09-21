@@ -292,6 +292,24 @@ end
 _realize(call::OperatorCall, id::Int64, vals::Dict) = reduce(call.operator, vals[id])
 _realize(x, ::Int64, ::Dict) = realize(x)
 
+# Methods for finding the maximum value of a parameter
+function maximum_parameter_value(p::Parameter)
+    maximum_value = NothingParameterValue()
+    for class in p.classes
+        for par_vals in values(class.parameter_values)
+            new_value = _maximum_parameter_value(_get(par_vals, p.name, class.parameter_defaults))
+            if new_value != NothingParameterValue()
+                if maximum_value !== NothingParameterValue()
+                    maximum_value = max(maximum_value, new_value)
+                else
+                    maximum_value = new_value
+                end
+            end
+        end
+    end
+    return maximum_value
+end
+
 _maximum_parameter_value(pv::NothingParameterValue) = pv
 _maximum_parameter_value(pv::ScalarParameterValue) = pv.value
 _maximum_parameter_value(pv::ArrayParameterValue) = maximum(pv.value.value)

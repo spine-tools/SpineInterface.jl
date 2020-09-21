@@ -139,24 +139,6 @@ Base.:min(x::Call, y::Call) = OperatorCall(min, x, y)
 Base.:min(x::Call, y) = OperatorCall(min, x, y)
 Base.:min(x, y::Call) = OperatorCall(min, x, y)
 
-# Method for finding the maximum value of a parameter
-function Base.maximum(p::Parameter)
-    maximum_value = NothingParameterValue()
-    for class in p.classes
-        for par_vals in values(class.parameter_values)
-            new_value = _maximum_parameter_value(_get(par_vals, p.name, class.parameter_defaults))
-            if new_value != NothingParameterValue()
-                if maximum_value !== NothingParameterValue()
-                    maximum_value = max(maximum_value, new_value)
-                else
-                    maximum_value = new_value
-                end
-            end
-        end
-    end
-    return maximum_value
-end
-
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
     pv_new_kwargs = _lookup_parameter_value(p; inds...)
