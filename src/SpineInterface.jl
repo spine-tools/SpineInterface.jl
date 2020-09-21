@@ -14,7 +14,7 @@ include("using_spinedb.jl")
 include("api.jl")
 
 const db_api = PyNULL()
-const required_spinedb_api_version = v"0.6.2"
+const required_spinedb_api_version = v"0.8.2"
 
 export Anything
 export Object

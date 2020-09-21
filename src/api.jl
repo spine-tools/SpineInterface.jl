@@ -507,6 +507,7 @@ function write_parameter!(
     relationship_parameters = []
     relationships = []
     relationship_parameter_values = []
+    alternatives = [("Base", "Base alternative")]
     !isempty(report) && pushfirst!(object_classes, "report")
     for obj_cls_names in unique(keys(key) for key in keys(data))
         str_obj_cls_names = [string(x) for x in obj_cls_names]
@@ -545,6 +546,7 @@ function write_parameter!(
     end
     added, err_log = db_api.import_data(
         db_map,
+        alternatives=alternatives,
         object_classes=object_classes,
         relationship_classes=relationship_classes,
         object_parameters=object_parameters,
@@ -575,18 +577,15 @@ mapping object or relationship (`NamedTuple`) to values.
 - `<parameters>`: a dictionary mapping
 """
 function write_parameters(
-        parameters::Dict{T,Dict{K,V}}, dest_url::String; upgrade=false, for_object=true, report="", comment=""
+        parameters::Dict{T,Dict{K,V}}, 
+        dest_url::String; 
+        upgrade=true, 
+        create=true, 
+        for_object=true, 
+        report="", 
+        comment=""
     ) where {T,K<:NamedTuple,V}
-    db_map = try
-        DiffDatabaseMapping(dest_url; upgrade=upgrade)
-    catch e
-        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBAPIError)
-            db_api.create_new_spine_database(dest_url)
-            DiffDatabaseMapping(dest_url; upgrade=upgrade)
-        else
-            rethrow()
-        end
-    end
+    db_map = DiffDatabaseMapping(dest_url; upgrade=upgrade, create=create)
     write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
 end
 function write_parameters(
@@ -609,9 +608,9 @@ function write_parameters(
 end
 
 """A DatabaseMapping object using Python spinedb_api"""
-function DiffDatabaseMapping(db_url::String; upgrade=false)
+function DiffDatabaseMapping(db_url::String; upgrade=false, create=false)
     try
-        db_api.DiffDatabaseMapping(db_url, upgrade=upgrade)
+        db_api.DiffDatabaseMapping(db_url, upgrade=upgrade, create=create)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
             error(
