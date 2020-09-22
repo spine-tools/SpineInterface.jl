@@ -148,7 +148,7 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     ab = _search_overlap(p.value, start(t), end_(t))
     isempty(ab) && return nothing
     a, b = ab
-    a > b && return nothing
+    a > b && return p.value.values[a]
     mean(p.value.values[a:b])
 end
 
