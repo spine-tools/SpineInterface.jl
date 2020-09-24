@@ -292,7 +292,12 @@ end
 _realize(call::OperatorCall, id::Int64, vals::Dict) = reduce(call.operator, vals[id])
 _realize(x, ::Int64, ::Dict) = realize(x)
 
-# Methods for finding the maximum value of a parameter
+"""
+    maximum_parameter_value(p::Parameter)
+
+Finds the singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses` in any
+`AbstractParameterValue` types.
+"""
 function maximum_parameter_value(p::Parameter)
     maximum_value = NothingParameterValue()
     for class in p.classes
