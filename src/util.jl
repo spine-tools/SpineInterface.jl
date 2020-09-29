@@ -86,12 +86,12 @@ _first(x) = x
 function _relativedelta_to_period(delta::PyObject)
     # Add up till the day level
     minutes = delta.minutes + 60 * (delta.hours + 24 * delta.days)
-    if minutes > 0
+    months = delta.months + 12 * delta.years
+    if months > 0
         # No way the `relativedelta` implementation added beyond this point
-        Minute(minutes)
-    else
-        months = delta.months + 12 * delta.years
         Month(months)
+    else
+        Minute(minutes)
     end
 end
 
