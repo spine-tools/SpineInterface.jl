@@ -86,12 +86,12 @@ _first(x) = x
 function _relativedelta_to_period(delta::PyObject)
     # Add up till the day level
     minutes = delta.minutes + 60 * (delta.hours + 24 * delta.days)
-    if minutes > 0
+    months = delta.months + 12 * delta.years
+    if months > 0
         # No way the `relativedelta` implementation added beyond this point
-        Minute(minutes)
-    else
-        months = delta.months + 12 * delta.years
         Month(months)
+    else
+        Minute(minutes)
     end
 end
 
@@ -291,3 +291,45 @@ end
 
 _realize(call::OperatorCall, id::Int64, vals::Dict) = reduce(call.operator, vals[id])
 _realize(x, ::Int64, ::Dict) = realize(x)
+
+"""
+    maximum_parameter_value(p::Parameter)
+
+Finds the singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses` in any
+`AbstractParameterValue` types.
+"""
+function maximum_parameter_value(p::Parameter)
+    maximum_value = NothingParameterValue()
+    for class in p.classes
+        for par_vals in values(class.parameter_values)
+            new_value = _maximum_parameter_value(_get(par_vals, p.name, class.parameter_defaults))
+            if new_value != NothingParameterValue()
+                if maximum_value !== NothingParameterValue()
+                    maximum_value = max(maximum_value, new_value)
+                else
+                    maximum_value = new_value
+                end
+            end
+        end
+    end
+    return maximum_value
+end
+
+_maximum_parameter_value(pv::NothingParameterValue) = pv
+_maximum_parameter_value(pv::ScalarParameterValue) = pv.value
+_maximum_parameter_value(pv::ArrayParameterValue) = maximum(pv.value.value)
+_maximum_parameter_value(pv::AbstractTimeSeriesParameterValue) = maximum(pv.value.values)
+function _maximum_parameter_value(pv::MapParameterValue)
+    max_value = NothingParameterValue()
+    for new_pv in values(pv.value.mapping)
+        new_max_value = _maximum_parameter_value(new_pv[])
+        if new_max_value != NothingParameterValue()
+            if max_value != NothingParameterValue()
+                max_value = max(max_value, new_max_value)
+            else
+                max_value = new_max_value
+            end
+        end
+    end
+    return max_value
+end

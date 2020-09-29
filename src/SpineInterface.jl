@@ -58,6 +58,7 @@ export db_api
 export add_objects!
 export add_object!
 export add_relationships!
+export maximum_parameter_value
 
 
 function __init__()
