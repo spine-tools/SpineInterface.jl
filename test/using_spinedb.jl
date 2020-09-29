@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-
 @testset "using_spinedb - basics" begin
     url = "sqlite:///$(@__DIR__)/test.sqlite"
     @testset "object_class" begin
@@ -207,7 +206,7 @@ end
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 11), DateTime(0, 12))) === nothing
     end
     @testset "std_time_series" begin
-        data = [1, 4, 5, 3, 7]
+        data = [1.0, 4.0, 5.0, 3.0, 7.0]
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
         value = Dict("type" => "time_series", "data" => PyVector(data), "index" => index)
         object_parameter_values = [["country", "France", "apero_time", value]]
@@ -218,6 +217,7 @@ end
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 3, 2), DateTime(0, 3, 3))) === data[3]
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) === nothing
     end
     @testset "repeating_time_series" begin
@@ -229,12 +229,14 @@ end
         using_spinedb(url)
         France = country(:France)
         @test apero_time(country=France) isa TimeSeries
+        @show apero_time(country=France)
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) == sum(data[2:3]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 7))) == sum([data; data[1:3]]) / 8
     end
+    #=
     @testset "map" begin
         object_classes = ["scenario"]
         objects = [["scenario", "drunk"], ["scenario", "sober"]]
@@ -279,4 +281,5 @@ end
         @test apero_time(;country=France, s=drunk, t0=t0, whocares=t0, t=t2_3) == 5.6
         @test apero_time(;country=France, t0=t0, s=drunk, t=t2_3) == 5.6
     end
+    =#
 end

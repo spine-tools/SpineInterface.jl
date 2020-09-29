@@ -92,7 +92,7 @@
     val = parameter_value(ts)
     val_copy = copy(val)
     @test val_copy isa SpineInterface.RepeatingTimeSeriesParameterValue
-    @test val_copy(t=TimeSlice(DateTime(6), DateTime(7))) === div(100 + 8, 2)
+    @test val_copy(t=TimeSlice(DateTime(6), DateTime(7))) === (200 + 8) / 3
     call_copy = copy(id_call)
     @test call_copy isa SpineInterface.IdentityCall
     @test string(call_copy) === "13"

@@ -136,7 +136,7 @@ end
 
 function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
     (t_start <= ts.indexes[end] && t_end > ts.indexes[1]) || return ()
-    a = searchsortedfirst(ts.indexes, t_start)
+    a = max(1, searchsortedlast(ts.indexes, t_start))
     b = searchsortedfirst(ts.indexes, t_end) - 1
     (a, b)
 end
@@ -148,41 +148,30 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     ab = _search_overlap(p.value, start(t), end_(t))
     isempty(ab) && return nothing
     a, b = ab
-    a > b && return p.value.values[a]
+    a > b && return nothing
     mean(p.value.values[a:b])
 end
 
 (p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::RepeatingTimeSeriesParameterValue)(::Nothing) = p.value
 function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
+    p.value.indexes
+    p.span
     t_start = start(t)
+    t_end = end_(t)
     p.value.ignore_year && (t_start -= Year(t_start))
-    if t_start > p.value.indexes[end]
-        # Move t_start back within time_stamps range
-        mismatch = t_start - p.value.indexes[1]
-        reps = div(mismatch, p.span)
-        t_start -= reps * p.span
-    end
-    t_end = t_start + (end_(t) - start(t))
-    # Move t_end back within time_stamps range
-    reps = if t_end > p.value.indexes[end]
-        mismatch = t_end - p.value.indexes[1]
-        div(mismatch, p.span)
-    else
-        0
-    end
+    mismatch = t_start - p.value.indexes[1]
+    reps = div(mismatch, p.span)
+    t_start -= reps * p.span
     t_end -= reps * p.span
-    ab = _search_overlap(p.value, t_start, t_end)
-    isempty(ab) && return nothing
+    mismatch = t_end - p.value.indexes[1]
+    reps = div(mismatch, p.span)
+    ab = _search_overlap(p.value, t_start, t_end - reps * p.span)
     a, b = ab
-    if a < b
-        (sum(p.value.values[a:b]) + reps * p.valsum) / (b - a + 1 + reps * p.len)
-    else
-        div(
-            sum(p.value.values[1:b]) + sum(p.value.values[a:end]) + (reps - 1) * p.valsum,
-            b - a + 1 + reps * p.len
-        )
-    end
+    /(
+        sum(p.value.values[a:end]) + sum(p.value.values[1:b]) + (reps - 1) * p.valsum, 
+        b + (p.len - (a - 1)) + (reps - 1) * p.len
+    )
 end
 
 function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
