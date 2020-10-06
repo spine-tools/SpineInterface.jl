@@ -149,7 +149,8 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     isempty(ab) && return nothing
     a, b = ab
     a > b && return nothing
-    mean(p.value.values[a:b])
+    vals = Iterators.filter(!isnan, p.value.values[a:b])
+    mean(vals)
 end
 
 (p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
@@ -168,10 +169,11 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     reps = div(mismatch, p.span)
     ab = _search_overlap(p.value, t_start, t_end - reps * p.span)
     a, b = ab
-    /(
-        sum(p.value.values[a:end]) + sum(p.value.values[1:b]) + (reps - 1) * p.valsum, 
-        b + (p.len - (a - 1)) + (reps - 1) * p.len
-    )
+    asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
+    bsum = sum(Iterators.filter(!isnan, p.value.values[1:b]))
+    alen = count(!isnan, p.value.values[a:end])
+    blen = count(!isnan, p.value.values[1:b])
+    (asum + bsum + (reps - 1) * p.valsum) / (alen + blen + (reps - 1) * p.len)
 end
 
 function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)

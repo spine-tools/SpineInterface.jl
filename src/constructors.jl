@@ -93,8 +93,8 @@ ScalarParameterValue(s::String) = ScalarParameterValue(Symbol(s))
 function TimeSeriesParameterValue(ts::TimeSeries{V}) where {V}
     if ts.repeat
         span = ts.indexes[end] - ts.indexes[1]
-        valsum = sum(ts.values)
-        len = length(ts.values)
+        valsum = sum(Iterators.filter(!isnan, ts.values))
+        len = count(!isnan, ts.values)
         RepeatingTimeSeriesParameterValue(ts, span, valsum, len)
     else
         StandardTimeSeriesParameterValue(ts)
