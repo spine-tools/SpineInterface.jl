@@ -216,3 +216,71 @@ end
     @test realize(another_call) == 120
     @test is_varying(another_call)
 end
+@testset "maximum_parameter_value" begin
+    url = "sqlite:///$(@__DIR__)/test.sqlite"
+    object_classes = ["institution", "country"]
+    relationship_classes = [["institution__country", ["institution", "country"]]]
+    relationship_parameters = [["institution__country", "people_count"]]
+    institutions = ["KTH", "VTT", "ER"]
+    countries = ["Sweden", "France", "Finland", "Ireland"]
+    objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
+    relationships = [
+        ["institution__country", ["ER", "France"]],
+        ["institution__country", ["ER", "Ireland"]],
+        ["institution__country", ["KTH", "Sweden"]],
+        ["institution__country", ["KTH", "France"]],
+        ["institution__country", ["VTT", "Finland"]],
+        ["institution__country", ["VTT", "Ireland"]]
+    ]
+    # Add parameter values of all types
+    scalar_value = 18
+    array_data = [4, 8, 7]
+    array_value = Dict("type" => "array", "data" => PyVector(array_data))
+    time_pattern_data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
+    time_pattern_value = Dict("type" => "time_pattern", "data" => time_pattern_data)
+    time_series_data = [1.0, 4.0, 5.0, NaN, 7.0]
+    time_series_index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
+    time_series_value = Dict("type" => "time_series", "data" => PyVector(time_series_data), "index" => time_series_index)
+    map_value = Dict(
+        "type" => "map", 
+        "index_type" => "str", 
+        "data" => Dict(
+            "drunk" => Dict(
+                "type" => "map", 
+                "index_type" => "date_time", 
+                "data" => Dict(
+                    "1999-12-01T00:00" => Dict(
+                        "type" => "time_series", 
+                        "data" => PyVector([4.0, 5.6]), 
+                        "index" => Dict(
+                            "start" => "2000-01-01T00:00:00", 
+                            "resolution" => "1M",
+                            "repeat" => false, 
+                            "ignore_year" => true
+                        )
+                    )
+                )
+            )
+        )
+    )
+    relationship_parameter_values = [
+        ["institution__country", ["ER", "France"], "people_count", scalar_value],
+        ["institution__country", ["ER", "Ireland"], "people_count", array_value],
+        ["institution__country", ["KTH", "Sweden"], "people_count", time_pattern_value],
+        ["institution__country", ["KTH", "France"], "people_count", time_series_value],
+        ["institution__country", ["VTT", "Finland"], "people_count", map_value],
+        ["institution__country", ["VTT", "Ireland"], "people_count", nothing]
+    ]
+    db_api.create_new_spine_database(url)
+    db_api.import_data_to_url(
+        url; 
+        object_classes=object_classes, 
+        relationship_classes=relationship_classes, 
+        objects=objects, 
+        relationships=relationships,
+        relationship_parameters=relationship_parameters,
+        relationship_parameter_values=relationship_parameter_values,
+       )
+    using_spinedb(url)
+    @test maximum_parameter_value(people_count) == 300.0
+end

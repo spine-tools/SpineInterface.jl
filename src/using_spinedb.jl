@@ -98,6 +98,7 @@ end
 
 function _try_parameter_value_from_db(db_value, err_msg)
     try
+        val = db_api.from_database(db_value)
         parameter_value(db_api.from_database(db_value))
     catch e
         if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError

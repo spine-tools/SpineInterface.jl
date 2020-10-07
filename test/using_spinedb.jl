@@ -206,7 +206,7 @@ end
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 11), DateTime(0, 12))) === nothing
     end
     @testset "std_time_series" begin
-        data = [1.0, 4.0, 5.0, 3.0, 7.0]
+        data = [1.0, 4.0, 5.0, NaN, 7.0]
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
         value = Dict("type" => "time_series", "data" => PyVector(data), "index" => index)
         object_parameter_values = [["country", "France", "apero_time", value]]
@@ -214,10 +214,13 @@ end
         using_spinedb(url)
         France = country(:France)
         @test apero_time(country=France) isa TimeSeries
-        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
-        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
-        @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
-        @test apero_time(country=France, t=TimeSlice(DateTime(0, 3, 2), DateTime(0, 3, 3))) === data[3]
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == 1.0
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == (1.0 + 4.0) / 2
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == (4.0 + 5.0) / 2
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 3, 2), DateTime(0, 3, 3))) === 5.0
+        @test isnan(apero_time(country=France, t=TimeSlice(DateTime(0, 4), DateTime(0, 5))))
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 4), DateTime(0, 5, 2))) == 7.0
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 3), DateTime(0, 5, 2))) == (5.0 + 7.0) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) === nothing
     end
     @testset "repeating_time_series" begin
@@ -229,40 +232,55 @@ end
         using_spinedb(url)
         France = country(:France)
         @test apero_time(country=France) isa TimeSeries
-        @show apero_time(country=France)
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) == sum(data[2:3]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 7))) == sum([data; data[1:3]]) / 8
     end
-    #=
     @testset "map" begin
         object_classes = ["scenario"]
         objects = [["scenario", "drunk"], ["scenario", "sober"]]
-        data = Dict(
-            "drunk" => Dict(
-                "type" => "map", "index_type" => "date_time", "data" => Dict(
-                    "1999-12-01T00:00" => Dict(
-                        "type" => "map", "index_type" => "date_time", "data" => Dict(
-                            "2000-01-01T00:00" => 4.0, "2000-02-01T00:00" => 5.6
+        value = Dict(
+            "type" => "map", 
+            "index_type" => "str", 
+            "data" => Dict(
+                "drunk" => Dict(
+                    "type" => "map", 
+                    "index_type" => "date_time", 
+                    "data" => Dict(
+                        "1999-12-01T00:00" => Dict(
+                            "type" => "time_series", 
+                            "data" => PyVector([4.0, 5.6]), 
+                            "index" => Dict(
+                                "start" => "2000-01-01T00:00:00", 
+                                "resolution" => "1M",
+                                "repeat" => false, 
+                                "ignore_year" => true
+                            )
                         )
                     )
-                )
-            ),
-            "sober" => Dict(
-                "type" => "map", "index_type" => "date_time", "data" => Dict(
-                    "1999-12-01T00:00" => Dict(
-                        "type" => "map", "index_type" => "date_time", "data" => Dict(
-                            "2000-01-01T00:00" => 2.1, "2000-02-01T00:00" => 1.8
+                ),
+                "sober" => Dict(
+                    "type" => "map", 
+                    "index_type" => "date_time", 
+                    "data" => Dict(
+                        "1999-12-01T00:00" => Dict(
+                            "type" => "time_series", 
+                            "data" => PyVector([2.1, 1.8]), 
+                            "index" => Dict(
+                                "start" => "2000-01-01T00:00:00", 
+                                "resolution" => "1M",
+                                "repeat" => false, 
+                                "ignore_year" => true
+                            )
                         )
                     )
                 )
             )
         )
-        value = Dict("type" => "map", "index_type" => "str", "data" => data)
         object_parameter_values = [["country", "France", "apero_time", value]]
-        db_api.import_data_to_url(
+        num, errors = db_api.import_data_to_url(
             url; object_classes=object_classes, objects=objects, object_parameter_values=object_parameter_values
         )
         using_spinedb(url)
@@ -279,7 +297,5 @@ end
         @test apero_time(;country=France, s=sober, t0=t0, t=t1_3) == (2.1 + 1.8) / 2
         @test apero_time(;country=France, s=drunk, whatever=:whatever, t0=t0, t=t2_3) == 5.6
         @test apero_time(;country=France, s=drunk, t0=t0, whocares=t0, t=t2_3) == 5.6
-        @test apero_time(;country=France, t0=t0, s=drunk, t=t2_3) == 5.6
     end
-    =#
 end

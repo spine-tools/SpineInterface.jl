@@ -41,14 +41,6 @@ end
 
 Map(inds::Array{String,1}, vals::Array{V,1}) where V = Map(Symbol.(inds), vals)
 Map(inds::Array{DateTime_,1}, vals::Array{V,1}) where V = Map([ind.value for ind in inds], vals)
-function Map(inds::Array{K,1}, vals::Array{V,1}) where {K,V}
-    mapping = Dict{K,Array{V,1}}()
-    sizehint!(mapping, length(inds))
-    for (ind, val) in zip(inds, vals)
-        push!(get!(mapping, ind, []), val)
-    end
-    Map(mapping)
-end
 
 """
     PeriodCollection(spec::String)
@@ -101,7 +93,6 @@ function TimeSeriesParameterValue(ts::TimeSeries{V}) where {V}
     end
 end
 
-# TODO: specify PyObject constructors for other types?
 PyObject(x::DateTime_) = @pycall db_api.DateTime(x.value)::PyObject
 PyObject(x::Duration) = @pycall db_api.Duration(_period_to_duration_string(x.value))::PyObject
 PyObject(x::Array_) = @pycall db_api.Array(PyVector(x.value))::PyObject
@@ -111,6 +102,11 @@ function PyObject(x::TimePattern)
 end
 function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
+end
+function PyObject(m::Map)
+    inds = collect(keys(m.mapping))
+    vals = collect(values(m.mapping))
+    @pycall db_api.Map(inds, vals)::PyObject
 end
 
 Call(other::Call) = copy(other)

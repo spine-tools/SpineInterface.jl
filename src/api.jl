@@ -646,7 +646,21 @@ parameter_value(parsed_db_value::Array_) = ArrayParameterValue(parsed_db_value.v
 parameter_value(parsed_db_value::TimePattern) = TimePatternParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_db_value)
 function parameter_value(parsed_db_value::Map)
-    mapping = Dict(key => [parameter_value(v) for v in vals] for (key, vals) in parsed_db_value.mapping)
-    MapParameterValue(Map(mapping))
+    inds = collect(keys(parsed_db_value.mapping))
+    vals = parameter_value.(values(parsed_db_value.mapping))
+    MapParameterValue(Map(inds, vals))
 end
 parameter_value(parsed_db_value::PyObject) = error("Can't parse $parsed_db_value")
+
+"""
+    maximum_parameter_value(p::Parameter)
+
+Finds the singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses` in any
+`AbstractParameterValue` types.
+"""
+function maximum_parameter_value(p::Parameter)
+    # NOTE: indices filters out `NothingParameterValue`
+    vals = (first(_lookup_parameter_value(p; ind...)) for ind in indices(p))
+    isempty(vals) && return nothing
+    maximum(_maximum_parameter_value(val) for val in vals)
+end

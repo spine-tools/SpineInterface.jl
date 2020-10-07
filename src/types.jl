@@ -137,23 +137,7 @@ struct TimeSeries{V}
     ignore_year::Bool
     repeat::Bool
     function TimeSeries(inds, vals::Array{V,1}, iy, rep) where {V}
-        ind_count = length(inds)
-        val_count = length(vals)
-        trimmed_inds, trimmed_vals = if ind_count == val_count
-            inds, vals
-        elseif ind_count > val_count
-            @warn("too many indices, taking only first $val_count")
-            inds[1:val_count], vals
-        else
-            @warn("too many values, taking only first $ind_count")
-            inds, vals[1:ind_count]
-        end
-        sorted_inds, sorted_vals = if issorted(trimmed_inds)
-            trimmed_inds, trimmed_vals
-        else
-            p = sortperm(trimmed_inds)
-            trimmed_inds[p], trimmed_vals[p]
-        end
+        sorted_inds, sorted_vals = _sort_inds_vals(inds, vals)
         new{V}(sorted_inds, sorted_vals, iy, rep)
     end
 end
@@ -168,7 +152,12 @@ See `MapParameterValue` for the corresponding `AbstractParameterValue` type for 
 parameters.
 """
 struct Map{K,V}
-    mapping::Dict{K,Array{V,1}}
+    mapping::Dict{K,V}
+    function Map(inds::Array{K,1}, vals::Array{V,1}) where {K,V}
+        sorted_inds, sorted_vals = _sort_inds_vals(inds, vals)
+        mapping = Dict(zip(sorted_inds, sorted_vals))
+        new{K,V}(mapping)
+    end
 end
 
 # AbstractParameterValue subtypes

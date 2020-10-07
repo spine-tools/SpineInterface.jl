@@ -185,12 +185,12 @@ end
 function (p::MapParameterValue)(k; kwargs...)
     pvs = get(p.value.mapping, k, nothing)
     pvs === nothing && return p(;kwargs...)
-    first(pvs)(;kwargs...)
+    pvs(;kwargs...)
 end
 function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where V
     pvs = get(p.value.mapping, o.name, nothing)
     pvs === nothing && return p(;kwargs...)
-    first(pvs)(;kwargs...)
+    pvs(;kwargs...)
 end
 function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where V
     pvs = get(p.value.mapping, d, nothing)
@@ -199,7 +199,7 @@ function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where V
         pvs = get(p.value.mapping, d_floor, nothing)
     end
     pvs === nothing && return p(;kwargs...)
-    first(pvs)(;kwargs...)
+    pvs(;kwargs...)
 end
 function (p::MapParameterValue{DateTime,V})(d::Ref{DateTime}; kwargs...) where V
     p(d[]; kwargs...)
@@ -283,44 +283,52 @@ end
 _realize(call::OperatorCall, id::Int64, vals::Dict) = reduce(call.operator, vals[id])
 _realize(x, ::Int64, ::Dict) = realize(x)
 
-"""
-    maximum_parameter_value(p::Parameter)
+_maximum_non_nan(itr) = maximum(x -> isnan(x) ? -Inf : x, itr)
 
-Finds the singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses` in any
-`AbstractParameterValue` types.
-"""
-function maximum_parameter_value(p::Parameter)
-    maximum_value = NothingParameterValue()
-    for class in p.classes
-        for par_vals in values(class.parameter_values)
-            new_value = _maximum_parameter_value(_get(par_vals, p.name, class.parameter_defaults))
-            if new_value != NothingParameterValue()
-                if maximum_value !== NothingParameterValue()
-                    maximum_value = max(maximum_value, new_value)
-                else
-                    maximum_value = new_value
-                end
-            end
-        end
-    end
-    return maximum_value
-end
-
-_maximum_parameter_value(pv::NothingParameterValue) = pv
 _maximum_parameter_value(pv::ScalarParameterValue) = pv.value
-_maximum_parameter_value(pv::ArrayParameterValue) = maximum(pv.value.value)
-_maximum_parameter_value(pv::AbstractTimeSeriesParameterValue) = maximum(pv.value.values)
-function _maximum_parameter_value(pv::MapParameterValue)
-    max_value = NothingParameterValue()
-    for new_pv in values(pv.value.mapping)
-        new_max_value = _maximum_parameter_value(new_pv[])
-        if new_max_value != NothingParameterValue()
-            if max_value != NothingParameterValue()
-                max_value = max(max_value, new_max_value)
-            else
-                max_value = new_max_value
-            end
-        end
+_maximum_parameter_value(pv::ArrayParameterValue) = _maximum_non_nan(pv.value)
+_maximum_parameter_value(pv::TimePatternParameterValue) = _maximum_non_nan(values(pv.value))
+_maximum_parameter_value(pv::AbstractTimeSeriesParameterValue) = _maximum_non_nan(pv.value.values)
+_maximum_parameter_value(pv::MapParameterValue) = _maximum_non_nan(_maximum_parameter_value.(values(pv.value.mapping)))
+
+"""
+Non unique indices in a sorted Array.
+"""
+function _nonunique_inds_sorted(arr)
+    nonunique_inds = []
+    sizehint!(nonunique_inds, length(arr))
+    for (i, (x, y)) in enumerate(zip(arr[1:end - 1], arr[2:end]))
+        isequal(x, y) && push!(nonunique_inds, i)
     end
-    return max_value
+    nonunique_inds
 end
+
+"""
+A copy of `inds` and a `copy` of vals, trimmed so they are both of the same size, sorted, 
+and with non unique elements of `inds` removed.
+"""
+function _sort_inds_vals(inds, vals)
+    ind_count = length(inds)
+    val_count = length(vals)
+    trimmed_inds, trimmed_vals = if ind_count == val_count
+        inds, vals
+    elseif ind_count > val_count
+        @warn("too many indices, taking only first $val_count")
+        inds[1:val_count], vals
+    else
+        @warn("too many values, taking only first $ind_count")
+        inds, vals[1:ind_count]
+    end
+    sorted_inds, sorted_vals = if issorted(trimmed_inds)
+        trimmed_inds, trimmed_vals
+    else
+        p = sortperm(trimmed_inds)
+        trimmed_inds[p], trimmed_vals[p]
+    end
+    nonunique_inds = _nonunique_inds_sorted(sorted_inds)
+    if !isempty(nonunique_inds)
+        @warn("repeated indices $(sorted_inds[unique(nonunique_inds)]), taking only last one")
+    end
+    deleteat!(sorted_inds, nonunique_inds), deleteat!(sorted_vals, nonunique_inds)
+end
+
