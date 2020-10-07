@@ -58,7 +58,7 @@ function PeriodCollection(spec::String)
             m = Base.match(regexp, interval)
             m === nothing && error("invalid interval specification $interval.")
             key = m.match
-            start_stop = interval[length(key)+1:end]
+            start_stop = interval[length(key) + 1:end]
             start_stop = split(start_stop, range_op)
             length(start_stop) != 2 && error("invalid interval specification $interval.")
             start_str, stop_str = start_stop
@@ -103,11 +103,7 @@ end
 function PyObject(ts::TimeSeries)
     @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
 end
-function PyObject(m::Map)
-    inds = collect(keys(m.mapping))
-    vals = collect(values(m.mapping))
-    @pycall db_api.Map(inds, vals)::PyObject
-end
+PyObject(m::Map) = @pycall db_api.Map(m.indexes, m.values)::PyObject
 
 Call(other::Call) = copy(other)
 Call(n) = IdentityCall(n)

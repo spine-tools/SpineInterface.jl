@@ -147,16 +147,16 @@ end
 
 A nested general purpose indexed value corresponding to the similarly named `spinedb_api` class.
 
-Consists of a `mapping::Dict{K,Array{V,1}}` mapping keys to any number of values. 
+Consists of an `Array` of indexes and an `Array` of values. 
 See `MapParameterValue` for the corresponding `AbstractParameterValue` type for accessing `Map` type
 parameters.
 """
 struct Map{K,V}
-    mapping::Dict{K,V}
+    indexes::Array{K,1}
+    values::Array{V,1}
     function Map(inds::Array{K,1}, vals::Array{V,1}) where {K,V}
         sorted_inds, sorted_vals = _sort_inds_vals(inds, vals)
-        mapping = Dict(zip(sorted_inds, sorted_vals))
-        new{K,V}(mapping)
+        new{K,V}(sorted_inds, sorted_vals)
     end
 end
 

@@ -646,9 +646,7 @@ parameter_value(parsed_db_value::Array_) = ArrayParameterValue(parsed_db_value.v
 parameter_value(parsed_db_value::TimePattern) = TimePatternParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_db_value)
 function parameter_value(parsed_db_value::Map)
-    inds = collect(keys(parsed_db_value.mapping))
-    vals = parameter_value.(values(parsed_db_value.mapping))
-    MapParameterValue(Map(inds, vals))
+    MapParameterValue(Map(parsed_db_value.indexes, parameter_value.(parsed_db_value.values)))
 end
 parameter_value(parsed_db_value::PyObject) = error("Can't parse $parsed_db_value")
 

@@ -176,6 +176,14 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     (asum + bsum + (reps - 1) * p.valsum) / (alen + blen + (reps - 1) * p.len)
 end
 
+function _searchsortedfirst(arr::AbstractArray{T,1}, x::T; exact_match=true) where T
+    i = searchsortedfirst(arr, x)
+    i > length(arr) && return nothing
+    exact_match && arr[i] != x && return nothing
+    i
+end
+_searchsortedfirst(arr, x; exact_match=nothing) = nothing
+
 function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
     isempty(kwargs) && return p.value
     arg = first(values(kwargs))
@@ -183,22 +191,21 @@ function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
     p(arg; t=t, i=i, new_kwargs...)
 end
 function (p::MapParameterValue)(k; kwargs...)
-    pvs = get(p.value.mapping, k, nothing)
-    pvs === nothing && return p(;kwargs...)
+    i = _searchsortedfirst(p.value.indexes, k)
+    i === nothing && return p(;kwargs...)
+    pvs = p.value.values[i]
     pvs(;kwargs...)
 end
 function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where V
-    pvs = get(p.value.mapping, o.name, nothing)
-    pvs === nothing && return p(;kwargs...)
+    i = _searchsortedfirst(p.value.indexes, o.name)
+    i === nothing && return p(;kwargs...)
+    pvs = p.value.values[i]
     pvs(;kwargs...)
 end
 function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where V
-    pvs = get(p.value.mapping, d, nothing)
-    if pvs === nothing
-        d_floor = d - minimum(filter!(x -> x > Hour(0), d .- keys(p.value.mapping)))
-        pvs = get(p.value.mapping, d_floor, nothing)
-    end
-    pvs === nothing && return p(;kwargs...)
+    i = _searchsortedfirst(p.value.indexes, d; exact_match=false)
+    i === nothing && return p(;kwargs...)
+    pvs = p.value.values[i]
     pvs(;kwargs...)
 end
 function (p::MapParameterValue{DateTime,V})(d::Ref{DateTime}; kwargs...) where V
@@ -283,13 +290,14 @@ end
 _realize(call::OperatorCall, id::Int64, vals::Dict) = reduce(call.operator, vals[id])
 _realize(x, ::Int64, ::Dict) = realize(x)
 
-_maximum_non_nan(itr) = maximum(x -> isnan(x) ? -Inf : x, itr)
+# FIXME: We need to handle empty collections here
+_maximum_skipnan(itr) = maximum(x -> isnan(x) ? -Inf : x, itr)
 
 _maximum_parameter_value(pv::ScalarParameterValue) = pv.value
-_maximum_parameter_value(pv::ArrayParameterValue) = _maximum_non_nan(pv.value)
-_maximum_parameter_value(pv::TimePatternParameterValue) = _maximum_non_nan(values(pv.value))
-_maximum_parameter_value(pv::AbstractTimeSeriesParameterValue) = _maximum_non_nan(pv.value.values)
-_maximum_parameter_value(pv::MapParameterValue) = _maximum_non_nan(_maximum_parameter_value.(values(pv.value.mapping)))
+_maximum_parameter_value(pv::ArrayParameterValue) = _maximum_skipnan(pv.value)
+_maximum_parameter_value(pv::TimePatternParameterValue) = _maximum_skipnan(values(pv.value))
+_maximum_parameter_value(pv::AbstractTimeSeriesParameterValue) = _maximum_skipnan(pv.value.values)
+_maximum_parameter_value(pv::MapParameterValue) = _maximum_skipnan(_maximum_parameter_value.(pv.value.values))
 
 """
 Non unique indices in a sorted Array.

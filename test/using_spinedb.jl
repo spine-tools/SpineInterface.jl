@@ -280,7 +280,7 @@ end
             )
         )
         object_parameter_values = [["country", "France", "apero_time", value]]
-        num, errors = db_api.import_data_to_url(
+        db_api.import_data_to_url(
             url; object_classes=object_classes, objects=objects, object_parameter_values=object_parameter_values
         )
         using_spinedb(url)
