@@ -55,11 +55,14 @@ function _lookup_key(class::RelationshipClass; kwargs...)
     objects, (; new_kwargs...)
 end
 
-_lookup_entities(class::ObjectClass; kwargs...) = class()
-_lookup_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
+_entities(class::ObjectClass; kwargs...) = class()
+_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
 
 _entity_key(o::ObjectLike) = o
 _entity_key(r::RelationshipLike) = tuple(r...)
+
+_entity_tuples(class::ObjectClass) = ((; Dict(class.name => o)...) for o in class())
+_entity_tuples(class::RelationshipClass) = class()
 
 function _pv_call(pn::Symbol, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
     _pv_call(_is_time_varying(T), pn, pv, inds)

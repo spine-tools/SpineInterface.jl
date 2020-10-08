@@ -264,7 +264,7 @@ function indices(p::Parameter; kwargs...)
     (
         ent
         for class in p.classes
-        for ent in _lookup_entities(class; kwargs...)
+        for ent in _entities(class; kwargs...)
         if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
 end
@@ -657,8 +657,8 @@ Finds the singe maximum value of a `Parameter` across all its `ObjectClasses` or
 `AbstractParameterValue` types.
 """
 function maximum_parameter_value(p::Parameter)
-    # NOTE: indices filters out `NothingParameterValue`
-    vals = (first(_lookup_parameter_value(p; ind...)) for ind in indices(p))
-    isempty(vals) && return nothing
-    maximum(_maximum_parameter_value(val) for val in vals)
+    pvs = (first(_lookup_parameter_value(p; ent_tup...)) for class in p.classes for ent_tup in _entity_tuples(class))
+    pvs_skip_nothing = (pv for pv in pvs if pv() != nothing)
+    isempty(pvs_skip_nothing) && return nothing
+    maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)
 end
