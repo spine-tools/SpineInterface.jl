@@ -179,13 +179,19 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     (asum + bsum + (reps - 1) * p.valsum) / (alen + blen + (reps - 1) * p.len)
 end
 
-function _searchsortedfirst(arr::AbstractArray{T,1}, x::T; exact_match=true) where T
+function _search_equal(arr::AbstractArray{T,1}, x::T) where T
     i = searchsortedfirst(arr, x)
-    i > length(arr) && return nothing
-    exact_match && arr[i] != x && return nothing
-    i
+    i <= length(arr) && arr[i] === x && return i
+    nothing
 end
-_searchsortedfirst(arr, x; exact_match=nothing) = nothing
+_search_equal(arr, x) = nothing
+
+function _search_nearest(arr::AbstractArray{T,1}, x::T) where T
+    i = searchsortedlast(arr, x)
+    i > 0 && return i
+    nothing
+end
+_search_nearest(arr, x) = nothing
 
 function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
     isempty(kwargs) && return p.value
@@ -194,19 +200,19 @@ function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
     p(arg; t=t, i=i, new_kwargs...)
 end
 function (p::MapParameterValue)(k; kwargs...)
-    i = _searchsortedfirst(p.value.indexes, k)
+    i = _search_equal(p.value.indexes, k)
     i === nothing && return p(;kwargs...)
     pvs = p.value.values[i]
     pvs(;kwargs...)
 end
 function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where V
-    i = _searchsortedfirst(p.value.indexes, o.name)
+    i = _search_equal(p.value.indexes, o.name)
     i === nothing && return p(;kwargs...)
     pvs = p.value.values[i]
     pvs(;kwargs...)
 end
 function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where V
-    i = _searchsortedfirst(p.value.indexes, d; exact_match=false)
+    i = _search_nearest(p.value.indexes, d)
     i === nothing && return p(;kwargs...)
     pvs = p.value.values[i]
     pvs(;kwargs...)
