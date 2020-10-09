@@ -180,14 +180,14 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
 end
 
 function _search_equal(arr::AbstractArray{T,1}, x::T) where T
-    i = searchsortedfirst(arr, x)
+    i = searchsortedfirst(arr, x)  # index of the first value in arr greater than or equal to x,
     i <= length(arr) && arr[i] === x && return i
     nothing
 end
 _search_equal(arr, x) = nothing
 
 function _search_nearest(arr::AbstractArray{T,1}, x::T) where T
-    i = searchsortedlast(arr, x)
+    i = searchsortedlast(arr, x)  # index of last value in arr less than or equal to x,
     i > 0 && return i
     nothing
 end
