@@ -43,9 +43,9 @@ Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
-_dt_format = "yyyy-mm-ddTHH:MM"
+const _df = DateFormat("yyyy-mm-ddTHH:MM")
 Base.show(io::IO, t::TimeSlice) = 
-    print(io, "$(Dates.format(start(t), _dt_format)) ~> $(Dates.format(end_(t), _dt_format))")
+    print(io, string(Dates.format(start(t), _df)),  "~>", Dates.format(end_(t), _df))
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
