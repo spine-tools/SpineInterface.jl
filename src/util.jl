@@ -68,7 +68,7 @@ function _pv_call(pn::Symbol, pv::T, inds::NamedTuple) where T <: AbstractParame
     _pv_call(_is_time_varying(T), pn, pv, inds)
 end
 function _pv_call(is_time_varying::Val{false}, pn::Symbol, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
-    pv(; inds...)
+    IdentityCall(pv(; inds...))
 end
 function _pv_call(is_time_varying::Val{true}, pn::Symbol, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
     ParameterValueCall(pn, pv, inds)
