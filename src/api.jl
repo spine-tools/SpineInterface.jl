@@ -63,7 +63,7 @@ function (oc::ObjectClass)(;kwargs...)
     isempty(kwargs) && return oc.objects
     function cond(o)
         for (p, v) in kwargs
-            value = get(oc.parameter_values[o], p, nothing)
+            value = get(oc.parameter_values[o], p, get(oc.parameter_defaults, p, nothing))
             (value !== nothing && value() === v) || return false
         end
         true
