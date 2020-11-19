@@ -604,6 +604,8 @@ function write_parameters(
     catch err
         db_map.rollback_session()
         rethrow()
+    finally
+        db_map.connection.close()
     end
 end
 

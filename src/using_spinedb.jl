@@ -228,6 +228,7 @@ how to call the convenience functors.
 function using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     db_map = db_api.QuickDatabaseMapping(db_url; upgrade=upgrade)
     using_spinedb(db_map, mod)
+    db_map.connection.close()
 end
 function using_spinedb(db_map::PyObject, mod=@__MODULE__; upgrade=false)
     object_classes = py"[x._asdict() for x in $db_map.query($db_map.object_class_sq)]"
