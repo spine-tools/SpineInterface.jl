@@ -585,7 +585,7 @@ function write_parameters(
         report="", 
         comment=""
     ) where {T,K<:NamedTuple,V}
-    db_map = DiffDatabaseMapping(dest_url; upgrade=upgrade, create=create)
+    db_map = QuickDatabaseMapping(dest_url; upgrade=upgrade, create=create)
     write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
 end
 function write_parameters(

@@ -226,10 +226,10 @@ See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](
 how to call the convenience functors.
 """
 function using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
-    db_map = DiffDatabaseMapping(db_url; upgrade=upgrade)
+    db_map = QuickDatabaseMapping(db_url; upgrade=upgrade)
     using_spinedb(db_map, mod)
 end
-function using_spinedb(db_map::PyObject, mod=@__MODULE__)
+function using_spinedb(db_map::PyObject, mod=@__MODULE__; upgrade=false)
     object_classes = py"[x._asdict() for x in $db_map.query($db_map.object_class_sq)]"
     relationship_classes = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_class_sq)]"
     objects = py"[x._asdict() for x in $db_map.query($db_map.object_sq)]"
