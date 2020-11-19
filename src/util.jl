@@ -24,7 +24,7 @@ end
 _next_id(id_factory::ObjectIdFactory) = id_factory.max_object_id[] += 1
 
 _immutable(x) = x
-_immutable(arr::T) where T<:AbstractArray = (length(arr) == 1) ? first(arr) : Tuple(arr)
+_immutable(arr::T) where {T<:AbstractArray} = (length(arr) == 1) ? first(arr) : Tuple(arr)
 
 function _get(d, key, backup)
     get(d, key) do
@@ -44,7 +44,7 @@ function _lookup_parameter_value(p::Parameter; _strict=true, kwargs...)
     end
 end
 
-function _lookup_key(class::ObjectClass; kwargs...) 
+function _lookup_key(class::ObjectClass; kwargs...)
     new_kwargs = OrderedDict(kwargs...)
     pop!(new_kwargs, class.name, nothing), (; new_kwargs...)
 end
@@ -64,20 +64,20 @@ _entity_key(r::RelationshipLike) = tuple(r...)
 _entity_tuples(class::ObjectClass) = ((; Dict(class.name => o)...) for o in class())
 _entity_tuples(class::RelationshipClass) = class()
 
-function _pv_call(pn::Symbol, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
+function _pv_call(pn::Symbol, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
     _pv_call(_is_time_varying(T), pn, pv, inds)
 end
-function _pv_call(is_time_varying::Val{false}, pn::Symbol, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
+function _pv_call(is_time_varying::Val{false}, pn::Symbol, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
     IdentityCall(pv(; inds...))
 end
-function _pv_call(is_time_varying::Val{true}, pn::Symbol, pv::T, inds::NamedTuple) where T <: AbstractParameterValue
+function _pv_call(is_time_varying::Val{true}, pn::Symbol, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
     ParameterValueCall(pn, pv, inds)
 end
 
 _is_time_varying(::Type{MapParameterValue{K,V}}) where {K,V} = _is_time_varying(V)
-_is_time_varying(::Type{MapParameterValue{DateTime,V}}) where V = Val(true)
-_is_time_varying(::Type{T}) where T <: TimeVaryingParameterValue = Val(true)
-_is_time_varying(::Type{T}) where T <: AbstractParameterValue = Val(false)
+_is_time_varying(::Type{MapParameterValue{DateTime,V}}) where {V} = Val(true)
+_is_time_varying(::Type{T}) where {T<:TimeVaryingParameterValue} = Val(true)
+_is_time_varying(::Type{T}) where {T<:AbstractParameterValue} = Val(false)
 
 _is_associative(x) = Val(false)
 _is_associative(::typeof(+)) = Val(true)
@@ -98,13 +98,13 @@ function _relativedelta_to_period(delta::PyObject)
     end
 end
 
-function _period_to_duration_string(period::T) where T <: Period
+function _period_to_duration_string(period::T) where {T<:Period}
     d = Dict(Minute => "m", Hour => "h", Day => "D", Month => "M", Year => "Y")
     suffix = get(d, T, "m")
     string(period.value, suffix)
 end
 
-function _period_collection_to_time_pattern_string(pc::PeriodCollection)    
+function _period_collection_to_time_pattern_string(pc::PeriodCollection)
     union_op = ","
     intersection_op = ";"
     range_op = "-"
@@ -121,15 +121,15 @@ function _from_to_minute(m_start::DateTime, t_start::DateTime, t_end::DateTime)
     Minute(t_start - m_start).value + 1, Minute(t_end - m_start).value
 end
 
-(p::NothingParameterValue)(;kwargs...) = nothing
+(p::NothingParameterValue)(; kwargs...) = nothing
 
-(p::ScalarParameterValue)(;kwargs...) = p.value
+(p::ScalarParameterValue)(; kwargs...) = p.value
 
-(p::ArrayParameterValue)(;i::Union{Int64,Nothing}=nothing, kwargs...) = p(i)
+(p::ArrayParameterValue)(; i::Union{Int64,Nothing}=nothing, kwargs...) = p(i)
 (p::ArrayParameterValue)(::Nothing) = p.value
 (p::ArrayParameterValue)(i::Int64) = get(p.value, i, nothing)
 
-(p::TimePatternParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::TimePatternParameterValue)(; t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::TimePatternParameterValue)(::Nothing) = p.value
 function (p::TimePatternParameterValue)(t::TimeSlice)
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
@@ -144,7 +144,7 @@ function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
     (a, b)
 end
 
-(p::StandardTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::StandardTimeSeriesParameterValue)(; t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::StandardTimeSeriesParameterValue)(::Nothing) = p.value
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     p.value.ignore_year && (t -= Year(start(t)))
@@ -156,7 +156,7 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     mean(vals)
 end
 
-(p::RepeatingTimeSeriesParameterValue)(;t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::RepeatingTimeSeriesParameterValue)(; t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::RepeatingTimeSeriesParameterValue)(::Nothing) = p.value
 function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     p.value.indexes
@@ -179,14 +179,14 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     (asum + bsum + (reps - 1) * p.valsum) / (alen + blen + (reps - 1) * p.len)
 end
 
-function _search_equal(arr::AbstractArray{T,1}, x::T) where T
+function _search_equal(arr::AbstractArray{T,1}, x::T) where {T}
     i = searchsortedfirst(arr, x)  # index of the first value in arr greater than or equal to x
     i <= length(arr) && arr[i] === x && return i
     nothing
 end
 _search_equal(arr, x) = nothing
 
-function _search_nearest(arr::AbstractArray{T,1}, x::T) where T
+function _search_nearest(arr::AbstractArray{T,1}, x::T) where {T}
     i = searchsortedlast(arr, x)  # index of the last value in arr less than or equal to x
     i > 0 && return i
     nothing
@@ -196,28 +196,28 @@ _search_nearest(arr, x) = nothing
 function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
     isempty(kwargs) && return p.value
     arg = first(values(kwargs))
-    new_kwargs = Base.tail((;kwargs...))
+    new_kwargs = Base.tail((; kwargs...))
     p(arg; t=t, i=i, new_kwargs...)
 end
 function (p::MapParameterValue)(k; kwargs...)
     i = _search_equal(p.value.indexes, k)
-    i === nothing && return p(;kwargs...)
+    i === nothing && return p(; kwargs...)
     pvs = p.value.values[i]
-    pvs(;kwargs...)
+    pvs(; kwargs...)
 end
-function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where V
+function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where {V}
     i = _search_equal(p.value.indexes, o.name)
-    i === nothing && return p(;kwargs...)
+    i === nothing && return p(; kwargs...)
     pvs = p.value.values[i]
-    pvs(;kwargs...)
+    pvs(; kwargs...)
 end
-function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where V
+function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where {V}
     i = _search_nearest(p.value.indexes, d)
-    i === nothing && return p(;kwargs...)
+    i === nothing && return p(; kwargs...)
     pvs = p.value.values[i]
-    pvs(;kwargs...)
+    pvs(; kwargs...)
 end
-function (p::MapParameterValue{DateTime,V})(d::Ref{DateTime}; kwargs...) where V
+function (p::MapParameterValue{DateTime,V})(d::Ref{DateTime}; kwargs...) where {V}
     p(d[]; kwargs...)
 end
 
@@ -314,7 +314,7 @@ Non unique indices in a sorted Array.
 function _nonunique_inds_sorted(arr)
     nonunique_inds = []
     sizehint!(nonunique_inds, length(arr))
-    for (i, (x, y)) in enumerate(zip(arr[1:end - 1], arr[2:end]))
+    for (i, (x, y)) in enumerate(zip(arr[1:end-1], arr[2:end]))
         isequal(x, y) && push!(nonunique_inds, i)
     end
     nonunique_inds
@@ -348,4 +348,3 @@ function _sort_inds_vals(inds, vals)
     end
     deleteat!(sorted_inds, nonunique_inds), deleteat!(sorted_vals, nonunique_inds)
 end
-

@@ -18,14 +18,14 @@
 #############################################################################
 
 Base.intersect(::Anything, s) = s
-Base.intersect(s::T, ::Anything) where T<:AbstractArray = s
+Base.intersect(s::T, ::Anything) where {T<:AbstractArray} = s
 
 Base.in(item, ::Anything) = true
 
 Base.iterate(o::Union{Object,TimeSlice}) = iterate((o,))
-Base.iterate(o::Union{Object,TimeSlice}, state::T) where T = iterate((o,), state)
+Base.iterate(o::Union{Object,TimeSlice}, state::T) where {T} = iterate((o,), state)
 Base.iterate(v::ScalarParameterValue) = iterate((v,))
-Base.iterate(v::ScalarParameterValue, state::T) where T = iterate((v,), state)
+Base.iterate(v::ScalarParameterValue, state::T) where {T} = iterate((v,), state)
 
 Base.length(t::Union{Object,TimeSlice}) = 1
 Base.length(v::ScalarParameterValue) = 1
@@ -44,8 +44,7 @@ Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
 const _df = DateFormat("yyyy-mm-ddTHH:MM")
-Base.show(io::IO, t::TimeSlice) = 
-    print(io, string(Dates.format(start(t), _df)),  "~>", Dates.format(end_(t), _df))
+Base.show(io::IO, t::TimeSlice) = print(io, string(Dates.format(start(t), _df)), "~>", Dates.format(end_(t), _df))
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
@@ -99,23 +98,23 @@ function Base.convert(::Type{Map}, o::PyObject)
 end
 Base.convert(::Type{Call}, x::T) where {T<:Real} = IdentityCall(x)
 
-Base.copy(ts::TimeSeries{T}) where T = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
+Base.copy(ts::TimeSeries{T}) where {T} = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
 Base.copy(c::NothingParameterValue) = c
 Base.copy(c::ScalarParameterValue) = c
 Base.copy(c::ArrayParameterValue) = ArrayParameterValue(copy(c.value))
 Base.copy(c::TimePatternParameterValue) = TimePatternParameterValue(copy(c.value))
 Base.copy(c::StandardTimeSeriesParameterValue) = StandardTimeSeriesParameterValue(copy(c.value))
 function Base.copy(c::RepeatingTimeSeriesParameterValue)
-	RepeatingTimeSeriesParameterValue(copy(c.value), c.span, c.valsum, c.len)
+    RepeatingTimeSeriesParameterValue(copy(c.value), c.span, c.valsum, c.len)
 end
 Base.copy(c::ParameterValueCall) = ParameterValueCall(c.parameter_name, c.parameter_value, c.kwargs)
 Base.copy(c::OperatorCall) = OperatorCall(c.operator, c.args)
 Base.copy(c::IdentityCall) = IdentityCall(c.value)
 
-Base.zero(::Type{T}) where T<:Call = IdentityCall(0.0)
+Base.zero(::Type{T}) where {T<:Call} = IdentityCall(0.0)
 Base.zero(::Call) = IdentityCall(0.0)
 
-Base.one(::Type{T}) where T<:Call = IdentityCall(1.0)
+Base.one(::Type{T}) where {T<:Call} = IdentityCall(1.0)
 Base.one(::Call) = IdentityCall(1.0)
 
 Base.:+(x::Call, y::Call) = OperatorCall(+, x, y)

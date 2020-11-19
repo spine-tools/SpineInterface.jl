@@ -56,7 +56,7 @@ struct TimeSlice
     start::Ref{DateTime}
     end_::Ref{DateTime}
     duration::Float64
-    blocks::NTuple{N,Object} where N
+    blocks::NTuple{N,Object} where {N}
     id::UInt64
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
@@ -124,12 +124,12 @@ struct PeriodCollection
     h::Union{Array{UnitRange{Int64},1},Nothing}
     m::Union{Array{UnitRange{Int64},1},Nothing}
     s::Union{Array{UnitRange{Int64},1},Nothing}
-    function PeriodCollection(;Y=nothing, M=nothing, D=nothing, WD=nothing, h=nothing, m=nothing, s=nothing)
+    function PeriodCollection(; Y=nothing, M=nothing, D=nothing, WD=nothing, h=nothing, m=nothing, s=nothing)
         new(Y, M, D, WD, h, m, s)
     end
 end
 
-TimePattern = Dict{PeriodCollection,T} where T
+TimePattern = Dict{PeriodCollection,T} where {T}
 
 struct TimeSeries{V}
     indexes::Array{DateTime,1}
@@ -162,8 +162,7 @@ end
 
 # AbstractParameterValue subtypes
 # These are wrappers around some standard Julia types and our parameter value types, that override the call operator
-struct NothingParameterValue <: AbstractParameterValue
-end
+struct NothingParameterValue <: AbstractParameterValue end
 
 struct ScalarParameterValue{T} <: AbstractParameterValue
     value::T
@@ -189,7 +188,7 @@ struct RepeatingTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     len::Int64
 end
 
-struct MapParameterValue{K,V} <: AbstractParameterValue where V <: AbstractParameterValue
+struct MapParameterValue{K,V} <: AbstractParameterValue where {V<:AbstractParameterValue}
     value::Map{K,V}
 end
 
@@ -199,13 +198,13 @@ struct IdentityCall{T} <: Call
     value::T
 end
 
-struct OperatorCall{T} <: Call where T <: Function
+struct OperatorCall{T} <: Call where {T<:Function}
     operator::T
     args::Array{Any,1}
-    OperatorCall(operator::T, args) where T <: Function = new{T}(operator, args)
+    OperatorCall(operator::T, args) where {T<:Function} = new{T}(operator, args)
 end
 
-struct ParameterValueCall{T} <: Call where T <: AbstractParameterValue
+struct ParameterValueCall{T} <: Call where {T<:AbstractParameterValue}
     parameter_name::Symbol
     parameter_value::T
     kwargs::NamedTuple

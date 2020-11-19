@@ -26,10 +26,7 @@
     institutions = ["KTH", "VTT"]
     countries = ["Sweden", "France"]
     objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
-    relationships = [
-        ["institution__country", ["KTH", "Sweden"]],
-        ["institution__country", ["KTH", "France"]],
-    ]
+    relationships = [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]]
     object_parameter_values = [["institution", "KTH", "since_year", 1827]]
     relationship_parameter_values = [
         ["institution__country", ["KTH", "Sweden"], "people_count", 3],
@@ -37,22 +34,24 @@
     ]
     db_api.create_new_spine_database(url)
     db_api.import_data_to_url(
-        url; 
-        object_classes=object_classes, 
-        relationship_classes=relationship_classes, 
-        objects=objects, 
+        url;
+        object_classes=object_classes,
+        relationship_classes=relationship_classes,
+        objects=objects,
         relationships=relationships,
         object_parameters=object_parameters,
         relationship_parameters=relationship_parameters,
         object_parameter_values=object_parameter_values,
         relationship_parameter_values=relationship_parameter_values,
-       )
+    )
     using_spinedb(url)
     @test collect(indices(people_count)) == [
-        (institution=institution(:KTH), country=country(:Sweden)), (institution=institution(:KTH), country=country(:France))
+        (institution=institution(:KTH), country=country(:Sweden)),
+        (institution=institution(:KTH), country=country(:France)),
     ]
     @test collect(indices(people_count; institution=indices(since_year))) == [
-        (institution=institution(:KTH), country=country(:Sweden)), (institution=institution(:KTH), country=country(:France))
+        (institution=institution(:KTH), country=country(:Sweden)),
+        (institution=institution(:KTH), country=country(:France)),
     ]
 end
 @testset "time-slices" begin
@@ -106,35 +105,31 @@ end
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
-        object_tuples = [
-            ["VTT", "Finland"],
-            ["KTH", "Sweden"],
-            ["KTH", "France"],
-            ["KUL", "Belgium"],
-            ["UCD", "Ireland"]
-        ]
+        object_tuples =
+            [["VTT", "Finland"], ["KTH", "Sweden"], ["KTH", "France"], ["KUL", "Belgium"], ["UCD", "Ireland"]]
         relationships = [["institution__country", x] for x in object_tuples]
         db_api.create_new_spine_database(url)
         db_api.import_data_to_url(
-            url; 
-            object_classes=object_classes, 
-            relationship_classes=relationship_classes, 
-            objects=objects, 
-            relationships=relationships
-           )
+            url;
+            object_classes=object_classes,
+            relationship_classes=relationship_classes,
+            objects=objects,
+            relationships=relationships,
+        )
         using_spinedb(url)
         @test length(institution__country()) === 5
         add_relationships!(
-            institution__country, 
+            institution__country,
             [
-                institution__country()[3], 
-                (institution=Object(:ER), country=Object(:France)), 
-                (institution=Object(:ER), country=Object(:Ireland))
-            ]
+                institution__country()[3],
+                (institution=Object(:ER), country=Object(:France)),
+                (institution=Object(:ER), country=Object(:Ireland)),
+            ],
         )
         @test length(institution__country()) === 7
         @test [(x.name, y.name) for (x, y) in institution__country()] == [
-            [(Symbol(x), Symbol(y)) for (x, y) in object_tuples]; [(:ER, :France), (:ER, :Ireland)]
+            [(Symbol(x), Symbol(y)) for (x, y) in object_tuples]
+            [(:ER, :France), (:ER, :Ireland)]
         ]
     end
 end
@@ -153,9 +148,9 @@ end
         isfile(path) && rm(path)
         parameters = Dict(
             :apero_time => Dict(
-                (country=:France,) => SpineInterface.DateTime_(DateTime(1)), 
-                (country=:Sweden, drink=:vodka) => SpineInterface.Duration(Hour(1))
-            )
+                (country=:France,) => SpineInterface.DateTime_(DateTime(1)),
+                (country=:Sweden, drink=:vodka) => SpineInterface.Duration(Hour(1)),
+            ),
         )
         write_parameters(parameters, url)
         using_spinedb(url)
@@ -230,7 +225,7 @@ end
         ["institution__country", ["KTH", "Sweden"]],
         ["institution__country", ["KTH", "France"]],
         ["institution__country", ["VTT", "Finland"]],
-        ["institution__country", ["VTT", "Ireland"]]
+        ["institution__country", ["VTT", "Ireland"]],
     ]
     # Add parameter values of all types
     scalar_value = 18
@@ -239,29 +234,31 @@ end
     time_pattern_data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
     time_pattern_value = Dict("type" => "time_pattern", "data" => time_pattern_data)
     time_series_data = [1.0, 4.0, 5.0, NaN, 7.0]
-    time_series_index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
-    time_series_value = Dict("type" => "time_series", "data" => PyVector(time_series_data), "index" => time_series_index)
+    time_series_index =
+        Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
+    time_series_value =
+        Dict("type" => "time_series", "data" => PyVector(time_series_data), "index" => time_series_index)
     map_value = Dict(
-        "type" => "map", 
-        "index_type" => "str", 
+        "type" => "map",
+        "index_type" => "str",
         "data" => Dict(
             "drunk" => Dict(
-                "type" => "map", 
-                "index_type" => "date_time", 
+                "type" => "map",
+                "index_type" => "date_time",
                 "data" => Dict(
                     "1999-12-01T00:00" => Dict(
-                        "type" => "time_series", 
-                        "data" => PyVector([4.0, 5.6]), 
+                        "type" => "time_series",
+                        "data" => PyVector([4.0, 5.6]),
                         "index" => Dict(
-                            "start" => "2000-01-01T00:00:00", 
+                            "start" => "2000-01-01T00:00:00",
                             "resolution" => "1M",
-                            "repeat" => false, 
-                            "ignore_year" => true
-                        )
-                    )
-                )
-            )
-        )
+                            "repeat" => false,
+                            "ignore_year" => true,
+                        ),
+                    ),
+                ),
+            ),
+        ),
     )
     relationship_parameter_values = [
         ["institution__country", ["ER", "France"], "people_count", scalar_value],
@@ -269,18 +266,18 @@ end
         ["institution__country", ["KTH", "Sweden"], "people_count", time_pattern_value],
         ["institution__country", ["KTH", "France"], "people_count", time_series_value],
         ["institution__country", ["VTT", "Finland"], "people_count", map_value],
-        ["institution__country", ["VTT", "Ireland"], "people_count", nothing]
+        ["institution__country", ["VTT", "Ireland"], "people_count", nothing],
     ]
     db_api.create_new_spine_database(url)
     db_api.import_data_to_url(
-        url; 
-        object_classes=object_classes, 
-        relationship_classes=relationship_classes, 
-        objects=objects, 
+        url;
+        object_classes=object_classes,
+        relationship_classes=relationship_classes,
+        objects=objects,
         relationships=relationships,
         relationship_parameters=relationship_parameters,
         relationship_parameter_values=relationship_parameter_values,
-       )
+    )
     using_spinedb(url)
     @test maximum_parameter_value(people_count) == 300.0
 end

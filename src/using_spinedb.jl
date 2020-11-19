@@ -102,9 +102,7 @@ function _try_parameter_value_from_db(db_value, err_msg)
         parameter_value(db_api.from_database(db_value))
     catch e
         if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
-            rethrow(
-                ErrorException("$err_msg: $(sprint(showerror, e))")
-            )
+            rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
         else
             rethrow()
         end
@@ -116,9 +114,8 @@ A Dict mapping parameter names to their default values.
 """
 function _default_parameter_values(param_defs)
     Dict(
-        Symbol(def["name"]) => _try_parameter_value_from_db(
-            def["default_value"], "unable to parse default value of `$(def["name"])`"
-        )
+        Symbol(def["name"]) =>
+            _try_parameter_value_from_db(def["default_value"], "unable to parse default value of `$(def["name"])`")
         for def in param_defs
     )
 end
@@ -128,14 +125,12 @@ A Dict mapping parameter names to their values for a given entity.
 """
 function _parameter_values(entity, param_defs, param_vals_per_ent)
     Dict(
-        Symbol(parameter_name) => _try_parameter_value_from_db(
-            value, "unable to parse value of `$parameter_name` for `$(entity["name"])`"
-        )
-        for (parameter_name, value) in (
-            (def["name"], get(param_vals_per_ent, (def["id"], entity["id"]), nothing))
-            for def in param_defs
-        )
-        if value !== nothing
+        Symbol(parameter_name) =>
+            _try_parameter_value_from_db(value, "unable to parse value of `$parameter_name` for `$(entity["name"])`")
+        for
+        (parameter_name, value) in
+        ((def["name"], get(param_vals_per_ent, (def["id"], entity["id"]), nothing)) for def in param_defs) if
+        value !== nothing
     )
 end
 
@@ -161,15 +156,14 @@ function _class_args(class, ents_per_cls, full_objs_per_id, param_defs_per_cls, 
     object_class_name_list = get(class, "object_class_name_list", nothing)
     (
         _ents_and_vals(object_class_name_list, entities, full_objs_per_id, param_defs, param_vals_per_ent)...,
-        _default_parameter_values(param_defs)
+        _default_parameter_values(param_defs),
     )
 end
 
 function _ents_and_vals(::Nothing, entities, full_objs_per_id, param_defs, param_vals_per_ent)
     objects = [full_objs_per_id[ent["id"]] for ent in entities]
-    param_vals = Dict(
-        obj => _parameter_values(ent, param_defs, param_vals_per_ent) for (obj, ent) in zip(objects, entities)
-    )
+    param_vals =
+        Dict(obj => _parameter_values(ent, param_defs, param_vals_per_ent) for (obj, ent) in zip(objects, entities))
     objects, param_vals
 end
 function _ents_and_vals(object_class_name_list, entities, full_objs_per_id, param_defs, param_vals_per_ent)
@@ -189,9 +183,8 @@ A Dict mapping class names to arguments.
 """
 function _args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     Dict(
-        Symbol(class["name"]) => _class_args(
-            class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-        )
+        Symbol(class["name"]) =>
+            _class_args(class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
         for class in classes
     )
 end
@@ -245,12 +238,10 @@ function using_spinedb(db_map::PyObject, mod=@__MODULE__; upgrade=false)
     rels_per_cls = _entities_per_class(relationships)
     param_defs_per_cls = _parameter_definitions_per_class(param_defs)
     param_vals_per_ent = _parameter_values_per_entity(param_vals)
-    args_per_obj_cls = _args_per_class(
-        object_classes, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-    )
-    args_per_rel_cls = _args_per_class(
-        relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-    )
+    args_per_obj_cls =
+        _args_per_class(object_classes, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
+    args_per_rel_cls =
+        _args_per_class(relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     class_names_per_param = _class_names_per_parameter([object_classes; relationship_classes], param_defs_per_cls)
     max_obj_id = reduce(max, (obj["id"] for obj in objects); init=0)
     id_factory = ObjectIdFactory(UInt64(max_obj_id))

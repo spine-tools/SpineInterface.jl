@@ -11,16 +11,16 @@ function create_db(url::String; username::String="")
         [
             [("node", "bus$i") for i in 1:30]...,
             [("unit", "gen$i") for i in 1:6]...,
-            [("connection", "branch$i") for i in 1:41]...
-        ]
+            [("connection", "branch$i") for i in 1:41]...,
+        ],
     )
     db_api.import_relationship_classes(
         db_map,
         [
             ("unit__node", ["unit", "node"]),
             ("connection__from_node", ["connection", "node"]),
-            ("connection__to_node", ["connection", "node"])
-        ]
+            ("connection__to_node", ["connection", "node"]),
+        ],
     )
     db_api.import_relationships(
         db_map,
@@ -31,15 +31,15 @@ function create_db(url::String; username::String="")
             ("unit__node", ["gen4", "bus8"]),
             ("unit__node", ["gen5", "bus11"]),
             ("unit__node", ["gen6", "bus13"]),
-            ("connection__from_node", ["branch1",  "bus1"]),
-            ("connection__from_node", ["branch2",  "bus1"]),
-            ("connection__from_node", ["branch3",  "bus2"]),
-            ("connection__from_node", ["branch4",  "bus3"]),
-            ("connection__from_node", ["branch5",  "bus2"]),
-            ("connection__from_node", ["branch6",  "bus2"]),
-            ("connection__from_node", ["branch7",  "bus4"]),
-            ("connection__from_node", ["branch8",  "bus5"]),
-            ("connection__from_node", ["branch9",  "bus6"]),
+            ("connection__from_node", ["branch1", "bus1"]),
+            ("connection__from_node", ["branch2", "bus1"]),
+            ("connection__from_node", ["branch3", "bus2"]),
+            ("connection__from_node", ["branch4", "bus3"]),
+            ("connection__from_node", ["branch5", "bus2"]),
+            ("connection__from_node", ["branch6", "bus2"]),
+            ("connection__from_node", ["branch7", "bus4"]),
+            ("connection__from_node", ["branch8", "bus5"]),
+            ("connection__from_node", ["branch9", "bus6"]),
             ("connection__from_node", ["branch10", "bus6"]),
             ("connection__from_node", ["branch11", "bus6"]),
             ("connection__from_node", ["branch12", "bus6"]),
@@ -72,15 +72,15 @@ function create_db(url::String; username::String="")
             ("connection__from_node", ["branch39", "bus29"]),
             ("connection__from_node", ["branch40", "bus8"]),
             ("connection__from_node", ["branch41", "bus6"]),
-            ("connection__to_node", ["branch1",  "bus2"]),
-            ("connection__to_node", ["branch2",  "bus3"]),
-            ("connection__to_node", ["branch3",  "bus4"]),
-            ("connection__to_node", ["branch4",  "bus4"]),
-            ("connection__to_node", ["branch5",  "bus5"]),
-            ("connection__to_node", ["branch6",  "bus6"]),
-            ("connection__to_node", ["branch7",  "bus6"]),
-            ("connection__to_node", ["branch8",  "bus7"]),
-            ("connection__to_node", ["branch9",  "bus7"]),
+            ("connection__to_node", ["branch1", "bus2"]),
+            ("connection__to_node", ["branch2", "bus3"]),
+            ("connection__to_node", ["branch3", "bus4"]),
+            ("connection__to_node", ["branch4", "bus4"]),
+            ("connection__to_node", ["branch5", "bus5"]),
+            ("connection__to_node", ["branch6", "bus6"]),
+            ("connection__to_node", ["branch7", "bus6"]),
+            ("connection__to_node", ["branch8", "bus7"]),
+            ("connection__to_node", ["branch9", "bus7"]),
             ("connection__to_node", ["branch10", "bus8"]),
             ("connection__to_node", ["branch11", "bus9"]),
             ("connection__to_node", ["branch12", "bus10"]),
@@ -113,7 +113,7 @@ function create_db(url::String; username::String="")
             ("connection__to_node", ["branch39", "bus30"]),
             ("connection__to_node", ["branch40", "bus28"]),
             ("connection__to_node", ["branch41", "bus28"]),
-        ]
+        ],
     )
     db_api.import_object_parameters(
         db_map,
@@ -135,8 +135,8 @@ function create_db(url::String; username::String="")
             ("connection", "tap_ratio", 1),
             ("connection", "shift_angle", 0),
             ("connection", "charging_susceptance", 0),
-            ("connection", "long_term_rating")
-        ]
+            ("connection", "long_term_rating"),
+        ],
     )
     db_api.import_object_parameter_values(
         db_map,
@@ -340,8 +340,8 @@ function create_db(url::String; username::String="")
             ("connection", "branch11", "tap_ratio", 0.978),
             ("connection", "branch12", "tap_ratio", 0.969),
             ("connection", "branch15", "tap_ratio", 0.932),
-            ("connection", "branch36", "tap_ratio", 0.968)
-        ]
+            ("connection", "branch36", "tap_ratio", 0.968),
+        ],
     )
     try
         db_map.commit_session("First commit.")

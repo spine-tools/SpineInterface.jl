@@ -66,54 +66,52 @@ function __init__()
         copy!(db_api, pyimport("spinedb_api"))
     catch err
         if err isa PyCall.PyError
-            error(
-                """
-                The required Python package `spinedb_api` could not be found in the current Python environment
+            error("""
+                  The required Python package `spinedb_api` could not be found in the current Python environment
 
-                    $(PyCall.pyprogramname)
+                      $(PyCall.pyprogramname)
 
-                You can fix this in two different ways:
+                  You can fix this in two different ways:
 
-                A. Install `spinedb_api` in the current Python environment; open a terminal (command prompt on Windows) and run
+                  A. Install `spinedb_api` in the current Python environment; open a terminal (command prompt on Windows) and run
 
-                    $(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
+                      $(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
 
-                B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run
+                  B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run
 
-                    ENV["PYTHON"] = "... path of the python executable ..."
-                    Pkg.build("PyCall")
+                      ENV["PYTHON"] = "... path of the python executable ..."
+                      Pkg.build("PyCall")
 
-                And restart Julia.
-                """
-            )
+                  And restart Julia.
+                  """)
         else
             rethrow()
         end
     end
     current_version = VersionNumber(db_api.__version__)
-    current_version >= required_spinedb_api_version || error(
+    if current_version < required_spinedb_api_version
+        error("""
+              The required version of `spinedb_api` could not be found in the current Python environment
+
+                  $(PyCall.pyprogramname)
+
+              You can fix this in two different ways:
+
+              A. Upgrade `spinedb_api` to its latest version in the current Python environment; open a terminal (command prompt on Windows) and run
+
+                  $(PyCall.pyprogramname) -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'
+
+              B. Switch to another Python environment that has the latest version of `spinedb_api` installed; from Julia, run
+
+                  ENV["PYTHON"] = "... path of the python executable ..."
+                  Pkg.build("PyCall")
+
+              And restart Julia.
+              """)
+        py"""
+        from datetime import datetime
         """
-        The required version of `spinedb_api` could not be found in the current Python environment
-
-            $(PyCall.pyprogramname)
-
-        You can fix this in two different ways:
-
-        A. Upgrade `spinedb_api` to its latest version in the current Python environment; open a terminal (command prompt on Windows) and run
-
-            $(PyCall.pyprogramname) -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'
-
-        B. Switch to another Python environment that has the latest version of `spinedb_api` installed; from Julia, run
-
-            ENV["PYTHON"] = "... path of the python executable ..."
-            Pkg.build("PyCall")
-
-        And restart Julia.
-        """
-    )
-    py"""
-    from datetime import datetime
-    """
+    end
     pytype_mapping(db_api."parameter_value"."DateTime", DateTime_)
     pytype_mapping(db_api."parameter_value"."Duration", Duration)
     pytype_mapping(db_api."parameter_value"."TimePattern", TimePattern)

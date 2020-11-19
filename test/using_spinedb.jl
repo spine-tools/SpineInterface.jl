@@ -36,18 +36,17 @@
         FIFA = Object(:FIFA)
         @test FIFA.id === max_object_id + 1
         Spine = institution(:Spine)
-        @test members(Spine) == institution()[1:end - 1]
+        @test members(Spine) == institution()[1:end-1]
         @test isempty(groups(Spine))
-        @testset for i in institution()[1:end - 1]
+        @testset for i in institution()[1:end-1]
             @test members(i) == [i]
             @test groups(i) == [Spine]
         end
     end
     @testset "relationship_class" begin
         object_classes = ["institution", "country"]
-        relationship_classes = [
-            ["institution__country", ["institution", "country"]], ["country__neighbour", ["country", "country"]]
-        ]
+        relationship_classes =
+            [["institution__country", ["institution", "country"]], ["country__neighbour", ["country", "country"]]]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
@@ -63,30 +62,29 @@
         country_neighbour_tuples = [["Sweden", "Finland"], ["France", "Belgium"]]
         relationships = vcat(
             [["institution__country", x] for x in institution_country_tuples],
-            [["country__neighbour", x] for x in country_neighbour_tuples]
+            [["country__neighbour", x] for x in country_neighbour_tuples],
         )
         db_api.create_new_spine_database(url)
         db_api.import_data_to_url(
-            url; 
-            object_classes=object_classes, 
-            relationship_classes=relationship_classes, 
-            objects=objects, 
-            relationships=relationships
-           )
+            url;
+            object_classes=object_classes,
+            relationship_classes=relationship_classes,
+            objects=objects,
+            relationships=relationships,
+        )
         using_spinedb(url)
         @test length(institution__country()) === 7
         @test all(x isa RelationshipLike for x in institution__country())
         @test [x.name for x in institution__country(country=country(:France))] == [:KTH, :ER]
         @test [x.name for x in institution__country(institution=institution(:KTH))] == [:Sweden, :France]
-        @test [(x.name, y.name) for (x, y) in institution__country(country=country(:France), _compact=false)] == [
-            (:KTH, :France), (:ER, :France)
-        ]
-        @test [(x.name, y.name) for (x, y) in institution__country()] == [
-            (Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples
-        ]
+        @test [(x.name, y.name) for (x, y) in institution__country(country=country(:France), _compact=false)] == [(:KTH, :France), (:ER, :France)]
+        @test [(x.name, y.name) for (x, y) in institution__country()] == [(Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples]
         @test isempty(institution__country(country=country(:France), institution=institution(:KTH)))
         @test institution__country(
-            country=country(:France), institution=institution(:VTT), _compact=false, _default=10
+            country=country(:France),
+            institution=institution(:VTT),
+            _compact=false,
+            _default=10,
         ) == 10
         @test length(country__neighbour()) === 2
         @test all(x isa RelationshipLike for x in country__neighbour())
@@ -103,10 +101,7 @@
         institutions = ["KTH", "VTT"]
         countries = ["Sweden", "France"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
-        relationships = [
-            ["institution__country", ["KTH", "Sweden"]],
-            ["institution__country", ["KTH", "France"]],
-        ]
+        relationships = [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]]
         object_parameter_values = [["institution", "KTH", "since_year", 1827]]
         relationship_parameter_values = [
             ["institution__country", ["KTH", "Sweden"], "people_count", 3],
@@ -114,16 +109,16 @@
         ]
         db_api.create_new_spine_database(url)
         db_api.import_data_to_url(
-            url; 
-            object_classes=object_classes, 
-            relationship_classes=relationship_classes, 
-            objects=objects, 
+            url;
+            object_classes=object_classes,
+            relationship_classes=relationship_classes,
+            objects=objects,
             relationships=relationships,
             object_parameters=object_parameters,
             relationship_parameters=relationship_parameters,
             object_parameter_values=object_parameter_values,
             relationship_parameter_values=relationship_parameter_values,
-           )
+        )
         using_spinedb(url)
         @test all(x isa RelationshipLike for x in institution__country())
         @test people_count(institution=institution(:KTH), country=country(:France)) == 1
@@ -142,12 +137,7 @@ end
     objects = [["country", "France"]]
     object_parameters = [["country", "apero_time"]]
     db_api.create_new_spine_database(url)
-    db_api.import_data_to_url(
-        url; 
-        object_classes=object_classes, 
-        objects=objects, 
-        object_parameters=object_parameters
-    )
+    db_api.import_data_to_url(url; object_classes=object_classes, objects=objects, object_parameters=object_parameters)
     @testset "true" begin
         object_parameter_values = [["country", "France", "apero_time", true]]
         db_api.import_data_to_url(url; object_parameter_values=object_parameter_values)
@@ -242,46 +232,49 @@ end
         object_classes = ["scenario"]
         objects = [["scenario", "drunk"], ["scenario", "sober"]]
         value = Dict(
-            "type" => "map", 
-            "index_type" => "str", 
+            "type" => "map",
+            "index_type" => "str",
             "data" => Dict(
                 "drunk" => Dict(
-                    "type" => "map", 
-                    "index_type" => "date_time", 
+                    "type" => "map",
+                    "index_type" => "date_time",
                     "data" => Dict(
                         "1999-12-01T00:00" => Dict(
-                            "type" => "time_series", 
-                            "data" => PyVector([4.0, 5.6]), 
+                            "type" => "time_series",
+                            "data" => PyVector([4.0, 5.6]),
                             "index" => Dict(
-                                "start" => "2000-01-01T00:00:00", 
+                                "start" => "2000-01-01T00:00:00",
                                 "resolution" => "1M",
-                                "repeat" => false, 
-                                "ignore_year" => true
-                            )
-                        )
-                    )
+                                "repeat" => false,
+                                "ignore_year" => true,
+                            ),
+                        ),
+                    ),
                 ),
                 "sober" => Dict(
-                    "type" => "map", 
-                    "index_type" => "date_time", 
+                    "type" => "map",
+                    "index_type" => "date_time",
                     "data" => Dict(
                         "1999-12-01T00:00" => Dict(
-                            "type" => "time_series", 
-                            "data" => PyVector([2.1, 1.8]), 
+                            "type" => "time_series",
+                            "data" => PyVector([2.1, 1.8]),
                             "index" => Dict(
-                                "start" => "2000-01-01T00:00:00", 
+                                "start" => "2000-01-01T00:00:00",
                                 "resolution" => "1M",
-                                "repeat" => false, 
-                                "ignore_year" => true
-                            )
-                        )
-                    )
-                )
-            )
+                                "repeat" => false,
+                                "ignore_year" => true,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
         )
         object_parameter_values = [["country", "France", "apero_time", value]]
         db_api.import_data_to_url(
-            url; object_classes=object_classes, objects=objects, object_parameter_values=object_parameter_values
+            url;
+            object_classes=object_classes,
+            objects=objects,
+            object_parameter_values=object_parameter_values,
         )
         using_spinedb(url)
         France = country(:France)
@@ -291,11 +284,11 @@ end
         t1_2 = TimeSlice(DateTime(2000, 1), DateTime(2000, 2))
         t1_3 = TimeSlice(DateTime(2000, 1), DateTime(2000, 3))
         t2_3 = TimeSlice(DateTime(2000, 2), DateTime(2000, 3))
-        @test apero_time(;country=France, s=drunk, t0=t0, t=t2_3) == 5.6
-        @test apero_time(;country=France, s=drunk, t0=t0, t=t1_3) == (4.0 + 5.6) / 2
-        @test apero_time(;country=France, s=sober, t0=t0, t=t1_2) == 2.1
-        @test apero_time(;country=France, s=sober, t0=t0, t=t1_3) == (2.1 + 1.8) / 2
-        @test apero_time(;country=France, s=drunk, whatever=:whatever, t0=t0, t=t2_3) == 5.6
-        @test apero_time(;country=France, s=drunk, t0=t0, whocares=t0, t=t2_3) == 5.6
+        @test apero_time(; country=France, s=drunk, t0=t0, t=t2_3) == 5.6
+        @test apero_time(; country=France, s=drunk, t0=t0, t=t1_3) == (4.0 + 5.6) / 2
+        @test apero_time(; country=France, s=sober, t0=t0, t=t1_2) == 2.1
+        @test apero_time(; country=France, s=sober, t0=t0, t=t1_3) == (2.1 + 1.8) / 2
+        @test apero_time(; country=France, s=drunk, whatever=:whatever, t0=t0, t=t2_3) == 5.6
+        @test apero_time(; country=France, s=drunk, t0=t0, whocares=t0, t=t2_3) == 5.6
     end
 end

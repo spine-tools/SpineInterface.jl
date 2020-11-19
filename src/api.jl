@@ -59,7 +59,7 @@ julia> commodity(state_of_matter=:gas)
 
 ```
 """
-function (oc::ObjectClass)(;kwargs...)
+function (oc::ObjectClass)(; kwargs...)
     isempty(kwargs) && return oc.objects
     function cond(o)
         for (p, v) in kwargs
@@ -130,7 +130,7 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 
 ```
 """
-function (rc::RelationshipClass)(;_compact::Bool=true, _default::Any=[], kwargs...)
+function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
     lookup_key = Tuple(_immutable(get(kwargs, oc, nothing)) for oc in rc.object_class_names)
     relationships = get!(rc.lookup_cache[_compact], lookup_key) do
@@ -262,10 +262,9 @@ julia> collect(indices(demand))
 """
 function indices(p::Parameter; kwargs...)
     (
-        ent
-        for class in p.classes
-        for ent in _entities(class; kwargs...)
-        if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
+        ent for class in p.classes for
+        ent in _entities(class; kwargs...) if
+        _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
 end
 
@@ -318,10 +317,10 @@ Determine whether `b` is contained in `a`.
 """
 iscontained(b::TimeSlice, a::TimeSlice) = start(b) >= start(a) && end_(b) <= end_(a)
 iscontained(b::DateTime, a::TimeSlice) = start(a) <= b <= end_(a)
-iscontained(::Nothing, ::T) where T = false
+iscontained(::Nothing, ::T) where {T} = false
 
 contains(a, b) = iscontained(b, a)
-contains(::Nothing, ::T) where T = false
+contains(::Nothing, ::T) where {T} = false
 
 """
     overlaps(a::TimeSlice, b::TimeSlice)
@@ -331,7 +330,13 @@ Determine whether `a` and `b` overlap.
 overlaps(a::TimeSlice, b::TimeSlice) = start(a) <= start(b) < end_(a) || start(b) <= start(a) < end_(b)
 function overlaps(t::TimeSlice, pc::PeriodCollection)
     funcs = Dict{Symbol,Function}(
-        :Y => year, :M => month, :D => day, :WD => dayofweek, :h => hour, :m => minute, :s => second,
+        :Y => year,
+        :M => month,
+        :D => day,
+        :WD => dayofweek,
+        :h => hour,
+        :m => minute,
+        :s => second,
     )
     for name in fieldnames(PeriodCollection)
         field = getfield(pc, name)
@@ -412,7 +417,7 @@ t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
 Return the modified `relationship_class`.
 """
-function add_relationships!(relationship_class::RelationshipClass, relationships::Array{T,1}) where T
+function add_relationships!(relationship_class::RelationshipClass, relationships::Array{T,1}) where {T}
     setdiff!(relationships, relationship_class.relationships)
     append!(relationship_class.relationships, relationships)
     merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
@@ -429,7 +434,7 @@ end
 Remove from `objects` everything that's already in `object_class`, and append the rest.
 Return the modified `object_class`.
 """
-function add_objects!(object_class::ObjectClass, objects::Array{T,1}) where T
+function add_objects!(object_class::ObjectClass, objects::Array{T,1}) where {T}
     setdiff!(objects, object_class.objects)
     append!(object_class.objects, objects)
     merge!(object_class.parameter_values, Dict(obj => Dict() for obj in objects))
@@ -494,11 +499,12 @@ Create parameter in `db_map`, with given `name` and `data`.
 Link the parameter to given `report` object.
 """
 function write_parameter!(
-        db_map::PyObject,
-        name,
-        data::Dict{K,V};
-        for_object::Bool=true,
-        report::String="") where {K<:NamedTuple,V}
+    db_map::PyObject,
+    name,
+    data::Dict{K,V};
+    for_object::Bool=true,
+    report::String="",
+) where {K<:NamedTuple,V}
     object_classes = []
     object_parameters = []
     objects = []
@@ -577,20 +583,24 @@ mapping object or relationship (`NamedTuple`) to values.
 - `<parameters>`: a dictionary mapping
 """
 function write_parameters(
-        parameters::Dict{T,Dict{K,V}}, 
-        dest_url::String; 
-        upgrade=true, 
-        create=true, 
-        for_object=true, 
-        report="", 
-        comment=""
-    ) where {T,K<:NamedTuple,V}
+    parameters::Dict{T,Dict{K,V}},
+    dest_url::String;
+    upgrade=true,
+    create=true,
+    for_object=true,
+    report="",
+    comment="",
+) where {T,K<:NamedTuple,V}
     db_map = db_api.QuickDatabaseMapping(dest_url; upgrade=upgrade, create=create)
     write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
 end
 function write_parameters(
-        parameters::Dict{T,Dict{K,V}}, db_map::PyObject; for_object=true, report="", comment=""
-    ) where {T,K<:NamedTuple,V}
+    parameters::Dict{T,Dict{K,V}},
+    db_map::PyObject;
+    for_object=true,
+    report="",
+    comment="",
+) where {T,K<:NamedTuple,V}
     added = 0
     for (name, data) in parameters
         added += write_parameter!(db_map, name, data; report=report)
@@ -615,17 +625,15 @@ function DiffDatabaseMapping(db_url::String; upgrade=false, create=false)
         db_api.DiffDatabaseMapping(db_url, upgrade=upgrade, create=create)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
-            error(
-                """
-                The database at '$db_url' is from an older version of Spine
-                and needs to be upgraded in order to be used with the current version.
+            error("""
+                  The database at '$db_url' is from an older version of Spine
+                  and needs to be upgraded in order to be used with the current version.
 
-                You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
+                  You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
 
-                WARNING: After the upgrade, the database may no longer be used
-                with previous versions of Spine.
-                """
-            )
+                  WARNING: After the upgrade, the database may no longer be used
+                  with previous versions of Spine.
+                  """)
         else
             rethrow()
         end

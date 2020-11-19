@@ -38,7 +38,7 @@
     color = Parameter(:color, [studio__duck])
     uses_pants = Parameter(:uses_pants, [studio__duck])
     t = TimeSlice(DateTime(0), DateTime(1))
-    @test !uses_pants(studio=studio(:WB), duck=duck(:Daffy), t=t) 
+    @test !uses_pants(studio=studio(:WB), duck=duck(:Daffy), t=t)
     @test uses_pants(studio=studio(:Disney), duck=duck(:Donald), t=t) == 1.0
     @test uses_pants(studio=studio(:WB), duck=duck(:Donald), t=t, _strict=false) === nothing
     @test_throws ErrorException uses_pants(studio=studio(:Disney), duck=duck(:Daffy))

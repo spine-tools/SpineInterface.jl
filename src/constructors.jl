@@ -39,8 +39,8 @@ function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_
     TimeSlice(start, end_, dur, blocks)
 end
 
-Map(inds::Array{String,1}, vals::Array{V,1}) where V = Map(Symbol.(inds), vals)
-Map(inds::Array{DateTime_,1}, vals::Array{V,1}) where V = Map([ind.value for ind in inds], vals)
+Map(inds::Array{String,1}, vals::Array{V,1}) where {V} = Map(Symbol.(inds), vals)
+Map(inds::Array{DateTime_,1}, vals::Array{V,1}) where {V} = Map([ind.value for ind in inds], vals)
 
 """
     PeriodCollection(spec::String)
@@ -58,7 +58,7 @@ function PeriodCollection(spec::String)
             m = Base.match(regexp, interval)
             m === nothing && error("invalid interval specification $interval.")
             key = m.match
-            start_stop = interval[length(key) + 1:end]
+            start_stop = interval[length(key)+1:end]
             start_stop = split(start_stop, range_op)
             length(start_stop) != 2 && error("invalid interval specification $interval.")
             start_str, stop_str = start_stop
@@ -77,7 +77,7 @@ function PeriodCollection(spec::String)
             push!(arr, range(start, stop=stop))
         end
     end
-    PeriodCollection(;kwargs...)
+    PeriodCollection(; kwargs...)
 end
 
 ScalarParameterValue(s::String) = ScalarParameterValue(Symbol(s))
@@ -109,22 +109,24 @@ Call(other::Call) = copy(other)
 Call(n) = IdentityCall(n)
 
 OperatorCall(op::Function, x, y) = OperatorCall(op, [x, y])
-function OperatorCall(op::Function, x::OperatorCall{T}, y::OperatorCall{S}) where {T <: Function, S <: Function}
+function OperatorCall(op::Function, x::OperatorCall{T}, y::OperatorCall{S}) where {T<:Function,S<:Function}
     OperatorCall(op, [x, y])
 end
-OperatorCall(op::T, x::OperatorCall{T}, y) where T <: Function = OperatorCall(_is_associative(T), op, x, y)
-OperatorCall(op::T, x, y::OperatorCall{T}) where T <: Function = OperatorCall(_is_associative(T), op, x, y)
-function OperatorCall(op::T, x::OperatorCall{T}, y::OperatorCall{T}) where T <: Function
+OperatorCall(op::T, x::OperatorCall{T}, y) where {T<:Function} = OperatorCall(_is_associative(T), op, x, y)
+OperatorCall(op::T, x, y::OperatorCall{T}) where {T<:Function} = OperatorCall(_is_associative(T), op, x, y)
+function OperatorCall(op::T, x::OperatorCall{T}, y::OperatorCall{T}) where {T<:Function}
     OperatorCall(_is_associative(T), op, x, y)
 end
 
-OperatorCall(is_associative::Val{true}, op::T, x::OperatorCall{T}, y) where T <: Function = OperatorCall(op, [x.args; y])
-OperatorCall(is_associative::Val{true}, op::T, x, y::OperatorCall{T}) where T <: Function = OperatorCall(op, [x; y.args])
-function OperatorCall(is_associative::Val{true}, op::T, x::OperatorCall{T}, y::OperatorCall{T}) where T <: Function
+OperatorCall(is_associative::Val{true}, op::T, x::OperatorCall{T}, y) where {T<:Function} =
+    OperatorCall(op, [x.args; y])
+OperatorCall(is_associative::Val{true}, op::T, x, y::OperatorCall{T}) where {T<:Function} =
+    OperatorCall(op, [x; y.args])
+function OperatorCall(is_associative::Val{true}, op::T, x::OperatorCall{T}, y::OperatorCall{T}) where {T<:Function}
     OperatorCall(op, [x.args; y.args])
 end
-OperatorCall(is_associative::Val{false}, op::T, x, y::OperatorCall{T}) where T <: Function = OperatorCall(op, [x, y])
-OperatorCall(is_associative::Val{false}, op::T, x::OperatorCall{T}, y) where T <: Function = OperatorCall(op, [x, y])
-function OperatorCall(is_associative::Val{false}, op::T, x::OperatorCall{T}, y::OperatorCall{T}) where T <: Function
+OperatorCall(is_associative::Val{false}, op::T, x, y::OperatorCall{T}) where {T<:Function} = OperatorCall(op, [x, y])
+OperatorCall(is_associative::Val{false}, op::T, x::OperatorCall{T}, y) where {T<:Function} = OperatorCall(op, [x, y])
+function OperatorCall(is_associative::Val{false}, op::T, x::OperatorCall{T}, y::OperatorCall{T}) where {T<:Function}
     OperatorCall(op, [x, y])
 end
