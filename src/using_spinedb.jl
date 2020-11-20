@@ -96,17 +96,9 @@ function _parameter_values_per_entity(param_values)
 end
 
 
-function _try_parameter_value_from_db(db_value, err_msg)
-    try
-        val = db_api.from_database(db_value)
-        parameter_value(db_api.from_database(db_value))
-    catch e
-        if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
-            rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
-        else
-            rethrow()
-        end
-    end
+function _parameter_value_from_db(db_value, err_msg)
+    val = db_api.from_database(db_value)
+    parameter_value(db_api.from_database(db_value))
 end
 
 """
@@ -115,7 +107,7 @@ A Dict mapping parameter names to their default values.
 function _default_parameter_values(param_defs)
     Dict(
         Symbol(def["name"]) =>
-            _try_parameter_value_from_db(def["default_value"], "unable to parse default value of `$(def["name"])`")
+            _parameter_value_from_db(def["default_value"], "unable to parse default value of `$(def["name"])`")
         for def in param_defs
     )
 end
@@ -126,7 +118,7 @@ A Dict mapping parameter names to their values for a given entity.
 function _parameter_values(entity, param_defs, param_vals_per_ent)
     Dict(
         Symbol(parameter_name) =>
-            _try_parameter_value_from_db(value, "unable to parse value of `$parameter_name` for `$(entity["name"])`")
+            _parameter_value_from_db(value, "unable to parse value of `$parameter_name` for `$(entity["name"])`")
         for
         (parameter_name, value) in
         ((def["name"], get(param_vals_per_ent, (def["id"], entity["id"]), nothing)) for def in param_defs) if
@@ -220,8 +212,17 @@ how to call the convenience functors.
 """
 function using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
     db_map = db_api.QuickDatabaseMapping(db_url; upgrade=upgrade)
-    using_spinedb(db_map, mod)
-    db_map.connection.close()
+    try
+        using_spinedb(db_map, mod)
+    catch e
+        if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
+            rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
+        else
+            rethrow()
+        end
+    finally
+        db_map.connection.close()
+    end
 end
 function using_spinedb(db_map::PyObject, mod=@__MODULE__; upgrade=false)
     object_classes = py"[x._asdict() for x in $db_map.query($db_map.object_class_sq)]"
