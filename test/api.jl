@@ -18,7 +18,7 @@
 #############################################################################
 
 @testset "indices" begin
-    url = "sqlite:///$(@__DIR__)/test.sqlite"
+    url = "sqlite://"
     object_classes = ["institution", "country"]
     relationship_classes = [["institution__country", ["institution", "country"]]]
     object_parameters = [["institution", "since_year"]]
@@ -32,9 +32,9 @@
         ["institution__country", ["KTH", "Sweden"], "people_count", 3],
         ["institution__country", ["KTH", "France"], "people_count", 1],
     ]
-    db_api.create_new_spine_database(url)
-    db_api.import_data_to_url(
-        url;
+    db_map = db_api.QuickDatabaseMapping(url, create=true)
+    db_api.import_data(
+        db_map;
         object_classes=object_classes,
         relationship_classes=relationship_classes,
         objects=objects,
@@ -44,7 +44,8 @@
         object_parameter_values=object_parameter_values,
         relationship_parameter_values=relationship_parameter_values,
     )
-    using_spinedb(url)
+    db_map.commit_session("No comment")
+    using_spinedb(db_map)
     @test collect(indices(people_count)) == [
         (institution=institution(:KTH), country=country(:Sweden)),
         (institution=institution(:KTH), country=country(:France)),
@@ -83,14 +84,15 @@ end
     @test end_(t0_2) == DateTime(2, 1, 1, 0, 44)
 end
 @testset "add_entities" begin
-    url = "sqlite:///$(@__DIR__)/test.sqlite"
+    url = "sqlite://"
     @testset "add_objects" begin
         object_classes = ["institution"]
         institutions = ["VTT", "KTH"]
         objects = [["institution", x] for x in institutions]
-        db_api.create_new_spine_database(url)
-        db_api.import_data_to_url(url; object_classes=object_classes, objects=objects)
-        using_spinedb(url)
+        db_map = db_api.QuickDatabaseMapping(url, create=true)
+        db_api.import_data(db_map; object_classes=object_classes, objects=objects)
+        db_map.commit_session("No comment")
+        using_spinedb(db_map)
         @test length(institution()) === 2
         add_objects!(institution, [institution()[1], Object(:KUL), Object(:ER)])
         @test length(institution()) === 4
@@ -108,15 +110,16 @@ end
         object_tuples =
             [["VTT", "Finland"], ["KTH", "Sweden"], ["KTH", "France"], ["KUL", "Belgium"], ["UCD", "Ireland"]]
         relationships = [["institution__country", x] for x in object_tuples]
-        db_api.create_new_spine_database(url)
-        db_api.import_data_to_url(
-            url;
+        db_map = db_api.QuickDatabaseMapping(url, create=true)
+        db_api.import_data(
+            db_map;
             object_classes=object_classes,
             relationship_classes=relationship_classes,
             objects=objects,
             relationships=relationships,
         )
-        using_spinedb(url)
+        db_map.commit_session("No comment")
+        using_spinedb(db_map)
         @test length(institution__country()) === 5
         add_relationships!(
             institution__country,
@@ -212,7 +215,7 @@ end
     @test is_varying(another_call)
 end
 @testset "maximum_parameter_value" begin
-    url = "sqlite:///$(@__DIR__)/test.sqlite"
+    url = "sqlite://"
     object_classes = ["institution", "country"]
     relationship_classes = [["institution__country", ["institution", "country"]]]
     relationship_parameters = [["institution__country", "people_count"]]
@@ -268,9 +271,9 @@ end
         ["institution__country", ["VTT", "Finland"], "people_count", map_value],
         ["institution__country", ["VTT", "Ireland"], "people_count", nothing],
     ]
-    db_api.create_new_spine_database(url)
-    db_api.import_data_to_url(
-        url;
+    db_map = db_api.QuickDatabaseMapping(url, create=true)
+    db_api.import_data(
+        db_map;
         object_classes=object_classes,
         relationship_classes=relationship_classes,
         objects=objects,
@@ -278,6 +281,7 @@ end
         relationship_parameters=relationship_parameters,
         relationship_parameter_values=relationship_parameter_values,
     )
-    using_spinedb(url)
+    db_map.commit_session("No comment")
+    using_spinedb(db_map)
     @test maximum_parameter_value(people_count) == 300.0
 end

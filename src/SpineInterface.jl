@@ -108,10 +108,10 @@ function __init__()
 
               And restart Julia.
               """)
-        py"""
-        from datetime import datetime
-        """
     end
+    py"""
+    from datetime import datetime
+    """
     pytype_mapping(db_api."parameter_value"."DateTime", DateTime_)
     pytype_mapping(db_api."parameter_value"."Duration", Duration)
     pytype_mapping(db_api."parameter_value"."TimePattern", TimePattern)
