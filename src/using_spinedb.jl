@@ -218,7 +218,7 @@ See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](
 how to call the convenience functors.
 """
 function using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
-    db_map = db_api.QuickDatabaseMapping(db_url; upgrade=upgrade)
+    db_map = db_api.DatabaseMapping(db_url; upgrade=upgrade)
     try
         using_spinedb(db_map, mod)
     catch e

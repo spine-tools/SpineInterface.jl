@@ -591,7 +591,7 @@ function write_parameters(
     report="",
     comment="",
 ) where {T,K<:NamedTuple,V}
-    db_map = db_api.QuickDatabaseMapping(dest_url; upgrade=upgrade, create=create)
+    db_map = db_api.DatabaseMapping(dest_url; upgrade=upgrade, create=create)
     write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
 end
 function write_parameters(

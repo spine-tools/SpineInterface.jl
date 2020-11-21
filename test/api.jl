@@ -32,7 +32,7 @@
         ["institution__country", ["KTH", "Sweden"], "people_count", 3],
         ["institution__country", ["KTH", "France"], "people_count", 1],
     ]
-    db_map = db_api.QuickDatabaseMapping(url, create=true)
+    db_map = db_api.DatabaseMapping(url, create=true)
     db_api.import_data(
         db_map;
         object_classes=object_classes,
@@ -89,7 +89,7 @@ end
         object_classes = ["institution"]
         institutions = ["VTT", "KTH"]
         objects = [["institution", x] for x in institutions]
-        db_map = db_api.QuickDatabaseMapping(url, create=true)
+        db_map = db_api.DatabaseMapping(url, create=true)
         db_api.import_data(db_map; object_classes=object_classes, objects=objects)
         db_map.commit_session("No comment")
         using_spinedb(db_map)
@@ -110,7 +110,7 @@ end
         object_tuples =
             [["VTT", "Finland"], ["KTH", "Sweden"], ["KTH", "France"], ["KUL", "Belgium"], ["UCD", "Ireland"]]
         relationships = [["institution__country", x] for x in object_tuples]
-        db_map = db_api.QuickDatabaseMapping(url, create=true)
+        db_map = db_api.DatabaseMapping(url, create=true)
         db_api.import_data(
             db_map;
             object_classes=object_classes,
@@ -271,7 +271,7 @@ end
         ["institution__country", ["VTT", "Finland"], "people_count", map_value],
         ["institution__country", ["VTT", "Ireland"], "people_count", nothing],
     ]
-    db_map = db_api.QuickDatabaseMapping(url, create=true)
+    db_map = db_api.DatabaseMapping(url, create=true)
     db_api.import_data(
         db_map;
         object_classes=object_classes,

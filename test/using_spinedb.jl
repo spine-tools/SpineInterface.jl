@@ -23,7 +23,7 @@
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         objects = [["institution", x] for x in (institutions..., "Spine")]
         object_groups = [["institution", "Spine", x] for x in institutions]
-        db_map = db_api.QuickDatabaseMapping(url, create=true)
+        db_map = db_api.DatabaseMapping(url, create=true)
         db_api.import_data(db_map; object_classes=object_classes, objects=objects, object_groups=object_groups)
         db_map.commit_session("No comment")
         using_spinedb(db_map)
@@ -65,7 +65,7 @@
             [["institution__country", x] for x in institution_country_tuples],
             [["country__neighbour", x] for x in country_neighbour_tuples],
         )
-        db_map = db_api.QuickDatabaseMapping(url, create=true)
+        db_map = db_api.DatabaseMapping(url, create=true)
         db_api.import_data(
             db_map;
             object_classes=object_classes,
@@ -109,7 +109,7 @@
             ["institution__country", ["KTH", "Sweden"], "people_count", 3],
             ["institution__country", ["KTH", "France"], "people_count", 1],
         ]
-        db_map = db_api.QuickDatabaseMapping(url, create=true)        
+        db_map = db_api.DatabaseMapping(url, create=true)        
         db_api.import_data(
             db_map;
             object_classes=object_classes,
@@ -139,7 +139,7 @@ end
     object_classes = ["country"]
     objects = [["country", "France"]]
     object_parameters = [["country", "apero_time"]]
-    db_map = db_api.QuickDatabaseMapping(url, create=true)
+    db_map = db_api.DatabaseMapping(url, create=true)
     db_api.import_data(db_map; object_classes=object_classes, objects=objects, object_parameters=object_parameters)
     @testset "true" begin
         object_parameter_values = [["country", "France", "apero_time", true]]
