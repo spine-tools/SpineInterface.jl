@@ -513,7 +513,6 @@ function write_parameter!(
     relationship_parameters = []
     relationships = []
     relationship_parameter_values = []
-    alternatives = [("Base", "Base alternative")]
     !isempty(report) && pushfirst!(object_classes, "report")
     for obj_cls_names in unique(keys(key) for key in keys(data))
         str_obj_cls_names = [string(x) for x in obj_cls_names]
@@ -552,7 +551,6 @@ function write_parameter!(
     end
     added, err_log = db_api.import_data(
         db_map,
-        alternatives=alternatives,
         object_classes=object_classes,
         relationship_classes=relationship_classes,
         object_parameters=object_parameters,
