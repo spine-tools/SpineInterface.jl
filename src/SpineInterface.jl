@@ -2,7 +2,6 @@ module SpineInterface
 
 using PyCall
 using Dates
-using Suppressor
 using Statistics
 using DataStructures
 
