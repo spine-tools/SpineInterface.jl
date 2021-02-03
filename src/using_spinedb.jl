@@ -95,16 +95,11 @@ function _parameter_values_per_entity(param_values)
     )
 end
 
-
 function _try_parameter_value_from_db(db_value, err_msg)
     try
-        parameter_value(db_api.from_database(db_value))
+        parameter_value(_parse_db_value(db_value))
     catch e
-        if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
-            rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
-        else
-            rethrow()
-        end
+        rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
     end
 end
 
@@ -208,37 +203,65 @@ function _class_names_per_parameter(classes, param_defs)
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
 end
 
-"""
-    using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
+_query(db_map::PyObject, sq::Symbol) = py"[x._asdict() for x in $db_map.query($(getproperty(db_map, sq)))]"
 
-Extend module `mod` with convenience functions to access the contents of the Spine db at the given RFC-1738 `url`.
+function _get_data(server_uri::URI)
+    _communicate(
+        server_uri, 
+        "get_data", 
+        "object_class_sq", 
+        "wide_relationship_class_sq",
+        "object_sq",
+        "entity_group_sq",
+        "wide_relationship_sq",
+        "parameter_definition_sq",
+        "parameter_value_sq"
+    )
+end
+function _get_data(db_map::PyObject)
+    Dict(
+        name => _query(db_map, Symbol(name))
+        for name in (
+            "object_class_sq",
+            "wide_relationship_class_sq",
+            "object_sq",
+            "entity_group_sq",
+            "wide_relationship_sq",
+            "parameter_definition_sq",
+            "parameter_value_sq",
+        )
+    )
+end
+
+"""
+    using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
+
+Extend module `mod` with convenience functions to access the contents of a Spine DB.
+The argument `url` is either the url of the DB, or of an HTTP Spine DB server associated with it.
 If `upgrade` is `true`, then the database is upgraded to the latest revision.
 
 See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details on
 how to call the convenience functors.
 """
-function using_spinedb(db_url::String, mod=@__MODULE__; upgrade=false)
-    db_map = db_api.DatabaseMapping(db_url; upgrade=upgrade)
-    try
-        using_spinedb(db_map, mod)
-    catch e
-        if e isa PyCall.PyError && e.T == db_api.ParameterValueFormatError
-            rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
-        else
-            rethrow()
+function using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
+    uri = URI(url)
+    if uri.scheme == "http"
+        using_spinedb(uri, mod)
+    else
+        _create_db_map(url; upgrade=upgrade) do db_map
+            using_spinedb(db_map, mod)
         end
-    finally
-        db_map.connection.close()
     end
 end
-function using_spinedb(db_map::PyObject, mod=@__MODULE__; upgrade=false)
-    object_classes = py"[x._asdict() for x in $db_map.query($db_map.object_class_sq)]"
-    relationship_classes = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_class_sq)]"
-    objects = py"[x._asdict() for x in $db_map.query($db_map.object_sq)]"
-    groups = py"[x._asdict() for x in $db_map.query($db_map.entity_group_sq)]"
-    relationships = py"[x._asdict() for x in $db_map.query($db_map.wide_relationship_sq)]"
-    param_defs = py"[x._asdict() for x in $db_map.query($db_map.parameter_definition_sq)]"
-    param_vals = py"[x._asdict() for x in $db_map.query($db_map.parameter_value_sq)]"
+function using_spinedb(db::Union{URI,PyObject}, mod=@__MODULE__)
+    data = _get_data(db)
+    object_classes = data["object_class_sq"]
+    relationship_classes = data["wide_relationship_class_sq"]
+    objects = data["object_sq"]
+    groups = data["entity_group_sq"]
+    relationships = data["wide_relationship_sq"]
+    param_defs = data["parameter_definition_sq"]
+    param_vals = data["parameter_value_sq"]
     members_per_group = _members_per_group(groups)
     groups_per_member = _groups_per_member(groups)
     full_objs_per_id = _full_objects_per_id(objects, members_per_group, groups_per_member)

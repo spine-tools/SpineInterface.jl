@@ -73,7 +73,7 @@
     val_copy = copy(val)
     @test val_copy isa SpineInterface.ScalarParameterValue
     @test val_copy() === 10
-    val = parameter_value(SpineInterface.Array_([4, 5, 6]))
+    val = parameter_value([4, 5, 6])
     val_copy = copy(val)
     @test val_copy isa SpineInterface.ArrayParameterValue
     @test val_copy(i=1) === 4

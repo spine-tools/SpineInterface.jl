@@ -86,37 +86,6 @@ _is_associative(::typeof(*)) = Val(true)
 _first(x::Array) = first(x)
 _first(x) = x
 
-function _relativedelta_to_period(delta::PyObject)
-    # Add up till the day level
-    minutes = delta.minutes + 60 * (delta.hours + 24 * delta.days)
-    months = delta.months + 12 * delta.years
-    if months > 0
-        # No way the `relativedelta` implementation added beyond this point
-        Month(months)
-    else
-        Minute(minutes)
-    end
-end
-
-function _period_to_duration_string(period::T) where {T<:Period}
-    d = Dict(Minute => "m", Hour => "h", Day => "D", Month => "M", Year => "Y")
-    suffix = get(d, T, "m")
-    string(period.value, suffix)
-end
-
-function _period_collection_to_time_pattern_string(pc::PeriodCollection)
-    union_op = ","
-    intersection_op = ";"
-    range_op = "-"
-    arr = []
-    for name in fieldnames(PeriodCollection)
-        field = getfield(pc, name)
-        field === nothing && continue
-        push!(arr, join([string(name, first(a), range_op, last(a)) for a in field], union_op))
-    end
-    join(arr, intersection_op)
-end
-
 function _from_to_minute(m_start::DateTime, t_start::DateTime, t_end::DateTime)
     Minute(t_start - m_start).value + 1, Minute(t_end - m_start).value
 end
@@ -159,8 +128,6 @@ end
 (p::RepeatingTimeSeriesParameterValue)(; t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::RepeatingTimeSeriesParameterValue)(::Nothing) = p.value
 function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
-    p.value.indexes
-    p.span
     t_start = start(t)
     t_end = end_(t)
     p.value.ignore_year && (t_start -= Year(t_start))
@@ -348,4 +315,181 @@ function _sort_inds_vals(inds, vals)
         @warn("repeated indices $(sorted_inds[unique(nonunique_inds)]), taking only last one")
     end
     deleteat!(sorted_inds, nonunique_inds), deleteat!(sorted_vals, nonunique_inds)
+end
+
+# parse db values
+const db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
+const alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
+
+function _parse_date_time(data::String)
+    try
+        DateTime(data, db_df)
+    catch err
+        DateTime(data, alt_db_df)
+    end
+end
+
+function _parse_duration(data::String)
+    o = match(r"\D", data).offset  # position of first non-numeric character
+    quantity, unit = parse(Int64, data[1:o - 1]), strip(data[o:end])
+    key = (startswith(lowercase(unit), "month") || unit == "M") ? 'M' : lowercase(unit[1])
+    Dict('s' => Second, 'm' => Minute, 'h' => Hour, 'd' => Day, 'M' => Month, 'y' => Year)[key](quantity)
+end
+
+_inner_type_str(::Type{Float64}) = "float"
+_inner_type_str(::Type{String}) = "str"
+_inner_type_str(::Type{DateTime}) = "date_time"
+_inner_type_str(::Type{T}) where {T<:Period} = "duration"
+
+_parse_inner_value(::Val{:str}, value::String) = value
+_parse_inner_value(::Val{:float}, value::T) where T<:Number = Float64(value)
+_parse_inner_value(::Val{:duration}, value::String) = _parse_duration(value)
+_parse_inner_value(::Val{:date_time}, value::String) = _parse_date_time(value)
+
+_resolution_iterator(resolution::String) = (_parse_duration(resolution),)
+_resolution_iterator(resolution::Array{String,1}) = (_parse_duration(r) for r in resolution)
+
+function _collect_ts_indexes(start::String, resolution::String, len::Int64)
+    inds = DateTime[]
+    sizehint!(inds, len)
+    stamp = _parse_date_time(start)
+    res_iter = _resolution_iterator(resolution)
+    for (r, k) in zip(Iterators.cycle(res_iter), 1:len)
+        push!(inds, stamp)
+        stamp += r
+    end
+    inds
+end
+
+_map_inds_and_vals(data::Array) = (x[1] for x in data), (x[2] for x in data)
+_map_inds_and_vals(data::Dict) = keys(data), values(data)
+
+_parse_json(value) = value
+_parse_json(value::Dict) = _parse_json(Val(Symbol(value["type"])), value)
+_parse_json(::Val{:date_time}, value::Dict) = _parse_date_time(value["data"])
+_parse_json(::Val{:duration}, value::Dict) = _parse_duration(value["data"])
+_parse_json(::Val{:time_pattern}, value::Dict) = Dict(PeriodCollection(ind) => val for (ind, val) in value["data"])
+_parse_json(type::Val{:time_series}, value::Dict) = _parse_json(type, get(value, "index", Dict()), value["data"])
+function _parse_json(::Val{:time_series}, index::Dict, vals::Array)
+    ignore_year = get(index, "ignore_year", false)
+    inds = _collect_ts_indexes(index["start"], index["resolution"], length(vals))
+    ignore_year && (inds .-= Year.(inds))
+    TimeSeries(inds, Float64.(vals), ignore_year, get(index, "repeat", false))
+end
+function _parse_json(::Val{:time_series}, index::Dict, data::Dict)
+    ignore_year = get(index, "ignore_year", false)
+    inds = _parse_date_time.(keys(data))
+    ignore_year && (inds .-= Year.(inds))
+    vals = collect(Float64, values(data))
+    TimeSeries(inds, vals, ignore_year, get(index, "repeat", false))
+end
+_parse_json(type::Val{:array}, value::Dict) = _parse_inner_value.(Val(Symbol(value["value_type"])), value["data"])
+function _parse_json(::Val{:array}, ::Nothing, data::Array{T,1}) where T
+    _parse_inner_value.(Val(Symbol(_inner_type_str(T))), data)
+end
+function _parse_json(::Val{:map}, value::Dict)
+    raw_inds, raw_vals = _map_inds_and_vals(value["data"])
+    inds = _parse_inner_value.(Val(Symbol(value["index_type"])), raw_inds)
+    vals = _parse_json.(raw_vals)
+    Map(inds, vals)
+end
+
+_parse_db_value(::Nothing) = nothing
+_parse_db_value(db_value::String) = _parse_json(JSON.parse(db_value))
+
+# unparse db values
+_unparse_date_time(x::DateTime) = string(Dates.format(x, db_df))
+function _unparse_duration(x::T) where {T<:Period}
+    d = Dict(Minute => "m", Hour => "h", Day => "D", Month => "M", Year => "Y")
+    suffix = get(d, T, "m")
+    string(x.value, suffix)
+end
+
+_unparse_element(x::Union{Float64,String}) = x
+_unparse_element(x::DateTime) = _unparse_date_time(x)
+_unparse_element(x::T) where {T<:Period} = _unparse_duration(x)
+
+function _unparse_time_pattern(pc::PeriodCollection)
+    union_op = ","
+    intersection_op = ";"
+    range_op = "-"
+    arr = []
+    for name in fieldnames(PeriodCollection)
+        field = getfield(pc, name)
+        field === nothing && continue
+        push!(arr, join([string(name, first(a), range_op, last(a)) for a in field], union_op))
+    end
+    join(arr, intersection_op)
+end
+
+_unparse_db_value(x) = x
+_unparse_db_value(x::DateTime) = Dict("type" => "date_time", "data" => string(Dates.format(x, db_df)))
+_unparse_db_value(x::T) where {T<:Period} = Dict("type" => "duration", "data" => _unparse_duration(x))
+function _unparse_db_value(x::Array{T}) where T
+    Dict("type" => "array", "value_type" => _inner_type_str(T), "data" => _unparse_element.(x))
+end
+function _unparse_db_value(x::TimePattern)
+    Dict("type" => "time_pattern", "data" => Dict(_unparse_time_pattern(k) => v for (k, v) in x))
+end
+function _unparse_db_value(x::TimeSeries)
+    Dict(
+        "type" => "time_series",
+        "index" => Dict("repeat" => x.repeat, "ignore_year" => x.ignore_year),
+        "data" => OrderedDict(_unparse_date_time(i) => v for (i, v) in zip(x.indexes, x.values))
+    )
+end
+function _unparse_db_value(x::Map{K,V}) where {K,V}
+    Dict(
+        "type" => "map",
+        "index_type" => _inner_type_str(K),
+        "data" => [(i, _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)]
+    )
+end
+
+function _create_db_map(db_url::String; kwargs...)
+    _import_spinedb_api()
+    try
+        db_api.DatabaseMapping(db_url; kwargs...)
+    catch e
+        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
+            error("""
+                  The database at '$db_url' is from an older version of Spine
+                  and needs to be upgraded in order to be used with the current version.
+
+                  You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
+
+                  WARNING: After the upgrade, the database may no longer be used
+                  with previous versions of Spine.
+                  """)
+        else
+            rethrow()
+        end
+    end    
+end
+
+function _create_db_map(f::Function, db_url::String; kwargs...)
+    db_map = _create_db_map(db_url; kwargs...)
+    try
+        f(db_map)
+    finally
+        db_map.connection.close()
+    end
+end
+
+function _communicate(server_uri::URI, request::String, args...)
+    clientside = connect(server_uri.host, parse(Int, server_uri.port))
+    write(clientside, JSON.json([request, args]) * "\0")
+    io = IOBuffer()
+    while true
+        str = String(readavailable(clientside))
+        if isempty(str)
+            break
+        end
+        write(io, str)
+    end
+    close(clientside)
+    s = String(take!(io))
+    if !isempty(s)
+        JSON.parse(s)
+    end
 end

@@ -69,10 +69,10 @@ end
     @test iscontained(DateTime(2), t0_3)
     @test !iscontained(t0_2, t2_4)
     @test !iscontained(nothing, t3_6)
-    @test contains(t3_6, t4_6)
-    @test contains(t0_3, DateTime(0))
-    @test !contains(t0_3, t4_6)
-    @test !contains(nothing, t0_2)
+    @test SpineInterface.contains(t3_6, t4_6)
+    @test SpineInterface.contains(t0_3, DateTime(0))
+    @test !SpineInterface.contains(t0_3, t4_6)
+    @test !SpineInterface.contains(nothing, t0_2)
     @test overlaps(t2_4, t0_3)
     @test !overlaps(t2_4, t4_6)
     @test overlap_duration(t4_6, t3_6) == Hour(24 * (365 + 366)).value
@@ -151,8 +151,8 @@ end
         isfile(path) && rm(path)
         parameters = Dict(
             :apero_time => Dict(
-                (country=:France,) => SpineInterface.DateTime_(DateTime(1)),
-                (country=:Sweden, drink=:vodka) => SpineInterface.Duration(Hour(1)),
+                (country=:France,) => DateTime(1),
+                (country=:Sweden, drink=:vodka) => Hour(1),
             ),
         )
         write_parameters(parameters, url)
@@ -162,7 +162,7 @@ end
     end
     @testset "array" begin
         isfile(path) && rm(path)
-        parameters = Dict(:apero_time => Dict((country=:France,) => SpineInterface.Array_([1.0, 2.0, 3.0])))
+        parameters = Dict(:apero_time => Dict((country=:France,) => PyVector([1.0, 2.0, 3.0])))
         write_parameters(parameters, url)
         using_spinedb(url)
         @test apero_time(country=country(:France)) == [1, 2, 3]

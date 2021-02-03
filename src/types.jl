@@ -100,19 +100,7 @@ end
 # parameter value types
 # types returned by the parsing function `spinedb_api.from_database`
 # are automatically converted to these using `PyCall.pytype_mapping` as defined in the module's __init__ method.
-# This allows us to mutiple dispatch `callable`
-struct DateTime_
-    value::DateTime
-end
-
-struct Duration
-    value::Period
-end
-
-struct Array_{T}
-    value::Array{T,1}
-end
-
+# This allows us to mutiple dispatch `parameter_value`
 """
     PeriodCollection
 """

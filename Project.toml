@@ -1,10 +1,13 @@
 name = "SpineInterface"
 uuid = "0cda1612-498a-11e9-3c92-77fa82595a4f"
 authors = ["Spine Project consortium <spine_info@vtt.fi>"]
-version = "0.4.1"
+version = "0.5.0"
 
 [deps]
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+URIs = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"

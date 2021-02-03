@@ -40,7 +40,6 @@ function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_
 end
 
 Map(inds::Array{String,1}, vals::Array{V,1}) where {V} = Map(Symbol.(inds), vals)
-Map(inds::Array{DateTime_,1}, vals::Array{V,1}) where {V} = Map([ind.value for ind in inds], vals)
 
 """
     PeriodCollection(spec::String)
@@ -92,18 +91,6 @@ function TimeSeriesParameterValue(ts::TimeSeries{V}) where {V}
         StandardTimeSeriesParameterValue(ts)
     end
 end
-
-PyObject(x::DateTime_) = @pycall db_api.DateTime(x.value)::PyObject
-PyObject(x::Duration) = @pycall db_api.Duration(_period_to_duration_string(x.value))::PyObject
-PyObject(x::Array_) = @pycall db_api.Array(PyVector(x.value))::PyObject
-function PyObject(x::TimePattern)
-    indexes = [_period_collection_to_time_pattern_string(k) for k in keys(x)]
-    @pycall db_api.TimePattern(indexes, collect(values(x)))::PyObject
-end
-function PyObject(ts::TimeSeries)
-    @pycall db_api.TimeSeriesVariableResolution(ts.indexes, ts.values, ts.ignore_year, ts.repeat)::PyObject
-end
-PyObject(m::Map) = @pycall db_api.Map(m.indexes, m.values)::PyObject
 
 Call(other::Call) = copy(other)
 Call(n) = IdentityCall(n)

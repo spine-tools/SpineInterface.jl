@@ -492,44 +492,61 @@ function is_varying(call::OperatorCall)
     false
 end
 
-"""
-    write_parameter!(db_map, name, data; for_object=true, report="")
+function _import_data(server_uri::URI, data::Dict{Symbol,Array}, comment::String)
+    _communicate(server_uri, "import_data", Dict(string(k) => v for (k,v) in data), comment)
+end
+function _import_data(db_map::PyObject, data::Dict{Symbol,Array}, comment::String)
+    import_count, errors = db_api.import_data(db_map; data...)
+    if import_count > 0
+        try
+            db_map.commit_session(comment)
+        catch err
+            db_map.rollback_session()
+            rethrow()
+        end
+    end
+    errors
+end
 
-Create parameter in `db_map`, with given `name` and `data`.
-Link the parameter to given `report` object.
 """
-function write_parameter!(
-    db_map::PyObject,
-    name,
-    data::Dict{K,V};
+    update_import_data!(import_data, parameter_name, parameter_value; for_object=true, report="")
+
+Update `import_data` with new data for importing `parameter_name` with value `parameter_value`.
+Link the entities to given `report` object.
+"""
+function update_import_data!(
+    import_data::Dict{Symbol,Array},
+    parameter_name::Symbol,
+    parameter_value::Dict{K,V};
     for_object::Bool=true,
     report::String="",
 ) where {K<:NamedTuple,V}
-    object_classes = []
-    object_parameters = []
-    objects = []
-    object_parameter_values = []
-    relationship_classes = []
-    relationship_parameters = []
-    relationships = []
-    relationship_parameter_values = []
+    pname = string(parameter_name)
+    object_classes = get!(import_data, :object_classes, [])
+    object_parameters = get!(import_data, :object_parameters, [])
+    objects = get!(import_data, :objects, [])
+    object_parameter_values = get!(import_data, :object_parameter_values, [])
+    relationship_classes = get!(import_data, :relationship_classes, [])
+    relationship_parameters = get!(import_data, :relationship_parameters, [])
+    relationships = get!(import_data, :relationships, [])
+    relationship_parameter_values = get!(import_data, :relationship_parameter_values, [])
     !isempty(report) && pushfirst!(object_classes, "report")
-    for obj_cls_names in unique(keys(key) for key in keys(data))
+    for obj_cls_names in unique(keys(key) for key in keys(parameter_value))
         str_obj_cls_names = [string(x) for x in obj_cls_names]
         append!(object_classes, str_obj_cls_names)
         !isempty(report) && pushfirst!(str_obj_cls_names, "report")
         if for_object && length(str_obj_cls_names) == 1
             obj_cls_name = str_obj_cls_names[1]
-            push!(object_parameters, (obj_cls_name, string(name)))
+            push!(object_parameters, (obj_cls_name, pname))
         else
             rel_cls_name = join(str_obj_cls_names, "__")
             push!(relationship_classes, (rel_cls_name, str_obj_cls_names))
-            push!(relationship_parameters, (rel_cls_name, string(name)))
+            push!(relationship_parameters, (rel_cls_name, pname))
         end
     end
     unique!(object_classes)
     !isempty(report) && pushfirst!(objects, ("report", report))
-    for (key, value) in data
+    for (key, value) in parameter_value
         str_obj_cls_names = [string(x) for x in keys(key)]
         str_obj_names = [string(x) for x in values(key)]
         for (obj_cls_name, obj_name) in zip(str_obj_cls_names, str_obj_names)
@@ -542,26 +559,13 @@ function write_parameter!(
         if for_object && length(str_obj_cls_names) == length(str_obj_names) == 1
             obj_cls_name = str_obj_cls_names[1]
             obj_name = str_obj_names[1]
-            push!(object_parameter_values, (obj_cls_name, obj_name, string(name), value))
+            push!(object_parameter_values, (obj_cls_name, obj_name, pname, _unparse_db_value(value)))
         else
             rel_cls_name = join(str_obj_cls_names, "__")
             push!(relationships, (rel_cls_name, str_obj_names))
-            push!(relationship_parameter_values, (rel_cls_name, str_obj_names, string(name), value))
+            push!(relationship_parameter_values, (rel_cls_name, str_obj_names, pname, _unparse_db_value(value)))
         end
     end
-    added, err_log = db_api.import_data(
-        db_map,
-        object_classes=object_classes,
-        relationship_classes=relationship_classes,
-        object_parameters=object_parameters,
-        relationship_parameters=relationship_parameters,
-        objects=objects,
-        relationships=relationships,
-        object_parameter_values=object_parameter_values,
-        relationship_parameter_values=relationship_parameter_values,
-    )
-    isempty(err_log) || @warn join([x.msg for x in err_log], "\n")
-    added
 end
 
 """
@@ -582,60 +586,38 @@ mapping object or relationship (`NamedTuple`) to values.
 """
 function write_parameters(
     parameters::Dict{T,Dict{K,V}},
-    dest_url::String;
+    url::String;
     upgrade=true,
     create=true,
     for_object=true,
     report="",
     comment="",
 ) where {T,K<:NamedTuple,V}
-    db_map = db_api.DatabaseMapping(dest_url; upgrade=upgrade, create=create)
-    write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
+    uri = URI(url)
+    if uri.scheme == "http"
+        write_parameters(parameters, uri; for_object=for_object, report=report, comment=comment)
+    else
+        _create_db_map(url; upgrade=upgrade, create=create) do db_map
+            write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
+        end
+    end
 end
 function write_parameters(
     parameters::Dict{T,Dict{K,V}},
-    db_map::PyObject;
+    db::Union{URI,PyObject};
     for_object=true,
     report="",
     comment="",
 ) where {T,K<:NamedTuple,V}
-    added = 0
-    for (name, data) in parameters
-        added += write_parameter!(db_map, name, data; report=report)
+    import_data = Dict{Symbol,Array}()
+    for (parameter_name, parameter_value) in parameters
+        update_import_data!(import_data, parameter_name, parameter_value; report=report)
     end
-    added == 0 && return
     if isempty(comment)
         comment = string("Add $(join([string(k) for (k, v) in parameters])), automatically from SpineInterface.jl.")
     end
-    try
-        db_map.commit_session(comment)
-    catch err
-        db_map.rollback_session()
-        rethrow()
-    finally
-        db_map.connection.close()
-    end
-end
-
-"""A DatabaseMapping object using Python spinedb_api"""
-function DiffDatabaseMapping(db_url::String; upgrade=false, create=false)
-    try
-        db_api.DiffDatabaseMapping(db_url, upgrade=upgrade, create=create)
-    catch e
-        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
-            error("""
-                  The database at '$db_url' is from an older version of Spine
-                  and needs to be upgraded in order to be used with the current version.
-
-                  You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
-
-                  WARNING: After the upgrade, the database may no longer be used
-                  with previous versions of Spine.
-                  """)
-        else
-            rethrow()
-        end
-    end
+    errors = _import_data(db, import_data, comment)
+    isempty(errors) || @warn join([err.msg for err in errors], "\n")
 end
 
 """
@@ -648,9 +630,9 @@ parameter_value(parsed_db_value::Bool) = ScalarParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::Int64) = ScalarParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::Float64) = ScalarParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::String) = ScalarParameterValue(parsed_db_value)
-parameter_value(parsed_db_value::DateTime_) = ScalarParameterValue(parsed_db_value.value)
-parameter_value(parsed_db_value::Duration) = ScalarParameterValue(parsed_db_value.value)
-parameter_value(parsed_db_value::Array_) = ArrayParameterValue(parsed_db_value.value)
+parameter_value(parsed_db_value::DateTime) = ScalarParameterValue(parsed_db_value)
+parameter_value(parsed_db_value::Period) = ScalarParameterValue(parsed_db_value)
+parameter_value(parsed_db_value::Array) = ArrayParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimePattern) = TimePatternParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_db_value)
 function parameter_value(parsed_db_value::Map)

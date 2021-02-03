@@ -77,25 +77,6 @@ function Base.show(io::IO, period_collection::PeriodCollection)
     print(io, join(ranges, ", and "))
 end
 
-Base.convert(::Type{DateTime_}, o::PyObject) = DateTime_(o.value)
-Base.convert(::Type{Duration}, o::PyObject) = Duration(_relativedelta_to_period(o.value))
-Base.convert(::Type{Array_}, o::PyObject) = Array_(o.values)
-function Base.convert(::Type{TimePattern}, o::PyObject)
-    Dict(PeriodCollection(ind) => val for (ind, val) in zip(o.indexes, o.values))
-end
-function Base.convert(::Type{TimeSeries}, o::PyObject)
-    ignore_year = o.ignore_year
-    repeat = o.repeat
-    values = o.values
-    indexes = py"[s.astype(datetime) for s in $o.indexes]"
-    ignore_year && (indexes = [s - Year(s) for s in indexes])
-    TimeSeries(indexes, values, ignore_year, repeat)
-end
-function Base.convert(::Type{Map}, o::PyObject)
-    inds = py"[s for s in $o.indexes]"
-    vals = o.values
-    Map(inds, vals)
-end
 Base.convert(::Type{Call}, x::T) where {T<:Real} = IdentityCall(x)
 
 Base.copy(ts::TimeSeries{T}) where {T} = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)

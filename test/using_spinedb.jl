@@ -17,6 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 @testset "using_spinedb - basics" begin
+    SpineInterface._import_spinedb_api()
     url = "sqlite://"
     @testset "object_class" begin
         object_classes = ["institution"]
@@ -129,7 +130,7 @@
         @test since_year(institution=institution(:KTH)) == 1827
         @test since_year(institution=institution(:VTT), _strict=false) === nothing
         @test_throws ErrorException people_count(institution=institution(:VTT), country=country(:France))
-        @test [x.name for x in institution(since_year=1827.0)] == [:KTH]
+        @test [x.name for x in institution(since_year=1827)] == [:KTH]
         @test length(parameter()) === 2
         @test all(x isa Parameter for x in parameter())
     end
