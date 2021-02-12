@@ -652,3 +652,6 @@ function maximum_parameter_value(p::Parameter)
     isempty(pvs_skip_nothing) && return nothing
     maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)
 end
+
+parse_db_value(::Nothing) = nothing
+parse_db_value(db_value::String) = _parse_json(JSON.parse(db_value))

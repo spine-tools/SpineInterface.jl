@@ -58,6 +58,7 @@ export add_objects!
 export add_object!
 export add_relationships!
 export maximum_parameter_value
+export parse_db_value
 
 
 const db_api = PyNULL()

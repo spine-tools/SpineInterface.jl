@@ -394,9 +394,6 @@ function _parse_json(::Val{:map}, value::Dict)
     Map(inds, vals)
 end
 
-_parse_db_value(::Nothing) = nothing
-_parse_db_value(db_value::String) = _parse_json(JSON.parse(db_value))
-
 # unparse db values
 _unparse_date_time(x::DateTime) = string(Dates.format(x, db_df))
 function _unparse_duration(x::T) where {T<:Period}
