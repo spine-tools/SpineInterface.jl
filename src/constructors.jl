@@ -95,6 +95,8 @@ end
 Call(other::Call) = copy(other)
 Call(n) = IdentityCall(n)
 
+IdentityCall(x) = IdentityCall(nothing, x)
+
 OperatorCall(op::Function, x, y) = OperatorCall(op, [x, y])
 function OperatorCall(op::Function, x::OperatorCall{T}, y::OperatorCall{S}) where {T<:Function,S<:Function}
     OperatorCall(op, [x, y])

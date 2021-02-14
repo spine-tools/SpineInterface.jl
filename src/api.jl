@@ -285,9 +285,9 @@ start(t::TimeSlice) = t.start[]
 """
     startref(t::TimeSlice)
 
-The start of time slice or time slice map `t` as a `Ref{DateTime}` reference.
+The start of time slice or time slice map `t` as a `_DateTimeRef` value.
 """
-startref(t::TimeSlice) = t.start
+startref(t::TimeSlice) = _DateTimeRef(t.start)
 
 """
     end_(t::TimeSlice)
@@ -456,10 +456,10 @@ end
 
 Perform the given `Call` and return the result.
 """
-realize(x) = x
-realize(call::IdentityCall) = call.value
-realize(call::ParameterValueCall) = call.parameter_value(; call.kwargs...)
-function realize(call::OperatorCall)
+do_realize(x) = x
+do_realize(call::IdentityCall) = call.value
+do_realize(call::ParameterValueCall) = call.parameter_value(; call.kwargs...)
+function do_realize(call::OperatorCall)
     realized_vals = Dict{Int64,Array}()
     st = _OperatorCallTraversalState(call)
     while true
@@ -471,6 +471,16 @@ function realize(call::OperatorCall)
     end
     reduce(call.operator, realized_vals[1])
 end
+
+function realize(x)
+    try
+        do_realize(x)
+    catch e
+        err_msg = "unable to evaluate expression:\n\t$x\n"
+        rethrow(ErrorException("$err_msg$(sprint(showerror, e))"))
+    end
+end
+
 
 """
     is_varying(x::Call)

@@ -43,17 +43,19 @@ Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
-const _df = DateFormat("yyyy-mm-ddTHH:MM")
 Base.show(io::IO, t::TimeSlice) = print(io, string(Dates.format(start(t), _df)), "~>", Dates.format(end_(t), _df))
+Base.show(io::IO, d::_DateTimeRef) = print(io, string(Dates.format(d.ref[], _df)))
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, v::ScalarParameterValue) = print(io, v.value)
-Base.show(io::IO, call::IdentityCall) = print(io, call.value)
 Base.show(io::IO, call::OperatorCall) = print(io, join(call.args, string(" ", call.operator, " ")))
-function Base.show(io::IO, call::ParameterValueCall)
-    kwargs_str = join([join(kw, "=") for kw in pairs(call.kwargs)], ", ")
-    print(io, string(call.parameter_name, "(", kwargs_str, ")"))
+Base.show(io::IO, call::IdentityCall{Nothing,T}) where T = print(io, realize(call))
+function Base.show(io::IO, call::Union{IdentityCall,ParameterValueCall})
+    pname, kwargs = call.original_call
+    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
+    result = realize(call)
+    print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
 end
 function Base.show(io::IO, period_collection::PeriodCollection)
     d = Dict{Symbol,String}(
@@ -88,9 +90,9 @@ Base.copy(c::StandardTimeSeriesParameterValue) = StandardTimeSeriesParameterValu
 function Base.copy(c::RepeatingTimeSeriesParameterValue)
     RepeatingTimeSeriesParameterValue(copy(c.value), c.span, c.valsum, c.len)
 end
-Base.copy(c::ParameterValueCall) = ParameterValueCall(c.parameter_name, c.parameter_value, c.kwargs)
+Base.copy(c::ParameterValueCall) = ParameterValueCall(c.original_call, c.parameter_value, c.kwargs)
 Base.copy(c::OperatorCall) = OperatorCall(c.operator, c.args)
-Base.copy(c::IdentityCall) = IdentityCall(c.value)
+Base.copy(c::IdentityCall) = IdentityCall(c.original_call, c.value)
 
 Base.zero(::Type{T}) where {T<:Call} = IdentityCall(0.0)
 Base.zero(::Call) = IdentityCall(0.0)
@@ -124,7 +126,7 @@ function Base.getindex(p::Parameter, inds::NamedTuple)
     pv_new_kwargs = _lookup_parameter_value(p; inds...)
     if pv_new_kwargs !== nothing
         parameter_value, new_inds = pv_new_kwargs
-        _pv_call(p.name, parameter_value, new_inds)
+        _pv_call((p.name, inds), parameter_value, new_inds)
     else
         nothing
     end

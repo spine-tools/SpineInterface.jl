@@ -182,7 +182,10 @@ end
 
 TimeVaryingParameterValue = Union{AbstractTimeSeriesParameterValue,TimePatternParameterValue}
 
-struct IdentityCall{T} <: Call
+_OriginalCall = Tuple{Symbol,NamedTuple}
+
+struct IdentityCall{C,T} <: Call
+    original_call::C
     value::T
 end
 
@@ -192,8 +195,8 @@ struct OperatorCall{T} <: Call where {T<:Function}
     OperatorCall(operator::T, args) where {T<:Function} = new{T}(operator, args)
 end
 
-struct ParameterValueCall{T} <: Call where {T<:AbstractParameterValue}
-    parameter_name::Symbol
+struct ParameterValueCall{C,T} <: Call where {T<:AbstractParameterValue}
+    original_call::C
     parameter_value::T
     kwargs::NamedTuple
 end
@@ -214,4 +217,9 @@ mutable struct _IsHighestResolution
         sizehint!(ref, length(t_arr))
         new(ref)
     end
+end
+
+
+struct _DateTimeRef
+    ref::Ref{DateTime}
 end

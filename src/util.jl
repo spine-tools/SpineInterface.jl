@@ -17,6 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+const _df = DateFormat("yyyy-mm-ddTHH:MM")
+
 function _getproperty_or_default(m::Module, name::Symbol, default=nothing)
     (name in names(m; all=true)) ? getproperty(m, name) : default
 end
@@ -64,14 +66,18 @@ _entity_key(r::RelationshipLike) = tuple(r...)
 _entity_tuples(class::ObjectClass) = ((; Dict(class.name => o)...) for o in class())
 _entity_tuples(class::RelationshipClass) = class()
 
-function _pv_call(pn::Symbol, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
-    _pv_call(_is_time_varying(T), pn, pv, inds)
+function _pv_call(orig::_OriginalCall, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
+    _pv_call(_is_time_varying(T), orig, pv, inds)
 end
-function _pv_call(is_time_varying::Val{false}, pn::Symbol, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
-    IdentityCall(pv(; inds...))
+function _pv_call(
+    is_time_varying::Val{false}, orig::_OriginalCall, pv::T, inds::NamedTuple
+) where {T<:AbstractParameterValue}
+    IdentityCall(orig, pv(; inds...))
 end
-function _pv_call(is_time_varying::Val{true}, pn::Symbol, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
-    ParameterValueCall(pn, pv, inds)
+function _pv_call(
+    is_time_varying::Val{true}, orig::_OriginalCall, pv::T, inds::NamedTuple
+) where {T<:AbstractParameterValue}
+    ParameterValueCall(orig, pv, inds)
 end
 
 _is_time_varying(::Type{MapParameterValue{K,V}}) where {K,V} = _is_time_varying(V)
@@ -185,8 +191,8 @@ function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where {V}
     pvs = p.value.values[i]
     pvs(; kwargs...)
 end
-function (p::MapParameterValue{DateTime,V})(d::Ref{DateTime}; kwargs...) where {V}
-    p(d[]; kwargs...)
+function (p::MapParameterValue{DateTime,V})(d::_DateTimeRef; kwargs...) where {V}
+    p(d.ref[]; kwargs...)
 end
 
 function (x::_IsLowestResolution)(t::TimeSlice)
