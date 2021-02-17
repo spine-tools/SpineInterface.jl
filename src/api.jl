@@ -502,22 +502,6 @@ function is_varying(call::OperatorCall)
     false
 end
 
-function _import_data(server_uri::URI, data::Dict{Symbol,Array}, comment::String)
-    _communicate(server_uri, "import_data", Dict(string(k) => v for (k,v) in data), comment)
-end
-function _import_data(db_map::PyObject, data::Dict{Symbol,Array}, comment::String)
-    import_count, errors = db_api.import_data(db_map; data...)
-    if import_count > 0
-        try
-            db_map.commit_session(comment)
-        catch err
-            db_map.rollback_session()
-            rethrow()
-        end
-    end
-    errors
-end
-
 """
     update_import_data!(import_data, parameter_name, parameter_value; for_object=true, report="")
 
@@ -613,11 +597,7 @@ function write_parameters(
     end
 end
 function write_parameters(
-    parameters::Dict{T,Dict{K,V}},
-    db::Union{URI,PyObject};
-    for_object=true,
-    report="",
-    comment="",
+    parameters::Dict{T,Dict{K,V}}, db; for_object=true, report="", comment=""
 ) where {T,K<:NamedTuple,V}
     import_data = Dict{Symbol,Array}()
     for (parameter_name, parameter_value) in parameters
@@ -648,7 +628,7 @@ parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_d
 function parameter_value(parsed_db_value::Map)
     MapParameterValue(Map(parsed_db_value.indexes, parameter_value.(parsed_db_value.values)))
 end
-parameter_value(parsed_db_value::PyObject) = error("Can't parse $parsed_db_value")
+parameter_value(parsed_db_value::T) where T = error("can't parse $parsed_db_value of unrecognized type $T")
 
 """
     maximum_parameter_value(p::Parameter)

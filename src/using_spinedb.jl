@@ -203,8 +203,6 @@ function _class_names_per_parameter(classes, param_defs)
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
 end
 
-_query(db_map::PyObject, sq::Symbol) = py"[x._asdict() for x in $db_map.query($(getproperty(db_map, sq)))]"
-
 function _get_data(server_uri::URI)
     _communicate(
         server_uri, 
@@ -218,7 +216,7 @@ function _get_data(server_uri::URI)
         "parameter_value_sq"
     )
 end
-function _get_data(db_map::PyObject)
+function _get_data(db_map)
     Dict(
         name => _query(db_map, Symbol(name))
         for name in (
@@ -253,7 +251,7 @@ function using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
         end
     end
 end
-function using_spinedb(db::Union{URI,PyObject}, mod=@__MODULE__)
+function using_spinedb(db, mod=@__MODULE__)
     data = _get_data(db)
     object_classes = data["object_class_sq"]
     relationship_classes = data["wide_relationship_class_sq"]

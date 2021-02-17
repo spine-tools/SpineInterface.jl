@@ -219,7 +219,6 @@ mutable struct _IsHighestResolution
     end
 end
 
-
 struct _DateTimeRef
     ref::Ref{DateTime}
 end

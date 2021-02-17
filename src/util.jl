@@ -449,34 +449,122 @@ function _unparse_db_value(x::Map{K,V}) where {K,V}
     )
 end
 
-function _create_db_map(db_url::String; kwargs...)
-    _import_spinedb_api()
+function _import_spinedb_api()
+    isdefined(@__MODULE__, :db_api) && return
+    @eval begin
+        using PyCall
+        required_spinedb_api_version = v"0.10.8"
+        const db_api = try
+            pyimport("spinedb_api")
+        catch err
+            if err isa PyCall.PyError
+                error(
+"""
+The required Python package `spinedb_api` could not be found in the current Python environment
+    $(PyCall.pyprogramname)
+
+You can fix this in two different ways:
+
+    A. Install `spinedb_api` in the current Python environment; open a terminal (command prompt on Windows) and run
+
+        $(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
+
+    B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run
+
+        ENV["PYTHON"] = "... path of the python executable ..."
+        Pkg.build("PyCall")
+
+    And restart Julia.
+"""
+                )
+            else
+                rethrow()
+            end
+        end
+        current_version = VersionNumber(db_api.__version__)
+        if current_version < required_spinedb_api_version
+            error(
+"""
+The required version $required_spinedb_api_version of `spinedb_api` could not be found in the current Python environment
+
+    $(PyCall.pyprogramname)
+
+You can fix this in two different ways:
+
+    A. Upgrade `spinedb_api` to its latest version in the current Python environment; open a terminal (command prompt on Windows) and run
+
+        $(PyCall.pyprogramname) -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'
+
+    B. Switch to another Python environment that has `spinedb_api` version $required_spinedb_api_version installed; from Julia, run
+
+        ENV["PYTHON"] = "... path of the python executable ..."
+        Pkg.build("PyCall")
+
+    And restart Julia.
+"""
+            )
+        end
+    end
+end
+
+function _do_create_db_map(db_url::String; kwargs...)
     try
         db_api.DatabaseMapping(db_url; kwargs...)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
-            error("""
-                  The database at '$db_url' is from an older version of Spine
-                  and needs to be upgraded in order to be used with the current version.
+            error(
+"""
+    The database at '$db_url' is from an older version of Spine
+    and needs to be upgraded in order to be used with the current version.
 
-                  You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
+    You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
 
-                  WARNING: After the upgrade, the database may no longer be used
-                  with previous versions of Spine.
-                  """)
+    WARNING: After the upgrade, the database may no longer be used
+    with previous versions of Spine.
+"""
+            )
         else
             rethrow()
         end
     end    
 end
 
+_close_db_map(db_map) = db_map.connection.close()
+
 function _create_db_map(f::Function, db_url::String; kwargs...)
-    db_map = _create_db_map(db_url; kwargs...)
+    _import_spinedb_api()
+    db_map = Base.invokelatest(_do_create_db_map, db_url; kwargs...)
     try
         f(db_map)
     finally
-        db_map.connection.close()
+        Base.invokelatest(_close_db_map, db_map)
     end
+end
+
+function _do_query(db_map, sq_name::Symbol)
+    sq = getproperty(db_map, sq_name)
+    column_names = sq.columns.keys()
+    [Dict(zip(column_names, x)) for x in db_map.query(sq)]
+end
+
+_query(db_map, sq_name::Symbol) = Base.invokelatest(_do_query, db_map, sq_name)
+
+function _do_import_data(db_map, data::Dict{Symbol,Array}, comment::String)
+    import_count, errors = db_api.import_data(db_map; data...)
+    if import_count > 0
+        try
+            db_map.commit_session(comment)
+        catch err
+            db_map.rollback_session()
+            rethrow()
+        end
+    end
+    errors
+end
+
+_import_data(db_map, data::Dict{Symbol,Array}, comment) = Base.invokelatest(_do_import_data, db_map, data, comment)
+function _import_data(server_uri::URI, data::Dict{Symbol,Array}, comment::String)
+    _communicate(server_uri, "import_data", Dict(string(k) => v for (k,v) in data), comment)
 end
 
 function _communicate(server_uri::URI, request::String, args...)
