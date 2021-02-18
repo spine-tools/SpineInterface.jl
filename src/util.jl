@@ -508,7 +508,6 @@ You can fix this in two different ways:
 end
 
 function _do_create_db_map(db_url::String; kwargs...)
-    _import_spinedb_api()
     try
         db_api.DatabaseMapping(db_url; kwargs...)
     catch e
@@ -533,6 +532,7 @@ end
 _close_db_map(db_map) = db_map.connection.close()
 
 function _create_db_map(f::Function, db_url::String; kwargs...)
+    _import_spinedb_api()
     db_map = Base.invokelatest(_do_create_db_map, db_url; kwargs...)
     try
         f(db_map)
