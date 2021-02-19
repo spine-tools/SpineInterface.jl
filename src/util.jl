@@ -569,11 +569,12 @@ end
 
 function _communicate(server_uri::URI, request::String, args...)
     clientside = connect(server_uri.host, parse(Int, server_uri.port))
-    write(clientside, JSON.json([request, args]) * "\0")
+    write(clientside, JSON.json([request, args]) * '\0')
     io = IOBuffer()
     while true
         str = String(readavailable(clientside))
-        if isempty(str)
+        if endswith(str, '\0')
+            write(io, rstrip(str, '\0'))
             break
         end
         write(io, str)
