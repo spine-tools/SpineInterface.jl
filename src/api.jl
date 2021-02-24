@@ -654,7 +654,7 @@ function import_data(url::String, data::Dict{Symbol,T}, comment::String) where T
     if uri.scheme == "http"
         _import_data(uri, data, comment)
     else
-        _create_db_map(url; upgrade=upgrade) do db_map
+        _create_db_map(url) do db_map
             _import_data(db_map, data, comment)
         end
     end
