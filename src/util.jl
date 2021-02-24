@@ -549,7 +549,7 @@ end
 
 _query(db_map, sq_name::Symbol) = Base.invokelatest(_do_query, db_map, sq_name)
 
-function _do_import_data(db_map, data::Dict{Symbol,Array}, comment::String)
+function _do_import_data(db_map, data::Dict{Symbol,T}, comment::String) where T <: AbstractArray
     import_count, errors = db_api.import_data(db_map; data...)
     if import_count > 0
         try
@@ -562,8 +562,8 @@ function _do_import_data(db_map, data::Dict{Symbol,Array}, comment::String)
     errors
 end
 
-_import_data(db_map, data::Dict{Symbol,Array}, comment) = Base.invokelatest(_do_import_data, db_map, data, comment)
-function _import_data(server_uri::URI, data::Dict{Symbol,Array}, comment::String)
+_import_data(db_map, data::Dict{Symbol,T}, comment) where T = Base.invokelatest(_do_import_data, db_map, data, comment)
+function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String) where T
     _communicate(server_uri, "import_data", Dict(string(k) => v for (k,v) in data), comment)
 end
 

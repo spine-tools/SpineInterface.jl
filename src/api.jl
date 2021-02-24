@@ -645,3 +645,17 @@ end
 
 parse_db_value(::Nothing) = nothing
 parse_db_value(db_value::String) = _parse_json(JSON.parse(db_value))
+
+function import_data(url::String, data::Dict{String,T}, comment::String) where T
+    import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment)
+end
+function import_data(url::String, data::Dict{Symbol,T}, comment::String) where T
+    uri = URI(url)
+    if uri.scheme == "http"
+        _import_data(uri, data, comment)
+    else
+        _create_db_map(url; upgrade=upgrade) do db_map
+            _import_data(db_map, data, comment)
+        end
+    end
+end

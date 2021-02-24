@@ -58,5 +58,6 @@ export add_object!
 export add_relationships!
 export maximum_parameter_value
 export parse_db_value
+export import_data
 
 end # module
