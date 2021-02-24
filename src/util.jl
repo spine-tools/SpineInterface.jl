@@ -573,14 +573,14 @@ function _communicate(server_uri::URI, request::String, args...)
     io = IOBuffer()
     while true
         str = String(readavailable(clientside))
+        write(io, str)
         if endswith(str, '\0')
-            write(io, rstrip(str, '\0'))
             break
         end
-        write(io, str)
     end
     close(clientside)
-    s = String(take!(io))
+    str = String(take!(io))
+    s = rstrip(str, '\0')
     if !isempty(s)
         JSON.parse(s)
     end
