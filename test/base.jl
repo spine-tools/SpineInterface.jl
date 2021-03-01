@@ -54,10 +54,10 @@
     id_call = Call(13)
     op_call = SpineInterface.OperatorCall(+, 2, 3)
     apero_time = parameter_value("apero_time")
-    param_val_call = SpineInterface.ParameterValueCall(:apero_time, apero_time, (scenario=:covid,))
+    param_val_call = SpineInterface.ParameterValueCall((:apero_time, (scenario=:covid,)), apero_time, (scenario=:covid,))
     @test string(id_call) === "13"
     @test string(op_call) === "2 + 3"
-    @test string(param_val_call) === "apero_time(scenario=covid)"
+    @test string(param_val_call) === "{apero_time(scenario=covid) = apero_time}"
     pc = SpineInterface.PeriodCollection("Y1-5;M1-4,M6-9")
     @test string(pc) === "year from 1 to 5, and month from 1 to 4, or 6 to 9"
     # convert
@@ -101,7 +101,7 @@
     @test string(call_copy) === "2 + 3"
     call_copy = copy(param_val_call)
     @test call_copy isa SpineInterface.ParameterValueCall
-    @test string(call_copy) === "apero_time(scenario=covid)"
+    @test string(call_copy) === "{apero_time(scenario=covid) = apero_time}"
     # Call zero
     zero_call = zero(call)
     @test zero_call isa Call
