@@ -50,7 +50,7 @@ Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, v::ScalarParameterValue) = print(io, v.value)
 Base.show(io::IO, call::OperatorCall) = print(io, join(call.args, string(" ", call.operator, " ")))
-Base.show(io::IO, call::IdentityCall{Nothing,T}) where T = print(io, realize(call))
+Base.show(io::IO, call::IdentityCall{Nothing,T}) where {T} = print(io, realize(call))
 function Base.show(io::IO, call::Union{IdentityCall,ParameterValueCall})
     pname, kwargs = call.original_call
     kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")

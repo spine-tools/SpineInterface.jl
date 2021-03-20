@@ -41,9 +41,12 @@ named after it. The purpose is to filter the result by specific values of that p
 ```jldoctest
 julia> using SpineInterface;
 
+
 julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
 
+
 julia> using_spinedb(url)
+
 
 julia> sort(node())
 5-element Array{Object,1}:
@@ -56,7 +59,6 @@ julia> sort(node())
 julia> commodity(state_of_matter=:gas)
 1-element Array{Object,1}:
  wind
-
 ```
 """
 function (oc::ObjectClass)(; kwargs...)
@@ -83,20 +85,23 @@ An `Array` of [`Object`](@ref) tuples corresponding to the relationships of clas
 
 # Arguments
 
-- For each object class in `rc` there is a keyword argument named after it.
-  The purpose is to filter the result by an object or list of objects of that class,
-  or to accept all objects of that class by specifying `anything` for this argument.
-- `_compact::Bool=true`: whether or not filtered object classes should be removed from the resulting tuples.
-- `_default=[]`: the default value to return in case no relationship passes the filter.
+  - For each object class in `rc` there is a keyword argument named after it.
+    The purpose is to filter the result by an object or list of objects of that class,
+    or to accept all objects of that class by specifying `anything` for this argument.
+  - `_compact::Bool=true`: whether or not filtered object classes should be removed from the resulting tuples.
+  - `_default=[]`: the default value to return in case no relationship passes the filter.
 
 # Examples
 
 ```jldoctest
 julia> using SpineInterface;
 
+
 julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
 
+
 julia> using_spinedb(url)
+
 
 julia> sort(node__commodity())
 5-element Array{NamedTuple,1}:
@@ -127,7 +132,6 @@ julia> sort(node__commodity(commodity=:water, _compact=false))
 
 julia> node__commodity(commodity=:gas, _default=:nogas)
 :nogas
-
 ```
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
@@ -163,31 +167,32 @@ The value of parameter `p` for a given object or relationship.
 
 # Arguments
 
-- For each object class associated with `p` there is a keyword argument named after it.
-  The purpose is to retrieve the value of `p` for a specific object.
-- For each relationship class associated with `p`, there is a keyword argument named after each of the
-  object classes involved in it. The purpose is to retrieve the value of `p` for a specific relationship.
-- `i::Int64`: a specific index to retrieve in case of an array value (ignored otherwise).
-- `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
-- `inds`: indexes for navigating a `Map` (ignored otherwise). Tuples correspond to navigating nested `Maps`.
-- `_strict::Bool`: whether to raise an error or return `nothing` if the parameter is not specified for the given arguments.
-
+  - For each object class associated with `p` there is a keyword argument named after it.
+    The purpose is to retrieve the value of `p` for a specific object.
+  - For each relationship class associated with `p`, there is a keyword argument named after each of the
+    object classes involved in it. The purpose is to retrieve the value of `p` for a specific relationship.
+  - `i::Int64`: a specific index to retrieve in case of an array value (ignored otherwise).
+  - `t::TimeSlice`: a specific time-index to retrieve in case of a time-varying value (ignored otherwise).
+  - `inds`: indexes for navigating a `Map` (ignored otherwise). Tuples correspond to navigating nested `Maps`.
+  - `_strict::Bool`: whether to raise an error or return `nothing` if the parameter is not specified for the given arguments.
 
 # Examples
 
 ```jldoctest
 julia> using SpineInterface;
 
+
 julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
 
+
 julia> using_spinedb(url)
+
 
 julia> tax_net_flow(node=:Sthlm, commodity=:water)
 4
 
 julia> demand(node=:Sthlm, i=1)
 21
-
 ```
 """
 function (p::Parameter)(; _strict=true, kwargs...)
@@ -231,20 +236,23 @@ An iterator over all objects and relationships where the value of `p` is differe
 
 # Arguments
 
-- For each object class where `p` is defined, there is a keyword argument named after it;
-  similarly, for each relationship class where `p` is defined, there is a keyword argument
-  named after each object class in it.
-  The purpose of these arguments is to filter the result by an object or list of objects of an specific class,
-  or to accept all objects of that class by specifying `anything` for the corresponding argument.
+  - For each object class where `p` is defined, there is a keyword argument named after it;
+    similarly, for each relationship class where `p` is defined, there is a keyword argument
+    named after each object class in it.
+    The purpose of these arguments is to filter the result by an object or list of objects of an specific class,
+    or to accept all objects of that class by specifying `anything` for the corresponding argument.
 
 # Examples
 
 ```jldoctest
 julia> using SpineInterface;
 
+
 julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
 
+
 julia> using_spinedb(url)
+
 
 julia> collect(indices(tax_net_flow))
 1-element Array{NamedTuple{(:commodity, :node),Tuple{Object,Object}},1}:
@@ -257,13 +265,11 @@ julia> collect(indices(demand))
  Leuven
  Espoo
  Dublin
-
 ```
 """
 function indices(p::Parameter; kwargs...)
     (
-        ent for class in p.classes for
-        ent in _entities(class; kwargs...) if
+        ent for class in p.classes for ent in _entities(class; kwargs...) if
         _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
 end
@@ -481,7 +487,6 @@ function realize(x)
     end
 end
 
-
 """
     is_varying(x::Call)
 
@@ -571,12 +576,12 @@ mapping object or relationship (`NamedTuple`) to values.
 
 # Arguments
 
-- `upgrade::Bool=true`: whether or not the database at `url` should be upgraded to the latest revision.
-- `for_object::Bool=true`: whether to write an object parameter or a 1D relationship parameter in case the number of
+  - `upgrade::Bool=true`: whether or not the database at `url` should be upgraded to the latest revision.
+  - `for_object::Bool=true`: whether to write an object parameter or a 1D relationship parameter in case the number of
     dimensions is 1.
-- `report::String=""`: the name of a report object that will be added as an extra dimension to the written parameters.
-- `comment::String=""`: a comment explaining the nature of the writing operation.
-- `<parameters>`: a dictionary mapping
+  - `report::String=""`: the name of a report object that will be added as an extra dimension to the written parameters.
+  - `comment::String=""`: a comment explaining the nature of the writing operation.
+  - `<parameters>`: a dictionary mapping
 """
 function write_parameters(
     parameters::Dict{T,Dict{K,V}},
@@ -597,7 +602,11 @@ function write_parameters(
     end
 end
 function write_parameters(
-    parameters::Dict{T,Dict{K,V}}, db; for_object=true, report="", comment=""
+    parameters::Dict{T,Dict{K,V}},
+    db;
+    for_object=true,
+    report="",
+    comment="",
 ) where {T,K<:NamedTuple,V}
     import_data = Dict{Symbol,Array}()
     for (parameter_name, parameter_value) in parameters
@@ -628,7 +637,7 @@ parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_d
 function parameter_value(parsed_db_value::Map)
     MapParameterValue(Map(parsed_db_value.indexes, parameter_value.(parsed_db_value.values)))
 end
-parameter_value(parsed_db_value::T) where T = error("can't parse $parsed_db_value of unrecognized type $T")
+parameter_value(parsed_db_value::T) where {T} = error("can't parse $parsed_db_value of unrecognized type $T")
 
 """
     maximum_parameter_value(p::Parameter)
@@ -646,10 +655,10 @@ end
 parse_db_value(::Nothing) = nothing
 parse_db_value(db_value::String) = _parse_json(JSON.parse(db_value))
 
-function import_data(url::String, data::Dict{String,T}, comment::String) where T
+function import_data(url::String, data::Dict{String,T}, comment::String) where {T}
     import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment)
 end
-function import_data(url::String, data::Dict{Symbol,T}, comment::String) where T
+function import_data(url::String, data::Dict{Symbol,T}, comment::String) where {T}
     uri = URI(url)
     if uri.scheme == "http"
         _import_data(uri, data, comment)

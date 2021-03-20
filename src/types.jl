@@ -135,7 +135,7 @@ end
 
 A nested general purpose indexed value corresponding to the similarly named `spinedb_api` class.
 
-Consists of an `Array` of indexes and an `Array` of values. 
+Consists of an `Array` of indexes and an `Array` of values.
 See `MapParameterValue` for the corresponding `AbstractParameterValue` type for accessing `Map` type
 parameters.
 """
@@ -163,7 +163,6 @@ end
 struct TimePatternParameterValue{T} <: AbstractParameterValue
     value::TimePattern{T}
 end
-
 
 struct StandardTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue
     value::TimeSeries{V}

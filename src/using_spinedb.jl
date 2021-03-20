@@ -90,8 +90,8 @@ A Dict mapping tuples of parameter definition and entity ids, to an Array of cor
 """
 function _parameter_values_per_entity(param_values)
     Dict(
-        (val["parameter_definition_id"], _not_nothing(val["object_id"], val["relationship_id"])) => val["value"]
-        for val in param_values
+        (val["parameter_definition_id"], _not_nothing(val["object_id"], val["relationship_id"])) => val["value"] for
+        val in param_values
     )
 end
 
@@ -109,8 +109,8 @@ A Dict mapping parameter names to their default values.
 function _default_parameter_values(param_defs)
     Dict(
         Symbol(def["name"]) =>
-            _try_parameter_value_from_db(def["default_value"], "unable to parse default value of `$(def["name"])`")
-        for def in param_defs
+            _try_parameter_value_from_db(def["default_value"], "unable to parse default value of `$(def["name"])`") for
+        def in param_defs
     )
 end
 
@@ -121,8 +121,7 @@ function _parameter_values(entity, param_defs, param_vals_per_ent)
     Dict(
         Symbol(parameter_name) =>
             _try_parameter_value_from_db(value, "unable to parse value of `$parameter_name` for `$(entity["name"])`")
-        for
-        (parameter_name, value) in
+        for (parameter_name, value) in
         ((def["name"], get(param_vals_per_ent, (def["id"], entity["id"]), nothing)) for def in param_defs) if
         value !== nothing
     )
@@ -166,8 +165,8 @@ function _ents_and_vals(object_class_name_list, entities, full_objs_per_id, para
     object_tuples = (_object_tuple_from_relationship(ent, full_objs_per_id) for ent in entities)
     relationships = [(; zip(object_class_names, objects)...) for objects in object_tuples]
     param_vals = Dict(
-        objects => _parameter_values(ent, param_defs, param_vals_per_ent)
-        for (objects, ent) in zip(object_tuples, entities)
+        objects => _parameter_values(ent, param_defs, param_vals_per_ent) for
+        (objects, ent) in zip(object_tuples, entities)
     )
     object_class_names, relationships, param_vals
 end
@@ -178,8 +177,8 @@ A Dict mapping class names to arguments.
 function _args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     Dict(
         Symbol(class["name"]) =>
-            _class_args(class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-        for class in classes
+            _class_args(class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent) for
+        class in classes
     )
 end
 
@@ -205,21 +204,20 @@ end
 
 function _get_data(server_uri::URI)
     _communicate(
-        server_uri, 
-        "get_data", 
-        "object_class_sq", 
+        server_uri,
+        "get_data",
+        "object_class_sq",
         "wide_relationship_class_sq",
         "object_sq",
         "entity_group_sq",
         "wide_relationship_sq",
         "parameter_definition_sq",
-        "parameter_value_sq"
+        "parameter_value_sq",
     )
 end
 function _get_data(db_map)
     Dict(
-        name => _query(db_map, Symbol(name))
-        for name in (
+        name => _query(db_map, Symbol(name)) for name in (
             "object_class_sq",
             "wide_relationship_class_sq",
             "object_sq",

@@ -70,12 +70,18 @@ function _pv_call(orig::_OriginalCall, pv::T, inds::NamedTuple) where {T<:Abstra
     _pv_call(_is_time_varying(T), orig, pv, inds)
 end
 function _pv_call(
-    is_time_varying::Val{false}, orig::_OriginalCall, pv::T, inds::NamedTuple
+    is_time_varying::Val{false},
+    orig::_OriginalCall,
+    pv::T,
+    inds::NamedTuple,
 ) where {T<:AbstractParameterValue}
     IdentityCall(orig, pv(; inds...))
 end
 function _pv_call(
-    is_time_varying::Val{true}, orig::_OriginalCall, pv::T, inds::NamedTuple
+    is_time_varying::Val{true},
+    orig::_OriginalCall,
+    pv::T,
+    inds::NamedTuple,
 ) where {T<:AbstractParameterValue}
     ParameterValueCall(orig, pv, inds)
 end
@@ -288,14 +294,14 @@ Non unique indices in a sorted Array.
 function _nonunique_inds_sorted(arr)
     nonunique_inds = []
     sizehint!(nonunique_inds, length(arr))
-    for (i, (x, y)) in enumerate(zip(arr[1:end-1], arr[2:end]))
+    for (i, (x, y)) in enumerate(zip(arr[1:(end - 1)], arr[2:end]))
         isequal(x, y) && push!(nonunique_inds, i)
     end
     nonunique_inds
 end
 
 """
-A copy of `inds` and a `copy` of vals, trimmed so they are both of the same size, sorted, 
+A copy of `inds` and a `copy` of vals, trimmed so they are both of the same size, sorted,
 and with non unique elements of `inds` removed.
 """
 function _sort_inds_vals(inds, vals)
@@ -337,7 +343,7 @@ end
 
 function _parse_duration(data::String)
     o = match(r"\D", data).offset  # position of first non-numeric character
-    quantity, unit = parse(Int64, data[1:o - 1]), strip(data[o:end])
+    quantity, unit = parse(Int64, data[1:(o - 1)]), strip(data[o:end])
     key = (startswith(lowercase(unit), "month") || unit == "M") ? 'M' : lowercase(unit[1])
     Dict('s' => Second, 'm' => Minute, 'h' => Hour, 'd' => Day, 'M' => Month, 'y' => Year)[key](quantity)
 end
@@ -348,7 +354,7 @@ _inner_type_str(::Type{DateTime}) = "date_time"
 _inner_type_str(::Type{T}) where {T<:Period} = "duration"
 
 _parse_inner_value(::Val{:str}, value::String) = value
-_parse_inner_value(::Val{:float}, value::T) where T<:Number = Float64(value)
+_parse_inner_value(::Val{:float}, value::T) where {T<:Number} = Float64(value)
 _parse_inner_value(::Val{:duration}, value::String) = _parse_duration(value)
 _parse_inner_value(::Val{:date_time}, value::String) = _parse_date_time(value)
 
@@ -390,7 +396,7 @@ function _parse_json(::Val{:time_series}, index::Dict, data::Dict)
     TimeSeries(inds, vals, ignore_year, get(index, "repeat", false))
 end
 _parse_json(type::Val{:array}, value::Dict) = _parse_inner_value.(Val(Symbol(value["value_type"])), value["data"])
-function _parse_json(::Val{:array}, ::Nothing, data::Array{T,1}) where T
+function _parse_json(::Val{:array}, ::Nothing, data::Array{T,1}) where {T}
     _parse_inner_value.(Val(Symbol(_inner_type_str(T))), data)
 end
 function _parse_json(::Val{:map}, value::Dict)
@@ -428,7 +434,7 @@ end
 _unparse_db_value(x) = x
 _unparse_db_value(x::DateTime) = Dict("type" => "date_time", "data" => string(Dates.format(x, db_df)))
 _unparse_db_value(x::T) where {T<:Period} = Dict("type" => "duration", "data" => _unparse_duration(x))
-function _unparse_db_value(x::Array{T}) where T
+function _unparse_db_value(x::Array{T}) where {T}
     Dict("type" => "array", "value_type" => _inner_type_str(T), "data" => _unparse_element.(x))
 end
 function _unparse_db_value(x::TimePattern)
@@ -438,14 +444,14 @@ function _unparse_db_value(x::TimeSeries)
     Dict(
         "type" => "time_series",
         "index" => Dict("repeat" => x.repeat, "ignore_year" => x.ignore_year),
-        "data" => OrderedDict(_unparse_date_time(i) => v for (i, v) in zip(x.indexes, x.values))
+        "data" => OrderedDict(_unparse_date_time(i) => v for (i, v) in zip(x.indexes, x.values)),
     )
 end
 function _unparse_db_value(x::Map{K,V}) where {K,V}
     Dict(
         "type" => "map",
         "index_type" => _inner_type_str(K),
-        "data" => [(i, _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)]
+        "data" => [(i, _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
     )
 end
 
@@ -459,23 +465,23 @@ function _import_spinedb_api()
         catch err
             if err isa PyCall.PyError
                 error(
-"""
-The required Python package `spinedb_api` could not be found in the current Python environment
-    $(PyCall.pyprogramname)
+                    """
+                    The required Python package `spinedb_api` could not be found in the current Python environment
+                        $(PyCall.pyprogramname)
 
-You can fix this in two different ways:
+                    You can fix this in two different ways:
 
-    A. Install `spinedb_api` in the current Python environment; open a terminal (command prompt on Windows) and run
+                        A. Install `spinedb_api` in the current Python environment; open a terminal (command prompt on Windows) and run
 
-        $(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
+                            $(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
 
-    B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run
+                        B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run
 
-        ENV["PYTHON"] = "... path of the python executable ..."
-        Pkg.build("PyCall")
+                            ENV["PYTHON"] = "... path of the python executable ..."
+                            Pkg.build("PyCall")
 
-    And restart Julia.
-"""
+                        And restart Julia.
+                    """,
                 )
             else
                 rethrow()
@@ -484,24 +490,24 @@ You can fix this in two different ways:
         current_version = VersionNumber(db_api.__version__)
         if current_version < required_spinedb_api_version
             error(
-"""
-The required version $required_spinedb_api_version of `spinedb_api` could not be found in the current Python environment
+                """
+                The required version $required_spinedb_api_version of `spinedb_api` could not be found in the current Python environment
 
-    $(PyCall.pyprogramname)
+                    $(PyCall.pyprogramname)
 
-You can fix this in two different ways:
+                You can fix this in two different ways:
 
-    A. Upgrade `spinedb_api` to its latest version in the current Python environment; open a terminal (command prompt on Windows) and run
+                    A. Upgrade `spinedb_api` to its latest version in the current Python environment; open a terminal (command prompt on Windows) and run
 
-        $(PyCall.pyprogramname) -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'
+                        $(PyCall.pyprogramname) -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'
 
-    B. Switch to another Python environment that has `spinedb_api` version $required_spinedb_api_version installed; from Julia, run
+                    B. Switch to another Python environment that has `spinedb_api` version $required_spinedb_api_version installed; from Julia, run
 
-        ENV["PYTHON"] = "... path of the python executable ..."
-        Pkg.build("PyCall")
+                        ENV["PYTHON"] = "... path of the python executable ..."
+                        Pkg.build("PyCall")
 
-    And restart Julia.
-"""
+                    And restart Julia.
+                """,
             )
         end
     end
@@ -512,21 +518,19 @@ function _do_create_db_map(db_url::String; kwargs...)
         db_api.DatabaseMapping(db_url; kwargs...)
     catch e
         if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
-            error(
-"""
-    The database at '$db_url' is from an older version of Spine
-    and needs to be upgraded in order to be used with the current version.
+            error("""
+                      The database at '$db_url' is from an older version of Spine
+                      and needs to be upgraded in order to be used with the current version.
 
-    You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
+                      You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
 
-    WARNING: After the upgrade, the database may no longer be used
-    with previous versions of Spine.
-"""
-            )
+                      WARNING: After the upgrade, the database may no longer be used
+                      with previous versions of Spine.
+                  """)
         else
             rethrow()
         end
-    end    
+    end
 end
 
 _close_db_map(db_map) = db_map.connection.close()
@@ -549,7 +553,7 @@ end
 
 _query(db_map, sq_name::Symbol) = Base.invokelatest(_do_query, db_map, sq_name)
 
-function _do_import_data(db_map, data::Dict{Symbol,T}, comment::String) where T <: AbstractArray
+function _do_import_data(db_map, data::Dict{Symbol,T}, comment::String) where {T<:AbstractArray}
     import_count, errors = db_api.import_data(db_map; data...)
     if import_count > 0
         try
@@ -562,9 +566,10 @@ function _do_import_data(db_map, data::Dict{Symbol,T}, comment::String) where T 
     errors
 end
 
-_import_data(db_map, data::Dict{Symbol,T}, comment) where T = Base.invokelatest(_do_import_data, db_map, data, comment)
-function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String) where T
-    _communicate(server_uri, "import_data", Dict(string(k) => v for (k,v) in data), comment)
+_import_data(db_map, data::Dict{Symbol,T}, comment) where {T} =
+    Base.invokelatest(_do_import_data, db_map, data, comment)
+function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String) where {T}
+    _communicate(server_uri, "import_data", Dict(string(k) => v for (k, v) in data), comment)
 end
 
 function _communicate(server_uri::URI, request::String, args...)
