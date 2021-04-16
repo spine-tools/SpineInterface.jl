@@ -431,7 +431,7 @@ function _unparse_time_pattern(pc::PeriodCollection)
     join(arr, intersection_op)
 end
 
-_unparse_db_value(x) = x
+_unparse_db_value(x) = string(x)
 _unparse_db_value(x::DateTime) = Dict("type" => "date_time", "data" => string(Dates.format(x, db_df)))
 _unparse_db_value(x::T) where {T<:Period} = Dict("type" => "duration", "data" => _unparse_duration(x))
 function _unparse_db_value(x::Array{T}) where {T}
