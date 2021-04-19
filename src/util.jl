@@ -431,7 +431,7 @@ function _unparse_time_pattern(pc::PeriodCollection)
     join(arr, intersection_op)
 end
 
-_unparse_db_value(x) = string(x)
+_unparse_db_value(x) = x
 _unparse_db_value(x::DateTime) = Dict("type" => "date_time", "data" => string(Dates.format(x, db_df)))
 _unparse_db_value(x::T) where {T<:Period} = Dict("type" => "duration", "data" => _unparse_duration(x))
 function _unparse_db_value(x::Array{T}) where {T}
@@ -453,6 +453,9 @@ function _unparse_db_value(x::Map{K,V}) where {K,V}
         "index_type" => _inner_type_str(K),
         "data" => [(i, _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
     )
+end
+function _unparse_db_value(x::AbstractParameterValue)
+    hasproperty(x, :value) ? _unparse_db_value(x.value) : nothing
 end
 
 function _import_spinedb_api()
