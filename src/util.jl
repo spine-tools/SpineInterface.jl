@@ -454,6 +454,9 @@ function _unparse_db_value(x::Map{K,V}) where {K,V}
         "data" => [(i, _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
     )
 end
+function _unparse_db_value(x::AbstractParameterValue)
+    hasproperty(x, :value) ? _unparse_db_value(x.value) : nothing
+end
 
 function _import_spinedb_api()
     isdefined(@__MODULE__, :db_api) && return
