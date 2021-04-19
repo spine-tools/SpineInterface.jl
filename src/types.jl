@@ -79,6 +79,7 @@ struct ObjectClass
     objects::Array{ObjectLike,1}
     parameter_values::Dict{ObjectLike,Dict{Symbol,AbstractParameterValue}}
     parameter_defaults::Dict{Symbol,AbstractParameterValue}
+    ObjectClass(name, objects, vals=Dict(), defaults=Dict()) = new(name, objects, vals, defaults)
 end
 
 struct RelationshipClass
@@ -86,15 +87,17 @@ struct RelationshipClass
     object_class_names::Array{Symbol,1}
     relationships::Array{RelationshipLike,1}
     parameter_values::Dict{Tuple{Vararg{ObjectLike}},Dict{Symbol,AbstractParameterValue}}
+    intact_object_class_names::Array{Symbol,1}
     parameter_defaults::Dict{Symbol,AbstractParameterValue}
     lookup_cache::Dict{Bool,Dict}
-    RelationshipClass(name, obj_cls_names, rels, vals, defaults) =
-        new(name, obj_cls_names, rels, vals, defaults, Dict(:true => Dict(), :false => Dict()))
+    RelationshipClass(name, cls_names, rels, vals=Dict(), intact_cls_names=cls_names, defaults=Dict()) =
+        new(name, cls_names, rels, vals, intact_cls_names, defaults, Dict(:true => Dict(), :false => Dict()))
 end
 
 struct Parameter
     name::Symbol
     classes::Array{Union{ObjectClass,RelationshipClass},1}
+    Parameter(name, classes=[]) = new(name, classes)
 end
 
 # parameter value types

@@ -454,9 +454,8 @@ function _unparse_db_value(x::Map{K,V}) where {K,V}
         "data" => [(i, _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
     )
 end
-function _unparse_db_value(x::AbstractParameterValue)
-    hasproperty(x, :value) ? _unparse_db_value(x.value) : nothing
-end
+_unparse_db_value(x::AbstractParameterValue) = x.value
+_unparse_db_value(::NothingParameterValue) = nothing
 
 function _import_spinedb_api()
     isdefined(@__MODULE__, :db_api) && return
@@ -592,4 +591,40 @@ function _communicate(server_uri::URI, request::String, args...)
     if !isempty(s)
         JSON.parse(s)
     end
+end
+
+function _to_dict(obj_cls::ObjectClass)
+    Dict(
+        :object_classes => [obj_cls.name],
+        :object_parameters => [
+            [obj_cls.name, parameter_name, _unparse_db_value(parameter_default_value)]
+            for (parameter_name, parameter_default_value) in obj_cls.parameter_defaults
+        ],
+        :objects => [[obj_cls.name, object.name] for object in obj_cls.objects],
+        :object_parameter_values => [
+            [obj_cls.name, object.name, parameter_name, _unparse_db_value(parameter_value)]
+            for (object, parameter_values) in obj_cls.parameter_values
+            for (parameter_name, parameter_value) in parameter_values
+        ]
+    )
+end
+
+function _to_dict(rel_cls::RelationshipClass)
+    Dict(
+        :object_classes => unique(rel_cls.intact_object_class_names),
+        :objects => unique(obj.name for rel in rel_cls.relationships for obj in rel), 
+        :relationship_classes => [[rel_cls.name, rel_cls.intact_object_class_names]],
+        :relationship_parameters => [
+            [rel_cls.name, parameter_name, _unparse_db_value(parameter_default_value)]
+            for (parameter_name, parameter_default_value) in rel_cls.parameter_defaults
+        ],
+        :relationships => [
+            [rel_cls.name, [obj.name for obj in relationship]] for relationship in rel_cls.relationships
+        ],
+        :relationship_parameter_values => [
+            [rel_cls.name, [obj.name for obj in relationship], parameter_name, _unparse_db_value(parameter_value)]
+            for (relationship, parameter_values) in rel_cls.parameter_values
+            for (parameter_name, parameter_value) in parameter_values
+        ]
+    )
 end

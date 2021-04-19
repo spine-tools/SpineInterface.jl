@@ -668,48 +668,6 @@ function import_data(url::String, data::Dict{Symbol,T}, comment::String) where {
         end
     end
 end
-function import_data(url::String, data::ObjectClass, comment::String)
-    import_data(
-        url,
-        Dict(
-            :object_classes => [data.name],
-            :object_parameters => [
-                [data.name, parameter_name, _unparse_db_value(parameter_default_value)]
-                for (parameter_name, parameter_default_value) in data.parameter_defaults
-            ],
-            :objects => [
-                [data.name, object.name] for object in data.objects
-            ],
-            :object_parameter_values => [
-                [data.name, object.name, parameter_name, _unparse_db_value(parameter_value)]
-                for object in keys(data.parameter_values)
-                for (parameter_name, parameter_value) in data.parameter_values[object]
-            ]
-        ),
-        comment
-    )
-end
-function import_data(url::String, data::RelationshipClass, comment::String)
-    for oc in filter!(oc -> oc.name in data.object_class_names, object_class())
-        import_data(url, oc, comment)
-    end
-    import_data(
-        url,
-        Dict(
-            :relationship_classes => [[data.name, data.object_class_names]],
-            :relationship_parameters => [
-                [data.name, parameter_name, _unparse_db_value(parameter_default_value)]
-                for (parameter_name, parameter_default_value) in data.parameter_defaults
-            ],
-            :relationships => [
-                [data.name, getfield.([relationship...], :name)] for relationship in data.relationships
-            ],
-            :relationship_parameter_values => [
-                [data.name, getfield.([relationship...], :name), parameter_name, _unparse_db_value(parameter_value)]
-                for relationship in keys(data.parameter_values)
-                for (parameter_name, parameter_value) in data.parameter_values[relationship]
-            ]
-        ),
-        comment
-    )
+function import_data(url::String, data::Union{ObjectClass,RelationshipClass}, comment::String)
+    import_data(url, _to_dict(data), comment)
 end

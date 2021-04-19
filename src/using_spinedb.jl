@@ -130,12 +130,14 @@ end
 """
 Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
 """
-function _fix_name_ambiguity!(name_list::Array{Symbol,1})
+function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
+    name_list = copy(intact_name_list)
     for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
         for (k, index) in enumerate(findall(name_list .== ambiguous))
             name_list[index] = Symbol(name_list[index], k)
         end
     end
+    name_list
 end
 
 function _object_tuple_from_relationship(rel::Dict, full_objs_per_id)
@@ -160,15 +162,15 @@ function _ents_and_vals(::Nothing, entities, full_objs_per_id, param_defs, param
     objects, param_vals
 end
 function _ents_and_vals(object_class_name_list, entities, full_objs_per_id, param_defs, param_vals_per_ent)
-    object_class_names = Symbol.(split(object_class_name_list, ","))
-    _fix_name_ambiguity!(object_class_names)
+    intact_object_class_names = Symbol.(split(object_class_name_list, ","))
+    object_class_names = _fix_name_ambiguity(intact_object_class_names)
     object_tuples = (_object_tuple_from_relationship(ent, full_objs_per_id) for ent in entities)
     relationships = [(; zip(object_class_names, objects)...) for objects in object_tuples]
     param_vals = Dict(
         objects => _parameter_values(ent, param_defs, param_vals_per_ent) for
         (objects, ent) in zip(object_tuples, entities)
     )
-    object_class_names, relationships, param_vals
+    object_class_names, relationships, param_vals, intact_object_class_names
 end
 
 """

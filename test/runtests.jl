@@ -28,4 +28,5 @@ using JSON
     include("api.jl")
     include("constructors.jl")
     include("base.jl")
+    include("util.jl")
 end

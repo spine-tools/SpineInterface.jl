@@ -21,14 +21,6 @@ Object(name::Symbol, id) = Object(name, id, [], [])
 Object(name::AbstractString, args...) = Object(Symbol(name), args...)
 Object(name::Symbol) = Base.invokelatest(Object, name)  # NOTE: this allows us to override `Object` in `using_spinedb`
 
-ObjectClass(name, objects, vals) = ObjectClass(name, objects, vals, Dict())
-ObjectClass(name, objects) = ObjectClass(name, objects, Dict())
-
-RelationshipClass(name, obj_cls_names, rels, vals) = RelationshipClass(name, obj_cls_names, rels, vals, Dict())
-RelationshipClass(name, obj_cls_names, rels) = RelationshipClass(name, obj_cls_names, rels, Dict())
-
-Parameter(name) = Parameter(name, [])
-
 """
     TimeSlice(start::DateTime, end_::DateTime)
 
