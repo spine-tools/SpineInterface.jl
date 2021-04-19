@@ -6,6 +6,7 @@ using JSON
 using Sockets
 using Statistics
 using URIs
+using Requires
 
 include("types.jl")
 include("util.jl")
@@ -59,5 +60,13 @@ export add_relationships!
 export maximum_parameter_value
 export parse_db_value
 export import_data
+
+function __init__()
+	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin
+		include("update_model.jl")
+		export update_varying_objective!
+		export update_varying_constraints!
+	end
+end
 
 end # module
