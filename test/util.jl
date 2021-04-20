@@ -52,7 +52,7 @@ end
     d_obs = SpineInterface._to_dict(cls)
     d_exp = Dict(
         :object_classes => [:cat, :dog],
-        :objects => [:silvester, :tom, :pluto],
+        :objects => [[:cat, :silvester], [:cat, :tom], [:dog, :pluto]],
         :relationship_classes => [[:cat__cat__dog, [:cat, :cat, :dog]]],
         :relationships => [[:cat__cat__dog, [:silvester, :tom, :pluto]], [:cat__cat__dog, [:tom, :silvester, :pluto]]],
         :relationship_parameters => [[:cat__cat__dog, :age, 9]],
