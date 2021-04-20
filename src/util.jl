@@ -612,7 +612,11 @@ end
 function _to_dict(rel_cls::RelationshipClass)
     Dict(
         :object_classes => unique(rel_cls.intact_object_class_names),
-        :objects => unique(obj.name for rel in rel_cls.relationships for obj in rel), 
+        :objects => unique(
+            [obj_cls_name, obj.name]
+            for obj_cls_name in rel_cls.intact_object_class_names
+            for obj in unique(getfield.(rel_cls.relationships, obj_cls_name))
+        ), 
         :relationship_classes => [[rel_cls.name, rel_cls.intact_object_class_names]],
         :relationship_parameters => [
             [rel_cls.name, parameter_name, _unparse_db_value(parameter_default_value)]
