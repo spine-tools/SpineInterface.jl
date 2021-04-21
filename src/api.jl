@@ -655,6 +655,32 @@ end
 parse_db_value(::Nothing) = nothing
 parse_db_value(db_value::String) = _parse_json(JSON.parse(db_value))
 
+"""
+    import_data(url, data, comment)
+
+Import data to a Spine db.
+
+# Arguments
+- `url::String`: the url of the target database. 
+- `data::Dict`: the data to import, in the format below:
+    Dict(
+        :object_classes => [:oc_name, ...],
+        :relationship_classes => [[:rc_name, [:oc_name1, :oc_name2, ...]], ...],
+        :objects => [[:oc_name, :obj_name], ...],
+        :relationships => [[:rc_name, [:obj_name1, :obj_name2, ...], ...],
+        :object_parameters => [[:oc_name, :param_name, default_value], ...],
+        :relationship_parameters => [[:rc_name, :param_name, default_value], ...],
+        :object_parameter_values => [[:oc_name, :obj_name, :param_name, value], ...],
+        :relationship_parameter_values => [[:rc_name, [:obj_name1, :obj_name2, ...], :param_name, value], ...],
+    )
+- `comment::String`: the commit message.
+
+# Example
+```
+d = Dict(:object_classes => [:dog, :cat], :objects => [[:dog, :brian], [:dog, :spike]])
+import_data(url, d, "arf!")
+```
+"""
 function import_data(url::String, data::Dict{String,T}, comment::String) where {T}
     import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment)
 end

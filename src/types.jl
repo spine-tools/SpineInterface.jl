@@ -100,10 +100,6 @@ struct Parameter
     Parameter(name, classes=[]) = new(name, classes)
 end
 
-# parameter value types
-# types returned by the parsing function `spinedb_api.from_database`
-# are automatically converted to these using `PyCall.pytype_mapping` as defined in the module's __init__ method.
-# This allows us to mutiple dispatch `parameter_value`
 """
     PeriodCollection
 """
@@ -152,7 +148,6 @@ struct Map{K,V}
 end
 
 # AbstractParameterValue subtypes
-# These are wrappers around some standard Julia types and our parameter value types, that override the call operator
 struct NothingParameterValue <: AbstractParameterValue end
 
 struct ScalarParameterValue{T} <: AbstractParameterValue

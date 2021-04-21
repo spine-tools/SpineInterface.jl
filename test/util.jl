@@ -44,8 +44,8 @@ end
     relationships = [
         (; zip(obj_cls_names, [silvester, tom, pluto])...), (; zip(obj_cls_names, [tom, silvester, pluto])...)
     ]
-    parameter_values = Dict(tuple(rel...) => Dict(:age => parameter_value(k)) for (k, rel) in enumerate(relationships))
-    parameter_defaults = Dict(:age => parameter_value(9))
+    parameter_values = Dict(tuple(rel...) => Dict(:aver_age => parameter_value(k)) for (k, rel) in enumerate(relationships))
+    parameter_defaults = Dict(:aver_age => parameter_value(9))
     cls = RelationshipClass(
         :cat__cat__dog, obj_cls_names, relationships, parameter_values, intact_obj_cls_names, parameter_defaults
     )
@@ -55,9 +55,10 @@ end
         :objects => [[:cat, :silvester], [:cat, :tom], [:dog, :pluto]],
         :relationship_classes => [[:cat__cat__dog, [:cat, :cat, :dog]]],
         :relationships => [[:cat__cat__dog, [:silvester, :tom, :pluto]], [:cat__cat__dog, [:tom, :silvester, :pluto]]],
-        :relationship_parameters => [[:cat__cat__dog, :age, 9]],
+        :relationship_parameters => [[:cat__cat__dog, :aver_age, 9]],
         :relationship_parameter_values => [
-            [:cat__cat__dog, [:silvester, :tom, :pluto], :age, 1], [:cat__cat__dog, [:tom, :silvester, :pluto], :age, 2]
+            [:cat__cat__dog, [:silvester, :tom, :pluto], :aver_age, 1],
+            [:cat__cat__dog, [:tom, :silvester, :pluto], :aver_age, 2]
         ]
     )
     @test keys(d_obs) == keys(d_exp)
