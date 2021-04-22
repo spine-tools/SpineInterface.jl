@@ -672,6 +672,7 @@ Import data to a Spine db.
         :relationship_parameters => [[:rc_name, :param_name, default_value], ...],
         :object_parameter_values => [[:oc_name, :obj_name, :param_name, value], ...],
         :relationship_parameter_values => [[:rc_name, [:obj_name1, :obj_name2, ...], :param_name, value], ...],
+        :object_groups => [[class_name, group_name, member_name], ...]
     )
 - `comment::String`: the commit message.
 
