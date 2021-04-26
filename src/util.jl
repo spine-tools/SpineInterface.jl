@@ -279,10 +279,15 @@ end
 _realize(call::OperatorCall, id::Int64, vals::Dict) = reduce(call.operator, vals[id])
 _realize(x, ::Int64, ::Dict) = realize(x)
 
-# FIXME: We need to handle empty collections here
-_maximum_skipnan(itr) = maximum(x -> isnan(x) ? -Inf : x, itr)
+# Enable comparing Month and Year with all the other period types for computing the maximum parameter value
+_upper_bound(p) = p
+_upper_bound(p::Month) = p.value * Day(31)
+_upper_bound(p::Year) = p.value * Day(366)
 
-_maximum_parameter_value(pv::ScalarParameterValue) = pv.value
+# FIXME: We need to handle empty collections here
+_maximum_skipnan(itr) = maximum(x -> isnan(x) ? -Inf : _upper_bound(x), itr)
+
+_maximum_parameter_value(pv::ScalarParameterValue) = _upper_bound(pv.value)
 _maximum_parameter_value(pv::ArrayParameterValue) = _maximum_skipnan(pv.value)
 _maximum_parameter_value(pv::TimePatternParameterValue) = _maximum_skipnan(values(pv.value))
 _maximum_parameter_value(pv::AbstractTimeSeriesParameterValue) = _maximum_skipnan(pv.value.values)

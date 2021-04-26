@@ -647,7 +647,7 @@ Finds the singe maximum value of a `Parameter` across all its `ObjectClasses` or
 """
 function maximum_parameter_value(p::Parameter)
     pvs = (first(_lookup_parameter_value(p; ent_tup...)) for class in p.classes for ent_tup in _entity_tuples(class))
-    pvs_skip_nothing = (pv for pv in pvs if pv() != nothing)
+    pvs_skip_nothing = (pv for pv in pvs if pv() !== nothing)
     isempty(pvs_skip_nothing) && return nothing
     maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)
 end
