@@ -201,22 +201,29 @@ function (p::MapParameterValue{DateTime,V})(d::_DateTimeRef; kwargs...) where {V
     p(d.ref[]; kwargs...)
 end
 
-function (x::_IsLowestResolution)(t::TimeSlice)
-    if any(contains(r, t) for r in x.ref)
-        false
-    else
-        push!(x.ref, t)
-        true
-    end
-end
+"""
+    _deleteat_func!(t_arr, func)
 
-function (x::_IsHighestResolution)(t::TimeSlice)
-    if any(iscontained(r, t) for r in x.ref)
-        false
-    else
-        push!(x.ref, t)
-        true
+Remove position `k` in given array if `func(t_arr[i], t_arr[k])` for any `i`.
+Used by `t_lowest_resolution` and `t_highest_resolution`.
+"""
+function _deleteat_func!(t_arr::Array{TimeSlice,1}, func)
+    n = length(t_arr)
+    n <= 1 && return t_arr
+    # indices to remove
+    remove = [false for i in 1:n]
+    for i in 1:n
+        remove[i] && continue
+        t_i = t_arr[i]
+        for k in Iterators.flatten((1:(i - 1),  (i + 1):n))
+            remove[k] && continue
+            t_k = t_arr[k]
+            if func(t_i, t_k)
+                remove[k] = true
+            end
+        end
     end
+    deleteat!(t_arr, remove)
 end
 
 mutable struct _OperatorCallTraversalState

@@ -380,26 +380,14 @@ end
 
 Remove time slices that are contained in any other from `t_arr`, and return the modified `t_arr`.
 """
-function t_lowest_resolution!(t_arr::Array{TimeSlice,1})
-    length(t_arr) <= 1 && return t_arr
-    sort!(t_arr; lt=!iscontained, alg=InsertionSort)
-    unique!(t_arr)
-    f = _IsLowestResolution(t_arr)
-    filter!(f, t_arr)
-end
+t_lowest_resolution!(t_arr::Array{TimeSlice,1}) = _deleteat_func!(t_arr, contains)
 
 """
     t_highest_resolution!(t_arr)
 
 Remove time slices that contain any other from `t_arr`, and return the modified `t_arr`.
 """
-function t_highest_resolution!(t_arr::Array{TimeSlice,1})
-    length(t_arr) <= 1 && return t_arr
-    sort!(t_arr; lt=!contains, alg=InsertionSort)
-    unique!(t_arr)
-    f = _IsHighestResolution(t_arr)
-    filter!(f, t_arr)
-end
+t_highest_resolution!(t_arr::Array{TimeSlice,1}) = _deleteat_func!(t_arr, iscontained)
 
 """
     t_highest_resolution(t_iter)
