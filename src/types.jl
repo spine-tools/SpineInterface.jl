@@ -199,18 +199,18 @@ struct ParameterValueCall{C,T} <: Call where {T<:AbstractParameterValue}
 end
 
 mutable struct _IsLowestResolution
-    ref::Array{Union{TimeSlice,Nothing},1}
+    ref::Array{TimeSlice,1}
     function _IsLowestResolution(t_arr::Array{TimeSlice,1})
-        ref = [nothing]
+        ref = TimeSlice[]
         sizehint!(ref, length(t_arr))
         new(ref)
     end
 end
 
 mutable struct _IsHighestResolution
-    ref::Array{Union{TimeSlice,Nothing},1}
+    ref::Array{TimeSlice,1}
     function _IsHighestResolution(t_arr::Array{TimeSlice,1})
-        ref = [nothing]
+        ref = TimeSlice[]
         sizehint!(ref, length(t_arr))
         new(ref)
     end

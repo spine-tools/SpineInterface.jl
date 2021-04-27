@@ -323,10 +323,8 @@ Determine whether `b` is contained in `a`.
 """
 iscontained(b::TimeSlice, a::TimeSlice) = start(b) >= start(a) && end_(b) <= end_(a)
 iscontained(b::DateTime, a::TimeSlice) = start(a) <= b <= end_(a)
-iscontained(::Nothing, ::T) where {T} = false
 
 contains(a, b) = iscontained(b, a)
-contains(::Nothing, ::T) where {T} = false
 
 """
     overlaps(a::TimeSlice, b::TimeSlice)
@@ -384,7 +382,7 @@ Remove time slices that are contained in any other from `t_arr`, and return the 
 """
 function t_lowest_resolution!(t_arr::Array{TimeSlice,1})
     length(t_arr) <= 1 && return t_arr
-    sort!(t_arr; lt=!iscontained)
+    sort!(t_arr; lt=!iscontained, alg=InsertionSort)
     unique!(t_arr)
     f = _IsLowestResolution(t_arr)
     filter!(f, t_arr)
@@ -397,7 +395,7 @@ Remove time slices that contain any other from `t_arr`, and return the modified 
 """
 function t_highest_resolution!(t_arr::Array{TimeSlice,1})
     length(t_arr) <= 1 && return t_arr
-    sort!(t_arr; lt=!contains)
+    sort!(t_arr; lt=!contains, alg=InsertionSort)
     unique!(t_arr)
     f = _IsHighestResolution(t_arr)
     filter!(f, t_arr)

@@ -68,11 +68,9 @@ end
     @test iscontained(t0_2, t0_3)
     @test iscontained(DateTime(2), t0_3)
     @test !iscontained(t0_2, t2_4)
-    @test !iscontained(nothing, t3_6)
     @test SpineInterface.contains(t3_6, t4_6)
     @test SpineInterface.contains(t0_3, DateTime(0))
     @test !SpineInterface.contains(t0_3, t4_6)
-    @test !SpineInterface.contains(nothing, t0_2)
     @test overlaps(t2_4, t0_3)
     @test !overlaps(t2_4, t4_6)
     @test overlap_duration(t4_6, t3_6) == Hour(24 * (365 + 366)).value
