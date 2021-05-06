@@ -600,10 +600,15 @@ function _communicate(server_uri::URI, request::String, args...)
     close(clientside)
     str = String(take!(io))
     s = rstrip(str, '\0')
-    if !isempty(s)
-        JSON.parse(s)
-    end
+    isempty(s) && return
+    answer = JSON.parse(s)
+    _process_server_answer(answer)
 end
+
+_process_server_answer(answer) = answer
+_process_server_answer(answer::Dict) = _process_server_answer(get(answer, "error", nothing), answer)
+_process_server_answer(err::String, answer) = error(err)
+_process_server_answer(err::Nothing, answer) = answer
 
 function _to_dict(obj_cls::ObjectClass)
     Dict(
