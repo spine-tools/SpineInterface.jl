@@ -204,33 +204,6 @@ function _class_names_per_parameter(classes, param_defs)
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
 end
 
-function _get_data(server_uri::URI)
-    _communicate(
-        server_uri,
-        "get_data",
-        "object_class_sq",
-        "wide_relationship_class_sq",
-        "object_sq",
-        "entity_group_sq",
-        "wide_relationship_sq",
-        "parameter_definition_sq",
-        "parameter_value_sq",
-    )
-end
-function _get_data(db_map)
-    Dict(
-        name => _query(db_map, Symbol(name)) for name in (
-            "object_class_sq",
-            "wide_relationship_class_sq",
-            "object_sq",
-            "entity_group_sq",
-            "wide_relationship_sq",
-            "parameter_definition_sq",
-            "parameter_value_sq",
-        )
-    )
-end
-
 """
     using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
 
@@ -242,17 +215,9 @@ See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](
 how to call the convenience functors.
 """
 function using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
-    uri = URI(url)
-    if uri.scheme == "http"
-        using_spinedb(uri, mod)
-    else
-        _create_db_map(url; upgrade=upgrade) do db_map
-            using_spinedb(db_map, mod)
-        end
-    end
-end
-function using_spinedb(db, mod=@__MODULE__)
-    data = _get_data(db)
+    uri = URI(url)    
+    db = (uri.scheme == "http") ? uri : url
+    data = _get_data(db; upgrade=upgrade)
     object_classes = data["object_class_sq"]
     relationship_classes = data["wide_relationship_class_sq"]
     objects = data["object_sq"]

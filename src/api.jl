@@ -573,35 +573,20 @@ function write_parameters(
     parameters::Dict{T,Dict{K,V}},
     url::String;
     upgrade=true,
-    create=true,
     for_object=true,
     report="",
     comment="",
 ) where {T,K<:NamedTuple,V}
     uri = URI(url)
-    if uri.scheme == "http"
-        write_parameters(parameters, uri; for_object=for_object, report=report, comment=comment)
-    else
-        _create_db_map(url; upgrade=upgrade, create=create) do db_map
-            write_parameters(parameters, db_map; for_object=for_object, report=report, comment=comment)
-        end
-    end
-end
-function write_parameters(
-    parameters::Dict{T,Dict{K,V}},
-    db;
-    for_object=true,
-    report="",
-    comment="",
-) where {T,K<:NamedTuple,V}
+    db = (uri.scheme == "http") ? uri : url
     import_data = Dict{Symbol,Array}()
     for (parameter_name, parameter_value) in parameters
-        update_import_data!(import_data, parameter_name, parameter_value; report=report)
+        update_import_data!(import_data, parameter_name, parameter_value; for_object=for_object, report=report)
     end
     if isempty(comment)
         comment = string("Add $(join([string(k) for (k, v) in parameters])), automatically from SpineInterface.jl.")
     end
-    errors = _import_data(db, import_data, comment)
+    errors = _import_data(db, import_data, comment; upgrade=upgrade)
     isempty(errors) || @warn join([err.msg for err in errors], "\n")
 end
 
@@ -668,19 +653,14 @@ d = Dict(:object_classes => [:dog, :cat], :objects => [[:dog, :brian], [:dog, :s
 import_data(url, d, "arf!")
 ```
 """
+function import_data(url::String, data::Union{ObjectClass,RelationshipClass}, comment::String)
+    import_data(url, _to_dict(data), comment)
+end
 function import_data(url::String, data::Dict{String,T}, comment::String) where {T}
     import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment)
 end
 function import_data(url::String, data::Dict{Symbol,T}, comment::String) where {T}
     uri = URI(url)
-    if uri.scheme == "http"
-        _import_data(uri, data, comment)
-    else
-        _create_db_map(url) do db_map
-            _import_data(db_map, data, comment)
-        end
-    end
-end
-function import_data(url::String, data::Union{ObjectClass,RelationshipClass}, comment::String)
-    import_data(url, _to_dict(data), comment)
+    db = (uri.scheme == "http") ? uri : url
+    _import_data(db, data, comment)
 end

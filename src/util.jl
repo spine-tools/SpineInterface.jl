@@ -469,13 +469,37 @@ end
 _unparse_db_value(x::AbstractParameterValue) = x.value
 _unparse_db_value(::NothingParameterValue) = nothing
 
+function _communicate(server_uri::URI, request::String, args...)
+    clientside = connect(server_uri.host, parse(Int, server_uri.port))
+    write(clientside, JSON.json([request, args]) * '\0')
+    io = IOBuffer()
+    while true
+        str = String(readavailable(clientside))
+        write(io, str)
+        if endswith(str, '\0')
+            break
+        end
+    end
+    close(clientside)
+    str = String(take!(io))
+    s = rstrip(str, '\0')
+    isempty(s) && return
+    answer = JSON.parse(s)
+    _process_server_answer(answer)
+end
+
+_process_server_answer(answer) = answer
+_process_server_answer(answer::Dict) = _process_server_answer(get(answer, "error", nothing), answer)
+_process_server_answer(err::String, answer) = error(err)
+_process_server_answer(err::Nothing, answer) = answer
+
 function _import_spinedb_api()
     isdefined(@__MODULE__, :db_api) && return
     @eval begin
         using PyCall
-        required_spinedb_api_version = v"0.10.8"
-        const db_api = try
-            pyimport("spinedb_api")
+        required_spinedb_api_version = v"0.12.2"
+        const db_api, db_server = try
+            pyimport("spinedb_api"), pyimport("spinedb_api.spine_db_server")
         catch err
             if err isa PyCall.PyError
                 error(
@@ -524,91 +548,58 @@ function _import_spinedb_api()
                 """,
             )
         end
+        
     end
 end
 
-function _do_create_db_map(db_url::String; kwargs...)
-    try
-        db_api.DatabaseMapping(db_url; kwargs...)
-    catch e
-        if isa(e, PyCall.PyError) && pyisinstance(e.val, db_api.exception.SpineDBVersionError)
-            error("""
-                      The database at '$db_url' is from an older version of Spine
-                      and needs to be upgraded in order to be used with the current version.
-
-                      You can upgrade it by running `using_spinedb(db_url; upgrade=true)`.
-
-                      WARNING: After the upgrade, the database may no longer be used
-                      with previous versions of Spine.
-                  """)
-        else
-            rethrow()
-        end
-    end
+function _do_create_db_handler(db_url::String, upgrade::Bool)
+    db_server.DBHandler(db_url, upgrade)
 end
 
-_close_db_map(db_map) = db_map.connection.close()
-
-function _create_db_map(f::Function, db_url::String; kwargs...)
+function _create_db_handler(db_url::String, upgrade::Bool)
     _import_spinedb_api()
-    db_map = Base.invokelatest(_do_create_db_map, db_url; kwargs...)
-    try
-        f(db_map)
-    finally
-        Base.invokelatest(_close_db_map, db_map)
-    end
+    Base.invokelatest(_do_create_db_handler, db_url, upgrade)
 end
 
-function _do_query(db_map, sq_name::Symbol)
-    sq = getproperty(db_map, sq_name)
-    column_names = sq.columns.keys()
-    [Dict(zip(column_names, x)) for x in db_map.query(sq)]
+function _do_get_data(dbh, upgrade::Bool)
+    dbh.get_data(
+        "object_class_sq",
+        "wide_relationship_class_sq",
+        "object_sq",
+        "entity_group_sq",
+        "wide_relationship_sq",
+        "parameter_definition_sq",
+        "parameter_value_sq",
+    )
 end
 
-_query(db_map, sq_name::Symbol) = Base.invokelatest(_do_query, db_map, sq_name)
-
-function _do_import_data(db_map, data::Dict{Symbol,T}, comment::String) where {T<:AbstractArray}
-    import_count, errors = db_api.import_data(db_map; data...)
-    if import_count > 0
-        try
-            db_map.commit_session(comment)
-        catch err
-            db_map.rollback_session()
-            rethrow()
-        end
-    end
-    errors
+function _get_data(db_url::String; upgrade=false)
+    dbh = _create_db_handler(db_url, upgrade)
+    Base.invokelatest(_do_get_data, dbh, upgrade)
+end
+function _get_data(server_uri::URI; upgrade=false)
+    _communicate(
+        server_uri,
+        "get_data",
+        "object_class_sq",
+        "wide_relationship_class_sq",
+        "object_sq",
+        "entity_group_sq",
+        "wide_relationship_sq",
+        "parameter_definition_sq",
+        "parameter_value_sq",
+    )
 end
 
-_import_data(db_map, data::Dict{Symbol,T}, comment) where {T} =
-    Base.invokelatest(_do_import_data, db_map, data, comment)
-function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String) where {T}
+_do_import_data(dbh, data, comment) = dbh.import_data(data, comment)
+
+function _import_data(db_url::String, data::Dict{Symbol,T}, comment::String; upgrade=true) where {T}
+    dbh = _create_db_handler(db_url, upgrade)
+    Base.invokelatest(_do_import_data, dbh, data, comment)
+end
+function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String; upgrade=true) where {T}
     _communicate(server_uri, "import_data", Dict(string(k) => v for (k, v) in data), comment)
 end
-
-function _communicate(server_uri::URI, request::String, args...)
-    clientside = connect(server_uri.host, parse(Int, server_uri.port))
-    write(clientside, JSON.json([request, args]) * '\0')
-    io = IOBuffer()
-    while true
-        str = String(readavailable(clientside))
-        write(io, str)
-        if endswith(str, '\0')
-            break
-        end
-    end
-    close(clientside)
-    str = String(take!(io))
-    s = rstrip(str, '\0')
-    isempty(s) && return
-    answer = JSON.parse(s)
-    _process_server_answer(answer)
-end
-
-_process_server_answer(answer) = answer
-_process_server_answer(answer::Dict) = _process_server_answer(get(answer, "error", nothing), answer)
-_process_server_answer(err::String, answer) = error(err)
-_process_server_answer(err::Nothing, answer) = answer
 
 function _to_dict(obj_cls::ObjectClass)
     Dict(
