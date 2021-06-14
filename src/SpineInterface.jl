@@ -7,6 +7,7 @@ using Sockets
 using Statistics
 using URIs
 using Requires
+using Test
 
 include("types.jl")
 include("util.jl")
@@ -14,6 +15,7 @@ include("base.jl")
 include("constructors.jl")
 include("using_spinedb.jl")
 include("api.jl")
+include("tests.jl")
 
 export Anything
 export Object
@@ -60,6 +62,9 @@ export add_relationships!
 export maximum_parameter_value
 export parse_db_value
 export import_data
+export test_object_class
+export test_relationship_class
+export test_parameter
 
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin
