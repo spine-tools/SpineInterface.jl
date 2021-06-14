@@ -122,7 +122,9 @@ function test_relationship_class(
             rel_in_rels = zip(
                 [
                     getfield.(included_in.relationships, field)
-                    for field in relationship_class.intact_object_class_names
+                    for field in intersect(
+                        relationship_class.object_class_names, included_inx.object_class_names
+                    )
                 ]...
             )
             for rel in values.(relationship_class.relationships)
