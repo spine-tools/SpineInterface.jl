@@ -46,7 +46,7 @@ function test_parameter(
                 val = _get(
                     obj_class.parameter_values[object],
                     param.name,
-                    obj_class.parameter_defaults[param.name]
+                    obj_class.parameter_defaults
                 ).value
                 @test _check(
                     val isa value_type,
@@ -75,7 +75,7 @@ function test_parameter(
                 val = _get(
                     rel_class.parameter_values[tuple(relationship...)],
                     param.name,
-                    rel_class.parameter_defaults[param.name]
+                    rel_class.parameter_defaults
                 ).value
                 @test _check(
                     val isa value_type,
