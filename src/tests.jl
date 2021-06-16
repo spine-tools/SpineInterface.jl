@@ -50,12 +50,12 @@ function test_parameter(
                 )()
                 @test _check(
                     val isa value_type,
-                    "Unexpected `$(param)` type for `$(object)` - `$(value_type)` expected!"
+                    "Unexpected `$(param)` type `$(typeof(val))` for `$(object)` - `$(value_type)` expected!"
                 )
                 if value_type <: Real
                     @test _check(
                         value_min <= val <= value_max,
-                        "`$(param)` for `$(object)` outside expected range `[$(value_min),$(value_max)]`!"
+                        "`$(param)` for `$(object)` value `$(val)` outside expected range `[$(value_min),$(value_max)]`!"
                     )
                 end
             else break
@@ -79,12 +79,12 @@ function test_parameter(
                 )()
                 @test _check(
                     val isa value_type,
-                    "Unexpected `$(param)` type for `$(relationship)` - `$(value_type)` expected!"
+                    "Unexpected `$(param)` type `$(typeof(val))` for `$(relationship)` - `$(value_type)` expected!"
                 )
                 if value_type <: Real
                     @test _check(
                         value_min <= val <= value_max,
-                        "`$(param)` for `$(relationship)` outside expected range `[$(value_min),$(value_max)]`!"
+                        "`$(param)` for `$(relationship)` value `$(val)` outside expected range `[$(value_min),$(value_max)]`!"
                     )
                 end
             else break
@@ -114,9 +114,10 @@ function test_object_class(
             obs_in_rels = getfield.(rel_class.relationships, obj_class.name)
             for (i,object) in enumerate(obj_class.objects)
                 if i <= limit
+                    c = count(entry -> entry == object, obs_in_rels)
                     @test _check(
-                        count_min <= count(entry -> entry == object, obs_in_rels) <= count_max,
-                        "`$(object)` count in `$(rel_class)` not within `[$(count_min),$(count_max)]`!"
+                        count_min <= c <= count_max,
+                        "`$(object)` count `$(c)` in `$(rel_class)` not within `[$(count_min),$(count_max)]`!"
                     )
                 else break
                 end
@@ -150,9 +151,10 @@ function test_relationship_class(
         in_rels = zip([getfield.(in_rel_class.relationships, field) for field in fields]...)
         for (i,rel) in enumerate(rels)
             if i <= limit
+                c = count(entry -> entry==rel, in_rels)
                 @test _check(
-                    count_min <= count(entry -> entry==rel, in_rels) <= count_max,
-                    "`$(rel)` count in `$(in_rel_class)` not within `[$(count_min),$(count_max)]`!"
+                    count_min <= c <= count_max,
+                    "`$(rel)` count `$(c)` in `$(in_rel_class)` not within `[$(count_min),$(count_max)]`!"
                 )
             else break
             end
