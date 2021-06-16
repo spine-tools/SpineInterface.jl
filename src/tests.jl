@@ -110,16 +110,19 @@ function test_object_class(
     @testset """
     Testing `$(obj_class)` in `$(rel_class)` and entry count within `[$(count_min),$(count_max)]`.
     """ begin
-        obs_in_rels = getfield.(rel_class.relationships, obj_class.name)
-        isempty(obs_in_rels) && error("`$(obj_class)` not included in `$(rel_class)`!")
-        for (i,object) in enumerate(obj_class.objects)
-            if i <= limit
-                @test _check(
-                    count_min <= count(entry -> entry == object, obs_in_rels) <= count_max,
-                    "`$(object)` count in `$(rel_class)` not within `[$(count_min),$(count_max)]`!"
-                )
-            else break
+        if obj_class.name in rel_class.intact_object_class_names
+            obs_in_rels = getfield.(rel_class.relationships, obj_class.name)
+            for (i,object) in enumerate(obj_class.objects)
+                if i <= limit
+                    @test _check(
+                        count_min <= count(entry -> entry == object, obs_in_rels) <= count_max,
+                        "`$(object)` count in `$(rel_class)` not within `[$(count_min),$(count_max)]`!"
+                    )
+                else break
+                end
             end
+        else
+            error("`$(obj_class)` not included in `$(rel_class)`!")
         end
     end
 end
