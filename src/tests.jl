@@ -47,7 +47,7 @@ function test_parameter(
                     obj_class.parameter_values[object],
                     param.name,
                     obj_class.parameter_defaults
-                ).value
+                )()
                 @test _check(
                     val isa value_type,
                     "Unexpected `$(param)` type for `$(object)` - `$(value_type)` expected!"
@@ -76,7 +76,7 @@ function test_parameter(
                     rel_class.parameter_values[tuple(relationship...)],
                     param.name,
                     rel_class.parameter_defaults
-                ).value
+                )()
                 @test _check(
                     val isa value_type,
                     "Unexpected `$(param)` type for `$(relationship)` - `$(value_type)` expected!"
