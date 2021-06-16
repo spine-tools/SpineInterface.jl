@@ -48,11 +48,11 @@ function test_parameter(
                     param.name,
                     obj_class.parameter_defaults
                 )()
+                cond = val isa value_type
                 @test _check(
-                    val isa value_type,
-                    "Unexpected `$(param)` type `$(typeof(val))` for `$(object)` - `$(value_type)` expected!"
+                    cond, "Unexpected `$(param)` type `$(typeof(val))` for `$(object)` - `$(value_type)` expected!"
                 )
-                if value_type <: Real
+                if cond && value_type <: Real
                     @test _check(
                         value_min <= val <= value_max,
                         "`$(param)` for `$(object)` value `$(val)` outside expected range `[$(value_min),$(value_max)]`!"
@@ -77,11 +77,11 @@ function test_parameter(
                     param.name,
                     rel_class.parameter_defaults
                 )()
+                cond = val isa value_type
                 @test _check(
-                    val isa value_type,
-                    "Unexpected `$(param)` type `$(typeof(val))` for `$(relationship)` - `$(value_type)` expected!"
+                    cond, "Unexpected `$(param)` type `$(typeof(val))` for `$(relationship)` - `$(value_type)` expected!"
                 )
-                if value_type <: Real
+                if cond && value_type <: Real
                     @test _check(
                         value_min <= val <= value_max,
                         "`$(param)` for `$(relationship)` value `$(val)` outside expected range `[$(value_min),$(value_max)]`!"
@@ -110,7 +110,9 @@ function test_object_class(
     @testset """
     Testing `$(obj_class)` in `$(rel_class)` and entry count within `[$(count_min),$(count_max)]`.
     """ begin
-        if obj_class.name in rel_class.intact_object_class_names
+        cond = obj_class.name in rel_class.intact_object_class_names
+        @test _check(cond, "`$(obj_class)` not included in `$(rel_class)`!")
+        if cond
             obs_in_rels = getfield.(rel_class.relationships, obj_class.name)
             for (i,object) in enumerate(obj_class.objects)
                 if i <= limit
@@ -122,8 +124,6 @@ function test_object_class(
                 else break
                 end
             end
-        else
-            error("`$(obj_class)` not included in `$(rel_class)`!")
         end
     end
 end
@@ -146,17 +146,20 @@ function test_relationship_class(
     Testing `$(rel_class)` in `$(in_rel_class)` entry count within `[$(count_min),$(count_max)]`.
     """ begin
         fields = intersect(rel_class.object_class_names, in_rel_class.object_class_names)
-        isempty(fields) && error("`$(rel_class)` and `$(in_rel_class)` have no common `ObjectClasses`!")
-        rels = zip([getfield.(rel_class.relationships, field) for field in fields]...)
-        in_rels = zip([getfield.(in_rel_class.relationships, field) for field in fields]...)
-        for (i,rel) in enumerate(rels)
-            if i <= limit
-                c = count(entry -> entry==rel, in_rels)
-                @test _check(
-                    count_min <= c <= count_max,
-                    "`$(rel)` count `$(c)` in `$(in_rel_class)` not within `[$(count_min),$(count_max)]`!"
-                )
-            else break
+        cond = !isempty(fields)
+        @test _check(cond, "`$(rel_class)` and `$(in_rel_class)` have no common `ObjectClasses`!")
+        if cond
+            rels = zip([getfield.(rel_class.relationships, field) for field in fields]...)
+            in_rels = zip([getfield.(in_rel_class.relationships, field) for field in fields]...)
+            for (i,rel) in enumerate(rels)
+                if i <= limit
+                    c = count(entry -> entry==rel, in_rels)
+                    @test _check(
+                        count_min <= c <= count_max,
+                        "`$(rel)` count `$(c)` in `$(in_rel_class)` not within `[$(count_min),$(count_max)]`!"
+                    )
+                else break
+                end
             end
         end
     end
