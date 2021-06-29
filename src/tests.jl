@@ -19,17 +19,23 @@ end
 
 """
     test_parameter(
-        param::Parameter, value_type::DataType; value_min::Real=-Inf, value_max::Real=Inf, limit::Real=Inf
+        param::Parameter, value_type::DataType, m::Module=@__MODULE__;
+        value_min::Real=-Inf, value_max::Real=Inf, limit::Real=Inf
     )
 
-Test if `param` value has the expected `DataType` and is contained between `value_min`, and `value_max`.
+Test if `param` value in module `m` has the expected `DataType` and is contained between `value_min`, and `value_max`.
 The `limit` keyword can be used to limit the number of tests performed.
 
 Methods are provided for testing `ObjectClass` and `RelationshipClass` separately.
 """
 function test_parameter(
-    param::Parameter, value_type::DataType; value_min::Real=-Inf, value_max::Real=Inf, limit::Real=Inf
+    param::Parameter, value_type::DataType, m::Module=@__MODULE__;
+    value_min::Real=-Inf, value_max::Real=Inf, limit::Real=Inf
 )
+    @test _check(
+        param in parameter(m),
+        "`$(param)` not found in module `$(m)`!"
+    )
     for class in param.classes
         test_parameter(param, class, value_type; value_min=value_min, value_max=value_max, limit=limit)
     end
@@ -96,17 +102,21 @@ end
 
 """
     test_object_class(
-        obj_class::ObjectClass, rel_class::RelationshipClass;
+        obj_class::ObjectClass, rel_class::RelationshipClass, m::Module=@__MODULE__;
         count_min::Real=0, count_max::Real=Inf, limit::Real=Inf
     )
 
-Test if the `object_class` is included in `relationship_class` with a desired entry count for each `object`.
+Test if the `object_class` in module `m` is included in `relationship_class` with a desired entry count for each `object`.
 The `limit` keyword can be used to limit the number of tests performed.
 """
 function test_object_class(
-    obj_class::ObjectClass, rel_class::RelationshipClass;
+    obj_class::ObjectClass, rel_class::RelationshipClass, m::Module=@__MODULE__;
     count_min::Real=0, count_max::Real=Inf, limit::Real=Inf
 )
+    @test _check(
+        obj_class in object_class(m),
+        "`$(obj_class)` not found in module `$(m)`!"
+    )
     @testset """
     Testing `$(obj_class)` in `$(rel_class)` and entry count within `[$(count_min),$(count_max)]`.
     """ begin
@@ -131,16 +141,20 @@ end
 
 """
     test_relationship_class(
-        rel_class:RelationshipClass, in_rel_class::RelationshipClass;
+        rel_class:RelationshipClass, in_rel_class::RelationshipClass, m::Module=@__MODULE__;
         count_min::Real=0, count_max::Real=Inf, limit::Real=Inf
     )
 
-Test if `relationship_class` is included in `in_rel_class` with the desired number of entries.
+Test if `relationship_class` in module `m` is included in `in_rel_class` with the desired number of entries.
 The `limit` keyword can be used to limit the number of tests performed.
 """
 function test_relationship_class(
-    rel_class::RelationshipClass, in_rel_class::RelationshipClass;
+    rel_class::RelationshipClass, in_rel_class::RelationshipClass, m::Module=@__MODULE__;
     count_min::Real=0, count_max::Real=Inf, limit::Real=Inf
+)
+@test _check(
+    rel_class in relationship_class(m),
+    "`$(rel_class)` not found in module `$(m)`!"
 )
 @testset """
     Testing `$(rel_class)` in `$(in_rel_class)` entry count within `[$(count_min),$(count_max)]`.
