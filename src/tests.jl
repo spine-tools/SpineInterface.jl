@@ -19,7 +19,7 @@ end
 
 """
     test_parameter(
-        param::Parameter, value_type::DataType, m::Module=@__MODULE__;
+        param::Parameter, value_type::Union{DataType,Union,UnionAll}, m::Module=@__MODULE__;
         value_min::Real=-Inf, value_max::Real=Inf, limit::Real=Inf
     )
 
@@ -29,7 +29,7 @@ The `limit` keyword can be used to limit the number of tests performed.
 Methods are provided for testing `ObjectClass` and `RelationshipClass` separately.
 """
 function test_parameter(
-    param::Parameter, value_type::DataType, m::Module=@__MODULE__;
+    param::Parameter, value_type::Union{DataType,Union,UnionAll}, m::Module=@__MODULE__;
     value_min::Real=-Inf, value_max::Real=Inf, limit::Real=Inf
 )
     @test _check(
@@ -41,7 +41,7 @@ function test_parameter(
     end
 end
 function test_parameter(
-    param::Parameter, obj_class::ObjectClass, value_type::DataType;
+    param::Parameter, obj_class::ObjectClass, value_type::Union{DataType,Union,UnionAll};
     value_min::Real=-Inf, value_max::Real=Inf, limit::Real=Inf
 )
     @testset """
@@ -70,7 +70,7 @@ function test_parameter(
     end
 end
 function test_parameter(
-    param::Parameter, rel_class::RelationshipClass, value_type::DataType;
+    param::Parameter, rel_class::RelationshipClass, value_type::Union{DataType,Union,UnionAll};
     value_min::Real=-Inf, value_max::Real=Inf, limit::Real=Inf
 )
     @testset """
