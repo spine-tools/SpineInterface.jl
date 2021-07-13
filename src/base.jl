@@ -121,6 +121,17 @@ Base.:min(x::Call, y::Call) = OperatorCall(min, x, y)
 Base.:min(x::Call, y) = OperatorCall(min, x, y)
 Base.:min(x, y::Call) = OperatorCall(min, x, y)
 
+function Base.broadcast(f::Function, x::TimeSeries, y::TimeSeries)
+    new_indexes = sort!(unique!(vcat(x.indexes, y.indexes)))
+    new_values = [
+        f(parameter_value(x)(ind), parameter_value(y)(ind))
+        for ind in new_indexes
+    ]
+    ignore_year = x.ignore_year || y.ignore_year
+    repeat = x.repeat || y.repeat
+    return TimeSeries(new_indexes, new_values, ignore_year, repeat)
+end
+
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
     pv_new_kwargs = _lookup_parameter_value(p; inds...)
