@@ -110,8 +110,9 @@ end
 (p::ArrayParameterValue)(::Nothing) = p.value
 (p::ArrayParameterValue)(i::Int64) = get(p.value, i, nothing)
 
-(p::TimePatternParameterValue)(; t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::TimePatternParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::TimePatternParameterValue)(::Nothing) = p.value
+(p::TimePatternParameterValue)(t::DateTime) = p(TimeSlice(t, t))
 function (p::TimePatternParameterValue)(t::TimeSlice)
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
     isempty(vals) && return nothing
@@ -125,8 +126,9 @@ function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
     (a, b)
 end
 
-(p::StandardTimeSeriesParameterValue)(; t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::StandardTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::StandardTimeSeriesParameterValue)(::Nothing) = p.value
+(p::StandardTimeSeriesParameterValue)(t::DateTime) = p(TimeSlice(t, t))
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     p.value.ignore_year && (t -= Year(start(t)))
     ab = _search_overlap(p.value, start(t), end_(t))
@@ -137,8 +139,9 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     mean(vals)
 end
 
-(p::RepeatingTimeSeriesParameterValue)(; t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::RepeatingTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::RepeatingTimeSeriesParameterValue)(::Nothing) = p.value
+(p::RepeatingTimeSeriesParameterValue)(t::DateTime) = p(TimeSlice(t, t))
 function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     t_start = start(t)
     t_end = end_(t)
