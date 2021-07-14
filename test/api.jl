@@ -273,3 +273,5 @@ end
     using_spinedb(db_url)
     @test maximum_parameter_value(people_count) == 300.0
 end
+# Clear in-memory DB for safety
+import_test_data(db_url; object_classes=[])
