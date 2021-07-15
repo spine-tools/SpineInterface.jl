@@ -153,7 +153,7 @@ end
     end
     @testset "array" begin
         data = [4, 8, 7]
-        value = Dict("type" => "array", "data" => PyVector(data))
+        value = Dict("type" => "array", "value_type" => "float", "data" => PyVector(data))
         object_parameter_values = [["country", "France", "apero_time", value]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)

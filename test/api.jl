@@ -223,7 +223,7 @@ end
     # Add parameter values of all types
     scalar_value = 18
     array_data = [4, 8, 7]
-    array_value = Dict("type" => "array", "data" => PyVector(array_data))
+    array_value = Dict("type" => "array", "value_type" => "float", "data" => PyVector(array_data))
     time_pattern_data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
     time_pattern_value = Dict("type" => "time_pattern", "data" => time_pattern_data)
     time_series_data = [1.0, 4.0, 5.0, NaN, 7.0]
