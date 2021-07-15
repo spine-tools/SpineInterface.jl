@@ -16,18 +16,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+db_url = "sqlite://"
 @testset "using_spinedb - basics" begin
-    SpineInterface._import_spinedb_api()
-    url = "sqlite://"
     @testset "object_class" begin
         object_classes = ["institution"]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         objects = [["institution", x] for x in (institutions..., "Spine")]
         object_groups = [["institution", "Spine", x] for x in institutions]
-        db_map = db_api.DatabaseMapping(url, create=true)
-        db_api.import_data(db_map; object_classes=object_classes, objects=objects, object_groups=object_groups)
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        import_test_data(db_url; object_classes=object_classes, objects=objects, object_groups=object_groups)
+        using_spinedb(db_url)
         @test length(institution()) === 6
         @test all(x isa Object for x in institution())
         @test [x.name for x in institution()] == vcat(Symbol.(institutions), :Spine)
@@ -66,16 +63,14 @@
             [["institution__country", x] for x in institution_country_tuples],
             [["country__neighbour", x] for x in country_neighbour_tuples],
         )
-        db_map = db_api.DatabaseMapping(url, create=true)
-        db_api.import_data(
-            db_map;
+        import_test_data(
+            db_url;
             object_classes=object_classes,
             relationship_classes=relationship_classes,
             objects=objects,
             relationships=relationships,
         )
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        using_spinedb(db_url)
         @test length(institution__country()) === 7
         @test all(x isa RelationshipLike for x in institution__country())
         @test [x.name for x in institution__country(country=country(:France))] == [:KTH, :ER]
@@ -109,10 +104,9 @@
         relationship_parameter_values = [
             ["institution__country", ["KTH", "Sweden"], "people_count", 3],
             ["institution__country", ["KTH", "France"], "people_count", 1],
-        ]
-        db_map = db_api.DatabaseMapping(url, create=true)        
-        db_api.import_data(
-            db_map;
+        ]    
+        import_test_data(
+            db_url;
             object_classes=object_classes,
             relationship_classes=relationship_classes,
             objects=objects,
@@ -122,8 +116,7 @@
             object_parameter_values=object_parameter_values,
             relationship_parameter_values=relationship_parameter_values,
         )
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        using_spinedb(db_url)
         @test all(x isa RelationshipLike for x in institution__country())
         @test people_count(institution=institution(:KTH), country=country(:France)) == 1
         @test people_count(institution=institution(:KTH), country=country(:Sweden)) == 3
@@ -136,40 +129,34 @@
     end
 end
 @testset "using_spinedb - parameter value types" begin
-    url = "sqlite://"
     object_classes = ["country"]
     objects = [["country", "France"]]
     object_parameters = [["country", "apero_time"]]
-    db_map = db_api.DatabaseMapping(url, create=true)
-    db_api.import_data(db_map; object_classes=object_classes, objects=objects, object_parameters=object_parameters)
+    import_test_data(db_url; object_classes=object_classes, objects=objects, object_parameters=object_parameters)
     @testset "true" begin
         object_parameter_values = [["country", "France", "apero_time", true]]
-        db_api.import_data(db_map; object_parameter_values=object_parameter_values)
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        import_data(db_url; object_parameter_values=object_parameter_values)
+        using_spinedb(db_url)
         @test apero_time(country=country(:France))
     end
     @testset "false" begin
         object_parameter_values = [["country", "France", "apero_time", false]]
-        db_api.import_data(db_map; object_parameter_values=object_parameter_values)
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        import_data(db_url; object_parameter_values=object_parameter_values)
+        using_spinedb(db_url)
         @test !apero_time(country=country(:France))
     end
     @testset "string" begin
         object_parameter_values = [["country", "France", "apero_time", "now!"]]
-        db_api.import_data(db_map; object_parameter_values=object_parameter_values)
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        import_data(db_url; object_parameter_values=object_parameter_values)
+        using_spinedb(db_url)
         @test apero_time(country=country(:France)) == Symbol("now!")
     end
     @testset "array" begin
         data = [4, 8, 7]
-        value = Dict("type" => "array", "data" => PyVector(data))
+        value = Dict("type" => "array", "value_type" => "float", "data" => PyVector(data))
         object_parameter_values = [["country", "France", "apero_time", value]]
-        db_api.import_data(db_map; object_parameter_values=object_parameter_values)
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        import_data(db_url; object_parameter_values=object_parameter_values)
+        using_spinedb(db_url)
         @test apero_time(country=country(:France)) == data
         @test all(apero_time(country=country(:France), i=i) == v for (i, v) in enumerate(data))
     end
@@ -177,18 +164,16 @@ end
         data = "2000-01-01T00:00:00"
         value = Dict("type" => "date_time", "data" => data)
         object_parameter_values = [["country", "France", "apero_time", value]]
-        db_api.import_data(db_map; object_parameter_values=object_parameter_values)
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        import_data(db_url; object_parameter_values=object_parameter_values)
+        using_spinedb(db_url)
         @test apero_time(country=country(:France)) == DateTime(data)
     end
     @testset "duration" begin
         @testset for (k, (t, data)) in enumerate([(Minute, "m"), (Hour, "h"), (Day, "D"), (Month, "M"), (Year, "Y")])
             value = Dict("type" => "duration", "data" => string(k, data))
             object_parameter_values = [["country", "France", "apero_time", value]]
-            db_api.import_data(db_map; object_parameter_values=object_parameter_values)
-            db_map.commit_session("No comment")
-            using_spinedb(db_map)
+            import_data(db_url; object_parameter_values=object_parameter_values)
+            using_spinedb(db_url)
             @test apero_time(country=country(:France)) == t(k)
         end
     end
@@ -196,9 +181,8 @@ end
         data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
         value = Dict("type" => "time_pattern", "data" => data)
         object_parameter_values = [["country", "France", "apero_time", value]]
-        db_api.import_data(db_map; object_parameter_values=object_parameter_values)
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        import_data(db_url; object_parameter_values=object_parameter_values)
+        using_spinedb(db_url)
         France = country(:France)
         @test apero_time(country=France) isa SpineInterface.TimePattern
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == 300
@@ -211,9 +195,8 @@ end
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
         value = Dict("type" => "time_series", "data" => PyVector(data), "index" => index)
         object_parameter_values = [["country", "France", "apero_time", value]]
-        db_api.import_data(db_map; object_parameter_values=object_parameter_values)
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        import_data(db_url; object_parameter_values=object_parameter_values)
+        using_spinedb(db_url)
         France = country(:France)
         @test apero_time(country=France) isa TimeSeries
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == 1.0
@@ -230,9 +213,8 @@ end
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => true, "ignore_year" => true)
         value = Dict("type" => "time_series", "data" => PyVector(data), "index" => index)
         object_parameter_values = [["country", "France", "apero_time", value]]
-        db_api.import_data(db_map; object_parameter_values=object_parameter_values)
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        import_data(db_url; object_parameter_values=object_parameter_values)
+        using_spinedb(db_url)
         France = country(:France)
         @test apero_time(country=France) isa TimeSeries
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
@@ -283,14 +265,13 @@ end
             ),
         )
         object_parameter_values = [["country", "France", "apero_time", value]]
-        db_api.import_data(
-            db_map;
+        import_data(
+            db_url;
             object_classes=object_classes,
             objects=objects,
             object_parameter_values=object_parameter_values,
         )
-        db_map.commit_session("No comment")
-        using_spinedb(db_map)
+        using_spinedb(db_url)
         France = country(:France)
         drunk = scenario(:drunk)
         sober = scenario(:sober)
@@ -306,3 +287,5 @@ end
         @test apero_time(; country=France, s=drunk, t0=t0, whocares=t0, t=t2_3) == 5.6
     end
 end
+# Clear in-memory DB for safety
+import_test_data(db_url; object_classes=[])
