@@ -23,6 +23,16 @@ using PyCall
 using Dates
 using JSON
 
+# Original tests used a slightly different syntax for `import_data`, so correct it here for convenience.
+SpineInterface.import_data(db_url::String; kwargs...) = SpineInterface.import_data(db_url, Dict(kwargs...), "testing")
+
+# Convenience function for overwriting in-memory Database with test data.
+function import_test_data(db_url::String; kwargs...)
+    SpineInterface._import_spinedb_api()
+    SpineInterface.db_server.close_persistent_db_map(db_url)
+    import_data(db_url; kwargs...)
+end
+
 @testset begin
     include("using_spinedb.jl")
     include("api.jl")

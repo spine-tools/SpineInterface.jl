@@ -556,7 +556,7 @@ function _import_spinedb_api()
 end
 
 function _do_create_db_handler(db_url::String, upgrade::Bool)
-    db_server.DBHandler(db_url, upgrade)
+    db_url == "sqlite://" ? db_server.PersistentDBHandler(db_url, upgrade) : db_server.DBHandler(db_url, upgrade)
 end
 
 function _create_db_handler(db_url::String, upgrade::Bool)
