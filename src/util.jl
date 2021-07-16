@@ -643,3 +643,42 @@ function _to_dict(rel_cls::RelationshipClass)
         ]
     )
 end
+
+"""
+    timedata_operation(f::Function, x, y)
+
+Perform `f` element-wise for potentially `TimeSeries` or `TimePattern` arguments `x` and `y`.
+
+Operations between `TimeSeries`/`TimePattern` and `Number` are supported.
+If both `x` and `y` are either `TimeSeries` or `TimePattern`, the timestamps of `x` and `y` are combined,
+and both time-dependent data are sampled on each timestamps to perform the desired operation.
+If either `ts1` or `ts2` are `TimeSeries`, returns a `TimeSeries`.
+If either `ts1` or `ts2` has the `ignore_year` or `repeat` flags set to `true`, so does the resulting `TimeSeries`.
+
+Operations between two `TimePattern`s are not yet supported.
+"""
+timedata_operation(f::Function, x::TimeSeries, y::Number) = TimeSeries(
+    x.indexes, f.(x.values, y), x.ignore_year, x.repeat
+)
+timedata_operation(f::Function, x::TimePattern, y::Number) = TimePattern(
+    Dict(key => f(val, y) for (key, val) in x)
+)
+function timedata_operation(f::Function, x::TimeSeries, y::TimeSeries)
+    indexes = sort!(unique!(vcat(x.indexes, y.indexes)))
+    values = [
+        !isnothing(parameter_value(x)(ind)) && !isnothing(parameter_value(y)(ind)) ?
+            f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
+        for ind in indexes
+    ]
+    ignore_year = x.ignore_year || y.ignore_year
+    repeat = x.repeat || y.repeat
+    return TimeSeries(indexes, values, ignore_year, repeat)
+end
+function timedata_operation(f::Function, x::TimeSeries, y::TimePattern)
+    values = [
+        !isnothing(parameter_value(x)(ind)) && !isnothing(parameter_value(y)(ind)) ?
+            f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
+        for ind in indexes
+    ]
+    return TimeSeries(x.indexes, values, x.ignore_year, x.repeat)
+end

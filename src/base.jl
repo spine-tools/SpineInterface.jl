@@ -36,6 +36,7 @@ Base.isless(v1::ScalarParameterValue, v2::ScalarParameterValue) = v1.value < v2.
 
 Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
 Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
+Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all([getfield(ts1, field) == getfield(ts2, field) for field in fieldnames(TimeSeries)])
 
 Base.hash(::Anything) = zero(UInt64)
 Base.hash(o::Union{Object,TimeSlice}) = o.id
@@ -104,40 +105,42 @@ Base.:+(x::Call, y::Call) = OperatorCall(+, x, y)
 Base.:+(x::Call, y) = OperatorCall(+, x, y)
 Base.:+(x, y::Call) = OperatorCall(+, x, y)
 Base.:+(x::Call) = x
+Base.:+(ts::TimeSeries, num::Number) = timedata_operation(+, ts, num)
+Base.:+(tp::TimePattern, num::Number) = timedata_operation(+, tp, num)
+Base.:+(ts1::TimeSeries, ts2::TimeSeries) = timedata_operation(+, ts1, ts2)
+Base.:+(ts::TimeSeries, tp::TimePattern) = timedata_operation(+, ts, tp)
 Base.:-(x::Call, y::Call) = OperatorCall(+, x, -y)
 Base.:-(x::Call, y) = OperatorCall(+, x, -y)
 Base.:-(x, y::Call) = OperatorCall(+, x, -y)
 Base.:-(x::Call) = OperatorCall(-, zero(Call), x)
+Base.:-(ts::TimeSeries, num::Number) = timedata_operation(-, ts, num)
+Base.:-(tp::TimePattern, num::Number) = timedata_operation(-, tp, num)
+Base.:-(ts1::TimeSeries, ts2::TimeSeries) = timedata_operation(-, ts1, ts2)
+Base.:-(ts::TimeSeries, tp::TimePattern) = timedata_operation(-, ts, tp)
 Base.:*(x::Call, y::Call) = OperatorCall(*, x, y)
 Base.:*(x::Call, y) = OperatorCall(*, x, y)
 Base.:*(x, y::Call) = OperatorCall(*, x, y)
+Base.:*(ts::TimeSeries, num::Number) = timedata_operation(*, ts, num)
+Base.:*(tp::TimePattern, num::Number) = timedata_operation(*, tp, num)
+Base.:*(ts1::TimeSeries, ts2::TimeSeries) = timedata_operation(*, ts1, ts2)
+Base.:*(ts::TimeSeries, tp::TimePattern) = timedata_operation(*, ts, tp)
 Base.:/(x::Call, y::Call) = OperatorCall(/, x, y)
 Base.:/(x::Call, y) = OperatorCall(/, x, y)
 Base.:/(x, y::Call) = OperatorCall(/, x, y)
+Base.:/(ts::TimeSeries, num::Number) = timedata_operation(/, ts, num)
+Base.:/(tp::TimePattern, num::Number) = timedata_operation(/, tp, num)
+Base.:/(ts1::TimeSeries, ts2::TimeSeries) = timedata_operation(/, ts1, ts2)
+Base.:/(ts::TimeSeries, tp::TimePattern) = timedata_operation(/, ts, tp)
 Base.:+(t::TimeSlice, p::Period) = TimeSlice(start(t) + p, end_(t) + p, duration(t), blocks(t))
 Base.:-(t::TimeSlice, p::Period) = (+)(t, -p)
+Base.:^(ts::TimeSeries, num::Number) = timedata_operation(^, ts, num)
+Base.:^(tp::TimePattern, num::Number) = timedata_operation(^, tp, num)
+Base.:^(ts1::TimeSeries, ts2::TimeSeries) = timedata_operation(^, ts1, ts2)
+Base.:^(ts::TimeSeries, tp::TimePattern) = timedata_operation(^, ts, tp)
 
 Base.:min(x::Call, y::Call) = OperatorCall(min, x, y)
 Base.:min(x::Call, y) = OperatorCall(min, x, y)
 Base.:min(x, y::Call) = OperatorCall(min, x, y)
-
-function Base.broadcast(f::Function, x::TimeSeries, y::TimeSeries)
-    indexes = sort!(unique!(vcat(x.indexes, y.indexes)))
-    values = [
-        f(parameter_value(x)(ind), parameter_value(y)(ind))
-        for ind in indexes
-    ]
-    ignore_year = x.ignore_year || y.ignore_year
-    repeat = x.repeat || y.repeat
-    return TimeSeries(indexes, values, ignore_year, repeat)
-end
-function Base.broadcast(f::Function, x::TimeSeries, y::TimePattern)
-    values = [
-        f(parameter_value(x)(ind), parameter_value(y)(ind))
-        for ind in indexes
-    ]
-    return TimeSeries(x.indexes, values, x.ignore_year, x.repeat)
-end
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
