@@ -174,9 +174,20 @@ end
         parameters = Dict(:apero_time => Dict((country=:France,) => val))
         write_parameters(parameters, url)
         using_spinedb(url)
+        @test isnothing(apero_time(country=country(:France), t=DateTime(0)))
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(1))) == 4
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(2))) == 4
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1,2), DateTime(1,12))) == 4
+        @test apero_time(country=country(:France), t=DateTime(1)) == 4
+        @test apero_time(country=country(:France), t=DateTime(1,12)) == 4
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(2), DateTime(3))) == 5
+        @test apero_time(country=country(:France), t=DateTime(2)) == 5
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(3))) == 4.5
+        @test apero_time(country=country(:France), t=DateTime(3)) == 6
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(3), DateTime(100))) == 6
+        @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(4), DateTime(100))))
+        @test isnothing(apero_time(country=country(:France), t=DateTime(100)))
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(100))) == 5
     end
     @testset "with report" begin
         isfile(path) && rm(path)

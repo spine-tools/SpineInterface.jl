@@ -120,7 +120,7 @@ function (p::TimePatternParameterValue)(t::TimeSlice)
 end
 
 function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
-    (t_start <= ts.indexes[end] && t_end > ts.indexes[1]) || return ()
+    (t_start <= ts.indexes[end] && t_end >= ts.indexes[1]) || return ()
     a = max(1, searchsortedlast(ts.indexes, t_start))
     b = searchsortedfirst(ts.indexes, t_end) - 1
     (a, b)
@@ -134,7 +134,7 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     ab = _search_overlap(p.value, start(t), end_(t))
     isempty(ab) && return nothing
     a, b = ab
-    a > b && return nothing
+    a > b ? b = a : nothing
     vals = Iterators.filter(!isnan, p.value.values[a:b])
     mean(vals)
 end
