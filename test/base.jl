@@ -183,7 +183,9 @@
     @test ts1 * ts1 == ts1 ^ 2.
     @test ts1 / ts1 == TimeSeries(ts1.indexes, ts1.values ./ ts1.values, false, false)
     @test ts1 - ts1 == TimeSeries(ts1.indexes, ts1.values .- ts1.values, false, false)
-    @test ts1 / ts1_repeat == TimeSeries(ts1.indexes, ts1.values ./ ts1_repeat.values, false, true)
-    @test ts1 / ts1_ignore_year == TimeSeries(ts1.indexes, ts1.values ./ ts1_ignore_year.values, true, false)
+    @test ts1 / ts1_ignore_year == TimeSeries(ts1.indexes, ts1.values ./ ts1_ignore_year.values, false, false)
+    @test ts1_ignore_year / ts1_ignore_year == TimeSeries(ts1_ignore_year.indexes, ts1_ignore_year.values ./ ts1_ignore_year.values, true, false)
+    @test ts1 / ts1_repeat == TimeSeries(ts1.indexes, ts1.values ./ ts1_repeat.values, false, false)
+    @test ts1_repeat / ts1_repeat == TimeSeries(ts1_repeat.indexes, ts1_repeat.values ./ ts1_repeat.values, false, true)
     @test ts1 + ts2 == TimeSeries(DateTime.([2, 3, 4, 5], [4, 6, 7, 10], false, false))
 end

@@ -670,8 +670,8 @@ function timedata_operation(f::Function, x::TimeSeries, y::TimeSeries)
             f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
         for ind in indexes
     ]
-    ignore_year = x.ignore_year || y.ignore_year
-    repeat = x.repeat || y.repeat
+    ignore_year = x.ignore_year && y.ignore_year
+    repeat = x.repeat && y.repeat
     return TimeSeries(indexes, values, ignore_year, repeat)
 end
 function timedata_operation(f::Function, x::TimeSeries, y::TimePattern)
