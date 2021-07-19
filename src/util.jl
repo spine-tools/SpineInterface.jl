@@ -670,6 +670,8 @@ function timedata_operation(f::Function, x::TimeSeries, y::TimeSeries)
             f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
         for ind in indexes
     ]
+    indexes = indexes[findall(!isnothing, values)]
+    filter!(!isnothing, values)
     ignore_year = x.ignore_year && y.ignore_year
     repeat = x.repeat && y.repeat
     return TimeSeries(indexes, values, ignore_year, repeat)
@@ -680,5 +682,7 @@ function timedata_operation(f::Function, x::TimeSeries, y::TimePattern)
             f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
         for ind in indexes
     ]
-    return TimeSeries(x.indexes, values, x.ignore_year, x.repeat)
+    indexes = x.indexes[findall(!isnothing, values)]
+    filter!(!isnothing, values)
+    return TimeSeries(indexes, values, x.ignore_year, x.repeat)
 end
