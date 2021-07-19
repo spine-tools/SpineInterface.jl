@@ -661,9 +661,7 @@ Operations between two `TimePattern`s are not yet supported.
 timedata_operation(f::Function, x::TimeSeries, y::Number) = TimeSeries(
     x.indexes, f.(x.values, y), x.ignore_year, x.repeat
 )
-timedata_operation(f::Function, x::TimePattern, y::Number) = TimePattern(
-    Dict(key => f(val, y) for (key, val) in x)
-)
+timedata_operation(f::Function, x::TimePattern, y::Number) = Dict(key => f(val, y) for (key, val) in x)
 function timedata_operation(f::Function, x::TimeSeries, y::TimeSeries)
     indexes = sort!(unique!(vcat(x.indexes, y.indexes)))
     values = [
