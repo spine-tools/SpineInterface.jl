@@ -155,6 +155,7 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     ab = _search_overlap(p.value, t_start, t_end - reps * p.span)
     isempty(ab) && return nothing
     a, b = ab
+    reps == 0 && a > b ? b = a : nothing
     asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
     bsum = sum(Iterators.filter(!isnan, p.value.values[1:b]))
     alen = count(!isnan, p.value.values[a:end])
