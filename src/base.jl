@@ -36,11 +36,17 @@ Base.isless(v1::ScalarParameterValue, v2::ScalarParameterValue) = v1.value < v2.
 
 Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
 Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
-Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all([getfield(ts1, field) == getfield(ts2, field) for field in fieldnames(TimeSeries)])
+Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all(
+    [getfield(ts1, field) == getfield(ts2, field) for field in fieldnames(TimeSeries)]
+)
+Base.:(==)(pc1::PeriodCollection, pc2::PeriodCollection) = all(
+    [getfield(pc1, field) == getfield(pc2, field) for field in fieldnames(PeriodCollection)]
+)
 
 Base.hash(::Anything) = zero(UInt64)
 Base.hash(o::Union{Object,TimeSlice}) = o.id
 Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
+Base.hash(pc::PeriodCollection) = hash([getfield(pc, field) for field in fieldnames(PeriodCollection)])
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
