@@ -18,6 +18,7 @@
 #############################################################################
 
 using SpineInterface
+import SpineInterface.PeriodCollection
 using Test
 using PyCall
 using Dates

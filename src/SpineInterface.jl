@@ -65,6 +65,7 @@ export import_data
 export test_object_class
 export test_relationship_class
 export test_parameter
+export timedata_operation
 
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin

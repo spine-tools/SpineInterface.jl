@@ -160,13 +160,23 @@ end
     end
     @testset "time_pattern" begin
         isfile(path) && rm(path)
-        val = Dict(SpineInterface.PeriodCollection("D1-5") => 30.5, SpineInterface.PeriodCollection("D6-7") => 24.7)
+        val = Dict(SpineInterface.PeriodCollection("D2-5") => 30.5, SpineInterface.PeriodCollection("D6-7") => 24.7)
         @test val isa SpineInterface.TimePattern
         parameters = Dict(:apero_time => Dict((country=:France,) => val))
         write_parameters(parameters, url)
         using_spinedb(url)
-        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 3), DateTime(0, 1, 5))) == 30.5
+        @test isnothing(apero_time(country=country(:France), t=DateTime(0, 1, 1)))
+        @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 1), DateTime(0, 1, 1, 23))))
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 1), DateTime(0, 1, 5))) == 30.5
+        @test apero_time(country=country(:France), t=DateTime(0, 1, 2)) == 30.5
+        @test apero_time(country=country(:France), t=DateTime(0, 1, 5)) == 30.5
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 5), DateTime(0, 1, 6))) == (30.5 + 24.7) / 2.
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 6), DateTime(0, 1, 6, 10))) == 24.7
+        @test apero_time(country=country(:France), t=DateTime(0, 1, 6)) == 24.7
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 7), DateTime(0, 1, 8))) == 24.7
+        @test apero_time(country=country(:France), t=DateTime(0, 1, 7)) == 24.7
+        @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 8), DateTime(0, 1, 31))))
+        @test isnothing(apero_time(country=country(:France), t=DateTime(0, 1, 8)))
     end
     @testset "time_series" begin
         isfile(path) && rm(path)
@@ -174,9 +184,20 @@ end
         parameters = Dict(:apero_time => Dict((country=:France,) => val))
         write_parameters(parameters, url)
         using_spinedb(url)
+        @test isnothing(apero_time(country=country(:France), t=DateTime(0)))
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(1))) == 4
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(2))) == 4
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1,2), DateTime(1,12))) == 4
+        @test apero_time(country=country(:France), t=DateTime(1)) == 4
+        @test apero_time(country=country(:France), t=DateTime(1,12)) == 4
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(2), DateTime(3))) == 5
+        @test apero_time(country=country(:France), t=DateTime(2)) == 5
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(3))) == 4.5
+        @test apero_time(country=country(:France), t=DateTime(3)) == 6
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(3), DateTime(100))) == 6
+        @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(4), DateTime(100))))
+        @test isnothing(apero_time(country=country(:France), t=DateTime(100)))
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(100))) == 5
     end
     @testset "with report" begin
         isfile(path) && rm(path)

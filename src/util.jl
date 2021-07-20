@@ -110,8 +110,9 @@ end
 (p::ArrayParameterValue)(::Nothing) = p.value
 (p::ArrayParameterValue)(i::Int64) = get(p.value, i, nothing)
 
-(p::TimePatternParameterValue)(; t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::TimePatternParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::TimePatternParameterValue)(::Nothing) = p.value
+(p::TimePatternParameterValue)(t::DateTime) = p(TimeSlice(t, t))
 function (p::TimePatternParameterValue)(t::TimeSlice)
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
     isempty(vals) && return nothing
@@ -119,26 +120,28 @@ function (p::TimePatternParameterValue)(t::TimeSlice)
 end
 
 function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
-    (t_start <= ts.indexes[end] && t_end > ts.indexes[1]) || return ()
+    (t_start <= ts.indexes[end] && t_end >= ts.indexes[1]) || return ()
     a = max(1, searchsortedlast(ts.indexes, t_start))
     b = searchsortedfirst(ts.indexes, t_end) - 1
     (a, b)
 end
 
-(p::StandardTimeSeriesParameterValue)(; t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::StandardTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::StandardTimeSeriesParameterValue)(::Nothing) = p.value
+(p::StandardTimeSeriesParameterValue)(t::DateTime) = p(TimeSlice(t, t))
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     p.value.ignore_year && (t -= Year(start(t)))
     ab = _search_overlap(p.value, start(t), end_(t))
     isempty(ab) && return nothing
     a, b = ab
-    a > b && return nothing
+    a > b ? b = a : nothing
     vals = Iterators.filter(!isnan, p.value.values[a:b])
     mean(vals)
 end
 
-(p::RepeatingTimeSeriesParameterValue)(; t::Union{TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::RepeatingTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::RepeatingTimeSeriesParameterValue)(::Nothing) = p.value
+(p::RepeatingTimeSeriesParameterValue)(t::DateTime) = p(TimeSlice(t, t))
 function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     t_start = start(t)
     t_end = end_(t)
@@ -152,6 +155,7 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     ab = _search_overlap(p.value, t_start, t_end - reps * p.span)
     isempty(ab) && return nothing
     a, b = ab
+    reps == 0 && a > b ? b = a : nothing
     asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
     bsum = sum(Iterators.filter(!isnan, p.value.values[1:b]))
     alen = count(!isnan, p.value.values[a:end])
@@ -639,4 +643,59 @@ function _to_dict(rel_cls::RelationshipClass)
             for (parameter_name, parameter_value) in parameter_values
         ]
     )
+end
+
+"""
+    timedata_operation(f::Function, x, y)
+
+Perform `f` element-wise for potentially `TimeSeries` or `TimePattern` arguments `x` and `y`.
+
+Operations between `TimeSeries`/`TimePattern` and `Number` are supported.
+If both `x` and `y` are either `TimeSeries` or `TimePattern`, the timestamps of `x` and `y` are combined,
+and both time-dependent data are sampled on each timestamps to perform the desired operation.
+If either `ts1` or `ts2` are `TimeSeries`, returns a `TimeSeries`.
+If either `ts1` or `ts2` has the `ignore_year` or `repeat` flags set to `true`, so does the resulting `TimeSeries`.
+
+Operations between two `TimePattern`s are not yet supported.
+"""
+timedata_operation(f::Function, x::TimeSeries, y::Number) = TimeSeries(
+    x.indexes, f.(x.values, y), x.ignore_year, x.repeat
+)
+timedata_operation(f::Function, y::Number, x::TimeSeries) = TimeSeries(
+    x.indexes, f.(y, x.values), x.ignore_year, x.repeat
+)
+timedata_operation(f::Function, x::TimePattern, y::Number) = Dict(key => f(val, y) for (key, val) in x)
+timedata_operation(f::Function, y::Number, x::TimePattern) = Dict(key => f(y, val) for (key, val) in x)
+function timedata_operation(f::Function, x::TimeSeries, y::TimeSeries)
+    indexes = sort!(unique!(vcat(x.indexes, y.indexes)))
+    values = [
+        !isnothing(parameter_value(x)(ind)) && !isnothing(parameter_value(y)(ind)) ?
+            f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
+        for ind in indexes
+    ]
+    indexes = indexes[findall(!isnothing, values)]
+    filter!(!isnothing, values)
+    ignore_year = x.ignore_year && y.ignore_year
+    repeat = x.repeat && y.repeat
+    return TimeSeries(indexes, values, ignore_year, repeat)
+end
+function timedata_operation(f::Function, x::TimeSeries, y::TimePattern)
+    values = [
+        !isnothing(parameter_value(x)(ind)) && !isnothing(parameter_value(y)(ind)) ?
+            f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
+        for ind in x.indexes
+    ]
+    indexes = x.indexes[findall(!isnothing, values)]
+    filter!(!isnothing, values)
+    return TimeSeries(indexes, values, x.ignore_year, x.repeat)
+end
+function timedata_operation(f::Function, y::TimePattern, x::TimeSeries)
+    values = [
+        !isnothing(parameter_value(x)(ind)) && !isnothing(parameter_value(y)(ind)) ?
+            f(parameter_value(y)(ind), parameter_value(x)(ind)) : nothing
+        for ind in x.indexes
+    ]
+    indexes = x.indexes[findall(!isnothing, values)]
+    filter!(!isnothing, values)
+    return TimeSeries(indexes, values, x.ignore_year, x.repeat)
 end

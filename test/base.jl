@@ -174,4 +174,25 @@
     abs_call = abs(Call(-5))
     @test abs_call isa Call
     @test realize(abs_call) === 5
+    # Arithmetic for TimeSeries and TimePattern
+    ts1_vals = [1,2,4]
+    ts1_dates = [DateTime(1,i) for i in ts1_vals]
+    ts2_vals = [2,3,4]
+    ts2_dates = [DateTime(1,i) for i in ts2_vals]
+    ts1 = TimeSeries(ts1_dates, ts1_vals, false, false)
+    ts1_repeat = TimeSeries(ts1_dates, ts1_vals, false, true)
+    ts1_ignore_year = TimeSeries(ts1_dates .- Year(DateTime(1)), ts1_vals, true, false)
+    ts2 = TimeSeries(ts2_dates, ts2_vals, false, false)
+    tp = Dict(PeriodCollection(;M=[2:3]) => 2, PeriodCollection(;M=[3:4]) => 3)
+    @test ts1 + ts1 == ts1 * 2. == 2. * ts1
+    @test ts1 * ts1 == ts1 ^ 2.
+    @test ts1 / ts1 == TimeSeries(ts1.indexes, ts1.values ./ ts1.values, false, false)
+    @test ts1 - ts1 == TimeSeries(ts1.indexes, ts1.values .- ts1.values, false, false)
+    @test ts1 + ts1_ignore_year == ts1_ignore_year + ts1 == TimeSeries(ts1.indexes, ts1.values .+ ts1_ignore_year.values, false, false)
+    @test ts1_ignore_year + ts1_ignore_year == TimeSeries(ts1_ignore_year.indexes, ts1_ignore_year.values .+ ts1_ignore_year.values, true, false)
+    @test ts1 + ts1_repeat == ts1_repeat + ts1 == TimeSeries(ts1.indexes, [2.,4.,5.], false, false)
+    @test ts1_repeat + ts1_repeat == TimeSeries(ts1_repeat.indexes, [2.,4.,2.], false, true)
+    @test ts1 + ts2 == ts2 + ts1 == TimeSeries([DateTime(1,i) for i in 2:4], [4., 5., 8.], false, false)
+    @test tp * 2. == 2. * tp == Dict(PeriodCollection(;M=[2:3]) => 4., PeriodCollection(;M=[3:4]) => 6.)
+    @test ts1 + tp == tp + ts1 == TimeSeries(ts1_dates[2:end], [4., 7.], false, false)
 end
