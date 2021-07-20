@@ -183,8 +183,8 @@
     ts1_repeat = TimeSeries(ts1_dates, ts1_vals, false, true)
     ts1_ignore_year = TimeSeries(ts1_dates .- Year(DateTime(1)), ts1_vals, true, false)
     ts2 = TimeSeries(ts2_dates, ts2_vals, false, false)
-    tp = Dict(PeriodCollection(;Y=[2:3]) => 2, PeriodCollection(;Y=[3:4]) => 3)
-    @test ts1 + ts1 == ts1 * 2.
+    tp = Dict(PeriodCollection(;M=[2:3]) => 2, PeriodCollection(;M=[3:4]) => 3)
+    @test ts1 + ts1 == ts1 * 2. == 2. * ts1
     @test ts1 * ts1 == ts1 ^ 2.
     @test ts1 / ts1 == TimeSeries(ts1.indexes, ts1.values ./ ts1.values, false, false)
     @test ts1 - ts1 == TimeSeries(ts1.indexes, ts1.values .- ts1.values, false, false)
@@ -193,6 +193,6 @@
     @test ts1 + ts1_repeat == ts1_repeat + ts1 == TimeSeries(ts1.indexes, [2.,4.,5.], false, false)
     @test ts1_repeat + ts1_repeat == TimeSeries(ts1_repeat.indexes, [2.,4.,2.], false, true)
     @test ts1 + ts2 == ts2 + ts1 == TimeSeries([DateTime(1,i) for i in 2:4], [4., 5., 8.], false, false)
-    @test tp * 2 == Dict(PeriodCollection(;Y=[2:3]) => 4, PeriodCollection(;Y=[3:4]) => 6)
+    @test tp * 2. == 2. * tp == Dict(PeriodCollection(;M=[2:3]) => 4., PeriodCollection(;M=[3:4]) => 6.)
     @test ts1 + tp == tp + ts1 == TimeSeries(ts1_dates[2:end], [4., 7.], false, false)
 end
