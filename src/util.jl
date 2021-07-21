@@ -667,14 +667,19 @@ timedata_operation(f::Function, y::Number, x::TimeSeries) = TimeSeries(
 timedata_operation(f::Function, x::TimePattern, y::Number) = Dict(key => f(val, y) for (key, val) in x)
 timedata_operation(f::Function, y::Number, x::TimePattern) = Dict(key => f(y, val) for (key, val) in x)
 function timedata_operation(f::Function, x::TimeSeries, y::TimeSeries)
-    indexes = sort!(unique!(vcat(x.indexes, y.indexes)))
-    values = [
-        !isnothing(parameter_value(x)(ind)) && !isnothing(parameter_value(y)(ind)) ?
-            f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
-        for ind in indexes
-    ]
-    indexes = indexes[findall(!isnothing, values)]
-    filter!(!isnothing, values)
+    if x.indexes == y.indexes && !x.ignore_year && !y.ignore_year && !x.repeat && !y.repeat
+        indexes = x.indexes
+        values = broadcast(f, x.values, y.values)
+    else
+        indexes = sort!(unique!(vcat(x.indexes, y.indexes)))
+        values = [
+            !isnothing(parameter_value(x)(ind)) && !isnothing(parameter_value(y)(ind)) ?
+                f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
+            for ind in indexes
+        ]
+        indexes = indexes[findall(!isnothing, values)]
+        filter!(!isnothing, values)
+    end
     ignore_year = x.ignore_year && y.ignore_year
     repeat = x.repeat && y.repeat
     return TimeSeries(indexes, values, ignore_year, repeat)
