@@ -163,6 +163,8 @@ Base.:min(x::Call, y::Call) = OperatorCall(min, x, y)
 Base.:min(x::Call, y) = OperatorCall(min, x, y)
 Base.:min(x, y::Call) = OperatorCall(min, x, y)
 
+Base.values(ts::TimeSeries) = ts.values
+
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
     pv_new_kwargs = _lookup_parameter_value(p; inds...)

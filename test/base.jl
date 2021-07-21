@@ -195,4 +195,7 @@
     @test ts1 + ts2 == ts2 + ts1 == TimeSeries([DateTime(1,i) for i in 2:4], [4., 5., 8.], false, false)
     @test tp * 2. == 2. * tp == Dict(PeriodCollection(;M=[2:3]) => 4., PeriodCollection(;M=[3:4]) => 6.)
     @test ts1 + tp == tp + ts1 == TimeSeries(ts1_dates[2:end], [4., 7.], false, false)
+    # Call values
+    values(ts1) == ts1_vals
+    values(tp) == [2,3]
 end
