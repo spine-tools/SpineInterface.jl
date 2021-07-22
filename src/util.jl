@@ -656,7 +656,7 @@ and both time-dependent data are sampled on each timestamps to perform the desir
 If either `ts1` or `ts2` are `TimeSeries`, returns a `TimeSeries`.
 If either `ts1` or `ts2` has the `ignore_year` or `repeat` flags set to `true`, so does the resulting `TimeSeries`.
 
-Operations between two `TimePattern`s are not yet supported.
+Operations between two `TimePattern`s are currently supported only if they have the exact same keys.
 """
 timedata_operation(f::Function, x::TimeSeries, y::Number) = TimeSeries(
     x.indexes, f.(x.values, y), x.ignore_year, x.repeat
@@ -703,4 +703,11 @@ function timedata_operation(f::Function, y::TimePattern, x::TimeSeries)
     indexes = x.indexes[findall(!isnothing, values)]
     filter!(!isnothing, values)
     return TimeSeries(indexes, values, x.ignore_year, x.repeat)
+end
+function timedata_operation(f::Function, x::TimePattern, y::TimePattern)
+    if keys(x) == keys(y)
+        return Dict(key => f(x[key], y[key]) for key in keys(x))
+    else
+        @error "`TimePattern-TimePattern` arithmetic currently only supported if the keys are identical!"
+    end
 end
