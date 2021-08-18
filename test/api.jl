@@ -199,6 +199,30 @@ end
         @test isnothing(apero_time(country=country(:France), t=DateTime(100)))
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(100))) == 5
     end
+    @testset "repeating time_series" begin
+        isfile(path) && rm(path)
+        # NOTE! Repeating time series should always end with the same value as it started!
+        val = TimeSeries([DateTime(1), DateTime(2), DateTime(3), DateTime(4)], [4, 5, 6, 4], false, true)
+        parameters = Dict(:apero_time => Dict((country=:France,) => val))
+        write_parameters(parameters, url)
+        using_spinedb(url)
+        # NOTE! Leap-years cause cumulating one-day mismatches over time series repeated over multiple years...
+        @test apero_time(country=country(:France), t=DateTime(0)) == 5
+        @test apero_time(country=country(:France), t=DateTime(0,1,2)) == 6
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(1))) == 5.5
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(2))) == 4
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1,2), DateTime(1,12))) == 4
+        @test apero_time(country=country(:France), t=DateTime(1)) == 4
+        @test apero_time(country=country(:France), t=DateTime(1,12)) == 4
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(2), DateTime(3))) == 5
+        @test apero_time(country=country(:France), t=DateTime(2)) == 5
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(3))) == 4.5
+        @test apero_time(country=country(:France), t=DateTime(3)) == 6
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(3), DateTime(100))) == 6
+        @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(4), DateTime(100))))
+        @test isnothing(apero_time(country=country(:France), t=DateTime(100)))
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(100))) == 5
+    end
     @testset "with report" begin
         isfile(path) && rm(path)
         parameters = Dict(:apero_time => Dict((country=:France,) => "later..."))
