@@ -112,6 +112,7 @@ end
 
 (p::TimePatternParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::TimePatternParameterValue)(::Nothing) = p.value
+(p::TimePatternParameterValue)(t::DateTime) = p(TimeSlice(t,t))
 function (p::TimePatternParameterValue)(t::TimeSlice)
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
     isempty(vals) && return nothing
