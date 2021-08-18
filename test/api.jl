@@ -185,7 +185,7 @@ end
         write_parameters(parameters, url)
         using_spinedb(url)
         @test isnothing(apero_time(country=country(:France), t=DateTime(0)))
-        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(1))) == 4
+        @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(1))))
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(2))) == 4
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1,2), DateTime(1,12))) == 4
         @test apero_time(country=country(:France), t=DateTime(1)) == 4

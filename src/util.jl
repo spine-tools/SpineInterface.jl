@@ -128,6 +128,11 @@ end
 
 (p::StandardTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::StandardTimeSeriesParameterValue)(::Nothing) = p.value
+function (p::StandardTimeSeriesParameterValue)(t::DateTime)
+    p.value.indexes[1] <= t <= p.value.indexes[end] || return nothing
+    p.value.ignore_year && (t -= Year(start(t)))
+    p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
+end
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     p.value.ignore_year && (t -= Year(start(t)))
     ab = _search_overlap(p.value, start(t), end_(t))
@@ -139,6 +144,13 @@ end
 
 (p::RepeatingTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::RepeatingTimeSeriesParameterValue)(::Nothing) = p.value
+function (p::RepeatingTimeSeriesParameterValue)(t::DateTime)
+    p.value.ignore_year && (t -= Year(t))
+    mismatch = t - p.value.indexes[1]
+    reps = fld(mismatch, p.span)
+    t -= reps * p.span
+    p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
+end
 function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     t_start = start(t)
     t_end = end_(t)
