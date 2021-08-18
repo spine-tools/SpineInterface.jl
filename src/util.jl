@@ -529,8 +529,8 @@ function _import_spinedb_api()
                 rethrow()
             end
         end
-        # Version number shortened to avoid PEP 440 -> VerSem issues
-        current_version = VersionNumber(join(split(db_api.__version__, '.')[1:3],'.'))
+        # Version number shortened and tweaked to avoid PEP 440 -> SemVer issues
+        current_version = VersionNumber(replace(join(split(db_api.__version__, '.')[1:3],'.'), '-' => '+'))
         if current_version < required_spinedb_api_version
             error(
                 """
