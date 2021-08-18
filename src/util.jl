@@ -129,8 +129,8 @@ end
 (p::StandardTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::StandardTimeSeriesParameterValue)(::Nothing) = p.value
 function (p::StandardTimeSeriesParameterValue)(t::DateTime)
+    p.value.ignore_year && (t -= Year(t))
     p.value.indexes[1] <= t <= p.value.indexes[end] || return nothing
-    p.value.ignore_year && (t -= Year(start(t)))
     p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
 end
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
