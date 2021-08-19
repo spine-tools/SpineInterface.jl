@@ -26,9 +26,16 @@ Base.iterate(o::Union{Object,TimeSlice}) = iterate((o,))
 Base.iterate(o::Union{Object,TimeSlice}, state::T) where {T} = iterate((o,), state)
 Base.iterate(v::ScalarParameterValue) = iterate((v,))
 Base.iterate(v::ScalarParameterValue, state::T) where {T} = iterate((v,), state)
+function Base.iterate(ts::Union{TimeSeries,Map}, state=1)
+    if state > length(ts)
+        return nothing
+    end
+    return (ts.indexes[state] => ts.values[state]), state+1
+end
 
 Base.length(t::Union{Object,TimeSlice}) = 1
 Base.length(v::ScalarParameterValue) = 1
+Base.length(ts::Union{TimeSeries,Map}) = length(ts.indexes)
 
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
@@ -42,6 +49,8 @@ Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all(
 Base.:(==)(pc1::PeriodCollection, pc2::PeriodCollection) = all(
     [getfield(pc1, field) == getfield(pc2, field) for field in fieldnames(PeriodCollection)]
 )
+Base.:(==)(m1::Map, m2::Map) = all(m1.indexes == m2.indexes) && all(m1.values == m2.values)
+Base.:(==)(pv1::AbstractParameterValue, pv2::AbstractParameterValue) = pv1.value == pv2.value
 
 Base.hash(::Anything) = zero(UInt64)
 Base.hash(o::Union{Object,TimeSlice}) = o.id
@@ -169,6 +178,8 @@ Base.:min(x::Call, y) = OperatorCall(min, x, y)
 Base.:min(x, y::Call) = OperatorCall(min, x, y)
 
 Base.values(ts::TimeSeries) = ts.values
+Base.values(m::Map) = m.values
+Base.values(apv::AbstractParameterValue) = apv.value
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)

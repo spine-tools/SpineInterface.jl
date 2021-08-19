@@ -27,6 +27,8 @@ export Parameter
 export AbstractParameterValue
 export TimeSlice
 export TimeSeries
+export TimePattern
+export Map
 export Call
 export using_spinedb
 export anything

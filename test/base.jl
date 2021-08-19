@@ -197,6 +197,17 @@
     @test tp + tp == 2 * tp
     @test ts1 + tp == tp + ts1 == TimeSeries(ts1_dates[2:end], [4., 7.], false, false)
     # Call values
-    values(ts1) == ts1_vals
-    values(tp) == [2,3]
+    @test values(ts1) == ts1_vals
+    @test sort(collect(values(tp))) == [2,3]
+    m = Map(collect(1:4), collect(5:8))
+    @test values(m) == collect(5:8)
+    @test values(parameter_value(ts1)) == ts1
+    @test values(parameter_value(m)) == Map(collect(1:4), parameter_value.(collect(5:8)))
+    # Call iterate
+    @test iterate(ts1) == (ts1_dates[1] => ts1_vals[1], 2)
+    @test iterate(ts1,2) == (ts1_dates[2] => ts1_vals[2], 3)
+    @test isnothing(iterate(ts1,4))
+    @test iterate(m) == (1 => 5, 2)
+    @test iterate(m,3) == (3 => 7, 4)
+    @test isnothing(iterate(m,5))
 end
