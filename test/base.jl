@@ -201,8 +201,8 @@
     @test sort(collect(values(tp))) == [2,3]
     m = Map(collect(1:4), collect(5:8))
     @test values(m) == collect(5:8)
-    @test values(parameter_value(ts1)) == ts1
-    @test values(parameter_value(m)) == Map(collect(1:4), parameter_value.(collect(5:8)))
+    @test values(parameter_value(ts1)) == values(ts1)
+    @test values(parameter_value(m)) == parameter_value.(values(m))
     # Call iterate
     @test iterate(ts1) == (ts1_dates[1] => ts1_vals[1], 2)
     @test iterate(ts1,2) == (ts1_dates[2] => ts1_vals[2], 3)

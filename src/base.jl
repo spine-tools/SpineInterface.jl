@@ -179,7 +179,7 @@ Base.:min(x, y::Call) = OperatorCall(min, x, y)
 
 Base.values(ts::TimeSeries) = ts.values
 Base.values(m::Map) = m.values
-Base.values(apv::AbstractParameterValue) = apv.value
+Base.values(apv::AbstractParameterValue) = values(apv.value)
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
