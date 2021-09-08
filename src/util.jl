@@ -374,6 +374,7 @@ function _parse_duration(data::String)
 end
 
 _inner_type_str(::Type{Float64}) = "float"
+_inner_type_str(::Type{Symbol}) = "str"
 _inner_type_str(::Type{String}) = "str"
 _inner_type_str(::Type{DateTime}) = "date_time"
 _inner_type_str(::Type{T}) where {T<:Period} = "duration"
