@@ -74,6 +74,7 @@ function __init__()
 		include("update_model.jl")
 		export update_varying_objective!
 		export update_varying_constraints!
+		export update_model!
 	end
 end
 

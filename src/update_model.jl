@@ -276,3 +276,5 @@ function update_varying_constraints!(model::Model)
         set_normalized_rhs(con_ref, realize(rhs))
     end
 end
+
+update_model!(m) = (update_varying_constraints!(m); update_varying_objective!(m))
