@@ -26,7 +26,7 @@ Object(name::Symbol) = Base.invokelatest(Object, name)  # NOTE: this allows us t
 
 Construct a `TimeSlice` with bounds given by `start` and `end_`.
 """
-function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_unit=Minute)
+function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_unit=Hour)
     dur = Minute(end_ - start) / Minute(duration_unit(1))
     TimeSlice(start, end_, dur, blocks)
 end
