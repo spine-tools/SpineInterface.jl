@@ -30,7 +30,9 @@ SpineInterface.import_data(db_url::String; kwargs...) = SpineInterface.import_da
 # Convenience function for overwriting in-memory Database with test data.
 function import_test_data(db_url::String; kwargs...)
     SpineInterface._import_spinedb_api()
-    SpineInterface.db_server.close_persistent_db_map(db_url)
+    dbh = SpineInterface._create_db_handler(db_url, false)
+    dbh.close_connection()
+    dbh.open_connection()
     import_data(db_url; kwargs...)
 end
 
