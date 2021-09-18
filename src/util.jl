@@ -483,7 +483,7 @@ end
 _unparse_db_value(x::AbstractParameterValue) = x.value
 _unparse_db_value(::NothingParameterValue) = nothing
 
-function _communicate(server_uri::URI, request::String, args...)
+function _run_server_request(server_uri::URI, request::String, args...)
     clientside = connect(server_uri.host, parse(Int, server_uri.port))
     write(clientside, JSON.json([request, args]) * '\0')
     io = IOBuffer()
@@ -567,9 +567,7 @@ function _import_spinedb_api()
     end
 end
 
-function _do_create_db_handler(db_url::String, upgrade::Bool)
-    db_url == "sqlite://" ? db_server.PersistentDBHandler(db_url, upgrade) : db_server.DBHandler(db_url, upgrade)
-end
+_do_create_db_handler(db_url::String, upgrade::Bool) = db_server.DBHandler(db_url, upgrade)
 
 function _create_db_handler(db_url::String, upgrade::Bool)
     _import_spinedb_api()
@@ -592,8 +590,8 @@ function _get_data(db_url::String; upgrade=false)
     dbh = _create_db_handler(db_url, upgrade)
     Base.invokelatest(_do_get_data, dbh, upgrade)
 end
-function _get_data(server_uri::URI; upgrade=false)
-    _communicate(
+function _get_data(server_uri::URI; upgrade=nothing)
+    _run_server_request(
         server_uri,
         "get_data",
         "object_class_sq",
@@ -612,9 +610,17 @@ function _import_data(db_url::String, data::Dict{Symbol,T}, comment::String; upg
     dbh = _create_db_handler(db_url, upgrade)
     Base.invokelatest(_do_import_data, dbh, data, comment)
 end
-function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String; upgrade=true) where {T}
-    _communicate(server_uri, "import_data", Dict(string(k) => v for (k, v) in data), comment)
+function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String; upgrade=nothing) where {T}
+    _run_server_request(server_uri, "import_data", Dict(string(k) => v for (k, v) in data), comment)
 end
+
+_do_run_request(dbh, request::String, args...) = getproperty(dbh, Symbol(request))(args...)
+
+function _run_request(db_url::String, request::String, args...; upgrade=false)
+    dbh = _create_db_handler(db_url, upgrade)
+    Base.invokelatest(_do_run_request, dbh, request, args...)
+end
+_run_request(server_uri::URI, request::String, args...; upgrade=nothing) = _run_server_request(server_uri, request, args...)
 
 function _to_dict(obj_cls::ObjectClass)
     Dict(

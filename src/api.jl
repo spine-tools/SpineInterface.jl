@@ -664,3 +664,14 @@ function import_data(url::String, data::Dict{Symbol,T}, comment::String) where {
     db = (uri.scheme == "http") ? uri : url
     _import_data(db, data, comment)
 end
+
+"""
+    run_request(url::String, request::String, args...; upgrade=false)
+
+Run the given request on the given url, using the given args.
+"""
+function run_request(url::String, request::String, args...; upgrade=false)
+    uri = URI(url)
+    db = (uri.scheme == "http") ? uri : url
+    _run_request(db, request, args...; upgrade=upgrade)
+end
