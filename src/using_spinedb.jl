@@ -79,7 +79,7 @@ A Dict mapping entity class ids to an Array of parameter definitions associated 
 function _parameter_definitions_per_class(param_defs)
     d = Dict()
     for param_def in param_defs
-        class_id = _not_nothing(param_def["object_class_id"], param_def["relationship_class_id"])
+        class_id = param_def["entity_class_id"]
         push!(get!(d, class_id, Dict[]), param_def)
     end
     d
@@ -90,8 +90,7 @@ A Dict mapping tuples of parameter definition and entity ids, to an Array of cor
 """
 function _parameter_values_per_entity(param_values)
     Dict(
-        (val["parameter_definition_id"], _not_nothing(val["object_id"], val["relationship_id"])) => val["value"] for
-        val in param_values
+        (val["parameter_definition_id"], val["entity_id"]) => val["value"] for val in param_values
     )
 end
 
