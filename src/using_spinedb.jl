@@ -70,9 +70,6 @@ function _entities_per_class(entities)
     d
 end
 
-_not_nothing(x, ::Nothing) = x
-_not_nothing(::Nothing, x) = x
-
 """
 A Dict mapping entity class ids to an Array of parameter definitions associated to that class.
 """
