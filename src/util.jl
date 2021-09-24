@@ -609,7 +609,6 @@ _do_import_data(dbh, data, comment) = dbh.import_data(data, comment)
 _data_to_py_vector(arr::Array) = _data_to_py_vector.(arr)
 _data_to_py_vector(d::Dict) = _data_to_py_vector(d, get(d, "data", nothing))
 function _data_to_py_vector(d::Dict, data::Array)
-    _import_spinedb_api()
     d["data"] = PyVector(data)
     d
 end
