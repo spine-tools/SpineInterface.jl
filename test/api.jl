@@ -321,5 +321,59 @@ end
     using_spinedb(db_url)
     @test maximum_parameter_value(people_count) == 300.0
 end
+@testset "import_data" begin
+    # Clear in-memory db
+    import_test_data(db_url; object_classes=[])
+    # Create test data
+    sc = 1.
+    str = "test"
+    dt = DateTime(1)
+    dur = Hour(1)
+    ar = [1.,2.,3.]
+    tp = Dict(PeriodCollection(;Y=[1:2]) => 1.)
+    ts = TimeSeries([DateTime(1), DateTime(2), DateTime(3)], [1.,2.,1.], false, false)
+    map = Map([1.,2.], [3.,4.])
+    pv_dict = Dict(
+        :scalar_parameter => parameter_value(sc),
+        :string_parameter => parameter_value(str),
+        :date_time_parameter => parameter_value(dt),
+        :duration_parameter => parameter_value(dur),
+        :array_parameter => parameter_value(ar),
+        :timepattern_parameter => parameter_value(tp),
+        :timeseries_parameter => parameter_value(ts),
+        :map_parameter => parameter_value(map)
+    )
+    # Create objects and object class for testing
+    to1 = Object(:test_object_1)
+    to2 = Object(:test_object_2)
+    original_object_class = ObjectClass(
+        :test_object_class,
+        [to1, to2],
+        Dict(to1 => pv_dict),
+        pv_dict
+    )
+    original_relationship_class = RelationshipClass(
+        :test_relationship_class,
+        [:test_object_class1, :test_object_class2],
+        [(test_object_class1=to1, test_object_class2=to2)],
+        Dict((to1, to2) => pv_dict),
+        [:test_object_class, :test_object_class],
+        pv_dict
+    )
+    # Import the newly created `ObjectClass` and `RelationshipClass`
+    @test try
+        import_data(db_url, original_object_class, "Import test object class.")
+        true
+    catch
+        false
+    end
+    @test try
+        import_data(db_url, original_relationship_class, "Import test relationship class.")
+        true
+    catch
+        false
+    end
+end
+
 # Clear in-memory DB for safety
 import_test_data(db_url; object_classes=[])
