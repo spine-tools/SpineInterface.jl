@@ -480,7 +480,7 @@ function _unparse_db_value(x::Map{K,V}) where {K,V}
         "data" => [(i, _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
     )
 end
-_unparse_db_value(x::AbstractParameterValue) = x.value
+_unparse_db_value(x::AbstractParameterValue) = _unparse_db_value(x.value)
 _unparse_db_value(::NothingParameterValue) = nothing
 
 function _run_server_request(server_uri::URI, request::String, args...)
