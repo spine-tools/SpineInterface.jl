@@ -606,8 +606,19 @@ end
 
 _do_import_data(dbh, data, comment) = dbh.import_data(data, comment)
 
+_data_to_py_vector(arr::Array) = _data_to_py_vector.(arr)
+_data_to_py_vector(d::Dict) = _data_to_py_vector(d, get(d, "data", nothing))
+function _data_to_py_vector(d::Dict, data::Array)
+    _import_spinedb_api()
+    d["data"] = PyVector(data)
+    d
+end
+_data_to_py_vector(d::Dict, x) = d
+_data_to_py_vector(x) = x
+
 function _import_data(db_url::String, data::Dict{Symbol,T}, comment::String; upgrade=true) where {T}
     dbh = _create_db_handler(db_url, upgrade)
+    data = Dict(key => _data_to_py_vector(value) for (key, value) in data)
     Base.invokelatest(_do_import_data, dbh, data, comment)
 end
 function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String; upgrade=nothing) where {T}
