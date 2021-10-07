@@ -58,8 +58,8 @@
     @test string(id_call) === "13"
     @test string(op_call) === "2 + 3"
     @test string(param_val_call) === "{apero_time(scenario=covid) = apero_time}"
-    pc = SpineInterface.PeriodCollection("Y1-5;M1-4,M6-9")
-    @test string(pc) === "year from 1 to 5, and month from 1 to 4, or 6 to 9"
+    tp = SpineInterface.parse_time_period("Y1-5;M1-4,M6-9")
+    @test string(tp) === "year from 1 to 5, and month from 1 to 4, or month from 6 to 9"
     # convert
     call = convert(Call, 9)
     @test call isa Call
@@ -79,7 +79,7 @@
     @test val_copy(i=1) === 4
     @test val_copy(i=2) === 5
     @test val_copy(i=3) === 6
-    val = parameter_value(Dict(pc => 14))
+    val = parameter_value(Dict(tp => 14))
     val_copy = copy(val)
     @test val_copy isa SpineInterface.TimePatternParameterValue
     @test convert(Int64, val_copy(t=TimeSlice(DateTime(1), DateTime(4)))) === 14
@@ -183,7 +183,7 @@
     ts1_repeat = TimeSeries(ts1_dates, ts1_vals, false, true)
     ts1_ignore_year = TimeSeries(ts1_dates .- Year(DateTime(1)), ts1_vals, true, false)
     ts2 = TimeSeries(ts2_dates, ts2_vals, false, false)
-    tp = Dict(PeriodCollection(;M=[2:3]) => 2, PeriodCollection(;M=[3:4]) => 3)
+    tp = Dict(SpineInterface.parse_time_period("M2-3") => 2, SpineInterface.parse_time_period("M3-4") => 3)
     @test ts1 + ts1 == ts1 * 2. == 2. * ts1
     @test ts1 * ts1 == ts1 ^ 2.
     @test ts1 / ts1 == TimeSeries(ts1.indexes, ts1.values ./ ts1.values, false, false)
@@ -193,7 +193,7 @@
     @test ts1 + ts1_repeat == ts1_repeat + ts1 == TimeSeries(ts1.indexes, [2.,4.,5.], false, false)
     @test ts1_repeat + ts1_repeat == TimeSeries(ts1_repeat.indexes, [2.,4.,2.], false, true)
     @test ts1 + ts2 == ts2 + ts1 == TimeSeries([DateTime(1,i) for i in 2:4], [4., 5., 8.], false, false)
-    @test tp * 2. == 2. * tp == Dict(PeriodCollection(;M=[2:3]) => 4., PeriodCollection(;M=[3:4]) => 6.)
+    @test tp * 2. == 2. * tp == Dict(SpineInterface.parse_time_period("M2-3") => 4., SpineInterface.parse_time_period("M3-4") => 6.)
     @test tp + tp == 2 * tp
     @test ts1 + tp == tp + ts1 == TimeSeries(ts1_dates[2:end], [4., 7.], false, false)
     # Call values

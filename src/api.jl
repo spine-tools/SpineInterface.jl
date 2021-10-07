@@ -332,25 +332,49 @@ contains(a, b) = iscontained(b, a)
 Determine whether `a` and `b` overlap.
 """
 overlaps(a::TimeSlice, b::TimeSlice) = start(a) <= start(b) < end_(a) || start(b) <= start(a) < end_(b)
-function overlaps(t::TimeSlice, pc::PeriodCollection)
-    component_bound = Dict(
-        :Y => (year, x -> nothing),
-        :M => (month, x -> 12),
-        :D => (day, daysinmonth),
-        :WD => (dayofweek, x -> 7),
-        :h => (hour, x -> 24),
-        :m => (minute, x -> 60),
-        :s => (second, x -> 60),
+
+function overlaps(t::TimeSlice, union::UnionOfIntersections)
+    minor_major = Dict(
+        :Y => (year, x -> 0),
+        :M => (month, year),
+        :D => (day, month),
+        :WD => (dayofweek, week),
+        :h => (hour, day),
+        :m => (minute, hour),
+        :s => (second, minute),
     )
-    for name in fieldnames(PeriodCollection)
-        field = getfield(pc, name)
-        field === nothing && continue
-        component, bound = component_bound[name]
-        lower = component(start(t))
-        upper = component(end_(t))
-        upper < lower && (upper += bound(start(t)))
-        b = lower:upper
-        any(!isempty(intersect(a, b)) for a in field) && return true
+    for intersection in union
+        result = true
+        for (key, interval) in intersection
+            minor, major = minor_major[key]
+            # Compute minor and major components for both start and end of time slice.
+            # In the comments below, we assume minor is hour, and thus major is day
+            # (but of course, we don't use this assumption in the code itself!)
+            t1, t2 = start(t), end_(t)
+            minor1 = minor(t1)
+            minor2 = minor(t2)
+            major1 = major(t1)
+            major2 = major(t2)
+            if major2 == major1
+                # Time slice starts and ends on the same day
+                # We just need to check whether the time slice and the interval overlap
+                if isempty(intersect(minor1:minor2, interval.lower:interval.upper))
+                    result = false
+                    break
+                end
+            elseif major2 == major1 + 1
+                # Time slice goes through the day boundary
+                # We just need to check that time slice doesn't start after the interval ends on the first day,
+                # or ends before the interval starts on the second day
+                if minor1 > interval.upper && minor2 < interval.lower
+                    result = false
+                    break
+                end
+                # Time slice spans more than one day
+                # Nothing to do, time slice will always contain the interval
+            end
+        end
+        result && return true
     end
     false
 end
@@ -628,6 +652,40 @@ end
 
 parse_db_value(::Nothing) = nothing
 parse_db_value(db_value::String) = _parse_json(JSON.parse(db_value))
+
+function parse_time_period(union_str::String)
+    union_op = ","
+    intersection_op = ";"
+    range_op = "-"
+    union = UnionOfIntersections()
+    regexp = r"(Y|M|D|WD|h|m|s)"
+    for intersection_str in split(union_str, union_op)
+        intersection = IntersectionOfIntervals()
+        for interval in split(intersection_str, intersection_op)
+            m = Base.match(regexp, interval)
+            m === nothing && error("invalid interval specification $interval.")
+            key = m.match
+            lower_upper = interval[(length(key) + 1):end]
+            lower_upper = split(lower_upper, range_op)
+            length(lower_upper) != 2 && error("invalid interval specification $interval.")
+            lower_str, upper_str = lower_upper
+            lower = try
+                parse(Int64, lower_str)
+            catch ArgumentError
+                error("invalid lower bound $lower_str.")
+            end
+            upper = try
+                parse(Int64, upper_str)
+            catch ArgumentError
+                error("invalid upper bound $upper_str.")
+            end
+            lower > upper && error("lower bound can't be higher than upper bound.")
+            intersection[Symbol(key)] = Interval(lower, upper)
+        end
+        push!(union, intersection)
+    end
+    union
+end
 
 """
     import_data(url, data, comment)

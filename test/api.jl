@@ -160,7 +160,7 @@ end
     end
     @testset "time_pattern" begin
         isfile(path) && rm(path)
-        val = Dict(SpineInterface.PeriodCollection("D2-5") => 30.5, SpineInterface.PeriodCollection("D6-7") => 24.7)
+        val = Dict(SpineInterface.parse_time_period("D2-5") => 30.5, SpineInterface.parse_time_period("D6-7") => 24.7)
         @test val isa SpineInterface.TimePattern
         parameters = Dict(:apero_time => Dict((country=:France,) => val))
         write_parameters(parameters, url)
@@ -330,7 +330,7 @@ end
     dt = DateTime(1)
     dur = Hour(1)
     ar = [1.,2.,3.]
-    tp = Dict(PeriodCollection(;Y=[1:2]) => 1.)
+    tp = Dict(SpineInterface.parse_time_period("Y1-2") => 1.)
     ts = TimeSeries([DateTime(1), DateTime(2), DateTime(3)], [1.,2.,1.], false, false)
     map = Map([1.,2.], [3.,4.])
     pv_dict = Dict(

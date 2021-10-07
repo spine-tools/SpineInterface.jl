@@ -100,23 +100,16 @@ struct Parameter
     Parameter(name, classes=[]) = new(name, classes)
 end
 
-"""
-    PeriodCollection
-"""
-struct PeriodCollection
-    Y::Union{Array{UnitRange{Int64},1},Nothing}
-    M::Union{Array{UnitRange{Int64},1},Nothing}
-    D::Union{Array{UnitRange{Int64},1},Nothing}
-    WD::Union{Array{UnitRange{Int64},1},Nothing}
-    h::Union{Array{UnitRange{Int64},1},Nothing}
-    m::Union{Array{UnitRange{Int64},1},Nothing}
-    s::Union{Array{UnitRange{Int64},1},Nothing}
-    function PeriodCollection(; Y=nothing, M=nothing, D=nothing, WD=nothing, h=nothing, m=nothing, s=nothing)
-        new(Y, M, D, WD, h, m, s)
-    end
+struct Interval
+    lower::Int64
+    upper::Int64
 end
 
-TimePattern = Dict{PeriodCollection,T} where {T}
+IntersectionOfIntervals = OrderedDict{Symbol,Interval}
+
+UnionOfIntersections = Vector{IntersectionOfIntervals}
+
+TimePattern = Dict{UnionOfIntersections,T} where {T}
 
 struct TimeSeries{V}
     indexes::Array{DateTime,1}

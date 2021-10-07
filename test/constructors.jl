@@ -54,6 +54,6 @@ using_spinedb("sqlite://")
     same_call = Call(call)
     @test same_call isa Call
     @test realize(same_call) == 1.0
-    @test_throws ErrorException("invalid lower bound x.") SpineInterface.PeriodCollection("Mx-4")
-    @test_throws ErrorException("invalid upper bound x.") SpineInterface.PeriodCollection("M5-x")
+    @test_throws ErrorException("invalid lower bound x.") SpineInterface.parse_time_period("Mx-4")
+    @test_throws ErrorException("invalid upper bound x.") SpineInterface.parse_time_period("M5-x")
 end

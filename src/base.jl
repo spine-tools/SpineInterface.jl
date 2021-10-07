@@ -46,16 +46,12 @@ Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
 Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all(
     [getfield(ts1, field) == getfield(ts2, field) for field in fieldnames(TimeSeries)]
 )
-Base.:(==)(pc1::PeriodCollection, pc2::PeriodCollection) = all(
-    [getfield(pc1, field) == getfield(pc2, field) for field in fieldnames(PeriodCollection)]
-)
 Base.:(==)(m1::Map, m2::Map) = all(m1.indexes == m2.indexes) && all(m1.values == m2.values)
 Base.:(==)(pv1::AbstractParameterValue, pv2::AbstractParameterValue) = pv1.value == pv2.value
 
 Base.hash(::Anything) = zero(UInt64)
 Base.hash(o::Union{Object,TimeSlice}) = o.id
 Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
-Base.hash(pc::PeriodCollection) = hash([getfield(pc, field) for field in fieldnames(PeriodCollection)])
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
@@ -73,7 +69,7 @@ function Base.show(io::IO, call::Union{IdentityCall,ParameterValueCall})
     result = realize(call)
     print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
 end
-function Base.show(io::IO, period_collection::PeriodCollection)
+function Base.show(io::IO, union::UnionOfIntersections)
     d = Dict{Symbol,String}(
         :Y => "year",
         :M => "month",
@@ -83,16 +79,17 @@ function Base.show(io::IO, period_collection::PeriodCollection)
         :m => "minute",
         :s => "second",
     )
-    ranges = Array{String,1}()
-    for field in fieldnames(PeriodCollection)
-        value = getfield(period_collection, field)
-        if value != nothing
-            str = "$(d[field]) from "
-            str *= join(["$(x.start) to $(x.stop)" for x in value], ", or ")
-            push!(ranges, str)
-        end
+    intersections = Vector{String}()
+    for intersection in union
+        push!(
+            intersections, 
+            join(
+                ["$(d[key]) from $(interval.lower) to $(interval.upper)" for (key, interval) in intersection],
+                ", and "
+            )
+        )
     end
-    print(io, join(ranges, ", and "))
+    print(io, join(intersections, ", or "))
 end
 
 Base.convert(::Type{Call}, x::T) where {T<:Real} = IdentityCall(x)

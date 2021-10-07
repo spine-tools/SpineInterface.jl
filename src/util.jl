@@ -406,7 +406,7 @@ _parse_json(value) = value
 _parse_json(value::Dict) = _parse_json(Val(Symbol(value["type"])), value)
 _parse_json(::Val{:date_time}, value::Dict) = _parse_date_time(value["data"])
 _parse_json(::Val{:duration}, value::Dict) = _parse_duration(value["data"])
-_parse_json(::Val{:time_pattern}, value::Dict) = Dict(PeriodCollection(ind) => val for (ind, val) in value["data"])
+_parse_json(::Val{:time_pattern}, value::Dict) = Dict(parse_time_period(ind) => val for (ind, val) in value["data"])
 _parse_json(type::Val{:time_series}, value::Dict) = _parse_json(type, get(value, "index", Dict()), value["data"])
 function _parse_json(::Val{:time_series}, index::Dict, vals::Array)
     ignore_year = get(index, "ignore_year", false)
@@ -444,17 +444,18 @@ _unparse_element(x::Union{Float64,String}) = x
 _unparse_element(x::DateTime) = _unparse_date_time(x)
 _unparse_element(x::T) where {T<:Period} = _unparse_duration(x)
 
-function _unparse_time_pattern(pc::PeriodCollection)
+function _unparse_time_pattern(union::UnionOfIntersections)
     union_op = ","
     intersection_op = ";"
     range_op = "-"
-    arr = []
-    for name in fieldnames(PeriodCollection)
-        field = getfield(pc, name)
-        field === nothing && continue
-        push!(arr, join([string(name, first(a), range_op, last(a)) for a in field], union_op))
-    end
-    join(arr, intersection_op)
+    union_arr = [
+        join(
+            [string(k, interval.lower, range_op, interval.upper) for (k, interval) in intersection],
+            intersection_op
+        )
+        for intersection in union
+    ]
+    join(union_arr, union_op)
 end
 
 _unparse_db_value(x) = x
