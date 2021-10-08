@@ -79,16 +79,10 @@ function Base.show(io::IO, union::UnionOfIntersections)
         :m => "minute",
         :s => "second",
     )
-    intersections = Vector{String}()
-    for intersection in union
-        push!(
-            intersections, 
-            join(
-                ["$(d[key]) from $(interval.lower) to $(interval.upper)" for (key, interval) in intersection],
-                ", and "
-            )
-        )
-    end
+    intersections = [
+        join(["$(d[i.key]) from $(i.lower) to $(i.upper)" for i in intersection], ", and ")
+        for intersection in union
+    ]
     print(io, join(intersections, ", or "))
 end
 

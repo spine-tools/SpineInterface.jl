@@ -100,12 +100,13 @@ struct Parameter
     Parameter(name, classes=[]) = new(name, classes)
 end
 
-struct Interval
+struct TimeInterval
+    key::Symbol
     lower::Int64
     upper::Int64
 end
 
-IntersectionOfIntervals = OrderedDict{Symbol,Interval}
+IntersectionOfIntervals = Vector{TimeInterval}
 
 UnionOfIntersections = Vector{IntersectionOfIntervals}
 

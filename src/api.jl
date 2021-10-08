@@ -345,8 +345,8 @@ function overlaps(t::TimeSlice, union::UnionOfIntersections)
     )
     for intersection in union
         result = true
-        for (key, interval) in intersection
-            minor, major = minor_major[key]
+        for interval in intersection
+            minor, major = minor_major[interval.key]
             # Compute minor and major components for both start and end of time slice.
             # In the comments below, we assume minor is hour, and thus major is day
             # (but of course, we don't use this assumption in the code itself!)
@@ -680,7 +680,7 @@ function parse_time_period(union_str::String)
                 error("invalid upper bound $upper_str.")
             end
             lower > upper && error("lower bound can't be higher than upper bound.")
-            intersection[Symbol(key)] = Interval(lower, upper)
+            push!(intersection, TimeInterval(Symbol(key), lower, upper))
         end
         push!(union, intersection)
     end

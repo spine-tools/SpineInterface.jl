@@ -449,10 +449,7 @@ function _unparse_time_pattern(union::UnionOfIntersections)
     intersection_op = ";"
     range_op = "-"
     union_arr = [
-        join(
-            [string(k, interval.lower, range_op, interval.upper) for (k, interval) in intersection],
-            intersection_op
-        )
+        join([string(i.key, i.lower, range_op, i.upper) for i in intersection], intersection_op)
         for intersection in union
     ]
     join(union_arr, union_op)
