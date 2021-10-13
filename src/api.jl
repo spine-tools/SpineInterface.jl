@@ -355,10 +355,15 @@ function overlaps(t::TimeSlice, union::UnionOfIntersections)
             minor2 = minor(t2)
             major1 = major(t1)
             major2 = major(t2)
+            if interval.key in (:h, :m, :s)
+                # Convert from 0-based to 1-based
+                minor1 += 1
+                minor2 += 1
+            end
             if major2 == major1
                 # Time slice starts and ends on the same day
                 # We just need to check whether the time slice and the interval overlap
-                if isempty(intersect(minor1:minor2, interval.lower:interval.upper))
+                if !(interval.lower <= minor1 <= interval.upper || interval.lower < minor2 <= interval.upper)
                     result = false
                     break
                 end
@@ -366,7 +371,7 @@ function overlaps(t::TimeSlice, union::UnionOfIntersections)
                 # Time slice goes through the day boundary
                 # We just need to check that time slice doesn't start after the interval ends on the first day,
                 # or ends before the interval starts on the second day
-                if minor1 > interval.upper && minor2 < interval.lower
+                if minor1 > interval.upper && minor2 <= interval.lower
                     result = false
                     break
                 end
