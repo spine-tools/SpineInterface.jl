@@ -475,7 +475,7 @@ function _unparse_db_value(x::Map{K,V}) where {K,V}
     Dict(
         "type" => "map",
         "index_type" => _inner_type_str(K),
-        "data" => [(i, _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
+        "data" => [(string(i), _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
     )
 end
 _unparse_db_value(x::AbstractParameterValue) = _unparse_db_value(x.value)

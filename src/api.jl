@@ -619,7 +619,7 @@ function write_parameters(
         comment = string("Add $(join([string(k) for (k, v) in parameters])), automatically from SpineInterface.jl.")
     end
     errors = _import_data(db, import_data, comment; upgrade=upgrade)
-    isempty(errors) || @warn join([err.msg for err in errors], "\n")
+    isempty(errors) || @warn join(errors, "\n")
 end
 
 """
