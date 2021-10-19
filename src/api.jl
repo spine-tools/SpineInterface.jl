@@ -334,44 +334,44 @@ Determine whether `a` and `b` overlap.
 overlaps(a::TimeSlice, b::TimeSlice) = start(a) <= start(b) < end_(a) || start(b) <= start(a) < end_(b)
 
 function overlaps(t::TimeSlice, union::UnionOfIntersections)
-    minor_major = Dict(
-        :Y => (year, x -> 0),
-        :M => (month, year),
-        :D => (day, month),
-        :WD => (dayofweek, week),
-        :h => (hour, day),
-        :m => (minute, hour),
-        :s => (second, minute),
+    component_enclosing_rounding = Dict(
+        :Y => (year, x -> 0, Year),
+        :M => (month, year, Month),
+        :D => (day, month, Day),
+        :WD => (dayofweek, week, Day),
+        :h => (hour, day, Hour),
+        :m => (minute, hour, Minute),
+        :s => (second, minute, Second),
     )
     for intersection in union
         result = true
         for interval in intersection
-            minor, major = minor_major[interval.key]
-            # Compute minor and major components for both start and end of time slice.
-            # In the comments below, we assume minor is hour, and thus major is day
+            component, enclosing, rounding = component_enclosing_rounding[interval.key]
+            # Compute component and enclosing component for both start and end of time slice.
+            # In the comments below, we assume component is hour, and thus enclosing component is day
             # (but of course, we don't use this assumption in the code itself!)
-            t1, t2 = start(t), end_(t)
-            minor1 = minor(t1)
-            minor2 = minor(t2)
-            major1 = major(t1)
-            major2 = major(t2)
+            t_start, t_end = floor(start(t), rounding), ceil(end_(t), rounding)
+            t_lower = component(t_start)
+            t_upper = component(t_end)
+            t_lower_enclosing = enclosing(t_start)
+            t_upper_enclosing = enclosing(t_end)
             if interval.key in (:h, :m, :s)
                 # Convert from 0-based to 1-based
-                minor1 += 1
-                minor2 += 1
+                t_lower += 1
+                t_upper += 1
             end
-            if major2 == major1
+            if t_upper_enclosing == t_lower_enclosing
                 # Time slice starts and ends on the same day
                 # We just need to check whether the time slice and the interval overlap
-                if !(interval.lower <= minor1 <= interval.upper || interval.lower < minor2 <= interval.upper)
+                if !(interval.lower <= t_lower <= interval.upper || t_lower <= interval.lower < t_upper)
                     result = false
                     break
                 end
-            elseif major2 == major1 + 1
+            elseif t_upper_enclosing == t_lower_enclosing + 1
                 # Time slice goes through the day boundary
                 # We just need to check that time slice doesn't start after the interval ends on the first day,
                 # or ends before the interval starts on the second day
-                if minor1 > interval.upper && minor2 <= interval.lower
+                if t_lower > interval.upper && t_upper <= interval.lower
                     result = false
                     break
                 end

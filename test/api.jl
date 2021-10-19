@@ -170,7 +170,7 @@ end
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 1), DateTime(0, 1, 5))) == 30.5
         @test apero_time(country=country(:France), t=DateTime(0, 1, 2)) == 30.5
         @test apero_time(country=country(:France), t=DateTime(0, 1, 5)) == 30.5
-        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 5), DateTime(0, 1, 6))) == (30.5 + 24.7) / 2.
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 5), DateTime(0, 1, 6, 1))) == (30.5 + 24.7) / 2.
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 6), DateTime(0, 1, 6, 10))) == 24.7
         @test apero_time(country=country(:France), t=DateTime(0, 1, 6)) == 24.7
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 7), DateTime(0, 1, 8))) == 24.7
