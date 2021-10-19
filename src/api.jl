@@ -741,3 +741,70 @@ function run_request(url::String, request::String, args...; upgrade=false)
     db = (uri.scheme == "http") ? uri : url
     _run_request(db, request, args...; upgrade=upgrade)
 end
+
+"""
+    timedata_operation(f::Function, x, y)
+
+Perform `f` element-wise for potentially `TimeSeries` or `TimePattern` arguments `x` and `y`.
+
+Operations between `TimeSeries`/`TimePattern` and `Number` are supported.
+If both `x` and `y` are either `TimeSeries` or `TimePattern`, the timestamps of `x` and `y` are combined,
+and both time-dependent data are sampled on each timestamps to perform the desired operation.
+If either `ts1` or `ts2` are `TimeSeries`, returns a `TimeSeries`.
+If either `ts1` or `ts2` has the `ignore_year` or `repeat` flags set to `true`, so does the resulting `TimeSeries`.
+
+Operations between two `TimePattern`s are currently supported only if they have the exact same keys.
+"""
+timedata_operation(f::Function, x::TimeSeries, y::Number) = TimeSeries(
+    x.indexes, f.(x.values, y), x.ignore_year, x.repeat
+)
+timedata_operation(f::Function, y::Number, x::TimeSeries) = TimeSeries(
+    x.indexes, f.(y, x.values), x.ignore_year, x.repeat
+)
+timedata_operation(f::Function, x::TimePattern, y::Number) = Dict(key => f(val, y) for (key, val) in x)
+timedata_operation(f::Function, y::Number, x::TimePattern) = Dict(key => f(y, val) for (key, val) in x)
+function timedata_operation(f::Function, x::TimeSeries, y::TimeSeries)
+    if x.indexes == y.indexes && !x.ignore_year && !y.ignore_year && !x.repeat && !y.repeat
+        indexes = x.indexes
+        values = broadcast(f, x.values, y.values)
+    else
+        indexes = sort!(unique!(vcat(x.indexes, y.indexes)))
+        values = [
+            !isnothing(parameter_value(x)(ind)) && !isnothing(parameter_value(y)(ind)) ?
+                f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
+            for ind in indexes
+        ]
+        indexes = indexes[findall(!isnothing, values)]
+        filter!(!isnothing, values)
+    end
+    ignore_year = x.ignore_year && y.ignore_year
+    repeat = x.repeat && y.repeat
+    return TimeSeries(indexes, values, ignore_year, repeat)
+end
+function timedata_operation(f::Function, x::TimeSeries, y::TimePattern)
+    values = [
+        !isnothing(parameter_value(x)(ind)) && !isnothing(parameter_value(y)(ind)) ?
+            f(parameter_value(x)(ind), parameter_value(y)(ind)) : nothing
+        for ind in x.indexes
+    ]
+    indexes = x.indexes[findall(!isnothing, values)]
+    filter!(!isnothing, values)
+    return TimeSeries(indexes, values, x.ignore_year, x.repeat)
+end
+function timedata_operation(f::Function, y::TimePattern, x::TimeSeries)
+    values = [
+        !isnothing(parameter_value(x)(ind)) && !isnothing(parameter_value(y)(ind)) ?
+            f(parameter_value(y)(ind), parameter_value(x)(ind)) : nothing
+        for ind in x.indexes
+    ]
+    indexes = x.indexes[findall(!isnothing, values)]
+    filter!(!isnothing, values)
+    return TimeSeries(indexes, values, x.ignore_year, x.repeat)
+end
+function timedata_operation(f::Function, x::TimePattern, y::TimePattern)
+    if keys(x) == keys(y)
+        return Dict(key => f(x[key], y[key]) for key in keys(x))
+    else
+        @error "`TimePattern-TimePattern` arithmetic currently only supported if the keys are identical!"
+    end
+end
