@@ -26,11 +26,11 @@ Base.iterate(o::Union{Object,TimeSlice}) = iterate((o,))
 Base.iterate(o::Union{Object,TimeSlice}, state::T) where {T} = iterate((o,), state)
 Base.iterate(v::ScalarParameterValue) = iterate((v,))
 Base.iterate(v::ScalarParameterValue, state::T) where {T} = iterate((v,), state)
-function Base.iterate(ts::Union{TimeSeries,Map}, state=1)
-    if state > length(ts)
+function Base.iterate(x::Union{TimeSeries,Map}, state=1)
+    if state > length(x)
         return nothing
     end
-    return (ts.indexes[state] => ts.values[state]), state+1
+    return (x.indexes[state] => x.values[state]), state + 1
 end
 
 Base.length(t::Union{Object,TimeSlice}) = 1

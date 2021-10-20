@@ -203,6 +203,97 @@ function (p::Parameter)(; _strict=true, kwargs...)
     end
 end
 
+(p::NothingParameterValue)(; kwargs...) = nothing
+
+(p::ScalarParameterValue)(; kwargs...) = p.value
+
+(p::ArrayParameterValue)(; i::Union{Int64,Nothing}=nothing, kwargs...) = p(i)
+(p::ArrayParameterValue)(::Nothing) = p.value
+(p::ArrayParameterValue)(i::Int64) = get(p.value, i, nothing)
+
+(p::TimePatternParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::TimePatternParameterValue)(::Nothing) = p.value
+(p::TimePatternParameterValue)(t::DateTime) = p(TimeSlice(t,t))
+function (p::TimePatternParameterValue)(t::TimeSlice)
+    vals = [val for (tp, val) in p.value if overlaps(t, tp)]
+    isempty(vals) && return nothing
+    mean(vals)
+end
+
+(p::StandardTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::StandardTimeSeriesParameterValue)(::Nothing) = p.value
+function (p::StandardTimeSeriesParameterValue)(t::DateTime)
+    p.value.ignore_year && (t -= Year(t))
+    p.value.indexes[1] <= t <= p.value.indexes[end] || return nothing
+    p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
+end
+function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
+    p.value.ignore_year && (t -= Year(start(t)))
+    ab = _search_overlap(p.value, start(t), end_(t))
+    isempty(ab) && return nothing
+    a, b = ab
+    isempty(a:b) && return nothing
+    vals = Iterators.filter(!isnan, p.value.values[a:b])
+    mean(vals)
+end
+
+(p::RepeatingTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
+(p::RepeatingTimeSeriesParameterValue)(::Nothing) = p.value
+function (p::RepeatingTimeSeriesParameterValue)(t::DateTime)
+    p.value.ignore_year && (t -= Year(t))
+    mismatch = t - p.value.indexes[1]
+    reps = fld(mismatch, p.span)
+    t -= reps * p.span
+    p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
+end
+function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
+    t_start = start(t)
+    t_end = end_(t)
+    p.value.ignore_year && (t_start -= Year(t_start))
+    mismatch = t_start - p.value.indexes[1]
+    reps = fld(mismatch, p.span)
+    t_start -= reps * p.span
+    t_end -= reps * p.span
+    mismatch = t_end - p.value.indexes[1]
+    reps = div(mismatch, p.span)
+    ab = _search_overlap(p.value, t_start, t_end - reps * p.span)
+    isempty(ab) && return nothing
+    a, b = ab
+    asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
+    bsum = sum(Iterators.filter(!isnan, p.value.values[1:b]))
+    alen = count(!isnan, p.value.values[a:end])
+    blen = count(!isnan, p.value.values[1:b])
+    (asum + bsum + (reps - 1) * p.valsum) / (alen + blen + (reps - 1) * p.len)
+end
+
+function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
+    isempty(kwargs) && return p.value
+    arg = first(values(kwargs))
+    new_kwargs = Base.tail((; kwargs...))
+    p(arg; t=t, i=i, new_kwargs...)
+end
+function (p::MapParameterValue)(k; kwargs...)
+    i = _search_equal(p.value.indexes, k)
+    i === nothing && return p(; kwargs...)
+    pvs = p.value.values[i]
+    pvs(; kwargs...)
+end
+function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where {V}
+    i = _search_equal(p.value.indexes, o.name)
+    i === nothing && return p(; kwargs...)
+    pvs = p.value.values[i]
+    pvs(; kwargs...)
+end
+function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where {V}
+    i = _search_nearest(p.value.indexes, d)
+    i === nothing && return p(; kwargs...)
+    pvs = p.value.values[i]
+    pvs(; kwargs...)
+end
+function (p::MapParameterValue{DateTime,V})(d::_DateTimeRef; kwargs...) where {V}
+    p(d.ref[]; kwargs...)
+end
+
 members(::Anything) = anything
 members(x) = unique(member for obj in x for member in obj.members)
 
@@ -332,7 +423,6 @@ contains(a, b) = iscontained(b, a)
 Determine whether `a` and `b` overlap.
 """
 overlaps(a::TimeSlice, b::TimeSlice) = start(a) <= start(b) < end_(a) || start(b) <= start(a) < end_(b)
-
 function overlaps(t::TimeSlice, union::UnionOfIntersections)
     component_enclosing_rounding = Dict(
         :Y => (year, x -> 0, Year),
