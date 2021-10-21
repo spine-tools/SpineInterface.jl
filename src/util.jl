@@ -63,8 +63,11 @@ _entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs.
 _entity_key(o::ObjectLike) = o
 _entity_key(r::RelationshipLike) = tuple(r...)
 
-_entity_tuples(class::ObjectClass) = ((; Dict(class.name => o)...) for o in class())
-_entity_tuples(class::RelationshipClass) = class()
+_entity_tuple(o::ObjectLike, class) = (; Dict(class.name => o)...)
+_entity_tuple(r::RelationshipLike, class) = r
+
+_entity_tuples(class::ObjectClass; kwargs...) = (_entity_tuple(o, class) for o in class())
+_entity_tuples(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
 
 function _pv_call(orig::_OriginalCall, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
     _pv_call(_is_time_varying(T), orig, pv, inds)

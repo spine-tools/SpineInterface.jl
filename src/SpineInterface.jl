@@ -33,6 +33,7 @@ export Call
 export using_spinedb
 export anything
 export indices
+export indices_as_tuples
 export write_parameters
 export members
 export groups

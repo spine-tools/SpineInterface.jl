@@ -360,8 +360,19 @@ julia> collect(indices(demand))
 """
 function indices(p::Parameter; kwargs...)
     (
-        ent for class in p.classes for ent in _entities(class; kwargs...) if
-        _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
+        ent
+        for class in p.classes
+        for ent in _entities(class; kwargs...)
+        if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
+    )
+end
+
+function indices_as_tuples(p::Parameter; kwargs...)
+    (
+        _entity_tuple(ent, class)
+        for class in p.classes
+        for ent in _entities(class; kwargs...)
+        if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
 end
 
