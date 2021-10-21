@@ -19,7 +19,7 @@
 
 const _df = DateFormat("yyyy-mm-ddTHH:MM")
 
-function _getproperty_or_default(m::Module, name::Symbol, default=nothing)
+function _getproperty(m::Module, name::Symbol, default=nothing)
     (name in names(m; all=true)) ? getproperty(m, name) : default
 end
 

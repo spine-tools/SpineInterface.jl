@@ -56,8 +56,11 @@ export parameter_value
 export realize
 export is_varying
 export object_class
+export object_classes
 export relationship_class
+export relationship_classes
 export parameter
+export parameters
 export db_api
 export add_objects!
 export add_object!

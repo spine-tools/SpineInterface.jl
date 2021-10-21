@@ -241,18 +241,18 @@ function using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
         end
     end
     @eval mod begin
-        _spine_object_class = Vector{ObjectClass}()
-        _spine_relationship_class = Vector{RelationshipClass}()
-        _spine_parameter = Vector{Parameter}()
-        sizehint!(_spine_object_class, $(length(args_per_obj_cls)))
-        sizehint!(_spine_relationship_class, $(length(args_per_rel_cls)))
-        sizehint!(_spine_parameter, $(length(class_names_per_param)))
+        _spine_object_classes = Dict{Symbol,ObjectClass}()
+        _spine_relationship_classes = Dict{Symbol,RelationshipClass}()
+        _spine_parameters = Dict{Symbol,Parameter}()
+        sizehint!(_spine_object_classes, $(length(args_per_obj_cls)))
+        sizehint!(_spine_relationship_classes, $(length(args_per_rel_cls)))
+        sizehint!(_spine_parameters, $(length(class_names_per_param)))
     end
     for (name, args) in args_per_obj_cls
         object_class = ObjectClass(name, args...)
         @eval mod begin
             $name = $object_class
-            push!(_spine_object_class, $name)
+            _spine_object_classes[$object_class.name] = $name
             export $name
         end
     end
@@ -260,7 +260,7 @@ function using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
         relationship_class = RelationshipClass(name, args...)
         @eval mod begin
             $name = $relationship_class
-            push!(_spine_relationship_class, $name)
+            _spine_relationship_classes[$relationship_class.name] = $name
             export $name
         end
     end
@@ -269,7 +269,7 @@ function using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
         parameter = Parameter(name, classes)
         @eval mod begin
             $name = $parameter
-            push!(_spine_parameter, $name)
+            _spine_parameters[$parameter.name] = $name
             export $name
         end
     end
