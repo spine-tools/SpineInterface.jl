@@ -19,18 +19,18 @@
 db_url = "sqlite://"
 @testset "using_spinedb - basics" begin
     @testset "object_class" begin
-        object_classes = ["institution"]
+        obj_classes = ["institution"]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         objects = [["institution", x] for x in (institutions..., "Spine")]
         object_groups = [["institution", "Spine", x] for x in institutions]
-        import_test_data(db_url; object_classes=object_classes, objects=objects, object_groups=object_groups)
+        import_test_data(db_url; object_classes=obj_classes, objects=objects, object_groups=object_groups)
         using_spinedb(db_url)
         @test length(institution()) === 6
         @test all(x isa Object for x in institution())
         @test [x.name for x in institution()] == vcat(Symbol.(institutions), :Spine)
         @test institution(:FIFA) === nothing
-        @test length(object_class()) === 1
-        @test all(x isa ObjectClass for x in object_class())
+        @test length(object_classes()) === 1
+        @test all(x isa ObjectClass for x in object_classes())
         max_object_id = maximum(obj.id for obj in institution())
         FIFA = Object(:FIFA)
         @test FIFA.id === max_object_id + 1
@@ -43,8 +43,8 @@ db_url = "sqlite://"
         end
     end
     @testset "relationship_class" begin
-        object_classes = ["institution", "country"]
-        relationship_classes =
+        obj_classes = ["institution", "country"]
+        rel_classes =
             [["institution__country", ["institution", "country"]], ["country__neighbour", ["country", "country"]]]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
@@ -65,8 +65,8 @@ db_url = "sqlite://"
         )
         import_test_data(
             db_url;
-            object_classes=object_classes,
-            relationship_classes=relationship_classes,
+            object_classes=obj_classes,
+            relationship_classes=rel_classes,
             objects=objects,
             relationships=relationships,
         )
@@ -88,12 +88,12 @@ db_url = "sqlite://"
         @test all(x isa RelationshipLike for x in country__neighbour())
         @test [x.name for x in country__neighbour(country1=country(:France))] == [:Belgium]
         @test [x.name for x in country__neighbour(country2=country(:Finland))] == [:Sweden]
-        @test length(relationship_class()) === 2
-        @test all(x isa RelationshipClass for x in relationship_class())
+        @test length(relationship_classes()) === 2
+        @test all(x isa RelationshipClass for x in relationship_classes())
     end
     @testset "parameter" begin
-        object_classes = ["institution", "country"]
-        relationship_classes = [["institution__country", ["institution", "country"]]]
+        obj_classes = ["institution", "country"]
+        rel_classes = [["institution__country", ["institution", "country"]]]
         object_parameters = [["institution", "since_year"]]
         relationship_parameters = [["institution__country", "people_count"]]
         institutions = ["KTH", "VTT"]
@@ -107,8 +107,8 @@ db_url = "sqlite://"
         ]    
         import_test_data(
             db_url;
-            object_classes=object_classes,
-            relationship_classes=relationship_classes,
+            object_classes=obj_classes,
+            relationship_classes=rel_classes,
             objects=objects,
             relationships=relationships,
             object_parameters=object_parameters,
@@ -124,8 +124,8 @@ db_url = "sqlite://"
         @test since_year(institution=institution(:VTT), _strict=false) === nothing
         @test_throws ErrorException people_count(institution=institution(:VTT), country=country(:France))
         @test [x.name for x in institution(since_year=1827)] == [:KTH]
-        @test length(parameter()) === 2
-        @test all(x isa Parameter for x in parameter())
+        @test length(parameters()) === 2
+        @test all(x isa Parameter for x in parameters())
     end
 end
 @testset "using_spinedb - parameter value types" begin
