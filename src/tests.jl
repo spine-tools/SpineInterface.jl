@@ -33,7 +33,7 @@ function test_parameter(
     value_min::Real=-Inf, value_max::Real=Inf, limit::Real=Inf
 )
     @test _check(
-        param in parameter(m),
+        param in parameters(m),
         "`$(param)` not found in module `$(m)`!"
     )
     for class in param.classes
@@ -114,7 +114,7 @@ function test_object_class(
     count_min::Real=0, count_max::Real=Inf, limit::Real=Inf
 )
     @test _check(
-        obj_class in object_class(m),
+        obj_class in object_classes(m),
         "`$(obj_class)` not found in module `$(m)`!"
     )
     @testset """
