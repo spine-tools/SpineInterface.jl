@@ -153,7 +153,7 @@ function test_relationship_class(
     count_min::Real=0, count_max::Real=Inf, limit::Real=Inf
 )
 @test _check(
-    rel_class in relationship_class(m),
+    rel_class in relationship_classes(m),
     "`$(rel_class)` not found in module `$(m)`!"
 )
 @testset """
