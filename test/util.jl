@@ -81,15 +81,15 @@ end
     test_rc = RelationshipClass(
         :test_rc,
         [:test_oc],
-        [(test_object1,), (test_object2,)],
+        [(test_oc=test_object1,), (test_oc=test_object2,)],
         Dict((test_object1,) => Dict(:test_rel_param => parameter_value(2.))),
         [:test_oc],
         Dict(:test_rel_param => parameter_value(3.)),
     )
     test_obj_param = Parameter(:test_obj_param, [test_oc])
     test_rel_param = Parameter(:test_rel_param, [test_rc])
-    test_parameter(test_obj_param, Float64; value_min=0., value_max=1.)
-    test_parameter(test_rel_param, Float64; value_min=2., value_max=3.)
-    test_object_class(test_oc, test_rc; count_min=1, count_max=1)
+    test_parameter(test_obj_param, Float64, Main; value_min=0., value_max=1.)
+    test_parameter(test_rel_param, Float64, Main; value_min=2., value_max=3.)
+    test_object_class(test_oc, test_rc, Main; count_min=1, count_max=1)
 end
 
