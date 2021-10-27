@@ -200,6 +200,10 @@ function _class_names_per_parameter(classes, param_defs)
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
 end
 
+function using_spinedb(template::Dict, mod=@__MODULE__; upgrade=false)
+    _generate_convenience_functions(template, mod)
+end
+
 """
     using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
 
@@ -213,6 +217,10 @@ how to call the convenience functors.
 function using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
     uri = URI(url)    
     db = (uri.scheme == "http") ? uri : url
+    _generate_convenience_functions(db, mod; upgrade=upgrade)
+end
+
+function _generate_convenience_functions(db, mod; upgrade=false)
     data = _get_data(db; upgrade=upgrade)
     object_classes = data["object_class_sq"]
     relationship_classes = data["wide_relationship_class_sq"]
@@ -228,10 +236,12 @@ function using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
     rels_per_cls = _entities_per_class(relationships)
     param_defs_per_cls = _parameter_definitions_per_class(param_defs)
     param_vals_per_ent = _parameter_values_per_entity(param_vals)
-    args_per_obj_cls =
-        _args_per_class(object_classes, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    args_per_rel_cls =
-        _args_per_class(relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
+    args_per_obj_cls = _args_per_class(
+        object_classes, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
+    )
+    args_per_rel_cls = _args_per_class(
+        relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
+    )
     class_names_per_param = _class_names_per_parameter([object_classes; relationship_classes], param_defs_per_cls)
     max_obj_id = reduce(max, (obj["id"] for obj in objects); init=0)
     id_factory = ObjectIdFactory(UInt64(max_obj_id))

@@ -513,6 +513,35 @@ function _get_data(server_uri::URI; upgrade=nothing)
         "parameter_value_sq",
     )
 end
+function _get_data(template::Dict; upgrade=nothing)
+    object_class_sq = [Dict("id" => k, "name" => name) for (k, (name,)) in enumerate(template["object_classes"])]
+    offset = length(template["object_classes"])
+    wide_relationship_class_sq = [
+        Dict("id" => offset + k, "name" => name, "object_class_name_list" => join(object_class_name_list, ","))
+        for (k, (name, object_class_name_list,)) in enumerate(template["relationship_classes"])
+    ]
+    class_ids = Dict(x["name"] => x["id"] for x in [object_class_sq; wide_relationship_class_sq])
+    parameter_definition_sq = [
+        Dict(
+            "id" => k,
+            "entity_class_id" => class_ids[class_name],
+            "name" => name,
+            "default_value" => JSON.json(default_value)
+        )
+        for (k, (class_name, name, default_value,)) in enumerate(
+            [template["object_parameters"]; template["relationship_parameters"]]
+        )
+    ]
+    Dict(
+        "object_class_sq" => object_class_sq,
+        "wide_relationship_class_sq" => wide_relationship_class_sq,
+        "object_sq" => [],
+        "entity_group_sq" => [],
+        "wide_relationship_sq" => [],
+        "parameter_definition_sq" => parameter_definition_sq,
+        "parameter_value_sq" => [],
+    )
+end
 
 _do_import_data(dbh, data, comment) = dbh.import_data(data, comment)
 
@@ -540,7 +569,9 @@ function _run_request(db_url::String, request::String, args...; upgrade=false)
     dbh = _create_db_handler(db_url, upgrade)
     Base.invokelatest(_do_run_request, dbh, request, args...)
 end
-_run_request(server_uri::URI, request::String, args...; upgrade=nothing) = _run_server_request(server_uri, request, args...)
+function _run_request(server_uri::URI, request::String, args...; upgrade=nothing)
+    _run_server_request(server_uri, request, args...)
+end
 
 function _to_dict(obj_cls::ObjectClass)
     Dict(

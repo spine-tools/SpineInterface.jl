@@ -930,3 +930,30 @@ function timedata_operation(f::Function, x::TimePattern, y::TimePattern)
         @error "`TimePattern-TimePattern` arithmetic currently only supported if the keys are identical!"
     end
 end
+
+
+"""
+    difference(left, right)
+
+A string sumarizing spine values (ObjectClass, RelationshipClass, Parameter) from module `left`
+that are absent from module `right`.
+"""
+function difference(left, right)
+    _name(x) = x.name
+    diff = OrderedDict(
+        "object classes" => setdiff(_name.(object_classes(left)), _name.(object_classes(right))),
+        "relationship classes" => setdiff(_name.(relationship_classes(left)), _name.(relationship_classes(right))),
+        "parameters" => setdiff(_name.(parameters(left)), _name.(parameters(right))),
+    )
+    header_size = maximum(length(key) for key in keys(diff))
+    empty_header = repeat(" ", header_size)
+    splitter = repeat(" ", 2)
+    diff_str = ""
+    for (key, value) in diff
+        isempty(value) && continue
+        header = lpad(key, header_size)
+        diff_str *= "\n" * string(header, splitter, value[1], "\n")
+        diff_str *= join([string(empty_header, splitter, x) for x in value[2:end]], "\n") * "\n"
+    end
+    diff_str
+end
