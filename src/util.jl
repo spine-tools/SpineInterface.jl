@@ -545,7 +545,7 @@ end
 
 _do_import_data(dbh, data, comment) = dbh.import_data(data, comment)
 
-_data_as_py_vector!(arr::Array) = _data_as_py_vector!.(arr)
+_data_as_py_vector!(a::Union{Array,Tuple}) = _data_as_py_vector!.(a)
 _data_as_py_vector!(d::Dict) = _data_as_py_vector!(d, get(d, "data", nothing))
 function _data_as_py_vector!(d::Dict, data::Array)
     d["data"] = PyVector(data)
