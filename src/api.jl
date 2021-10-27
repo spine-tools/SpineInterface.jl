@@ -576,10 +576,10 @@ end
 
 function add_relationship_parameter_values!(relationship_class::RelationshipClass, parameter_values::Dict)
     add_relationships!(relationship_class, collect(keys(parameter_values)))
-    merge!(
-        relationship_class.parameter_values,
-        Dict(values(rel) => vals for (rel, vals) in parameter_values)
-    )
+    for (rel, vals) in parameter_values
+        rel = values(rel)
+        merge!(relationship_class.parameter_values[rel], vals)
+    end
 end
 
 """
@@ -597,7 +597,9 @@ end
 
 function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict)
     add_objects!(object_class, collect(keys(parameter_values)))
-    merge!(object_class.parameter_values, parameter_values)
+    for (obj, vals) in parameter_values
+        merge!(object_class.parameter_values[obj], vals)
+    end
 end
 
 """
