@@ -563,15 +563,22 @@ t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
 Return the modified `relationship_class`.
 """
-function add_relationships!(relationship_class::RelationshipClass, relationships::Array{T,1}) where {T}
+function add_relationships!(relationship_class::RelationshipClass, relationships::Array, parameter_values=Dict())
     setdiff!(relationships, relationship_class.relationships)
     append!(relationship_class.relationships, relationships)
-    merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
+    merge!(
+        relationship_class.parameter_values,
+        Dict(values(rel) => get(parameter_values, rel, Dict()) for rel in relationships)
+    )
     if !isempty(relationships)
         empty!(relationship_class.lookup_cache[:true])
         empty!(relationship_class.lookup_cache[:false])
     end
     relationship_class
+end
+
+function add_relationships!(relationship_class::RelationshipClass, parameter_values::Dict)
+    add_relationships!(relationship_class, collect(keys(parameter_values)), parameter_values)
 end
 
 """
@@ -580,11 +587,15 @@ end
 Remove from `objects` everything that's already in `object_class`, and append the rest.
 Return the modified `object_class`.
 """
-function add_objects!(object_class::ObjectClass, objects::Array{T,1}) where {T}
+function add_objects!(object_class::ObjectClass, objects::Array)
     setdiff!(objects, object_class.objects)
     append!(object_class.objects, objects)
     merge!(object_class.parameter_values, Dict(obj => Dict() for obj in objects))
     object_class
+end
+
+function add_objects!(object_class::ObjectClass, parameter_values::Dict)
+    add_objects!(object_class, collect(keys(parameter_values)), parameter_values)
 end
 
 """
