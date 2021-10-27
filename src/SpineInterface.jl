@@ -82,8 +82,10 @@ export parameter
 export parameters
 export db_api
 export add_objects!
+export add_object_parameter_values!
 export add_object!
 export add_relationships!
+export add_relationship_parameter_values!
 export maximum_parameter_value
 export parse_db_value
 export import_data

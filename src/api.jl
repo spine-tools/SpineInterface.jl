@@ -563,13 +563,10 @@ t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
 Return the modified `relationship_class`.
 """
-function add_relationships!(relationship_class::RelationshipClass, relationships::Array, parameter_values=Dict())
+function add_relationships!(relationship_class::RelationshipClass, relationships::Array)
     setdiff!(relationships, relationship_class.relationships)
     append!(relationship_class.relationships, relationships)
-    merge!(
-        relationship_class.parameter_values,
-        Dict(values(rel) => get(parameter_values, rel, Dict()) for rel in relationships)
-    )
+    merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
     if !isempty(relationships)
         empty!(relationship_class.lookup_cache[:true])
         empty!(relationship_class.lookup_cache[:false])
@@ -577,8 +574,12 @@ function add_relationships!(relationship_class::RelationshipClass, relationships
     relationship_class
 end
 
-function add_relationships!(relationship_class::RelationshipClass, parameter_values::Dict)
-    add_relationships!(relationship_class, collect(keys(parameter_values)), parameter_values)
+function add_relationship_parameter_values!(relationship_class::RelationshipClass, parameter_values::Dict)
+    add_relationships!(relationship_class, collect(keys(parameter_values)))
+    merge!(
+        relationship_class.parameter_values,
+        Dict(values(rel) => vals for (rel, vals) in parameter_values)
+    )
 end
 
 """
@@ -594,8 +595,9 @@ function add_objects!(object_class::ObjectClass, objects::Array)
     object_class
 end
 
-function add_objects!(object_class::ObjectClass, parameter_values::Dict)
-    add_objects!(object_class, collect(keys(parameter_values)), parameter_values)
+function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict)
+    add_objects!(object_class, collect(keys(parameter_values)))
+    merge!(object_class.parameter_values, parameter_values)
 end
 
 """
