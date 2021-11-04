@@ -619,3 +619,23 @@ function _to_dict(rel_cls::RelationshipClass)
         ]
     )
 end
+
+"""
+    _apply_f(f, x, y)
+
+The result of applying `f` on `x` and `y`, or `nothing` if either `x` or `y` is `nothing`.
+"""
+_apply_f(f, x, y) = f(x, y)
+_apply_f(f, ::Nothing, y) = nothing
+_apply_f(f, x, ::Nothing) = nothing
+
+"""
+    _remove_nothing_values!(inds, vals)
+
+Removes `nothing` from `vals`, and corresponding positions from `inds`.
+"""
+function _remove_nothing_values!(inds, vals)
+    to_remove = findall(isnothing, vals)
+    deleteat!(inds, to_remove)
+    deleteat!(vals, to_remove)
+end
