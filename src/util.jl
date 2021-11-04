@@ -393,6 +393,11 @@ end
 _unparse_db_value(x::AbstractParameterValue) = _unparse_db_value(x.value)
 _unparse_db_value(::NothingParameterValue) = nothing
 
+_process_dbh_answer(answer) = answer
+_process_dbh_answer(answer::Dict) = _process_dbh_answer(get(answer, "error", nothing), answer)
+_process_dbh_answer(err::String, answer) = error(err)
+_process_dbh_answer(err::Nothing, answer) = answer
+
 function _run_server_request(server_uri::URI, request::String, args...)
     clientside = connect(server_uri.host, parse(Int, server_uri.port))
     write(clientside, JSON.json([request, args]) * '\0')
@@ -409,13 +414,8 @@ function _run_server_request(server_uri::URI, request::String, args...)
     s = rstrip(str, '\0')
     isempty(s) && return
     answer = JSON.parse(s)
-    _process_server_answer(answer)
+    _process_dbh_answer(answer)
 end
-
-_process_server_answer(answer) = answer
-_process_server_answer(answer::Dict) = _process_server_answer(get(answer, "error", nothing), answer)
-_process_server_answer(err::String, answer) = error(err)
-_process_server_answer(err::Nothing, answer) = answer
 
 function _import_spinedb_api()
     isdefined(@__MODULE__, :db_api) && return
@@ -484,8 +484,12 @@ function _create_db_handler(db_url::String, upgrade::Bool)
     Base.invokelatest(_do_create_db_handler, db_url, upgrade)
 end
 
-function _do_get_data(dbh, upgrade::Bool)
-    dbh.get_data(
+function _do_apply_filters(dbh, filters::Dict)
+    _process_dbh_answer(dbh.apply_filters(filters))
+end
+
+function _do_get_data(dbh)
+    answer = dbh.get_data(
         "object_class_sq",
         "wide_relationship_class_sq",
         "object_sq",
@@ -494,13 +498,16 @@ function _do_get_data(dbh, upgrade::Bool)
         "parameter_definition_sq",
         "parameter_value_sq",
     )
+    _process_dbh_answer(answer)
 end
 
-function _get_data(db_url::String; upgrade=false)
+function _get_data(db_url::String; upgrade=false, filters=Dict())
     dbh = _create_db_handler(db_url, upgrade)
-    Base.invokelatest(_do_get_data, dbh, upgrade)
+    isempty(filters) || Base.invokelatest(_do_apply_filters, dbh, filters)
+    Base.invokelatest(_do_get_data, dbh)
 end
-function _get_data(server_uri::URI; upgrade=nothing)
+function _get_data(server_uri::URI; upgrade=nothing, filters=Dict())
+    isempty(filters) || _run_server_request(server_uri, "apply_filters", filters)
     _run_server_request(
         server_uri,
         "get_data",
@@ -513,7 +520,7 @@ function _get_data(server_uri::URI; upgrade=nothing)
         "parameter_value_sq",
     )
 end
-function _get_data(template::Dict; upgrade=nothing)
+function _get_data(template::Dict; upgrade=nothing, filters=nothing)
     object_class_sq = [Dict("id" => k, "name" => name) for (k, (name,)) in enumerate(template["object_classes"])]
     offset = length(template["object_classes"])
     wide_relationship_class_sq = [
@@ -543,7 +550,7 @@ function _get_data(template::Dict; upgrade=nothing)
     )
 end
 
-_do_import_data(dbh, data, comment) = dbh.import_data(data, comment)
+_do_import_data(dbh, data, comment) = _process_dbh_answer(dbh.import_data(data, comment))
 
 _data_as_py_vector!(a::Union{Array,Tuple}) = _data_as_py_vector!.(a)
 _data_as_py_vector!(d::Dict) = _data_as_py_vector!(d, get(d, "data", nothing))
@@ -563,7 +570,7 @@ function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String; up
     _run_server_request(server_uri, "import_data", Dict(string(k) => v for (k, v) in data), comment)
 end
 
-_do_run_request(dbh, request::String, args...) = getproperty(dbh, Symbol(request))(args...)
+_do_run_request(dbh, request::String, args...) = _process_dbh_answer(getproperty(dbh, Symbol(request))(args...))
 
 function _run_request(db_url::String, request::String, args...; upgrade=false)
     dbh = _create_db_handler(db_url, upgrade)

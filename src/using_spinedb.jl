@@ -200,7 +200,7 @@ function _class_names_per_parameter(classes, param_defs)
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
 end
 
-function using_spinedb(template::Dict, mod=@__MODULE__; upgrade=false)
+function using_spinedb(template::Dict, mod=@__MODULE__; upgrade=nothing, filters=nothing)
     _generate_convenience_functions(template, mod)
 end
 
@@ -214,14 +214,14 @@ If `upgrade` is `true`, then the database is upgraded to the latest revision.
 See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details on
 how to call the convenience functors.
 """
-function using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
+function using_spinedb(url::String, mod=@__MODULE__; upgrade=false, filters=Dict())
     uri = URI(url)    
     db = (uri.scheme == "http") ? uri : url
-    _generate_convenience_functions(db, mod; upgrade=upgrade)
+    _generate_convenience_functions(db, mod; upgrade=upgrade, filters=filters)
 end
 
-function _generate_convenience_functions(db, mod; upgrade=false)
-    data = _get_data(db; upgrade=upgrade)
+function _generate_convenience_functions(db, mod; upgrade=false, filters=Dict())
+    data = _get_data(db; upgrade=upgrade, filters=filters)
     object_classes = data["object_class_sq"]
     relationship_classes = data["wide_relationship_class_sq"]
     objects = data["object_sq"]
