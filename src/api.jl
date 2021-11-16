@@ -739,13 +739,13 @@ mapping object or relationship (`NamedTuple`) to values.
   - `<parameters>`: a dictionary mapping
 """
 function write_parameters(
-    parameters::Dict{T,Dict{K,V}},
+    parameters::Dict,
     url::String;
     upgrade=true,
     for_object=true,
     report="",
     comment="",
-) where {T,K<:NamedTuple,V}
+)
     uri = URI(url)
     db = (uri.scheme == "http") ? uri : url
     import_data = Dict{Symbol,Array}()
