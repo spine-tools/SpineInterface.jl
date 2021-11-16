@@ -555,7 +555,7 @@ _do_import_data(dbh, data, comment) = _process_dbh_answer(dbh.import_data(data, 
 _data_as_py_vector!(a::Union{Array,Tuple}) = _data_as_py_vector!.(a)
 _data_as_py_vector!(d::Dict) = _data_as_py_vector!(d, get(d, "data", nothing))
 function _data_as_py_vector!(d::Dict, data::Array)
-    d["data"] = PyVector(data)
+    d["data"] = Base.invokelatest(PyVector, data)
     d
 end
 _data_as_py_vector!(d::Dict, x) = d
