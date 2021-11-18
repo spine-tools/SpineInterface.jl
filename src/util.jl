@@ -552,18 +552,14 @@ end
 
 _do_import_data(dbh, data, comment) = _process_dbh_answer(dbh.import_data(data, comment))
 
-_data_as_py_vector!(a::Union{Array,Tuple}) = _data_as_py_vector!.(a)
-_data_as_py_vector!(d::Dict) = _data_as_py_vector!(d, get(d, "data", nothing))
-function _data_as_py_vector!(d::Dict, data::Array)
-    d["data"] = Base.invokelatest(PyVector, data)
-    d
-end
-_data_as_py_vector!(d::Dict, x) = d
-_data_as_py_vector!(x) = x
+_convert_arrays_to_py_vectors(d::Dict) = Dict(k => _convert_arrays_to_py_vectors(v) for (k, v) in d)
+_convert_arrays_to_py_vectors(t::Tuple) = Tuple(_convert_arrays_to_py_vectors(x) for x in t)
+_convert_arrays_to_py_vectors(a::Array) = Base.invokelatest(PyVector, _convert_arrays_to_py_vectors.(a))
+_convert_arrays_to_py_vectors(x) = x
 
 function _import_data(db_url::String, data::Dict{Symbol,T}, comment::String; upgrade=true) where {T}
     dbh = _create_db_handler(db_url, upgrade)
-    data = Dict(key => _data_as_py_vector!(value) for (key, value) in data)
+    data = _convert_arrays_to_py_vectors(data)
     Base.invokelatest(_do_import_data, dbh, data, comment)
 end
 function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String; upgrade=nothing) where {T}
@@ -632,7 +628,7 @@ _apply_f(f, x, ::Nothing) = nothing
 """
     _remove_nothing_values!(inds, vals)
 
-Removes `nothing` from `vals`, and corresponding positions from `inds`.
+Remove `nothing` from `vals`, and corresponding positions from `inds`.
 """
 function _remove_nothing_values!(inds, vals)
     to_remove = findall(isnothing, vals)
