@@ -433,7 +433,7 @@ You can fix this in two different ways:
 """
 
 const _required_spinedb_api_version_not_found_server = """
-The required version $_required_spinedb_api_version of `spinedb_api` is not available.
+The required version $_required_spinedb_api_version of `spinedb_api` could not be found.
 Please update Spine Toolbox by following the instructions at
     
     https://github.com/Spine-project/Spine-Toolbox#installation
@@ -488,6 +488,9 @@ function _do_run_server_request(server_uri::URI, full_request::Array; timeout=In
     _process_db_answer(answer)
 end
 
+function _run_server_request(server_uri::URI, request::String)
+    _run_server_request(server_uri, request, (), Dict())
+end
 function _run_server_request(server_uri::URI, request::String, args::Tuple)
     _run_server_request(server_uri, request, args, Dict())
 end

@@ -869,14 +869,23 @@ function import_data(url::String, data::Dict{Symbol,T}, comment::String) where {
 end
 
 """
-    run_request(url::String, request::String, args...; upgrade=false)
+    run_request(url::String, request::String, args, kwargs; upgrade=false)
 
 Run the given request on the given url, using the given args.
 """
-function run_request(url::String, request::String, args...; upgrade=false)
+function run_request(url::String, request::String; upgrade=false)
+    _run_request(url, request, (), Dict(); upgrade=upgrade)
+end
+function run_request(url::String, request::String, args::Tuple; upgrade=false)
+    _run_request(url, request, args, Dict(); upgrade=upgrade)
+end
+function run_request(url::String, request::String, kwargs::Dict; upgrade=false)
+    _run_request(url, request, (), kwargs; upgrade=upgrade)
+end
+function run_request(url::String, request::String, args::Tuple, kwargs::Dict; upgrade=false)
     uri = URI(url)
     db = (uri.scheme == "http") ? uri : url
-    _run_request(db, request, args...; upgrade=upgrade)
+    _run_request(db, request, args, kwargs; upgrade=upgrade)
 end
 
 """
