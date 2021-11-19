@@ -455,9 +455,14 @@ _process_db_answer(answer) = answer  # Legacy
 _process_db_answer(result, err::Nothing) = result
 _process_db_answer(result, err) = error(string(err))
 
-function _do_run_server_request(server_uri::URI, request::String, args...; timeout=Inf)
+const _client_version = 2
+
+function _do_run_server_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict; timeout=Inf)
+    _do_run_server_request(server_uri, [request, args, kwargs, _client_version]; timeout=timeout)
+end
+function _do_run_server_request(server_uri::URI, full_request::Array; timeout=Inf)
     clientside = connect(server_uri.host, parse(Int, server_uri.port))
-    write(clientside, JSON.json([request, args]) * '\0')
+    write(clientside, JSON.json(full_request) * '\0')
     io = IOBuffer()
     elapsed = 0
     while true
@@ -484,13 +489,19 @@ function _do_run_server_request(server_uri::URI, request::String, args...; timeo
     _process_db_answer(answer)
 end
 
-function _run_server_request(server_uri::URI, request::String, args...)
-    elapsed = @elapsed _do_run_server_request(server_uri, "get_db_url")
-    spinedb_api_version = _do_run_server_request(server_uri, "get_api_version"; timeout=10 * elapsed)
+function _run_server_request(server_uri::URI, request::String, args::Tuple)
+    _run_server_request(server_uri, request, args, Dict())
+end
+function _run_server_request(server_uri::URI, request::String, kwargs::Dict)
+    _run_server_request(server_uri, request, (), kwargs)
+end
+function _run_server_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict)
+    elapsed = @elapsed _do_run_server_request(server_uri, ["get_db_url"])
+    spinedb_api_version = _do_run_server_request(server_uri, ["get_api_version"]; timeout=10 * elapsed)
     if _parse_spinedb_api_version(spinedb_api_version) < _required_spinedb_api_version
         error(_required_spinedb_api_version_not_found_server)
     end
-    _do_run_server_request(server_uri, request, args...)
+    _do_run_server_request(server_uri, request, args, kwargs)
 end
 
 function _import_spinedb_api()
@@ -544,17 +555,16 @@ function _get_data(db_url::String; upgrade=false, filters=Dict())
 end
 function _get_data(server_uri::URI; upgrade=nothing, filters=Dict())
     isempty(filters) || _run_server_request(server_uri, "apply_filters", filters)
-    _run_server_request(
-        server_uri,
-        "get_data",
+    sq_names = (
         "object_class_sq",
         "wide_relationship_class_sq",
         "object_sq",
         "entity_group_sq",
         "wide_relationship_sq",
         "parameter_definition_sq",
-        "parameter_value_sq",
+        "parameter_value_sq"
     )
+    _run_server_request(server_uri, "get_data", sq_names)
 end
 function _get_data(template::Dict; upgrade=nothing, filters=nothing)
     object_class_sq = [Dict("id" => k, "name" => name) for (k, (name,)) in enumerate(template["object_classes"])]
@@ -599,17 +609,19 @@ function _import_data(db_url::String, data::Dict{Symbol,T}, comment::String; upg
     Base.invokelatest(_do_import_data, dbh, data, comment)
 end
 function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String; upgrade=nothing) where {T}
-    _run_server_request(server_uri, "import_data", Dict(string(k) => v for (k, v) in data), comment)
+    _run_server_request(server_uri, "import_data", (Dict(string(k) => v for (k, v) in data), comment))
 end
 
-_do_run_request(dbh, request::String, args...) = _process_db_answer(getproperty(dbh, Symbol(request))(args...))
+function _do_run_request(dbh, request::String, args::Tuple, kwargs::Dict)
+    _process_db_answer(getproperty(dbh, Symbol(request))(args...; kwargs...))
+end
 
-function _run_request(db_url::String, request::String, args...; upgrade=false)
+function _run_request(db_url::String, request::String, args::Tuple, kwargs::Dict; upgrade=false)
     dbh = _create_db_handler(db_url, upgrade)
-    Base.invokelatest(_do_run_request, dbh, request, args...)
+    Base.invokelatest(_do_run_request, dbh, request, args, kwargs)
 end
-function _run_request(server_uri::URI, request::String, args...; upgrade=nothing)
-    _run_server_request(server_uri, request, args...)
+function _run_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict; upgrade=nothing)
+    _run_server_request(server_uri, request, args, kwargs)
 end
 
 function _to_dict(obj_cls::ObjectClass)
