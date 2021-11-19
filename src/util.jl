@@ -393,87 +393,123 @@ end
 _unparse_db_value(x::AbstractParameterValue) = _unparse_db_value(x.value)
 _unparse_db_value(::NothingParameterValue) = nothing
 
-_process_dbh_answer(answer) = answer
-_process_dbh_answer(answer::Dict) = _process_dbh_answer(get(answer, "error", nothing), answer)
-_process_dbh_answer(err::String, answer) = error(err)
-_process_dbh_answer(err::Nothing, answer) = answer
+const _required_spinedb_api_version = v"0.12.2"
 
-function _run_server_request(server_uri::URI, request::String, args...)
+_spinedb_api_not_found(pyprogramname) = """
+The required Python package `spinedb_api` could not be found in the current Python environment
+    $pyprogramname
+
+You can fix this in two different ways:
+
+    A. Install `spinedb_api` in the current Python environment; open a terminal (command prompt on Windows) and run
+
+        $pyprogramname -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
+
+    B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run
+
+        ENV["PYTHON"] = "... path of the python executable ..."
+        Pkg.build("PyCall")
+
+    And restart Julia.
+"""
+
+const _required_spinedb_api_version_not_found_py_call(pyprogramname) = """
+The required version $_required_spinedb_api_version of `spinedb_api` could not be found in the current Python environment
+
+    $pyprogramname
+
+You can fix this in two different ways:
+
+    A. Upgrade `spinedb_api` to its latest version in the current Python environment; open a terminal (command prompt on Windows) and run
+
+        $pyprogramname -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'
+
+    B. Switch to another Python environment that has `spinedb_api` version $_required_spinedb_api_version installed; from Julia, run
+
+        ENV["PYTHON"] = "... path of the python executable ..."
+        Pkg.build("PyCall")
+
+    And restart Julia.
+"""
+
+const _required_spinedb_api_version_not_found_server = """
+The required version $_required_spinedb_api_version of `spinedb_api` is not available.
+
+Please update Spine Toolbox by following the instructions at
+    
+    https://github.com/Spine-project/Spine-Toolbox#installation
+"""
+
+function _parse_spinedb_api_version(version)
+    # Version number shortened and tweaked to avoid PEP 440 -> SemVer issues
+    VersionNumber(replace(join(split(version, '.')[1:3],'.'), '-' => '+'))
+end
+_parse_spinedb_api_version(::Nothing) = VersionNumber(0)
+
+function _process_db_answer(answer::Dict)
+    result = get(answer, "result", nothing)
+    err = get(answer, "error", nothing)
+    _process_db_answer(result, err)
+end
+_process_db_answer(answer) = answer  # Legacy
+_process_db_answer(result, err::Nothing) = result
+_process_db_answer(result, err) = error(string(err))
+
+function _do_run_server_request(server_uri::URI, request::String, args...; timeout=Inf)
     clientside = connect(server_uri.host, parse(Int, server_uri.port))
     write(clientside, JSON.json([request, args]) * '\0')
     io = IOBuffer()
+    elapsed = 0
     while true
         str = String(readavailable(clientside))
         write(io, str)
         if endswith(str, '\0')
             break
         end
+        if !isempty(str)
+            elapsed = 0
+            continue
+        end
+        if elapsed > timeout
+            return nothing
+        end
+        sleep(0.02)
+        elapsed += 0.02
     end
     close(clientside)
     str = String(take!(io))
     s = rstrip(str, '\0')
     isempty(s) && return
     answer = JSON.parse(s)
-    _process_dbh_answer(answer)
+    _process_db_answer(answer)
+end
+
+function _run_server_request(server_uri::URI, request::String, args...)
+    elapsed = @elapsed _do_run_server_request(server_uri, "get_db_url")
+    spinedb_api_version = _do_run_server_request(server_uri, "get_api_version"; timeout=10 * elapsed)
+    if _parse_spinedb_api_version(spinedb_api_version) < _required_spinedb_api_version
+        error(_required_spinedb_api_version_not_found_server)
+    end
+    _do_run_server_request(server_uri, request, args...)
 end
 
 function _import_spinedb_api()
     isdefined(@__MODULE__, :db_api) && return
     @eval begin
         using PyCall
-        required_spinedb_api_version = v"0.12.2"
         const db_api, db_server = try
             pyimport("spinedb_api"), pyimport("spinedb_api.spine_db_server")
         catch err
             if err isa PyCall.PyError
-                error(
-                    """
-                    The required Python package `spinedb_api` could not be found in the current Python environment
-                        $(PyCall.pyprogramname)
-
-                    You can fix this in two different ways:
-
-                        A. Install `spinedb_api` in the current Python environment; open a terminal (command prompt on Windows) and run
-
-                            $(PyCall.pyprogramname) -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
-
-                        B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run
-
-                            ENV["PYTHON"] = "... path of the python executable ..."
-                            Pkg.build("PyCall")
-
-                        And restart Julia.
-                    """,
-                )
+                error(_spinedb_api_not_found(PyCall.pyprogramname))
             else
                 rethrow()
             end
         end
-        # Version number shortened and tweaked to avoid PEP 440 -> SemVer issues
-        current_version = VersionNumber(replace(join(split(db_api.__version__, '.')[1:3],'.'), '-' => '+'))
-        if current_version < required_spinedb_api_version
-            error(
-                """
-                The required version $required_spinedb_api_version of `spinedb_api` could not be found in the current Python environment
-
-                    $(PyCall.pyprogramname)
-
-                You can fix this in two different ways:
-
-                    A. Upgrade `spinedb_api` to its latest version in the current Python environment; open a terminal (command prompt on Windows) and run
-
-                        $(PyCall.pyprogramname) -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'
-
-                    B. Switch to another Python environment that has `spinedb_api` version $required_spinedb_api_version installed; from Julia, run
-
-                        ENV["PYTHON"] = "... path of the python executable ..."
-                        Pkg.build("PyCall")
-
-                    And restart Julia.
-                """,
-            )
-        end
-        
+        spinedb_api_version = _parse_spinedb_api_version(db_api.__version__)
+        if spinedb_api_version < _required_spinedb_api_version
+            error(_required_spinedb_api_version_not_found_py_call(PyCall.pyprogramname))
+        end        
     end
 end
 
@@ -485,7 +521,7 @@ function _create_db_handler(db_url::String, upgrade::Bool)
 end
 
 function _do_apply_filters(dbh, filters::Dict)
-    _process_dbh_answer(dbh.apply_filters(filters))
+    _process_db_answer(dbh.apply_filters(filters))
 end
 
 function _do_get_data(dbh)
@@ -498,7 +534,7 @@ function _do_get_data(dbh)
         "parameter_definition_sq",
         "parameter_value_sq",
     )
-    _process_dbh_answer(answer)
+    _process_db_answer(answer)
 end
 
 function _get_data(db_url::String; upgrade=false, filters=Dict())
@@ -550,7 +586,7 @@ function _get_data(template::Dict; upgrade=nothing, filters=nothing)
     )
 end
 
-_do_import_data(dbh, data, comment) = _process_dbh_answer(dbh.import_data(data, comment))
+_do_import_data(dbh, data, comment) = _process_db_answer(dbh.import_data(data, comment))
 
 _convert_arrays_to_py_vectors(d::Dict) = Dict(k => _convert_arrays_to_py_vectors(v) for (k, v) in d)
 _convert_arrays_to_py_vectors(t::Tuple) = Tuple(_convert_arrays_to_py_vectors(x) for x in t)
@@ -566,7 +602,7 @@ function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String; up
     _run_server_request(server_uri, "import_data", Dict(string(k) => v for (k, v) in data), comment)
 end
 
-_do_run_request(dbh, request::String, args...) = _process_dbh_answer(getproperty(dbh, Symbol(request))(args...))
+_do_run_request(dbh, request::String, args...) = _process_db_answer(getproperty(dbh, Symbol(request))(args...))
 
 function _run_request(db_url::String, request::String, args...; upgrade=false)
     dbh = _create_db_handler(db_url, upgrade)
