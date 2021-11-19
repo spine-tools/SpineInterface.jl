@@ -434,7 +434,6 @@ You can fix this in two different ways:
 
 const _required_spinedb_api_version_not_found_server = """
 The required version $_required_spinedb_api_version of `spinedb_api` is not available.
-
 Please update Spine Toolbox by following the instructions at
     
     https://github.com/Spine-project/Spine-Toolbox#installation
@@ -455,7 +454,7 @@ _process_db_answer(answer) = answer  # Legacy
 _process_db_answer(result, err::Nothing) = result
 _process_db_answer(result, err) = error(string(err))
 
-const _client_version = 2
+const _client_version = 1
 
 function _do_run_server_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict; timeout=Inf)
     _do_run_server_request(server_uri, [request, args, kwargs, _client_version]; timeout=timeout)
@@ -496,8 +495,9 @@ function _run_server_request(server_uri::URI, request::String, kwargs::Dict)
     _run_server_request(server_uri, request, (), kwargs)
 end
 function _run_server_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict)
-    elapsed = @elapsed _do_run_server_request(server_uri, ["get_db_url"])
-    spinedb_api_version = _do_run_server_request(server_uri, ["get_api_version"]; timeout=10 * elapsed)
+    _do_run_server_request(server_uri, ["get_db_url", ()])  # to trigger compilation
+    elapsed = @elapsed _do_run_server_request(server_uri, ["get_db_url", ()])
+    spinedb_api_version = _do_run_server_request(server_uri, ["get_api_version", ()]; timeout=10 * elapsed)
     if _parse_spinedb_api_version(spinedb_api_version) < _required_spinedb_api_version
         error(_required_spinedb_api_version_not_found_server)
     end
