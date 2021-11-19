@@ -393,7 +393,7 @@ end
 _unparse_db_value(x::AbstractParameterValue) = _unparse_db_value(x.value)
 _unparse_db_value(::NothingParameterValue) = nothing
 
-const _required_spinedb_api_version = v"0.12.2"
+const _required_spinedb_api_version = v"0.16.0"
 
 _spinedb_api_not_found(pyprogramname) = """
 The required Python package `spinedb_api` could not be found in the current Python environment
