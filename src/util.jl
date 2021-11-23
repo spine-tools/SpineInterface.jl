@@ -458,7 +458,7 @@ function _process_db_answer(result, err::Int64)
     if err == 1
         required_client_version = result
         msg = "version mismatch: DB server requires client version $required_client_version, "
-        msg *= "whereas current version is $_client_version --"
+        msg *= "whereas current version is $_client_version; "
         msg *= "please update SpineInterface"
         error(msg)
     else
