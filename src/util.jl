@@ -475,7 +475,7 @@ function _do_run_server_request(server_uri::URI, full_request::Array; timeout=In
             continue
         end
         if elapsed > timeout
-            return nothing
+            return
         end
         sleep(0.02)
         elapsed += 0.02
@@ -621,6 +621,8 @@ end
 
 function _run_request(db_url::String, request::String, args::Tuple, kwargs::Dict; upgrade=false)
     dbh = _create_db_handler(db_url, upgrade)
+    args = _convert_arrays_to_py_vectors(args)
+    kwargs = _convert_arrays_to_py_vectors(kwargs)
     Base.invokelatest(_do_run_request, dbh, request, args, kwargs)
 end
 function _run_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict; upgrade=nothing)
