@@ -393,7 +393,9 @@ end
 _unparse_db_value(x::AbstractParameterValue) = _unparse_db_value(x.value)
 _unparse_db_value(::NothingParameterValue) = nothing
 
-const _required_spinedb_api_version = v"0.16.0"
+const _required_spinedb_api_version = v"0.16.1"
+
+const _client_version = 1
 
 _spinedb_api_not_found(pyprogramname) = """
 The required Python package `spinedb_api` could not be found in the current Python environment
@@ -452,9 +454,18 @@ function _process_db_answer(answer::Dict)
 end
 _process_db_answer(answer) = answer  # Legacy
 _process_db_answer(result, err::Nothing) = result
+function _process_db_answer(result, err::Int64)
+    if err == 1
+        required_client_version = result
+        msg = "version mismatch: DB server requires client version $required_client_version, "
+        msg *= "whereas current version is $_client_version --"
+        msg *= "please update SpineInterface"
+        error(msg)
+    else
+        error("unknown error code $err returned by DB server")
+    end
+end
 _process_db_answer(result, err) = error(string(err))
-
-const _client_version = 1
 
 function _do_run_server_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict; timeout=Inf)
     _do_run_server_request(server_uri, [request, args, kwargs, _client_version]; timeout=timeout)
