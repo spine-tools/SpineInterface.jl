@@ -874,13 +874,13 @@ end
 Run the given request on the given url, using the given args.
 """
 function run_request(url::String, request::String; upgrade=false)
-    _run_request(url, request, (), Dict(); upgrade=upgrade)
+    run_request(url, request, (), Dict(); upgrade=upgrade)
 end
 function run_request(url::String, request::String, args::Tuple; upgrade=false)
-    _run_request(url, request, args, Dict(); upgrade=upgrade)
+    run_request(url, request, args, Dict(); upgrade=upgrade)
 end
 function run_request(url::String, request::String, kwargs::Dict; upgrade=false)
-    _run_request(url, request, (), kwargs; upgrade=upgrade)
+    run_request(url, request, (), kwargs; upgrade=upgrade)
 end
 function run_request(url::String, request::String, args::Tuple, kwargs::Dict; upgrade=false)
     uri = URI(url)
