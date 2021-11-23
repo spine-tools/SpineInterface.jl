@@ -393,7 +393,7 @@ end
 _unparse_db_value(x::AbstractParameterValue) = _unparse_db_value(x.value)
 _unparse_db_value(::NothingParameterValue) = nothing
 
-const _required_spinedb_api_version = v"0.16.1"
+const _required_spinedb_api_version = v"0.16.2"
 
 const _client_version = 1
 
