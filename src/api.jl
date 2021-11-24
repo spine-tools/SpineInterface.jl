@@ -530,18 +530,18 @@ function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
 end
 
 """
-    t_lowest_resolution!(t_arr::Array{TimeSlice,1})
+    t_lowest_resolution!(t_coll)
 
-Remove time slices that are contained in any other from `t_arr`, and return the modified `t_arr`.
+Remove time slices that are contained in any other from `t_coll`, and return the modified `t_coll`.
 """
-t_lowest_resolution!(t_arr::Array{TimeSlice,1}) = _deleteat_func!(t_arr, contains)
+t_lowest_resolution!(t_coll::Union{Array{TimeSlice,1},Dict{TimeSlice,T}}) where T = _deleteat!(contains, t_coll)
 
 """
-    t_highest_resolution!(t_arr)
+    t_highest_resolution!(t_coll)
 
-Remove time slices that contain any other from `t_arr`, and return the modified `t_arr`.
+Remove time slices that contain any other from `t_coll`, and return the modified `t_coll`.
 """
-t_highest_resolution!(t_arr::Array{TimeSlice,1}) = _deleteat_func!(t_arr, iscontained)
+t_highest_resolution!(t_coll::Union{Array{TimeSlice,1},Dict{TimeSlice,T}}) where T = _deleteat!(iscontained, t_coll)
 
 """
     t_highest_resolution(t_iter)
@@ -917,7 +917,7 @@ function timedata_operation(f::Function, x::TimeSeries, y::TimeSeries)
         param_val_x = parameter_value(x)
         param_val_y = parameter_value(y)
         indexes = sort!(unique!(vcat(x.indexes, y.indexes)))
-        values = [_apply_f(f, param_val_x(ind), param_val_y(ind)) for ind in indexes]
+        values = [_apply_or_nothing(f, param_val_x(ind), param_val_y(ind)) for ind in indexes]
         _remove_nothing_values!(indexes, values)
     end
     ignore_year = x.ignore_year && y.ignore_year
@@ -928,7 +928,7 @@ function timedata_operation(f::Function, x::TimeSeries, y::TimePattern)
     param_val_x = parameter_value(x)
     param_val_y = parameter_value(y)
     indexes = copy(x.indexes)
-    values = [_apply_f(f, param_val_x(ind), param_val_y(ind)) for ind in indexes]
+    values = [_apply_or_nothing(f, param_val_x(ind), param_val_y(ind)) for ind in indexes]
     _remove_nothing_values!(indexes, values)
     TimeSeries(indexes, values, x.ignore_year, x.repeat)
 end
@@ -936,7 +936,7 @@ function timedata_operation(f::Function, y::TimePattern, x::TimeSeries)
     param_val_y = parameter_value(y)
     param_val_x = parameter_value(x)
     indexes = copy(x.indexes)
-    values = [_apply_f(f, param_val_y(ind), param_val_x(ind)) for ind in x.indexes]
+    values = [_apply_or_nothing(f, param_val_y(ind), param_val_x(ind)) for ind in x.indexes]
     _remove_nothing_values!(indexes, values)
     TimeSeries(indexes, values, x.ignore_year, x.repeat)
 end

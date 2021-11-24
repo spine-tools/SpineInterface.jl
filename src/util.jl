@@ -127,28 +127,53 @@ end
 _search_nearest(arr, x) = nothing
 
 """
-    _deleteat_func!(t_arr, func)
+    _deleteat!(t_coll, func)
 
-Remove position `k` in given array if `func(t_arr[i], t_arr[k])` for any `i`.
+Remove key `k` in given collection if `func(t_coll[k], t_coll[l])` is `true` for any `l` other than `k`.
 Used by `t_lowest_resolution` and `t_highest_resolution`.
 """
-function _deleteat_func!(t_arr::Array{TimeSlice,1}, func)
+function _deleteat!(func, t_coll::Union{Array{K,1},Dict{K,T}}) where {K,T}
+    n = length(t_coll)
+    n <= 1 && return t_coll
+    _do_deleteat!(func, t_coll)
+end
+
+function _do_deleteat!(func, t_arr::Array{K,1}) where K
+    remove = _any_other(func, t_arr)
+    deleteat!(t_arr, remove)
+end
+function _do_deleteat!(func, t_dict::Dict{K,T}) where {K,T}
+    keys_ = collect(keys(t_dict))
+    remove = _any_other(func, keys_)
+    keep = .!remove
+    keys_to_remove = deleteat!(keys_, keep)
+    for k in keys_to_remove
+        delete!(t_dict, k)
+    end
+    t_dict
+end
+
+"""
+    _any_other(func, t_arr)
+
+An `Array` of `Bool` values, where position `i` is `true` if `func(t_arr[i], t_arr[j])` is `true` for any `j` other
+than `i`.
+"""
+function _any_other(func, t_arr::Array{T,1}) where T
     n = length(t_arr)
-    n <= 1 && return t_arr
-    # indices to remove
-    remove = [false for i in 1:n]
+    result = [false for i in 1:n]
     for i in 1:n
-        remove[i] && continue
+        result[i] && continue
         t_i = t_arr[i]
-        for k in Iterators.flatten((1:(i - 1),  (i + 1):n))
-            remove[k] && continue
-            t_k = t_arr[k]
-            if func(t_i, t_k)
-                remove[k] = true
+        for j in Iterators.flatten((1:(i - 1),  (i + 1):n))
+            result[j] && continue
+            t_j = t_arr[j]
+            if func(t_i, t_j)
+                result[j] = true
             end
         end
     end
-    deleteat!(t_arr, remove)
+    result
 end
 
 mutable struct _OperatorCallTraversalState
@@ -681,13 +706,13 @@ function _to_dict(rel_cls::RelationshipClass)
 end
 
 """
-    _apply_f(f, x, y)
+    _apply_or_nothing(f, x, y)
 
 The result of applying `f` on `x` and `y`, or `nothing` if either `x` or `y` is `nothing`.
 """
-_apply_f(f, x, y) = f(x, y)
-_apply_f(f, ::Nothing, y) = nothing
-_apply_f(f, x, ::Nothing) = nothing
+_apply_or_nothing(f, x, y) = f(x, y)
+_apply_or_nothing(f, ::Nothing, y) = nothing
+_apply_or_nothing(f, x, ::Nothing) = nothing
 
 """
     _remove_nothing_values!(inds, vals)
