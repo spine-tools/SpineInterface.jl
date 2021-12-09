@@ -77,6 +77,7 @@ function (oc::ObjectClass)(name::Symbol)
     i != nothing && return oc.objects[i]
     nothing
 end
+(oc::ObjectClass)(name::String) = oc(Symbol(name))
 
 """
     (<rc>::RelationshipClass)(;<keyword arguments>)
