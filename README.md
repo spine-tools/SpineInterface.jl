@@ -20,6 +20,18 @@ pkg"registry add https://github.com/Spine-project/SpineJuliaRegistry"
 pkg"add SpineInterface"
 ```
 
+## Upgrading
+SpineInterface may be updated from time to time. To get the most recent version, just:
+
+1. Start the Julia REPL (can be done also in the Julia console of Spine Toolbox).
+
+2. Copy/paste the following text into the julia prompt (it will update the SpineInterface package from the Spine Julia Registry):
+
+	```julia
+	using Pkg
+	Pkg.update("SpineInterface")
+	```
+
 ## Usage
 
 ```julia
