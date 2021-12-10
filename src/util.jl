@@ -392,32 +392,6 @@ function _unparse_time_pattern(union::UnionOfIntersections)
     join(union_arr, union_op)
 end
 
-_unparse_db_value(x) = x
-_unparse_db_value(x::DateTime) = Dict("type" => "date_time", "data" => string(Dates.format(x, db_df)))
-_unparse_db_value(x::T) where {T<:Period} = Dict("type" => "duration", "data" => _unparse_duration(x))
-function _unparse_db_value(x::Array{T}) where {T}
-    Dict("type" => "array", "value_type" => _inner_type_str(T), "data" => _unparse_element.(x))
-end
-function _unparse_db_value(x::TimePattern)
-    Dict("type" => "time_pattern", "data" => Dict(_unparse_time_pattern(k) => v for (k, v) in x))
-end
-function _unparse_db_value(x::TimeSeries)
-    Dict(
-        "type" => "time_series",
-        "index" => Dict("repeat" => x.repeat, "ignore_year" => x.ignore_year),
-        "data" => OrderedDict(_unparse_date_time(i) => v for (i, v) in zip(x.indexes, x.values)),
-    )
-end
-function _unparse_db_value(x::Map{K,V}) where {K,V}
-    Dict(
-        "type" => "map",
-        "index_type" => _inner_type_str(K),
-        "data" => [(string(i), _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
-    )
-end
-_unparse_db_value(x::AbstractParameterValue) = _unparse_db_value(x.value)
-_unparse_db_value(::NothingParameterValue) = nothing
-
 const _required_spinedb_api_version = v"0.16.2"
 
 const _client_version = 1
@@ -669,12 +643,12 @@ function _to_dict(obj_cls::ObjectClass)
     Dict(
         :object_classes => [obj_cls.name],
         :object_parameters => [
-            [obj_cls.name, parameter_name, _unparse_db_value(parameter_default_value)]
+            [obj_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
             for (parameter_name, parameter_default_value) in obj_cls.parameter_defaults
         ],
         :objects => [[obj_cls.name, object.name] for object in obj_cls.objects],
         :object_parameter_values => [
-            [obj_cls.name, object.name, parameter_name, _unparse_db_value(parameter_value)]
+            [obj_cls.name, object.name, parameter_name, unparse_db_value(parameter_value)]
             for (object, parameter_values) in obj_cls.parameter_values
             for (parameter_name, parameter_value) in parameter_values
         ]
@@ -691,14 +665,14 @@ function _to_dict(rel_cls::RelationshipClass)
         ), 
         :relationship_classes => [[rel_cls.name, rel_cls.intact_object_class_names]],
         :relationship_parameters => [
-            [rel_cls.name, parameter_name, _unparse_db_value(parameter_default_value)]
+            [rel_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
             for (parameter_name, parameter_default_value) in rel_cls.parameter_defaults
         ],
         :relationships => [
             [rel_cls.name, [obj.name for obj in relationship]] for relationship in rel_cls.relationships
         ],
         :relationship_parameter_values => [
-            [rel_cls.name, [obj.name for obj in relationship], parameter_name, _unparse_db_value(parameter_value)]
+            [rel_cls.name, [obj.name for obj in relationship], parameter_name, unparse_db_value(parameter_value)]
             for (relationship, parameter_values) in rel_cls.parameter_values
             for (parameter_name, parameter_value) in parameter_values
         ]

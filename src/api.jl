@@ -714,11 +714,11 @@ function update_import_data!(
         if for_object && length(str_obj_cls_names) == length(str_obj_names) == 1
             obj_cls_name = str_obj_cls_names[1]
             obj_name = str_obj_names[1]
-            push!(object_parameter_values, (obj_cls_name, obj_name, pname, _unparse_db_value(value)))
+            push!(object_parameter_values, (obj_cls_name, obj_name, pname, unparse_db_value(value)))
         else
             rel_cls_name = join(str_obj_cls_names, "__")
             push!(relationships, (rel_cls_name, str_obj_names))
-            push!(relationship_parameter_values, (rel_cls_name, str_obj_names, pname, _unparse_db_value(value)))
+            push!(relationship_parameter_values, (rel_cls_name, str_obj_names, pname, unparse_db_value(value)))
         end
     end
 end
@@ -795,6 +795,32 @@ end
 
 parse_db_value(::Nothing) = nothing
 parse_db_value(db_value::String) = _parse_json(JSON.parse(db_value))
+
+unparse_db_value(x) = x
+unparse_db_value(x::DateTime) = Dict("type" => "date_time", "data" => string(Dates.format(x, db_df)))
+unparse_db_value(x::T) where {T<:Period} = Dict("type" => "duration", "data" => _unparse_duration(x))
+function unparse_db_value(x::Array{T}) where {T}
+    Dict("type" => "array", "value_type" => _inner_type_str(T), "data" => _unparse_element.(x))
+end
+function unparse_db_value(x::TimePattern)
+    Dict("type" => "time_pattern", "data" => Dict(_unparse_time_pattern(k) => v for (k, v) in x))
+end
+function unparse_db_value(x::TimeSeries)
+    Dict(
+        "type" => "time_series",
+        "index" => Dict("repeat" => x.repeat, "ignore_year" => x.ignore_year),
+        "data" => OrderedDict(_unparse_date_time(i) => v for (i, v) in zip(x.indexes, x.values)),
+    )
+end
+function unparse_db_value(x::Map{K,V}) where {K,V}
+    Dict(
+        "type" => "map",
+        "index_type" => _inner_type_str(K),
+        "data" => [(string(i), unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
+    )
+end
+unparse_db_value(x::AbstractParameterValue) = unparse_db_value(x.value)
+unparse_db_value(::NothingParameterValue) = nothing
 
 function parse_time_period(union_str::String)
     union_op = ","
@@ -948,7 +974,6 @@ function timedata_operation(f::Function, x::TimePattern, y::TimePattern)
         @error "`TimePattern-TimePattern` arithmetic currently only supported if the keys are identical!"
     end
 end
-
 
 """
     difference(left, right)

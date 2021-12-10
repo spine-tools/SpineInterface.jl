@@ -88,6 +88,7 @@ export add_relationships!
 export add_relationship_parameter_values!
 export maximum_parameter_value
 export parse_db_value
+export unparse_db_value
 export import_data
 export test_object_class
 export test_relationship_class
