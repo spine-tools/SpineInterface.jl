@@ -310,6 +310,9 @@ function _parse_duration(data::String)
     Dict('s' => Second, 'm' => Minute, 'h' => Hour, 'd' => Day, 'M' => Month, 'y' => Year)[key](quantity)
 end
 
+_parse_float(x) = Float64(x)
+_parse_float(::Nothing) = NaN
+
 _inner_type_str(::Type{Float64}) = "float"
 _inner_type_str(::Type{Symbol}) = "str"
 _inner_type_str(::Type{String}) = "str"
@@ -317,7 +320,7 @@ _inner_type_str(::Type{DateTime}) = "date_time"
 _inner_type_str(::Type{T}) where {T<:Period} = "duration"
 
 _parse_inner_value(::Val{:str}, value::String) = value
-_parse_inner_value(::Val{:float}, value::T) where {T<:Number} = Float64(value)
+_parse_inner_value(::Val{:float}, value::T) where {T<:Number} = _parse_float(value)
 _parse_inner_value(::Val{:duration}, value::String) = _parse_duration(value)
 _parse_inner_value(::Val{:date_time}, value::String) = _parse_date_time(value)
 
@@ -349,13 +352,13 @@ function _parse_json(::Val{:time_series}, index::Dict, vals::Array)
     ignore_year = get(index, "ignore_year", false)
     inds = _collect_ts_indexes(index["start"], index["resolution"], length(vals))
     ignore_year && (inds .-= Year.(inds))
-    TimeSeries(inds, Float64.(vals), ignore_year, get(index, "repeat", false))
+    TimeSeries(inds, _parse_float.(vals), ignore_year, get(index, "repeat", false))
 end
 function _parse_json(::Val{:time_series}, index::Dict, data::Dict)
     ignore_year = get(index, "ignore_year", false)
     inds = _parse_date_time.(keys(data))
     ignore_year && (inds .-= Year.(inds))
-    vals = collect(Float64, values(data))
+    vals = _parse_float.(values(data))
     TimeSeries(inds, vals, ignore_year, get(index, "repeat", false))
 end
 _parse_json(type::Val{:array}, value::Dict) = _parse_inner_value.(Val(Symbol(value["value_type"])), value["data"])
