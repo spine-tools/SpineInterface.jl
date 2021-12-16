@@ -570,7 +570,7 @@ function _get_data(db_url::String; upgrade=false, filters=Dict())
     Base.invokelatest(_do_get_data, dbh)
 end
 function _get_data(server_uri::URI; upgrade=nothing, filters=Dict())
-    isempty(filters) || _run_server_request(server_uri, "apply_filters", filters)
+    isempty(filters) || _run_server_request(server_uri, "apply_filters", (filters,))
     sq_names = (
         "object_class_sq",
         "wide_relationship_class_sq",
