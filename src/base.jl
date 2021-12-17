@@ -185,5 +185,18 @@ function Base.getindex(p::Parameter, inds::NamedTuple)
     end
 end
 
+function Base.push!(ts::TimeSeries, pair)
+    index, value = pair
+    i = searchsortedfirst(ts.indexes, index)
+    if i <= length(ts.indexes) && ts.indexes[i] == index
+        ts.values[i] = value
+    else
+        insert!(ts.indexes, i, index)
+        insert!(ts.values, i, value)
+    end
+    ts
+end
+
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
 Base.abs(call::IdentityCall) = IdentityCall(abs(realize(call)))
+
