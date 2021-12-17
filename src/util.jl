@@ -395,7 +395,7 @@ function _unparse_time_pattern(union::UnionOfIntersections)
     join(union_arr, union_op)
 end
 
-const _required_spinedb_api_version = v"0.16.2"
+const _required_spinedb_api_version = v"0.16.3"
 
 const _client_version = 1
 
@@ -551,6 +551,10 @@ function _do_apply_filters(dbh, filters::Dict)
     _process_db_answer(dbh.apply_filters(filters))
 end
 
+function _do_clear_filters(dbh)
+    _process_db_answer(dbh.clear_filters())
+end
+
 function _do_get_data(dbh)
     answer = dbh.get_data(
         "object_class_sq",
@@ -567,7 +571,9 @@ end
 function _get_data(db_url::String; upgrade=false, filters=Dict())
     dbh = _create_db_handler(db_url, upgrade)
     isempty(filters) || Base.invokelatest(_do_apply_filters, dbh, filters)
-    Base.invokelatest(_do_get_data, dbh)
+    data = Base.invokelatest(_do_get_data, dbh)
+    isempty(filters) || Base.invokelatest(_do_clear_filters, dbh)
+    data
 end
 function _get_data(server_uri::URI; upgrade=nothing, filters=Dict())
     isempty(filters) || _run_server_request(server_uri, "apply_filters", (filters,))
@@ -580,7 +586,9 @@ function _get_data(server_uri::URI; upgrade=nothing, filters=Dict())
         "parameter_definition_sq",
         "parameter_value_sq"
     )
-    _run_server_request(server_uri, "get_data", sq_names)
+    data = _run_server_request(server_uri, "get_data", sq_names)
+    isempty(filters) || _run_server_request(server_uri, "clear_filters")
+    data
 end
 function _get_data(template::Dict; upgrade=nothing, filters=nothing)
     object_class_sq = [Dict("id" => k, "name" => name) for (k, (name,)) in enumerate(template["object_classes"])]
