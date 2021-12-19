@@ -188,13 +188,18 @@ end
 function Base.push!(ts::TimeSeries, pair)
     index, value = pair
     i = searchsortedfirst(ts.indexes, index)
-    if i <= length(ts.indexes) && ts.indexes[i] == index
+    if get(ts.indexes, i, nothing) == index
         ts.values[i] = value
     else
         insert!(ts.indexes, i, index)
         insert!(ts.values, i, value)
     end
     ts
+end
+
+function Base.setindex!(ts::TimeSeries, value, key...)
+    length(key) > 1 && error("invalid index $key")
+    push!(ts, first(key) => value)
 end
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
