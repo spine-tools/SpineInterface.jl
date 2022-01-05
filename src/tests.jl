@@ -56,9 +56,7 @@ function test_parameter(
     value_max::Real = Inf,
     limit::Real = Inf,
 )
-    @testset """
-    Testing parameter `$(param)` for `$(obj_class)` for `$(value_type)` within `[$(value_min),$(value_max)]`.
-    """ begin
+    @testset "Parameter `$(param)`" begin
         for (i, object) in enumerate(obj_class.objects)
             if i <= limit
                 val = _get(
@@ -91,9 +89,7 @@ function test_parameter(
     value_max::Real = Inf,
     limit::Real = Inf,
 )
-    @testset """
-    Testing parameter `$(param)` for `$(rel_class)` for `$(value_type)` within `[$(value_min),$(value_max)]`.
-    """ begin
+    @testset "Parameter `$(param)`" begin
         for (i, relationship) in enumerate(rel_class.relationships)
             if i <= limit
                 val = _get(
@@ -141,9 +137,7 @@ function test_object_class(
         obj_class in object_classes(m),
         "`$(obj_class)` not found in module `$(m)`!",
     )
-    @testset """
-    Testing `$(obj_class)` in `$(rel_class)` and entry count within `[$(count_min),$(count_max)]`.
-    """ begin
+    @testset "Object class `$(obj_class)`" begin
         cond = obj_class.name in rel_class.intact_object_class_names
         @test _check(cond, "`$(obj_class)` not included in `$(rel_class)`!")
         if cond
@@ -185,9 +179,7 @@ function test_relationship_class(
         rel_class in relationship_classes(m),
         "`$(rel_class)` not found in module `$(m)`!",
     )
-    @testset """
-        Testing `$(rel_class)` in `$(in_rel_class)` entry count within `[$(count_min),$(count_max)]`.
-        """ begin
+    @testset "Relationship class `$(rel_class)`" begin
         fields = intersect(rel_class.object_class_names, in_rel_class.object_class_names)
         cond = !isempty(fields)
         @test _check(
