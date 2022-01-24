@@ -40,6 +40,8 @@ Base.length(ts::Union{TimeSeries,Map}) = length(ts.indexes)
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
 Base.isless(v1::ScalarParameterValue, v2::ScalarParameterValue) = v1.value < v2.value
+Base.isless(scalar::Number, ts::TimeSeries) = all(isless(scalar, v) for v in ts.values)
+Base.isless(ts::TimeSeries, scalar::Number) = all(isless(v, scalar) for v in ts.values)
 
 Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
 Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
@@ -48,6 +50,11 @@ Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all(
 )
 Base.:(==)(m1::Map, m2::Map) = all(m1.indexes == m2.indexes) && all(m1.values == m2.values)
 Base.:(==)(pv1::AbstractParameterValue, pv2::AbstractParameterValue) = pv1.value == pv2.value
+Base.:(==)(scalar::Number, ts::TimeSeries) = all(scalar == v for v in ts.values)
+Base.:(==)(ts::TimeSeries, scalar::Number) = all(v == scalar for v in ts.values)
+
+Base.:(<=)(scalar::Number, ts::TimeSeries) = all(scalar <= v for v in ts.values)
+Base.:(<=)(ts::TimeSeries, scalar::Number) = all(v <= scalar for v in ts.values)
 
 Base.hash(::Anything) = zero(UInt64)
 Base.hash(o::Union{Object,TimeSlice}) = o.id
