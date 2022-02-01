@@ -84,14 +84,17 @@ end
 
 struct RelationshipClass
     name::Symbol
+    intact_object_class_names::Array{Symbol,1}
     object_class_names::Array{Symbol,1}
     relationships::Array{RelationshipLike,1}
     parameter_values::Dict{Tuple{Vararg{ObjectLike}},Dict{Symbol,AbstractParameterValue}}
-    intact_object_class_names::Array{Symbol,1}
     parameter_defaults::Dict{Symbol,AbstractParameterValue}
     lookup_cache::Dict{Bool,Dict}
-    RelationshipClass(name, cls_names, rels, vals=Dict(), intact_cls_names=cls_names, defaults=Dict()) =
-        new(name, cls_names, rels, vals, intact_cls_names, defaults, Dict(:true => Dict(), :false => Dict()))
+    function RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
+        cls_names = _fix_name_ambiguity(intact_cls_names)
+        rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
+        new(name, intact_cls_names, cls_names, rels, vals, defaults, Dict(:true => Dict(), :false => Dict()))
+    end
 end
 
 struct Parameter
