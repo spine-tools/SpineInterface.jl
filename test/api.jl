@@ -354,10 +354,9 @@ end
     )
     original_relationship_class = RelationshipClass(
         :test_relationship_class,
-        [:test_object_class1, :test_object_class2],
-        [(test_object_class1=to1, test_object_class2=to2)],
-        Dict((to1, to2) => pv_dict),
         [:test_object_class, :test_object_class],
+        [(to1, to2)],
+        Dict((to1, to2) => pv_dict),
         pv_dict
     )
     # Import the newly created `ObjectClass` and `RelationshipClass`

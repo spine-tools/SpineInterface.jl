@@ -41,17 +41,10 @@ end
     silvester = Object(:silvester)
     tom = Object(:tom)
     pluto = Object(:pluto)
-    objects = [silvester, tom, pluto]
-    intact_obj_cls_names = [:cat, :cat, :dog]
-    obj_cls_names = [:cat1, :cat2, :dog]
-    relationships = [
-        (; zip(obj_cls_names, [silvester, tom, pluto])...), (; zip(obj_cls_names, [tom, silvester, pluto])...)
-    ]
-    parameter_values = Dict(tuple(rel...) => Dict(:aver_age => parameter_value(k)) for (k, rel) in enumerate(relationships))
+    object_tuples = [(silvester, tom, pluto), (tom, silvester, pluto)]
+    parameter_values = Dict(x => Dict(:aver_age => parameter_value(k)) for (k, x) in enumerate(object_tuples))
     parameter_defaults = Dict(:aver_age => parameter_value(9))
-    cls = RelationshipClass(
-        :cat__cat__dog, obj_cls_names, relationships, parameter_values, intact_obj_cls_names, parameter_defaults
-    )
+    cls = RelationshipClass(:cat__cat__dog, [:cat, :cat, :dog], object_tuples, parameter_values, parameter_defaults)
     d_obs = SpineInterface._to_dict(cls)
     d_exp = Dict(
         :object_classes => [:cat, :dog],
