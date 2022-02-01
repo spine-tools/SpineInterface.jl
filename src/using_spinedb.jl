@@ -174,9 +174,10 @@ A Dict mapping class names to arguments.
 """
 function _args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     Dict(
-        Symbol(class["name"]) =>
-            _class_args(class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent) for
-        class in classes
+        Symbol(class["name"]) => _class_args(
+            class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
+        )
+        for class in classes
     )
 end
 

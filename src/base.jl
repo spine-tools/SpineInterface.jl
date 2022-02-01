@@ -209,6 +209,22 @@ function Base.setindex!(ts::TimeSeries, value, key...)
     push!(ts, first(key) => value)
 end
 
+function Base.empty!(x::ObjectClass)
+    empty!(x.objects)
+    empty!(x.parameter_values)
+    empty!(x.parameter_defaults)
+end
+function Base.empty!(x::RelationshipClass)
+    empty!(x.intact_object_class_names)
+    empty!(x.object_class_names)
+    empty!(x.relationships)
+    empty!(x.parameter_values)
+    empty!(x.parameter_defaults)
+    empty!(x.lookup_cache)
+end
+function Base.empty!(x::Parameter)
+    empty!(x.classes)
+end
+
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
 Base.abs(call::IdentityCall) = IdentityCall(abs(realize(call)))
-
