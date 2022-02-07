@@ -929,6 +929,18 @@ function run_request(url::String, request::String, args::Tuple, kwargs::Dict; up
 end
 
 """
+    timedata_operation(f::Function, x)
+
+Perform `f` element-wise for potentially `TimeSeries` or `TimePattern` argument `x`.
+"""
+timedata_operation(f::Function, x::TimeSeries) = TimeSeries(
+    x.indexes, f.(x,values), x.ignore_year, x.repeat
+)
+timedata_operation(f::Function, x::TimePattern) = Dict(
+    key => f(val) for (key, val) in x
+)
+
+"""
     timedata_operation(f::Function, x, y)
 
 Perform `f` element-wise for potentially `TimeSeries` or `TimePattern` arguments `x` and `y`.
