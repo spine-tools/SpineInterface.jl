@@ -196,6 +196,9 @@
     @test tp * 2. == 2. * tp == Dict(SpineInterface.parse_time_period("M2-3") => 4., SpineInterface.parse_time_period("M3-4") => 6.)
     @test tp + tp == 2 * tp
     @test ts1 + tp == tp + ts1 == TimeSeries(ts1_dates[2:end], [4., 7.], false, false)
+    # Test timedata_operation for single-argument functions
+    @test timedata_operation(float, ts1) == TimeSeries(ts1.indexes, float.(ts1.values), ts1.ignore_year, ts1.repeat)
+    @test timedata_operation(float, tp) == Dict(SpineInterface.parse_time_period("M2-3") => 2.0, SpineInterface.parse_time_period("M3-4") => 3.0)
     # Call values
     @test values(ts1) == ts1_vals
     @test sort(collect(values(tp))) == [2,3]
