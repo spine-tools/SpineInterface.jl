@@ -934,7 +934,7 @@ end
 Perform `f` element-wise for potentially `TimeSeries` or `TimePattern` argument `x`.
 """
 timedata_operation(f::Function, x::TimeSeries) = TimeSeries(
-    x.indexes, f.(x,values), x.ignore_year, x.repeat
+    x.indexes, f.(x.values), x.ignore_year, x.repeat
 )
 timedata_operation(f::Function, x::TimePattern) = Dict(
     key => f(val) for (key, val) in x
