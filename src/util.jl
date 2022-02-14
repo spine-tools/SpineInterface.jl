@@ -488,6 +488,7 @@ function _do_run_server_request(server_uri::URI, full_request::Array; timeout=In
             continue
         end
         if elapsed > timeout
+            close(clientside)
             return
         end
         sleep(0.02)
