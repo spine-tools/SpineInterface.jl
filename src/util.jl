@@ -19,11 +19,16 @@
 
 const _df = DateFormat("yyyy-mm-ddTHH:MM")
 
-function _getproperty(m::Module, name::Symbol, default=nothing)
-    (name in names(m; all=true)) ? getproperty(m, name) : default
+function _getproperty(m::Module, name::Symbol, default)
+    isdefined(m, name) ? getproperty(m, name) : default
 end
 
-_next_id(id_factory::ObjectIdFactory) = id_factory.max_object_id[] += 1
+function _getproperty!(m::Module, name::Symbol, default)
+    if !isdefined(m, name)
+        @eval m $name = $default
+    end
+    getproperty(m, name)
+end
 
 _immutable(x) = x
 _immutable(arr::T) where {T<:AbstractArray} = (length(arr) == 1) ? first(arr) : Tuple(arr)
@@ -263,26 +268,32 @@ function _nonunique_inds_sorted(arr)
 end
 
 """
-A copy of `inds` and a `copy` of vals, trimmed so they are both of the same size, sorted,
+Modify `inds` and `vals` in place, trimmed so they are both of the same size, sorted,
 and with non unique elements of `inds` removed.
 """
-function _sort_inds_vals(inds, vals)
+function _sort_unique!(inds, vals)
     ind_count = length(inds)
     val_count = length(vals)
     trimmed_inds, trimmed_vals = if ind_count == val_count
         inds, vals
     elseif ind_count > val_count
         @warn("too many indices, taking only first $val_count")
-        inds[1:val_count], vals
+        deleteat!(inds, (val_count + 1):ind_count), vals
     else
         @warn("too many values, taking only first $ind_count")
-        inds, vals[1:ind_count]
+        inds, deleteat!(vals, (ind_count + 1):val_count)
     end
     sorted_inds, sorted_vals = if issorted(trimmed_inds)
         trimmed_inds, trimmed_vals
     else
         p = sortperm(trimmed_inds)
-        trimmed_inds[p], trimmed_vals[p]
+        trimmed_inds_copy = copy(trimmed_inds)
+        trimmed_vals_copy = copy(trimmed_vals)
+        for (dst, src) in enumerate(p)
+            trimmed_inds[dst] = trimmed_inds_copy[src]
+            trimmed_vals[dst] = trimmed_vals_copy[src]
+        end
+        trimmed_inds, trimmed_vals
     end
     nonunique_inds = _nonunique_inds_sorted(sorted_inds)
     if !isempty(nonunique_inds)
@@ -395,7 +406,7 @@ function _unparse_time_pattern(union::UnionOfIntersections)
     join(union_arr, union_op)
 end
 
-const _required_spinedb_api_version = v"0.16.3"
+const _required_spinedb_api_version = v"0.16.4"
 
 const _client_version = 1
 
@@ -556,69 +567,23 @@ function _do_clear_filters(dbh)
     _process_db_answer(dbh.clear_filters())
 end
 
-function _do_get_data(dbh)
-    answer = dbh.get_data(
-        "object_class_sq",
-        "wide_relationship_class_sq",
-        "object_sq",
-        "entity_group_sq",
-        "wide_relationship_sq",
-        "parameter_definition_sq",
-        "parameter_value_sq",
-    )
-    _process_db_answer(answer)
+function _do_export_data(dbh)
+    dbh.export_data()
+    _process_db_answer(dbh.export_data())
 end
 
-function _get_data(db_url::String; upgrade=false, filters=Dict())
+function _export_data(db_url::String; upgrade=false, filters=Dict())
     dbh = _create_db_handler(db_url, upgrade)
     isempty(filters) || Base.invokelatest(_do_apply_filters, dbh, filters)
-    data = Base.invokelatest(_do_get_data, dbh)
+    data = Base.invokelatest(_do_export_data, dbh)
     isempty(filters) || Base.invokelatest(_do_clear_filters, dbh)
     data
 end
-function _get_data(server_uri::URI; upgrade=nothing, filters=Dict())
+function _export_data(server_uri::URI; upgrade=nothing, filters=Dict())
     isempty(filters) || _run_server_request(server_uri, "apply_filters", (filters,))
-    sq_names = (
-        "object_class_sq",
-        "wide_relationship_class_sq",
-        "object_sq",
-        "entity_group_sq",
-        "wide_relationship_sq",
-        "parameter_definition_sq",
-        "parameter_value_sq"
-    )
-    data = _run_server_request(server_uri, "get_data", sq_names)
+    data = _run_server_request(server_uri, "export_data")
     isempty(filters) || _run_server_request(server_uri, "clear_filters")
     data
-end
-function _get_data(template::Dict; upgrade=nothing, filters=nothing)
-    object_class_sq = [Dict("id" => k, "name" => name) for (k, (name,)) in enumerate(template["object_classes"])]
-    offset = length(template["object_classes"])
-    wide_relationship_class_sq = [
-        Dict("id" => offset + k, "name" => name, "object_class_name_list" => join(object_class_name_list, ","))
-        for (k, (name, object_class_name_list,)) in enumerate(template["relationship_classes"])
-    ]
-    class_ids = Dict(x["name"] => x["id"] for x in [object_class_sq; wide_relationship_class_sq])
-    parameter_definition_sq = [
-        Dict(
-            "id" => k,
-            "entity_class_id" => class_ids[class_name],
-            "name" => name,
-            "default_value" => JSON.json(default_value)
-        )
-        for (k, (class_name, name, default_value,)) in enumerate(
-            [template["object_parameters"]; template["relationship_parameters"]]
-        )
-    ]
-    Dict(
-        "object_class_sq" => object_class_sq,
-        "wide_relationship_class_sq" => wide_relationship_class_sq,
-        "object_sq" => [],
-        "entity_group_sq" => [],
-        "wide_relationship_sq" => [],
-        "parameter_definition_sq" => parameter_definition_sq,
-        "parameter_value_sq" => [],
-    )
 end
 
 _do_import_data(dbh, data, comment) = _process_db_answer(dbh.import_data(data, comment))

@@ -25,8 +25,8 @@
     # in, iterate, length, isless
     @test "Spine" in anything
     @test [4, 5, 6] in anything
-    Spine = Object(:Spine, 1)
-    Julia = Object(:Julia, 2)
+    Spine = Object(:Spine, :App)
+    Julia = Object(:Julia, :Lang)
     @test [x for x in Spine] == [Spine]
     @test length(Spine) == 1
     @test Julia < Spine

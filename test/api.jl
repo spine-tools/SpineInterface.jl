@@ -44,14 +44,14 @@ db_url = "sqlite://"
         relationship_parameter_values=relationship_parameter_values,
     )
     using_spinedb(db_url)
-    @test collect(indices(people_count)) == [
+    @test Set(indices(people_count)) == Set([
         (institution=institution(:KTH), country=country(:Sweden)),
         (institution=institution(:KTH), country=country(:France)),
-    ]
-    @test collect(indices(people_count; institution=indices(since_year))) == [
+    ])
+    @test Set(indices(people_count; institution=indices(since_year))) == Set([
         (institution=institution(:KTH), country=country(:Sweden)),
         (institution=institution(:KTH), country=country(:France)),
-    ]
+    ])
 end
 @testset "time-slices" begin
     t0_2 = TimeSlice(DateTime(0), DateTime(2); duration_unit=Hour)
@@ -89,7 +89,7 @@ end
         @test length(institution()) === 2
         add_objects!(institution, [institution()[1], Object(:KUL), Object(:ER)])
         @test length(institution()) === 4
-        @test [x.name for x in institution()] == [Symbol.(institutions); [:KUL, :ER]]
+        @test Set(x.name for x in institution()) == Set([Symbol.(institutions); [:KUL, :ER]])
         add_object!(institution, Object(:UCD))
         @test length(institution()) === 5
         @test last(institution()).name === :UCD
@@ -121,10 +121,10 @@ end
             ],
         )
         @test length(institution__country()) === 7
-        @test [(x.name, y.name) for (x, y) in institution__country()] == [
+        @test Set((x.name, y.name) for (x, y) in institution__country()) == Set([
             [(Symbol(x), Symbol(y)) for (x, y) in object_tuples]
             [(:ER, :France), (:ER, :Ireland)]
-        ]
+        ])
     end
 end
 @testset "write_parameters" begin

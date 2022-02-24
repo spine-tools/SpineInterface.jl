@@ -27,17 +27,15 @@ db_url = "sqlite://"
         using_spinedb(db_url)
         @test length(institution()) === 6
         @test all(x isa Object for x in institution())
-        @test [x.name for x in institution()] == vcat(Symbol.(institutions), :Spine)
+        @test Set(x.name for x in institution()) == Set(vcat(Symbol.(institutions), :Spine))
         @test institution(:FIFA) === nothing
         @test length(object_classes()) === 1
         @test all(x isa ObjectClass for x in object_classes())
-        max_object_id = maximum(obj.id for obj in institution())
-        FIFA = Object(:FIFA)
-        @test FIFA.id === max_object_id + 1
         Spine = institution(:Spine)
-        @test members(Spine) == institution()[1:end-1]
+        @test Set(members(Spine)) == Set(x for x in institution() if x != Spine)
         @test isempty(groups(Spine))
-        @testset for i in institution()[1:end-1]
+        @testset for i in institution()
+            i != Spine || continue
             @test members(i) == [i]
             @test groups(i) == [Spine]
         end
@@ -73,10 +71,14 @@ db_url = "sqlite://"
         using_spinedb(db_url)
         @test length(institution__country()) === 7
         @test all(x isa RelationshipLike for x in institution__country())
-        @test [x.name for x in institution__country(country=country(:France))] == [:KTH, :ER]
-        @test [x.name for x in institution__country(institution=institution(:KTH))] == [:Sweden, :France]
-        @test [(x.name, y.name) for (x, y) in institution__country(country=country(:France), _compact=false)] == [(:KTH, :France), (:ER, :France)]
-        @test [(x.name, y.name) for (x, y) in institution__country()] == [(Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples]
+        @test Set(x.name for x in institution__country(country=country(:France))) == Set([:KTH, :ER])
+        @test Set(x.name for x in institution__country(institution=institution(:KTH))) == Set([:Sweden, :France])
+        @test Set(
+            (x.name, y.name) for (x, y) in institution__country(country=country(:France), _compact=false)
+        ) == Set([(:KTH, :France), (:ER, :France)])
+        @test Set((x.name, y.name) for (x, y) in institution__country()) == Set(
+            (Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples
+        )
         @test isempty(institution__country(country=country(:France), institution=institution(:KTH)))
         @test institution__country(
             country=country(:France),

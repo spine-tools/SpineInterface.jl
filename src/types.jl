@@ -42,9 +42,14 @@ A type for representing an object in a Spine db.
 """
 struct Object
     name::Symbol
-    id::UInt64
+    class_name::Union{Symbol,Nothing}
     members::Array{Object,1}
     groups::Array{Object,1}
+    id::UInt64
+    function Object(name, class_name, members, groups)
+        id = objectid((name, class_name, members, groups))
+        new(name, class_name, members, groups, id)
+    end
 end
 
 """
@@ -68,11 +73,6 @@ end
 ObjectLike = Union{Object,TimeSlice,Int64}
 
 RelationshipLike{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
-
-struct ObjectIdFactory
-    max_object_id::Ref{UInt64}
-    ObjectIdFactory(i) = new(Ref(i))
-end
 
 struct ObjectClass
     name::Symbol
@@ -121,8 +121,9 @@ struct TimeSeries{V}
     ignore_year::Bool
     repeat::Bool
     function TimeSeries(inds, vals::Array{V,1}, iy, rep) where {V}
-        sorted_inds, sorted_vals = _sort_inds_vals(inds, vals)
-        new{V}(sorted_inds, sorted_vals, iy, rep)
+        inds, vals = copy(inds), copy(vals)
+        _sort_unique!(inds, vals)
+        new{V}(inds, vals, iy, rep)
     end
 end
 
@@ -139,8 +140,9 @@ struct Map{K,V}
     indexes::Array{K,1}
     values::Array{V,1}
     function Map(inds::Array{K,1}, vals::Array{V,1}) where {K,V}
-        sorted_inds, sorted_vals = _sort_inds_vals(inds, vals)
-        new{K,V}(sorted_inds, sorted_vals)
+        inds, vals = copy(inds), copy(vals)
+        _sort_unique!(inds, vals)
+        new{K,V}(inds, vals)
     end
 end
 
