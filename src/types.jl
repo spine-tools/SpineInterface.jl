@@ -47,7 +47,7 @@ struct Object
     groups::Array{Object,1}
     id::UInt64
     function Object(name, class_name, members, groups)
-        id = objectid((name, class_name, members, groups))
+        id = objectid((name, class_name))
         new(name, class_name, members, groups, id)
     end
 end

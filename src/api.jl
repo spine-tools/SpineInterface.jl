@@ -61,7 +61,9 @@ julia> commodity(state_of_matter=:gas)
  wind
 ```
 """
-function (oc::ObjectClass)(; kwargs...)
+(oc::ObjectClass)(args...; kwargs...) = Base.invokelatest(_call, oc, args...; kwargs...)
+
+function _call(oc::ObjectClass; kwargs...)
     isempty(kwargs) && return oc.objects
     function cond(o)
         for (p, v) in kwargs
@@ -72,12 +74,12 @@ function (oc::ObjectClass)(; kwargs...)
     end
     filter(cond, oc.objects)
 end
-function (oc::ObjectClass)(name::Symbol)
+function _call(oc::ObjectClass, name::Symbol)
     i = findfirst(o -> o.name == name, oc.objects)
     i != nothing && return oc.objects[i]
     nothing
 end
-(oc::ObjectClass)(name::String) = oc(Symbol(name))
+_call(oc::ObjectClass, name::String) = oc(Symbol(name))
 
 """
     (<rc>::RelationshipClass)(;<keyword arguments>)
@@ -135,7 +137,9 @@ julia> node__commodity(commodity=:gas, _default=:nogas)
 :nogas
 ```
 """
-function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
+(rc::RelationshipClass)(args...; kwargs...) = _call(rc, args...; kwargs...)
+
+function _call(rc::RelationshipClass; _compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
     lookup_key = Tuple(_immutable(get(kwargs, oc, nothing)) for oc in rc.object_class_names)
     relationships = get!(rc.lookup_cache[_compact], lookup_key) do
@@ -196,7 +200,9 @@ julia> demand(node=:Sthlm, i=1)
 21
 ```
 """
-function (p::Parameter)(; _strict=true, kwargs...)
+(p::Parameter)(args...; kwargs...) = _call(p, args...; kwargs...)
+
+function _call(p::Parameter; _strict=true, kwargs...)
     pv_new_kwargs = _lookup_parameter_value(p; _strict=_strict, kwargs...)
     if pv_new_kwargs !== nothing
         parameter_value, new_kwargs = pv_new_kwargs
@@ -806,8 +812,35 @@ function maximum_parameter_value(p::Parameter)
     maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)
 end
 
-parse_db_value(::Nothing) = nothing
-parse_db_value(db_value::String) = _parse_json(JSON.parse(db_value))
+parse_db_value(value) = value
+parse_db_value(value::Dict) = parse_db_value(Val(Symbol(value["type"])), value)
+parse_db_value(::Val{:date_time}, value::Dict) = _parse_date_time(value["data"])
+parse_db_value(::Val{:duration}, value::Dict) = _parse_duration(value["data"])
+parse_db_value(::Val{:time_pattern}, value::Dict) = Dict(parse_time_period(ind) => val for (ind, val) in value["data"])
+parse_db_value(type::Val{:time_series}, value::Dict) = parse_db_value(type, get(value, "index", Dict()), value["data"])
+function parse_db_value(::Val{:time_series}, index::Dict, vals::Array)
+    ignore_year = get(index, "ignore_year", false)
+    inds = _collect_ts_indexes(index["start"], index["resolution"], length(vals))
+    ignore_year && (inds .-= Year.(inds))
+    TimeSeries(inds, _parse_float.(vals), ignore_year, get(index, "repeat", false))
+end
+function parse_db_value(::Val{:time_series}, index::Dict, data::Union{OrderedDict,Dict})
+    ignore_year = get(index, "ignore_year", false)
+    inds = _parse_date_time.(keys(data))
+    ignore_year && (inds .-= Year.(inds))
+    vals = _parse_float.(values(data))
+    TimeSeries(inds, vals, ignore_year, get(index, "repeat", false))
+end
+parse_db_value(type::Val{:array}, value::Dict) = _parse_inner_value.(Val(Symbol(value["value_type"])), value["data"])
+function parse_db_value(::Val{:array}, ::Nothing, data::Array{T,1}) where {T}
+    _parse_inner_value.(Val(Symbol(_inner_type_str(T))), data)
+end
+function parse_db_value(::Val{:map}, value::Dict)
+    raw_inds, raw_vals = _map_inds_and_vals(value["data"])
+    inds = _parse_inner_value.(Val(Symbol(value["index_type"])), raw_inds)
+    vals = parse_db_value.(raw_vals)
+    Map(inds, vals)
+end
 
 unparse_db_value(x) = x
 unparse_db_value(x::DateTime) = Dict("type" => "date_time", "data" => string(Dates.format(x, db_df)))
@@ -933,12 +966,8 @@ end
 
 Perform `f` element-wise for potentially `TimeSeries` or `TimePattern` argument `x`.
 """
-timedata_operation(f::Function, x::TimeSeries) = TimeSeries(
-    x.indexes, f.(x.values), x.ignore_year, x.repeat
-)
-timedata_operation(f::Function, x::TimePattern) = Dict(
-    key => f(val) for (key, val) in x
-)
+timedata_operation(f::Function, x::TimeSeries) = TimeSeries(x.indexes, f.(x.values), x.ignore_year, x.repeat)
+timedata_operation(f::Function, x::TimePattern) = Dict(key => f(val) for (key, val) in x)
 
 """
     timedata_operation(f::Function, x, y)

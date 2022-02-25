@@ -353,36 +353,6 @@ end
 _map_inds_and_vals(data::Array) = (x[1] for x in data), (x[2] for x in data)
 _map_inds_and_vals(data::Dict) = keys(data), values(data)
 
-_parse_json(value) = value
-_parse_json(value::Dict) = _parse_json(Val(Symbol(value["type"])), value)
-_parse_json(::Val{:date_time}, value::Dict) = _parse_date_time(value["data"])
-_parse_json(::Val{:duration}, value::Dict) = _parse_duration(value["data"])
-_parse_json(::Val{:time_pattern}, value::Dict) = Dict(parse_time_period(ind) => val for (ind, val) in value["data"])
-_parse_json(type::Val{:time_series}, value::Dict) = _parse_json(type, get(value, "index", Dict()), value["data"])
-function _parse_json(::Val{:time_series}, index::Dict, vals::Array)
-    ignore_year = get(index, "ignore_year", false)
-    inds = _collect_ts_indexes(index["start"], index["resolution"], length(vals))
-    ignore_year && (inds .-= Year.(inds))
-    TimeSeries(inds, _parse_float.(vals), ignore_year, get(index, "repeat", false))
-end
-function _parse_json(::Val{:time_series}, index::Dict, data::Dict)
-    ignore_year = get(index, "ignore_year", false)
-    inds = _parse_date_time.(keys(data))
-    ignore_year && (inds .-= Year.(inds))
-    vals = _parse_float.(values(data))
-    TimeSeries(inds, vals, ignore_year, get(index, "repeat", false))
-end
-_parse_json(type::Val{:array}, value::Dict) = _parse_inner_value.(Val(Symbol(value["value_type"])), value["data"])
-function _parse_json(::Val{:array}, ::Nothing, data::Array{T,1}) where {T}
-    _parse_inner_value.(Val(Symbol(_inner_type_str(T))), data)
-end
-function _parse_json(::Val{:map}, value::Dict)
-    raw_inds, raw_vals = _map_inds_and_vals(value["data"])
-    inds = _parse_inner_value.(Val(Symbol(value["index_type"])), raw_inds)
-    vals = _parse_json.(raw_vals)
-    Map(inds, vals)
-end
-
 # unparse db values
 _unparse_date_time(x::DateTime) = string(Dates.format(x, db_df))
 function _unparse_duration(x::T) where {T<:Period}
@@ -406,6 +376,7 @@ function _unparse_time_pattern(union::UnionOfIntersections)
     join(union_arr, union_op)
 end
 
+# db api
 const _required_spinedb_api_version = v"0.16.4"
 
 const _client_version = 1
@@ -674,4 +645,17 @@ function _remove_nothing_values!(inds, vals)
     to_remove = findall(isnothing, vals)
     deleteat!(inds, to_remove)
     deleteat!(vals, to_remove)
+end
+
+"""
+Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
+"""
+function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
+    name_list = copy(intact_name_list)
+    for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
+        for (k, index) in enumerate(findall(name_list .== ambiguous))
+            name_list[index] = Symbol(name_list[index], k)
+        end
+    end
+    name_list
 end

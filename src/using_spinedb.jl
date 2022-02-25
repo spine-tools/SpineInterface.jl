@@ -44,7 +44,7 @@ A Dict mapping `Int64` ids to the corresponding `Object`.
 """
 function _full_objects_per_id(objects, members_per_group, groups_per_member)
     objects_per_id = Dict(
-        (class_name, name) => Object(name, class_name) for (id, (class_name, name, description)) in enumerate(objects)
+        (class_name, name) => Object(name, class_name) for (id, (class_name, name)) in enumerate(objects)
     )
     # Specify `members` for each group
     for (id, object) in objects_per_id
@@ -67,8 +67,7 @@ A Dict mapping class ids to an Array of entities in that class.
 function _entities_per_class(entities)
     d = Dict()
     for ent in entities
-        class_name = ent[1]
-        push!(get!(d, class_name, []), ent)
+        push!(get!(d, ent[1], []), ent)
     end
     d
 end
@@ -79,8 +78,7 @@ A Dict mapping entity class ids to an Array of parameter definitions associated 
 function _parameter_definitions_per_class(param_defs)
     d = Dict()
     for param_def in param_defs
-        class_name = param_def[1]
-        push!(get!(d, class_name, []), param_def)
+        push!(get!(d, param_def[1], []), param_def)
     end
     d
 end
@@ -91,16 +89,12 @@ A Dict mapping tuples of parameter definition and entity ids, to an Array of cor
 function _parameter_values_per_entity(param_values)
     Dict(
         (class_name, entity_name, param_name) => value
-        for (class_name, entity_name, param_name, value, alt) in param_values
+        for (class_name, entity_name, param_name, value) in param_values
     )
 end
 
 function _try_parameter_value_from_db(db_value, err_msg)
     try
-        if !(parse_db_value(db_value) isa TimeSeries)
-            @show db_value
-            @show parse_db_value(db_value)
-        end
         parameter_value(parse_db_value(db_value))
     catch e
         rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
@@ -113,9 +107,9 @@ A Dict mapping parameter names to their default values.
 function _default_parameter_values(param_defs)
     Dict(
         Symbol(param_name) => _try_parameter_value_from_db(
-            default_val, "unable to parse default value of `$(param_name)`"
+            isempty(optionals) ? missing : optionals[1], "unable to parse default value of `$(param_name)`"
         )
-        for (class_name, param_name, default_val, vln, desc) in param_defs
+        for (class_name, param_name, optionals...) in param_defs
     )
 end
 
@@ -129,27 +123,14 @@ function _parameter_values(entity_name, param_defs, param_vals_per_ent)
         )
         for (param_name, value) in (
             (param_name, get(param_vals_per_ent, (class_name, entity_name, param_name), nothing))
-            for (class_name, param_name, default_val, val_lst_name, description) in param_defs
+            for (class_name, param_name) in param_defs
         )
         if value !== nothing
     )
 end
 
-"""
-Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
-"""
-function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
-    name_list = copy(intact_name_list)
-    for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
-        for (k, index) in enumerate(findall(name_list .== ambiguous))
-            name_list[index] = Symbol(name_list[index], k)
-        end
-    end
-    name_list
-end
-
 function _obj_class_args(class, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    class_name = class[1]
+    class_name, = class
     objects = get(objs_per_cls, class_name, ())
     param_defs = get(param_defs_per_cls, class_name, ())
     (
@@ -159,14 +140,13 @@ function _obj_class_args(class, objs_per_cls, full_objs_per_id, param_defs_per_c
 end
 
 function _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)
-    objects = [full_objs_per_id[class_name, obj_name] for (class_name, obj_name, description) in objects]
+    objects = [full_objs_per_id[class_name, obj_name] for (class_name, obj_name, x...) in objects]
     param_vals = Dict(obj => _parameter_values(string(obj.name), param_defs, param_vals_per_ent) for obj in objects)
     objects, param_vals
 end
 
 function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    class_name = class[1]
-    object_class_name_list = class[2]
+    class_name, object_class_name_list = class
     relationships = get(rels_per_cls, class_name, ())
     param_defs = get(param_defs_per_cls, class_name, ())
     (
@@ -222,22 +202,17 @@ Note that for object classes, the number of dimensions is one.
 """
 function _class_names_per_parameter(object_classes, relationship_classes, param_defs)
     d = Dict()
-    for class in object_classes
-        class_name = class[1]
+    for (class_name,) in object_classes
         class_param_defs = get(param_defs, class_name, ())
         dim_count = 1
-        for param_def in class_param_defs
-            parameter_name = param_def[2]
+        for (class_name, parameter_name) in class_param_defs
             push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), dim_count))
         end
     end
-    for class in relationship_classes
-        class_name = class[1]
-        object_class_name_list = class[2]
+    for (class_name, object_class_name_list) in relationship_classes
         class_param_defs = get(param_defs, class_name, ())
         dim_count = length(object_class_name_list)
-        for param_def in class_param_defs
-            parameter_name = param_def[2]
+        for (class_name, parameter_name) in class_param_defs
             push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), dim_count))
         end
     end
@@ -254,30 +229,20 @@ If `upgrade` is `true`, then the database is upgraded to the latest revision.
 See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details on
 how to call the convenience functors.
 """
-function using_spinedb(url::String, mod=@__MODULE__; upgrade=false, filters=Dict(), on_conflict=:replace)
+function using_spinedb(url::String, mod=@__MODULE__; upgrade=false, filters=Dict())
     uri = URI(url)    
     db = (uri.scheme == "http") ? uri : url
     data = _export_data(db; upgrade=upgrade, filters=filters)
-    _generate_convenience_functions(data, mod; upgrade=upgrade, filters=filters, on_conflict=on_conflict)
+    _generate_convenience_functions(data, mod; upgrade=upgrade, filters=filters)
 end
-function using_spinedb(
-    template::Dict{String,T}, mod=@__MODULE__; upgrade=nothing, filters=nothing, on_conflict=:replace
-) where T
-    _generate_convenience_functions(template, mod; on_conflict=on_conflict)
+function using_spinedb(template::Dict{Symbol,T}, mod=@__MODULE__; upgrade=nothing, filters=nothing) where T
+    using_spinedb(Dict(string(key) => value for (key, value) in template), mod; upgrade=upgrade, filters=filters)
 end
-function using_spinedb(
-    template::Dict{Symbol,T}, mod=@__MODULE__; upgrade=nothing, filters=nothing, on_conflict=:replace
-) where T
-    using_spinedb(
-        Dict(string(key) => value for (key, value) in template),
-        mod=mod;
-        upgrade=upgrade,
-        filters=filters,
-        on_conflict=on_conflict
-    )
+function using_spinedb(template::Dict{String,T}, mod=@__MODULE__; upgrade=nothing, filters=nothing) where T
+    _generate_convenience_functions(template, mod)
 end
 
-function _generate_convenience_functions(data, mod; upgrade=false, filters=Dict(), on_conflict=:replace)
+function _generate_convenience_functions(data, mod; upgrade=false, filters=Dict())
     object_classes = get(data, "object_classes", [])
     relationship_classes = get(data, "relationship_classes", [])
     objects = get(data, "objects", [])
@@ -307,7 +272,7 @@ function _generate_convenience_functions(data, mod; upgrade=false, filters=Dict(
     _spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
     _spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
     _spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
-    # Remove existing classes and parameters that are not in the new dataset
+    # Remove current classes and parameters that are not in the new dataset
     for key in setdiff(keys(_spine_object_classes), keys(args_per_obj_cls))
         empty!(pop!(_spine_object_classes, key))
     end
@@ -318,28 +283,15 @@ function _generate_convenience_functions(data, mod; upgrade=false, filters=Dict(
         empty!(pop!(_spine_parameters, key))
     end
     # Create new
-    _fix_conflict! = get(Dict(:replace => _replace!, :merge => _merge!), on_conflict, _replace!)
     for (name, args) in args_per_obj_cls
-        new = ObjectClass(name, args...)
-        existing = get(_spine_object_classes, name, nothing)
-        if existing != nothing
-            _fix_conflict!(existing, new)
-            continue
-        end
-        _spine_object_classes[name] = new
+        _spine_object_classes[name] = new = ObjectClass(name, args...)
         @eval mod begin
             $name = $new
             export $name
         end
     end
     for (name, args) in args_per_rel_cls
-        new = RelationshipClass(name, args...)
-        existing = get(_spine_relationship_classes, name, nothing)
-        if existing != nothing && existing.intact_object_class_names == new.intact_object_class_names
-            _fix_conflict!(existing, new)
-            continue
-        end
-        _spine_relationship_classes[name] = new
+        _spine_relationship_classes[name] = new = RelationshipClass(name, args...)
         @eval mod begin
             $name = $new
             export $name
@@ -347,54 +299,10 @@ function _generate_convenience_functions(data, mod; upgrade=false, filters=Dict(
     end
     for (name, class_names) in class_names_per_param
         classes = [getfield(mod, x) for x in class_names]
-        new = Parameter(name, classes)
-        existing = get(_spine_parameters, name, nothing)
-        if existing != nothing && getproperty.(existing.classes, :name) == getproperty.(new.classes, :name)
-            _fix_conflict!(existing, new)
-            continue
-        end
-        _spine_parameters[name] = new
+        _spine_parameters[name] = new = Parameter(name, classes)
         @eval mod begin
             $name = $new
             export $name
         end
     end
 end
-
-function _replace!(existing::T, new::T) where T <: Union{ObjectClass,RelationshipClass,Parameter}
-    for x in propertynames(existing)
-        _replace!(getproperty(existing, x), getproperty(new, x))
-    end
-end
-function _replace!(x::Array, y::Array)
-    empty!(x)
-    _merge!(x, y)
-end
-function _replace!(x::Dict, y::Dict)
-    empty!(x)
-    _merge!(x, y)
-end
-_replace!(x, y) = nothing
-
-function _merge!(existing::T, new::T) where T <: Union{ObjectClass,RelationshipClass,Parameter}
-    for x in propertynames(existing)
-        _merge!(getproperty(existing, x), getproperty(new, x))
-    end
-end
-_merge!(x::Array, y::Array) = append!(x, setdiff(y, x))
-_merge!(x::Dict, y::Dict) = merge!(_merge!, x, y)
-function _merge!(x::T, y::T) where T <: AbstractParameterValue
-    _merge!(x.value, y.value)
-    x
-end
-_merge!(::NothingParameterValue, ::NothingParameterValue) = NothingParameterValue()
-function _merge!(x::TimeSeries, y::TimeSeries)
-    append!(x.indexes, y.indexes)
-    append!(x.values, y.values)
-    _sort_unique!(x.indexes, x.values)
-    x
-end
-_merge!(x::RepeatingTimeSeriesParameterValue, y::RepeatingTimeSeriesParameterValue) = y  # TODO
-_merge!(x::TimePatternParameterValue, y::TimePatternParameterValue) = y  # TODO
-_merge!(x::MapParameterValue, y::MapParameterValue) = y  # TODO
-_merge!(x, y) = y
