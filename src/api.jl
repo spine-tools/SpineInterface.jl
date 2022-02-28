@@ -812,6 +812,40 @@ function maximum_parameter_value(p::Parameter)
     maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)
 end
 
+function parse_time_period(union_str::String)
+    union_op = ","
+    intersection_op = ";"
+    range_op = "-"
+    union = UnionOfIntersections()
+    regexp = r"(Y|M|D|WD|h|m|s)"
+    for intersection_str in split(union_str, union_op)
+        intersection = IntersectionOfIntervals()
+        for interval in split(intersection_str, intersection_op)
+            m = Base.match(regexp, interval)
+            m === nothing && error("invalid interval specification $interval.")
+            key = m.match
+            lower_upper = interval[(length(key) + 1):end]
+            lower_upper = split(lower_upper, range_op)
+            length(lower_upper) != 2 && error("invalid interval specification $interval.")
+            lower_str, upper_str = lower_upper
+            lower = try
+                parse(Int64, lower_str)
+            catch ArgumentError
+                error("invalid lower bound $lower_str.")
+            end
+            upper = try
+                parse(Int64, upper_str)
+            catch ArgumentError
+                error("invalid upper bound $upper_str.")
+            end
+            lower > upper && error("lower bound can't be higher than upper bound.")
+            push!(intersection, TimeInterval(Symbol(key), lower, upper))
+        end
+        push!(union, intersection)
+    end
+    union
+end
+
 parse_db_value(value) = value
 parse_db_value(value::Dict) = parse_db_value(Val(Symbol(value["type"])), value)
 parse_db_value(::Val{:date_time}, value::Dict) = _parse_date_time(value["data"])
@@ -867,40 +901,6 @@ function unparse_db_value(x::Map{K,V}) where {K,V}
 end
 unparse_db_value(x::AbstractParameterValue) = unparse_db_value(x.value)
 unparse_db_value(::NothingParameterValue) = nothing
-
-function parse_time_period(union_str::String)
-    union_op = ","
-    intersection_op = ";"
-    range_op = "-"
-    union = UnionOfIntersections()
-    regexp = r"(Y|M|D|WD|h|m|s)"
-    for intersection_str in split(union_str, union_op)
-        intersection = IntersectionOfIntervals()
-        for interval in split(intersection_str, intersection_op)
-            m = Base.match(regexp, interval)
-            m === nothing && error("invalid interval specification $interval.")
-            key = m.match
-            lower_upper = interval[(length(key) + 1):end]
-            lower_upper = split(lower_upper, range_op)
-            length(lower_upper) != 2 && error("invalid interval specification $interval.")
-            lower_str, upper_str = lower_upper
-            lower = try
-                parse(Int64, lower_str)
-            catch ArgumentError
-                error("invalid lower bound $lower_str.")
-            end
-            upper = try
-                parse(Int64, upper_str)
-            catch ArgumentError
-                error("invalid upper bound $upper_str.")
-            end
-            lower > upper && error("lower bound can't be higher than upper bound.")
-            push!(intersection, TimeInterval(Symbol(key), lower, upper))
-        end
-        push!(union, intersection)
-    end
-    union
-end
 
 """
     import_data(url, data, comment)

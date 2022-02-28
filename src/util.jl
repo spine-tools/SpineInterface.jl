@@ -377,7 +377,7 @@ function _unparse_time_pattern(union::UnionOfIntersections)
 end
 
 # db api
-const _required_spinedb_api_version = v"0.16.4"
+const _required_spinedb_api_version = v"0.16.5"
 
 const _client_version = 1
 

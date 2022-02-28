@@ -122,7 +122,7 @@ db_url = "sqlite://"
         @test all(x isa RelationshipLike for x in institution__country())
         @test people_count(institution=institution(:KTH), country=country(:France)) == 1
         @test people_count(institution=institution(:KTH), country=country(:Sweden)) == 3
-        @test since_year(institution=institution(:KTH)) == 1827
+        @test since_year(institution=institution(:KTH)) === 1827
         @test since_year(institution=institution(:VTT), _strict=false) === nothing
         @test_throws ErrorException people_count(institution=institution(:VTT), country=country(:France))
         @test [x.name for x in institution(since_year=1827)] == [:KTH]
@@ -272,6 +272,7 @@ end
             object_classes=object_classes,
             objects=objects,
             object_parameter_values=object_parameter_values,
+            on_conflict="replace"
         )
         using_spinedb(db_url)
         France = country(:France)
