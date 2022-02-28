@@ -350,6 +350,7 @@ function _collect_ts_indexes(start::String, resolution::String, len::Int64)
     inds
 end
 
+_map_inds_and_vals(data::Matrix) = data[:,1], data[:,2]
 _map_inds_and_vals(data::Array) = (x[1] for x in data), (x[2] for x in data)
 _map_inds_and_vals(data::Dict) = keys(data), values(data)
 
