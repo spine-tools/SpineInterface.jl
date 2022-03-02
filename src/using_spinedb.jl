@@ -107,9 +107,9 @@ A Dict mapping parameter names to their default values.
 function _default_parameter_values(param_defs)
     Dict(
         Symbol(param_name) => _try_parameter_value_from_db(
-            isempty(optionals) ? missing : optionals[1], "unable to parse default value of `$(param_name)`"
+            default_val, "unable to parse default value of `$(param_name)`"
         )
-        for (class_name, param_name, optionals...) in param_defs
+        for (class_name, param_name, default_val) in param_defs
     )
 end
 
@@ -140,7 +140,7 @@ function _obj_class_args(class, objs_per_cls, full_objs_per_id, param_defs_per_c
 end
 
 function _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)
-    objects = [full_objs_per_id[class_name, obj_name] for (class_name, obj_name, x...) in objects]
+    objects = [full_objs_per_id[class_name, obj_name] for (class_name, obj_name) in objects]
     param_vals = Dict(obj => _parameter_values(string(obj.name), param_defs, param_vals_per_ent) for obj in objects)
     objects, param_vals
 end
