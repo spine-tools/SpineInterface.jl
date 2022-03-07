@@ -96,7 +96,12 @@ function _do_realize(call::Call, ::Function)
         _visit_sibling(st) && continue
         _revisit_parent(st) || break
     end
-    reduce(call.func, realized_vals[1])
+    vals = realized_vals[1]
+    if length(vals) <= 1
+        call.func(vals...)
+    else
+        reduce(call.func, vals)
+    end
 end
 _do_realize(call::Call, ::T) where {T<:AbstractParameterValue} = call.func(; call.kwargs...)
 
