@@ -48,8 +48,8 @@ function TimeSeriesParameterValue(ts::TimeSeries{V}) where {V}
 end
 
 Call(x) = Call(nothing, x)
-Call(call_expr::Union{_CallExpr,Nothing}, x) = Call(call_expr, nothing, [x], (;))
-Call(op::Function, args::Array) = Call(nothing, op, args, (;))
+Call(call_expr::Union{_CallExpr,Nothing}, x) = Call(call_expr, nothing, [x], NamedTuple))
+Call(op::Function, args::Array) = Call(nothing, op, args, NamedTuple())
 Call(op::T, x, y) where {T<:Function} = Call(op, [x, y])
 Call(op::T, x::Call, y) where {T<:Function} = Call(_is_associative(T), op, x, y)
 Call(op::T, x, y::Call) where {T<:Function} = Call(_is_associative(T), op, x, y)
