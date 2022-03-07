@@ -74,24 +74,64 @@ _entity_tuple(r::RelationshipLike, class) = r
 _entity_tuples(class::ObjectClass; kwargs...) = (_entity_tuple(o, class) for o in class())
 _entity_tuples(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
 
-function _pv_call(orig::_OriginalCall, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
-    _pv_call(_is_time_varying(T), orig, pv, inds)
+_show_call(io::IO, call::Call, ::Function) = print(io, join(call.args, string(" ", call.func, " ")))
+_show_call(io::IO, call::Call, ::Nothing) = print(io, _do_realize(call))
+function _show_call(io::IO, call::Call, ::T) where {T<:AbstractParameterValue}
+    pname, kwargs = call.call_expr
+    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
+    result = _do_realize(call)
+    print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
+end
+
+_do_realize(x) = x
+_do_realize(call::Call) = _do_realize(call, call.func)
+_do_realize(call::Call, ::Nothing) = call.args[1]
+function _do_realize(call::Call, ::Function)
+    realized_vals = Dict{Int64,Array}()
+    st = _OperatorCallTraversalState(call)
+    while true
+        _visit_node(st)
+        _visit_child(st) && continue
+        _update_realized_vals!(realized_vals, st)
+        _visit_sibling(st) && continue
+        _revisit_parent(st) || break
+    end
+    reduce(call.func, realized_vals[1])
+end
+_do_realize(call::Call, ::T) where {T<:AbstractParameterValue} = call.func(; call.kwargs...)
+
+_is_varying_call(call::Call, ::Nothing) = false
+function _is_varying_call(call::Call, ::Function)
+    st = _OperatorCallTraversalState(call)
+    while true
+        st.current isa Call && st.current.func isa AbstractParameterValue && return true
+        _visit_node(st)
+        _visit_child(st) && continue
+        _visit_sibling(st) && continue
+        _revisit_parent(st) || break
+    end
+    false
+end
+_is_varying_call(call::Call, ::T) where {T<:AbstractParameterValue} = true
+
+function _pv_call(call_expr::_CallExpr, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
+    _pv_call(_is_time_varying(T), call_expr, pv, inds)
 end
 function _pv_call(
     is_time_varying::Val{false},
-    orig::_OriginalCall,
+    call_expr::_CallExpr,
     pv::T,
     inds::NamedTuple,
 ) where {T<:AbstractParameterValue}
-    IdentityCall(orig, pv(; inds...))
+    Call(call_expr, pv(; inds...))
 end
 function _pv_call(
     is_time_varying::Val{true},
-    orig::_OriginalCall,
+    call_expr::_CallExpr,
     pv::T,
     inds::NamedTuple,
 ) where {T<:AbstractParameterValue}
-    ParameterValueCall(orig, pv, inds)
+    Call(call_expr, pv, inds)
 end
 
 _is_time_varying(::Type{MapParameterValue{K,V}}) where {K,V} = _is_time_varying(V)
@@ -198,7 +238,7 @@ end
 _visit_node(st::_OperatorCallTraversalState) = (st.parent_ids[st.current_id] = st.parent_id)
 
 function _visit_child(st::_OperatorCallTraversalState)
-    if !st.children_visited && st.current isa OperatorCall
+    if !st.children_visited && st.current isa Call && st.current.func isa Function
         push!(st.parents, st.current)
         st.parent_id = st.current_id
         st.current_id = st.next_id += 1
@@ -238,8 +278,11 @@ function _update_realized_vals!(vals, st::_OperatorCallTraversalState)
     push!(parent_vals, current_val)
 end
 
-_realize(call::OperatorCall, id::Int64, vals::Dict) = reduce(call.operator, vals[id])
-_realize(x, ::Int64, ::Dict) = realize(x)
+_realize(x, ::Int64, ::Dict) = _do_realize(x)
+_realize(call::Call, id::Int64, vals::Dict) = _realize(call, call.func, id, vals)
+_realize(call::Call, ::Nothing, id::Int64, vals::Dict) = _do_realize(call)
+_realize(call::Call, ::Function, id::Int64, vals::Dict) = reduce(call.func, vals[id])
+_realize(call::Call, ::T, id::Int64, vals::Dict) where {T<:AbstractParameterValue} = _do_realize(call)
 
 # Enable comparing Month and Year with all the other period types for computing the maximum parameter value
 _upper_bound(p) = p

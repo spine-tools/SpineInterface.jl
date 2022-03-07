@@ -47,30 +47,20 @@ function TimeSeriesParameterValue(ts::TimeSeries{V}) where {V}
     end
 end
 
+Call(x) = Call(nothing, x)
+Call(call_expr::Union{_CallExpr,Nothing}, x) = Call(call_expr, nothing, [x], (;))
+Call(op::Function, args::Array) = Call(nothing, op, args, (;))
+Call(op::T, x, y) where {T<:Function} = Call(op, [x, y])
+Call(op::T, x::Call, y) where {T<:Function} = Call(_is_associative(T), op, x, y)
+Call(op::T, x, y::Call) where {T<:Function} = Call(_is_associative(T), op, x, y)
+Call(op::T, x::Call, y::Call) where {T<:Function} = Call(_is_associative(T), op, x, y)
+Call(is_associative::Val{true}, op::Function, x::Call, y) = Call(op, [x.args; y])
+Call(is_associative::Val{true}, op::Function, x, y::Call) = Call(op, [x; y.args])
+Call(is_associative::Val{true}, op::Function, x::Call, y::Call) = Call(op, [x.args; y.args])
+Call(is_associative::Val{false}, op::Function, x, y::Call) = Call(op, [x, y])
+Call(is_associative::Val{false}, op::Function, x::Call, y) = Call(op, [x, y])
+Call(is_associative::Val{false}, op::Function, x::Call, y::Call) = Call(op, [x, y])
+function Call(call_expr::_CallExpr, func::T, kwargs::NamedTuple) where {T<:AbstractParameterValue}
+    Call(call_expr, func, [], kwargs)
+end
 Call(other::Call) = copy(other)
-Call(n) = IdentityCall(n)
-
-IdentityCall(x) = IdentityCall(nothing, x)
-
-OperatorCall(op::Function, x, y) = OperatorCall(op, [x, y])
-function OperatorCall(op::Function, x::OperatorCall{T}, y::OperatorCall{S}) where {T<:Function,S<:Function}
-    OperatorCall(op, [x, y])
-end
-OperatorCall(op::T, x::OperatorCall{T}, y) where {T<:Function} = OperatorCall(_is_associative(T), op, x, y)
-OperatorCall(op::T, x, y::OperatorCall{T}) where {T<:Function} = OperatorCall(_is_associative(T), op, x, y)
-function OperatorCall(op::T, x::OperatorCall{T}, y::OperatorCall{T}) where {T<:Function}
-    OperatorCall(_is_associative(T), op, x, y)
-end
-
-OperatorCall(is_associative::Val{true}, op::T, x::OperatorCall{T}, y) where {T<:Function} =
-    OperatorCall(op, [x.args; y])
-OperatorCall(is_associative::Val{true}, op::T, x, y::OperatorCall{T}) where {T<:Function} =
-    OperatorCall(op, [x; y.args])
-function OperatorCall(is_associative::Val{true}, op::T, x::OperatorCall{T}, y::OperatorCall{T}) where {T<:Function}
-    OperatorCall(op, [x.args; y.args])
-end
-OperatorCall(is_associative::Val{false}, op::T, x, y::OperatorCall{T}) where {T<:Function} = OperatorCall(op, [x, y])
-OperatorCall(is_associative::Val{false}, op::T, x::OperatorCall{T}, y) where {T<:Function} = OperatorCall(op, [x, y])
-function OperatorCall(is_associative::Val{false}, op::T, x::OperatorCall{T}, y::OperatorCall{T}) where {T<:Function}
-    OperatorCall(op, [x, y])
-end

@@ -26,8 +26,6 @@ abstract type AbstractParameterValue end
 
 abstract type AbstractTimeSeriesParameterValue <: AbstractParameterValue end
 
-abstract type Call end
-
 """
     Anything
 
@@ -178,22 +176,12 @@ end
 
 TimeVaryingParameterValue = Union{AbstractTimeSeriesParameterValue,TimePatternParameterValue}
 
-_OriginalCall = Tuple{Symbol,NamedTuple}
+_CallExpr = Tuple{Symbol,NamedTuple}
 
-struct IdentityCall{C,T} <: Call
-    original_call::C
-    value::T
-end
-
-struct OperatorCall{T} <: Call where {T<:Function}
-    operator::T
-    args::Array{Any,1}
-    OperatorCall(operator::T, args) where {T<:Function} = new{T}(operator, args)
-end
-
-struct ParameterValueCall{C,T} <: Call where {T<:AbstractParameterValue}
-    original_call::C
-    parameter_value::T
+struct Call
+    call_expr::Union{_CallExpr,Nothing}
+    func::Union{Nothing,Function,AbstractParameterValue}
+    args::Array{S,1} where S
     kwargs::NamedTuple
 end
 

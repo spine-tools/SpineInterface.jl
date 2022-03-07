@@ -624,25 +624,9 @@ end
 
 Perform the given `Call` and return the result.
 """
-do_realize(x) = x
-do_realize(call::IdentityCall) = call.value
-do_realize(call::ParameterValueCall) = call.parameter_value(; call.kwargs...)
-function do_realize(call::OperatorCall)
-    realized_vals = Dict{Int64,Array}()
-    st = _OperatorCallTraversalState(call)
-    while true
-        _visit_node(st)
-        _visit_child(st) && continue
-        _update_realized_vals!(realized_vals, st)
-        _visit_sibling(st) && continue
-        _revisit_parent(st) || break
-    end
-    reduce(call.operator, realized_vals[1])
-end
-
 function realize(x)
     try
-        do_realize(x)
+        _do_realize(x)
     catch e
         err_msg = "unable to evaluate expression:\n\t$x\n"
         rethrow(ErrorException("$err_msg$(sprint(showerror, e))"))
@@ -656,18 +640,7 @@ Whether or not the given `Call` might return a different result if realized a se
 This is true for `ParameterValueCall`s which are sensitive to the `t` argument.
 """
 is_varying(x) = false
-is_varying(call::ParameterValueCall) = true
-function is_varying(call::OperatorCall)
-    st = _OperatorCallTraversalState(call)
-    while true
-        st.current isa ParameterValueCall && return true
-        _visit_node(st)
-        _visit_child(st) && continue
-        _visit_sibling(st) && continue
-        _revisit_parent(st) || break
-    end
-    false
-end
+is_varying(call::Call) = _is_varying_call(call, call.func)
 
 """
     update_import_data!(import_data, parameter_name, value_by_entity; for_object=true, report="", alternative="")

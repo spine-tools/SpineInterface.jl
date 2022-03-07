@@ -61,11 +61,10 @@ function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})
 end
 
 # realize
-SpineInterface.realize(s::GreaterThanCall) = MOI.GreaterThan(realize(MOI.constant(s)))
-SpineInterface.realize(s::LessThanCall) = MOI.LessThan(realize(MOI.constant(s)))
-SpineInterface.realize(s::EqualToCall) = MOI.EqualTo(realize(MOI.constant(s)))
-
-function SpineInterface.realize(e::GenericAffExpr{C,VariableRef}) where {C}
+realize(s::GreaterThanCall) = MOI.GreaterThan(realize(MOI.constant(s)))
+realize(s::LessThanCall) = MOI.LessThan(realize(MOI.constant(s)))
+realize(s::EqualToCall) = MOI.EqualTo(realize(MOI.constant(s)))
+function realize(e::GenericAffExpr{C,VariableRef}) where {C}
     constant = realize(e.constant)
     terms = OrderedDict{VariableRef,typeof(constant)}(var => realize(coef) for (var, coef) in e.terms)
     GenericAffExpr(constant, terms)

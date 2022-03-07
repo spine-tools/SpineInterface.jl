@@ -52,9 +52,9 @@
     @test string(duck) === "duck"
     @test string(studio_duck) === "studio_duck"
     id_call = Call(13)
-    op_call = SpineInterface.OperatorCall(+, 2, 3)
+    op_call = Call(+, 2, 3)
     apero_time = parameter_value("apero_time")
-    param_val_call = SpineInterface.ParameterValueCall((:apero_time, (scenario=:covid,)), apero_time, (scenario=:covid,))
+    param_val_call = Call((:apero_time, (scenario=:covid,)), apero_time, (scenario=:covid,))
     @test string(id_call) === "13"
     @test string(op_call) === "2 + 3"
     @test string(param_val_call) === "{apero_time(scenario=covid) = apero_time}"
@@ -94,81 +94,79 @@
     @test val_copy isa SpineInterface.RepeatingTimeSeriesParameterValue
     @test val_copy(t=TimeSlice(DateTime(6), DateTime(7))) === (200 + 8) / 3
     call_copy = copy(id_call)
-    @test call_copy isa SpineInterface.IdentityCall
+    @test call_copy isa Call
     @test string(call_copy) === "13"
     call_copy = copy(op_call)
-    @test call_copy isa SpineInterface.OperatorCall
+    @test call_copy isa Call
     @test string(call_copy) === "2 + 3"
     call_copy = copy(param_val_call)
-    @test call_copy isa SpineInterface.ParameterValueCall
+    @test call_copy isa Call
     @test string(call_copy) === "{apero_time(scenario=covid) = apero_time}"
     # Call zero
     zero_call = zero(call)
     @test zero_call isa Call
     @test iszero(zero_call)
     @test iszero(realize(zero_call))
-    @test zero_call === zero(Call)
     # Call one
     one_call = one(call)
     @test one_call isa Call
     @test isone(one_call)
     @test isone(realize(one_call))
-    @test one_call === one(Call)
     # Call plus
     call = +one_call
     @test op_call isa Call
     @test convert(Int, realize(call)) === 1
     op_call = zero_call + one_call
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 1
     op_call = zero_call + 1
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 1
     op_call = 0 + one_call
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 1
     # Call minus
     call = -one_call
     @test op_call isa Call
     @test convert(Int, realize(call)) === -1
     op_call = zero_call - one_call
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === -1
     op_call = 0 - one_call
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === -1
     op_call = zero_call - 1
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === -1
     # Call times
     op_call = zero_call * one_call
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 0
     op_call = 0 * one_call
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 0
     op_call = zero_call * 1
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 0
     # Call div
     op_call = zero_call / one_call
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 0
     op_call = 0 / one_call
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 0
     op_call = zero_call / 1
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 0
     # Call min
     op_call = min(zero_call, one_call)
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 0
     op_call = min(0, one_call)
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 0
     op_call = min(zero_call, 1)
-    @test op_call isa SpineInterface.OperatorCall
+    @test op_call isa Call
     @test convert(Int, realize(op_call)) === 0
     # Call abs
     abs_call = abs(Call(-5))
