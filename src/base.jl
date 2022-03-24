@@ -42,6 +42,7 @@ Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start
 Base.isless(v1::ScalarParameterValue, v2::ScalarParameterValue) = v1.value < v2.value
 Base.isless(scalar::Number, ts::TimeSeries) = all(isless(scalar, v) for v in ts.values)
 Base.isless(ts::TimeSeries, scalar::Number) = all(isless(v, scalar) for v in ts.values)
+Base.isless(t::TimeSlice, dt::DateTime) = isless(end_(t), dt)
 
 Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
 Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
@@ -59,6 +60,7 @@ end
 
 Base.:(<=)(scalar::Number, ts::TimeSeries) = all(scalar <= v for v in ts.values)
 Base.:(<=)(ts::TimeSeries, scalar::Number) = all(v <= scalar for v in ts.values)
+Base.:(<=)(t::TimeSlice, dt::DateTime) = end_(t) <= dt
 
 Base.hash(::Anything) = zero(UInt64)
 Base.hash(o::Union{Object,TimeSlice}) = o.id
