@@ -709,3 +709,10 @@ function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
     end
     name_list
 end
+
+"""An `Array` with the object class names of an entity."""
+_object_class_names(entity::NamedTuple) = [_object_class_name(key, val) for (key, val) in pairs(entity)]
+_object_class_name(key, val::ObjectLike) = _object_class_name(key, val, val.class_name)
+_object_class_name(key, val::ObjectLike, class_name::Symbol) = string(class_name)
+_object_class_name(key, val::ObjectLike, ::Nothing) = string(key)
+_object_class_name(key, val) = string(key)

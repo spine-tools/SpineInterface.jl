@@ -666,41 +666,40 @@ function update_import_data!(
     relationships = get!(import_data, :relationships, [])
     relationship_parameter_values = get!(import_data, :relationship_parameter_values, [])
     !isempty(report) && pushfirst!(object_classes, "report")
-    for obj_cls_names in unique(keys(entity) for entity in keys(value_by_entity))
-        str_obj_cls_names = [string(x) for x in obj_cls_names]
-        append!(object_classes, str_obj_cls_names)
-        !isempty(report) && pushfirst!(str_obj_cls_names, "report")
-        if for_object && length(str_obj_cls_names) == 1
-            obj_cls_name = str_obj_cls_names[1]
+    for obj_cls_names in unique(_object_class_names(entity) for entity in keys(value_by_entity))
+        append!(object_classes, obj_cls_names)
+        !isempty(report) && pushfirst!(obj_cls_names, "report")
+        if for_object && length(obj_cls_names) == 1
+            obj_cls_name = obj_cls_names[1]
             push!(object_parameters, (obj_cls_name, pname))
         else
-            rel_cls_name = join(str_obj_cls_names, "__")
-            push!(relationship_classes, (rel_cls_name, str_obj_cls_names))
+            rel_cls_name = join(obj_cls_names, "__")
+            push!(relationship_classes, (rel_cls_name, obj_cls_names))
             push!(relationship_parameters, (rel_cls_name, pname))
         end
     end
     unique!(object_classes)
     !isempty(report) && pushfirst!(objects, ("report", report))
     for (entity, value) in value_by_entity
-        str_obj_cls_names = [string(x) for x in keys(entity)]
-        str_obj_names = [string(x) for x in values(entity)]
-        for (obj_cls_name, obj_name) in zip(str_obj_cls_names, str_obj_names)
+        obj_cls_names = _object_class_names(entity)
+        obj_names = [string(x) for x in values(entity)]
+        for (obj_cls_name, obj_name) in zip(obj_cls_names, obj_names)
             push!(objects, (obj_cls_name, obj_name))
         end
         if !isempty(report)
-            pushfirst!(str_obj_cls_names, "report")
-            pushfirst!(str_obj_names, report)
+            pushfirst!(obj_cls_names, "report")
+            pushfirst!(obj_names, report)
         end
-        if for_object && length(str_obj_cls_names) == length(str_obj_names) == 1
-            obj_cls_name = str_obj_cls_names[1]
-            obj_name = str_obj_names[1]
+        if for_object && length(obj_cls_names) == length(obj_names) == 1
+            obj_cls_name = obj_cls_names[1]
+            obj_name = obj_names[1]
             val = [obj_cls_name, obj_name, pname, unparse_db_value(value)]
             !isempty(alternative) && push!(val, alternative)
             push!(object_parameter_values, val)
         else
-            rel_cls_name = join(str_obj_cls_names, "__")
-            push!(relationships, (rel_cls_name, str_obj_names))
-            val = [rel_cls_name, str_obj_names, pname, unparse_db_value(value)]
+            rel_cls_name = join(obj_cls_names, "__")
+            push!(relationships, (rel_cls_name, obj_names))
+            val = [rel_cls_name, obj_names, pname, unparse_db_value(value)]
             !isempty(alternative) && push!(val, alternative)
             push!(relationship_parameter_values, val)
         end
