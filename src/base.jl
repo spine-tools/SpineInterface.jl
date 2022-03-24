@@ -178,6 +178,10 @@ Base.values(ts::TimeSeries) = ts.values
 Base.values(m::Map) = m.values
 Base.values(apv::AbstractParameterValue) = values(apv.value)
 
+Base.keys(ts::TimeSeries) = ts.indexes
+Base.keys(m::Map) = m.indexes
+Base.keys(apv::AbstractParameterValue) = keys(apv.value)
+
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
     pv_new_kwargs = _lookup_parameter_value(p; inds...)
@@ -222,6 +226,9 @@ end
 function Base.empty!(x::Parameter)
     empty!(x.classes)
 end
+
+Base.get(x::Map, key, default) = get(x._lookup, key, default)
+Base.get(x::TimeSeries, key, default) = get(x._lookup, key, default)
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
 Base.abs(call::Call) = Call(abs, [call])

@@ -694,6 +694,7 @@ function _remove_nothing_values!(inds, vals)
     to_remove = findall(isnothing, vals)
     deleteat!(inds, to_remove)
     deleteat!(vals, to_remove)
+    nothing
 end
 
 """

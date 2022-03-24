@@ -118,10 +118,11 @@ struct TimeSeries{V}
     values::Array{V,1}
     ignore_year::Bool
     repeat::Bool
+    _lookup::Dict
     function TimeSeries(inds, vals::Array{V,1}, iy, rep) where {V}
         inds, vals = copy(inds), copy(vals)
         _sort_unique!(inds, vals)
-        new{V}(inds, vals, iy, rep)
+        new{V}(inds, vals, iy, rep, Dict(zip(inds, vals)))
     end
 end
 
@@ -137,10 +138,11 @@ parameters.
 struct Map{K,V}
     indexes::Array{K,1}
     values::Array{V,1}
+    _lookup::Dict
     function Map(inds::Array{K,1}, vals::Array{V,1}) where {K,V}
         inds, vals = copy(inds), copy(vals)
         _sort_unique!(inds, vals)
-        new{K,V}(inds, vals)
+        new{K,V}(inds, vals, Dict(zip(inds, vals)))
     end
 end
 
