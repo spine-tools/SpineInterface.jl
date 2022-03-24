@@ -53,6 +53,52 @@ db_url = "sqlite://"
         (institution=institution(:KTH), country=country(:France)),
     ])
 end
+@testset "indices as tuples" begin
+    object_classes = ["institution", "country"]
+    object_parameters = [["institution", "since_year"]]
+    institutions = ["KTH", "ER"]
+    objects = [["institution", x] for x in institutions]
+    object_parameter_values = [["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]]
+    import_test_data(
+        db_url;
+        object_classes=object_classes,
+        objects=objects,
+        object_parameters=object_parameters,
+        object_parameter_values=object_parameter_values,
+    )
+    using_spinedb(db_url)
+    @test Set(indices_as_tuples(since_year)) == Set([
+        (institution=institution(:KTH),), (institution=institution(:ER),)
+    ])
+end
+@testset "object_class, relationship_class, parameter" begin
+    object_classes = ["institution", "country"]
+    relationship_classes = [
+        ["institution__country", ["institution", "country"]], ["country__institution", ["country", "institution"]]
+    ]
+    object_parameters = [["institution", "since_year"]]
+    relationship_parameters = [["institution__country", "people_count"], ["country__institution", "animal_count"]]
+    import_test_data(
+        db_url;
+        object_classes=object_classes,
+        relationship_classes=relationship_classes,
+        object_parameters=object_parameters,
+        relationship_parameters=relationship_parameters,
+    )
+    using_spinedb(db_url)
+    @test object_class(:institution) isa ObjectClass
+    @test object_class(:institution).name == :institution
+    @test object_class(:country) isa ObjectClass
+    @test object_class(:country).name == :country
+    @test relationship_class(:institution__country) isa RelationshipClass
+    @test relationship_class(:institution__country).name == :institution__country
+    @test relationship_class(:country__institution) isa RelationshipClass
+    @test relationship_class(:country__institution).name == :country__institution
+    @test parameter(:people_count) isa Parameter
+    @test parameter(:people_count).name == :people_count
+    @test parameter(:animal_count) isa Parameter
+    @test parameter(:animal_count).name == :animal_count
+end
 @testset "time-slices" begin
     t0_2 = TimeSlice(DateTime(0), DateTime(2); duration_unit=Hour)
     t2_4 = TimeSlice(DateTime(2), DateTime(4); duration_unit=Hour)
@@ -125,6 +171,91 @@ end
             [(Symbol(x), Symbol(y)) for (x, y) in object_tuples]
             [(:ER, :France), (:ER, :Ireland)]
         ])
+    end
+end
+@testset "add_parameter_values" begin
+    @testset "add_object_parameter_values" begin
+        object_classes = ["institution"]
+        institutions = ["ER", "KTH"]
+        objects = [["institution", x] for x in institutions]
+        object_parameters = [["institution", "since_year"]]
+        object_parameter_values = [
+            ["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]
+        ]
+        import_test_data(
+            db_url;
+            object_classes=object_classes,
+            objects=objects,
+            object_parameters=object_parameters,
+            object_parameter_values=object_parameter_values
+        )
+        using_spinedb(db_url)
+        @test length(institution()) === 2
+        @test Set(x.name for x in institution()) == Set(Symbol.(institutions))
+        ER = institution(:ER)
+        @test since_year(institution=ER) == 2010
+        pvals = Dict(
+            Object(:ER, :institution) => Dict(:since_year => parameter_value(2011)),
+            Object(:CORRE_LABS, :institution) => Dict(
+                :since_year => parameter_value(2022), :people_count => parameter_value(3)
+            ),
+        )
+        add_object_parameter_values!(institution, pvals)
+        CORRE_LABS = Object(:CORRE_LABS, :institution)
+        @test Set(x.name for x in institution()) == Set([Symbol.(institutions); [:CORRE_LABS]])
+        @test length(institution()) === 3
+        @test since_year(institution=ER) == 2011
+        @test since_year(institution=CORRE_LABS) == 2022
+    end
+    @testset "add_relationship_parameter_values" begin
+        object_classes = ["institution", "country"]
+        relationship_classes = [["institution__country", ["institution", "country"]]]
+        relationship_parameters = [["institution__country", "people_count"]]
+        institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
+        countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
+        objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
+        institution_country_tuples =[
+            ["VTT", "Finland"], ["KTH", "Sweden"], ["KTH", "France"], ["KUL", "Belgium"], ["UCD", "Ireland"]
+        ]
+        relationships = [
+            ["institution__country", [inst, country]] for (inst, country) in institution_country_tuples
+        ]
+        relationship_parameter_values = [
+            ["institution__country", [inst, country], "people_count", k]
+            for (k, (inst, country)) in enumerate(institution_country_tuples)
+        ]
+        import_test_data(
+            db_url;
+            object_classes=object_classes,
+            relationship_classes=relationship_classes,
+            relationship_parameters=relationship_parameters,
+            objects=objects,
+            relationships=relationships,
+            relationship_parameter_values=relationship_parameter_values,
+        )
+        using_spinedb(db_url)
+        @test length(institution__country()) === 5
+        ER = Object(:ER, :institution)
+        ERFrance = (institution=ER, country=country(:France))
+        ERIreland = (institution=ER, country=country(:Ireland))
+        ERSweden = (institution=ER, country=country(:Sweden))
+        KTHFrance = (institution=institution(:KTH), country=country(:France))
+        pvals = Dict(
+            ERFrance => Dict(:people_count => parameter_value(1)),
+            ERIreland => Dict(:people_count => parameter_value(1)),
+            ERSweden => Dict(:people_count => parameter_value(1)),
+            KTHFrance => Dict(:people_count => parameter_value(0)),
+        )
+        add_relationship_parameter_values!(institution__country, pvals)
+        @test length(institution__country()) === 8
+        @test Set((x.name, y.name) for (x, y) in institution__country()) == Set([
+            [(Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples]
+            [(:ER, :France), (:ER, :Ireland), (:ER, :Sweden)]
+        ])
+        @test people_count(; ERFrance...) == 1
+        @test people_count(; ERIreland...) == 1
+        @test people_count(; ERSweden...) == 1
+        @test people_count(; KTHFrance...) == 0
     end
 end
 @testset "write_parameters" begin
