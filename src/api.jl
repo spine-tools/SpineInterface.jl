@@ -731,11 +731,12 @@ function write_parameters(
     for_object=true,
     report="",
     alternative="",
+    on_conflict="merge",
     comment=""
 )
     uri = URI(url)
     db = (uri.scheme == "http") ? uri : url
-    import_data = Dict{Symbol,Array}()
+    import_data = Dict{Symbol,Any}(:on_conflict => on_conflict)
     for (parameter_name, value_by_entity) in parameters
         update_import_data!(
             import_data, parameter_name, value_by_entity; for_object=for_object, report=report, alternative=alternative
