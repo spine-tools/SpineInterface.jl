@@ -649,7 +649,7 @@ Update `import_data` with new data for importing `parameter_name` with value `pa
 Link the entities to given `report` object.
 """
 function update_import_data!(
-    import_data::Dict{Symbol,Array},
+    import_data::Dict{Symbol,Any},
     parameter_name::T,
     value_by_entity::Dict{K,V};
     for_object::Bool=true,
