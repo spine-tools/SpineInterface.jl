@@ -17,31 +17,21 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-using SpineInterface
-import SpineInterface.parse_time_period
-using Test
-using PyCall
-using Dates
-using JSON
-using JuMP
-using Cbc
-
-# Original tests used a slightly different syntax for `import_data`, so correct it here for convenience.
-SpineInterface.import_data(db_url::String; kwargs...) = SpineInterface.import_data(db_url, Dict(kwargs...), "testing")
-
-# Convenience function for overwriting in-memory Database with test data.
-function import_test_data(db_url::String; kwargs...)
-    SpineInterface._import_spinedb_api()
-    dbh = SpineInterface._create_db_handler(db_url, false)
-    dbh.close_connection()
-    dbh.open_connection()
-    import_data(db_url; kwargs...)
-end
-
-@testset begin
-    include("using_spinedb.jl")
-    include("api.jl")
-    include("constructors.jl")
-    include("base.jl")
-    include("util.jl")
+@testset "update_model" begin
+	m = Model(Cbc.Optimizer)
+	@variable(m, x, lower_bound=0)
+	@variable(m, y, lower_bound=0)
+	pval1 = parameter_value(TimeSeries([DateTime(1), DateTime(2)], [20, 15], false, false))
+	pval2 = parameter_value(TimeSeries([DateTime(1), DateTime(2)], [10, 5], false, false))
+	t = TimeSlice(DateTime(1), DateTime(2))
+	p1 = Call((:p1, (;)), pval1, (t=t,))
+	p2 = Call((:p2, (;)), pval2, (t=t,))
+	@objective(m, Min, x + y)
+	@constraint(m, 5x + p2 * y >= p1)
+	optimize!(m)
+	@test objective_value(m) == 2
+	roll!(t, Year(1))
+	update_model!(m)
+	optimize!(m)
+	@test objective_value(m) == 3
 end
