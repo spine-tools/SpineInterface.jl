@@ -40,6 +40,16 @@
     @test [x for x in p5] == [p5]
     @test length(p7) == 1
     @test p5 < p7
+    n = 10
+    @test t1 < DateTime(1, 1, 1, 0, 0, 1)
+    @test 4.2 < TimeSeries([DateTime(i) for i in 1:n], [4.2 + i for i in 1:n], false, false)
+    @test TimeSeries([DateTime(i) for i in 1:n], [4.2 - i for i in 1:n], false, false) < 4.2
+    @test t1 <= DateTime(1)
+    @test t1 <= DateTime(1, 2)
+    @test 4.2 <= TimeSeries([DateTime(i) for i in 0:n], [4.2 + i for i in 0:n], false, false)
+    @test TimeSeries([DateTime(i) for i in 0:n], [4.2 - i for i in 0:n], false, false) <= 4.2
+    @test TimeSeries([DateTime(i) for i in 1:n], [4.2 for i in 1:n], false, false) == 4.2
+    @test 4.2 == TimeSeries([DateTime(i) for i in 1:n], [4.2 for i in 1:n], false, false)
     # hash?
     d = Dict(anything => nothing)
     @test d[anything] === nothing
@@ -249,13 +259,34 @@
     @test timedata_operation(float, tp1) == Dict(
         SpineInterface.parse_time_period("M2-3") => 2.0, SpineInterface.parse_time_period("M3-4") => 3.0
     )
+    m = Map(collect(1:4), collect(5:8))
     # values
     @test values(ts1) == ts1_vals
     @test sort(collect(values(tp1))) == [2, 3]
-    m = Map(collect(1:4), collect(5:8))
     @test values(m) == collect(5:8)
     @test values(parameter_value(ts1)) == values(ts1)
     @test values(parameter_value(m)) == parameter_value.(values(m))
+    # keys
+    @test keys(ts1) == ts1_dates
+    @test keys(m) == collect(1:4)
+    @test keys(parameter_value(ts1)) == keys(ts1)
+    @test keys(parameter_value(m)) == keys(m)
+    # push
+    ts = TimeSeries(ts1_dates, ts1_vals, false, false)
+    @test push!(ts, DateTime(9) => 40) == TimeSeries([ts1_dates; DateTime(9)], [ts1_vals; 40], false, false)
+    ts = TimeSeries(ts1_dates, ts1_vals, false, false)
+    @test push!(ts, DateTime(1) => 40) == TimeSeries(ts1_dates, [40; ts1_vals[2:end]], false, false)
+    # setindex
+    ts = TimeSeries(ts1_dates, ts1_vals, false, false)
+    @test (ts[DateTime(9)] = 5) == 5
+    @test ts == TimeSeries([ts1_dates; DateTime(9)], [ts1_vals; 5], false, false)
+    # get
+    m = Map(collect(1:4), collect(5:8))
+    ts = TimeSeries(ts1_dates, ts1_vals, false, false)
+    @test get(m, 1, nothing) == 5
+    @test get(m, 7, nothing) == nothing
+    @test get(ts, DateTime(1, 4), nothing) == 4
+    @test get(ts, DateTime(8, 4), nothing) == nothing
     # iterate
     @test iterate(ts1) == (ts1_dates[1] => ts1_vals[1], 2)
     @test iterate(ts1, 2) == (ts1_dates[2] => ts1_vals[2], 3)

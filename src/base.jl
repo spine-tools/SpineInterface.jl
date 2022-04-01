@@ -202,12 +202,14 @@ function Base.push!(ts::TimeSeries, pair)
         insert!(ts.indexes, i, index)
         insert!(ts.values, i, value)
     end
+    ts._lookup[index] = value
     ts
 end
 
 function Base.setindex!(ts::TimeSeries, value, key...)
     length(key) > 1 && error("invalid index $key")
     push!(ts, first(key) => value)
+    value
 end
 
 function Base.empty!(x::ObjectClass)
