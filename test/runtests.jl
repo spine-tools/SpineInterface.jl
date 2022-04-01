@@ -39,10 +39,10 @@ function import_test_data(db_url::String; kwargs...)
 end
 
 @testset begin
-    # include("using_spinedb.jl")
-    # include("api.jl")
-    # include("constructors.jl")
-    # include("base.jl")
-    # include("util.jl")
+    include("using_spinedb.jl")
+    include("api.jl")
+    include("constructors.jl")
+    include("base.jl")
+    include("util.jl")
     include("update_model.jl")
 end
