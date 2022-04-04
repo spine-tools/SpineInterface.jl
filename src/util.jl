@@ -426,9 +426,9 @@ function _unparse_time_pattern(union::UnionOfIntersections)
 end
 
 # db api
-const _required_spinedb_api_version = v"0.16.5"
+const _required_spinedb_api_version = v"0.16.6"
 
-const _client_version = 1
+const _client_version = 2
 
 _spinedb_api_not_found(pyprogramname) = """
 The required Python package `spinedb_api` could not be found in the current Python environment
