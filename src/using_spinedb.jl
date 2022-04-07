@@ -230,19 +230,18 @@ See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](
 how to call the convenience functors.
 """
 function using_spinedb(url::String, mod=@__MODULE__; upgrade=false, filters=Dict())
-    uri = URI(url)    
-    db = (uri.scheme == "http") ? uri : url
-    data = _export_data(db; upgrade=upgrade, filters=filters)
-    _generate_convenience_functions(data, mod; upgrade=upgrade, filters=filters)
+    db = _db(url; upgrade=upgrade)
+    data = _export_data(db; filters=filters)
+    _generate_convenience_functions(data, mod; filters=filters)
 end
-function using_spinedb(template::Dict{Symbol,T}, mod=@__MODULE__; upgrade=nothing, filters=nothing) where T
-    using_spinedb(Dict(string(key) => value for (key, value) in template), mod; upgrade=upgrade, filters=filters)
+function using_spinedb(template::Dict{Symbol,T}, mod=@__MODULE__; filters=nothing) where T
+    using_spinedb(Dict(string(key) => value for (key, value) in template), mod; filters=filters)
 end
-function using_spinedb(template::Dict{String,T}, mod=@__MODULE__; upgrade=nothing, filters=nothing) where T
+function using_spinedb(template::Dict{String,T}, mod=@__MODULE__; filters=nothing) where T
     _generate_convenience_functions(template, mod)
 end
 
-function _generate_convenience_functions(data, mod; upgrade=false, filters=Dict())
+function _generate_convenience_functions(data, mod; filters=Dict())
     object_classes = get(data, "object_classes", [])
     relationship_classes = get(data, "relationship_classes", [])
     objects = get(data, "objects", [])

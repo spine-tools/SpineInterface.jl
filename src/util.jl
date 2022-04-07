@@ -480,78 +480,6 @@ function _parse_spinedb_api_version(version)
 end
 _parse_spinedb_api_version(::Nothing) = VersionNumber(0)
 
-function _process_db_answer(answer::Dict)
-    result = get(answer, "result", nothing)
-    err = get(answer, "error", nothing)
-    _process_db_answer(result, err)
-end
-_process_db_answer(answer) = answer  # Legacy
-_process_db_answer(result, err::Nothing) = result
-function _process_db_answer(result, err::Int64)
-    if err == 1
-        required_client_version = result
-        msg = "version mismatch: DB server requires client version $required_client_version, "
-        msg *= "whereas current version is $_client_version; "
-        msg *= "please update SpineInterface"
-        error(msg)
-    else
-        error("unknown error code $err returned by DB server")
-    end
-end
-_process_db_answer(result, err) = error(string(err))
-
-function _do_run_server_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict; timeout=Inf)
-    _do_run_server_request(server_uri, [request, args, kwargs, _client_version]; timeout=timeout)
-end
-function _do_run_server_request(server_uri::URI, full_request::Array; timeout=Inf)
-    clientside = connect(server_uri.host, parse(Int, server_uri.port))
-    write(clientside, JSON.json(full_request) * '\0')
-    io = IOBuffer()
-    elapsed = 0
-    while true
-        str = String(readavailable(clientside))
-        write(io, str)
-        if endswith(str, '\0')
-            break
-        end
-        if !isempty(str)
-            elapsed = 0
-            continue
-        end
-        if elapsed > timeout
-            close(clientside)
-            return
-        end
-        sleep(0.02)
-        elapsed += 0.02
-    end
-    close(clientside)
-    str = String(take!(io))
-    s = rstrip(str, '\0')
-    isempty(s) && return
-    answer = JSON.parse(s)
-    _process_db_answer(answer)
-end
-
-function _run_server_request(server_uri::URI, request::String)
-    _run_server_request(server_uri, request, (), Dict())
-end
-function _run_server_request(server_uri::URI, request::String, args::Tuple)
-    _run_server_request(server_uri, request, args, Dict())
-end
-function _run_server_request(server_uri::URI, request::String, kwargs::Dict)
-    _run_server_request(server_uri, request, (), kwargs)
-end
-function _run_server_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict)
-    _do_run_server_request(server_uri, ["get_db_url", ()])  # to trigger compilation
-    elapsed = @elapsed _do_run_server_request(server_uri, ["get_db_url", ()])
-    spinedb_api_version = _do_run_server_request(server_uri, ["get_api_version", ()]; timeout=10 * elapsed)
-    if _parse_spinedb_api_version(spinedb_api_version) < _required_spinedb_api_version
-        error(_required_spinedb_api_version_not_found_server)
-    end
-    _do_run_server_request(server_uri, request, args, kwargs)
-end
-
 function _import_spinedb_api()
     isdefined(@__MODULE__, :db_api) && return
     @eval begin
@@ -579,61 +507,147 @@ function _create_db_handler(db_url::String, upgrade::Bool)
     Base.invokelatest(_do_create_db_handler, db_url, upgrade)
 end
 
-function _do_apply_filters(dbh, filters::Dict)
-    _process_db_answer(dbh.apply_filters(filters))
+function _db(url; upgrade=false)
+    uri = URI(url)
+    (uri.scheme == "http") ? uri : _create_db_handler(url, upgrade)
 end
 
-function _do_clear_filters(dbh)
-    _process_db_answer(dbh.clear_filters())
+function _process_db_answer(answer::Dict)
+    result = get(answer, "result", nothing)
+    err = get(answer, "error", nothing)
+    _process_db_answer(result, err)
+end
+_process_db_answer(answer) = answer  # Legacy
+_process_db_answer(result, err::Nothing) = result
+function _process_db_answer(result, err::Int64)
+    if err == 1
+        required_client_version = result
+        error(
+            "version mismatch: DB server requires client version $required_client_version, ",
+            "whereas current version is $_client_version; ",
+            "please update SpineInterface"
+        )
+    else
+        error("unknown error code $err returned by DB server")
+    end
+end
+_process_db_answer(result, err) = error(string(err))
+
+_MARKER_TAG = '@'
+_TAIL_TAG = '#'
+_MARKER_SEP = ':'
+
+import JSON.Serializations: CommonSerialization, StandardSerialization
+import JSON.Writer: StructuralContext, show_json
+
+struct TailSerialization <: CommonSerialization
+    tail::Vector{UInt8}
+    TailSerialization() = new(Vector{UInt8}())
 end
 
-function _do_export_data(dbh)
-    dbh.export_data()
-    _process_db_answer(dbh.export_data())
+function show_json(io::StructuralContext, s::TailSerialization, bytes::Base.CodeUnits{UInt8,String})
+    tip = length(s.tail)
+    from, to = tip + 1, tip + length(bytes)
+    marker = string(_MARKER_TAG, from, _MARKER_SEP, to, _MARKER_TAG)
+    append!(s.tail, bytes)
+    show_json(io, StandardSerialization(), marker)
 end
 
-function _export_data(db_url::String; upgrade=false, filters=Dict())
-    dbh = _create_db_handler(db_url, upgrade)
-    isempty(filters) || Base.invokelatest(_do_apply_filters, dbh, filters)
-    data = Base.invokelatest(_do_export_data, dbh)
-    isempty(filters) || Base.invokelatest(_do_clear_filters, dbh)
+function _encode(obj)
+    s = TailSerialization()
+    body = sprint(show_json, s, obj)
+    tail = String(s.tail)
+    string(body, _TAIL_TAG, tail)
+end
+
+function _decode(str)
+    body, tail = split(str, _TAIL_TAG)
+    body_parts = split(body, _MARKER_TAG)
+    length(body_parts) == 1 && return JSON.parse(body)  # no markers
+    # Replace markers
+    for (k, tuples) in (Iterators.partition(body_parts, 2))
+        length(tuples == 1) && break
+        marker = tuples[2]
+        from, to = split(marker, _MARKER_SEP)
+        i = 2 * (k - 1) + 1
+        body_parts[i] = tail[from:to]
+    end
+    final_body = join(body_parts, "")
+    JSON.parse(final_body)
+end
+
+function _do_run_server_request(server_uri::URI, full_request::Array; timeout=Inf)
+    clientside = connect(server_uri.host, parse(Int, server_uri.port))
+    write(clientside, _encode(full_request) * '\0')
+    io = IOBuffer()
+    elapsed = 0
+    while true
+        bytes = readavailable(clientside)
+        if !isempty(bytes)
+            write(io, bytes)
+            elapsed = 0
+            if bytes[end] == 0x00
+                break
+            end
+            continue
+        end
+        if elapsed > timeout
+            close(clientside)
+            return
+        end
+        sleep(0.02)
+        elapsed += 0.02
+    end
+    close(clientside)
+    bytes = take!(io)
+    str = String(bytes)
+    isempty(str) && return
+    @show answer = _decode(str)
+    _process_db_answer(answer)
+end
+
+_handle_data(dbh, data) = dbh.handle_data(data)
+
+function _run_server_request(db, request::String)
+    _run_server_request(db, request, (), Dict())
+end
+function _run_server_request(db, request::String, args::Tuple)
+    _run_server_request(db, request, args, Dict())
+end
+function _run_server_request(db, request::String, kwargs::Dict)
+    _run_server_request(db, request, (), kwargs)
+end
+function _run_server_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict)
+    _do_run_server_request(server_uri, ["get_db_url", ()])  # to trigger compilation
+    elapsed = @elapsed _do_run_server_request(server_uri, ["get_db_url", ()])
+    spinedb_api_version = _do_run_server_request(server_uri, ["get_api_version", ()]; timeout=10 * elapsed)
+    if _parse_spinedb_api_version(spinedb_api_version) < _required_spinedb_api_version
+        error(_required_spinedb_api_version_not_found_server)
+    end
+    full_request = [request, args, kwargs, _client_version]
+    _do_run_server_request(server_uri, full_request)
+end
+function _run_server_request(dbh, request::String, args::Tuple, kwargs::Dict)
+    full_request = [request, args, kwargs, _client_version]
+    data = _encode(full_request)
+    str = Base.invokelatest(_handle_data, dbh, data)
+    answer = _decode(str)
+    _process_db_answer(answer)
+end
+
+function _export_data(db; filters=Dict())
+    isempty(filters) || _run_server_request(db, "apply_filters", (filters,))
+    data = _run_server_request(db, "export_data")
+    isempty(filters) || _run_server_request(db, "clear_filters")
     data
 end
-function _export_data(server_uri::URI; upgrade=nothing, filters=Dict())
-    isempty(filters) || _run_server_request(server_uri, "apply_filters", (filters,))
-    data = _run_server_request(server_uri, "export_data")
-    isempty(filters) || _run_server_request(server_uri, "clear_filters")
-    data
+
+function _import_data(db, data::Dict{Symbol,T}, comment::String) where {T}
+    _run_server_request(db, "import_data", (Dict(string(k) => v for (k, v) in data), comment))
 end
 
-_do_import_data(dbh, data, comment) = _process_db_answer(dbh.import_data(data, comment))
-
-_convert_arrays_to_py_vectors(d::Dict) = Dict(k => _convert_arrays_to_py_vectors(v) for (k, v) in d)
-_convert_arrays_to_py_vectors(t::Tuple) = Tuple(_convert_arrays_to_py_vectors(x) for x in t)
-_convert_arrays_to_py_vectors(a::Array) = Base.invokelatest(PyVector, _convert_arrays_to_py_vectors.(a))
-_convert_arrays_to_py_vectors(x) = x
-
-function _import_data(db_url::String, data::Dict{Symbol,T}, comment::String; upgrade=true) where {T}
-    dbh = _create_db_handler(db_url, upgrade)
-    data = _convert_arrays_to_py_vectors(data)
-    Base.invokelatest(_do_import_data, dbh, data, comment)
-end
-function _import_data(server_uri::URI, data::Dict{Symbol,T}, comment::String; upgrade=nothing) where {T}
-    _run_server_request(server_uri, "import_data", (Dict(string(k) => v for (k, v) in data), comment))
-end
-
-function _do_run_request(dbh, request::String, args::Tuple, kwargs::Dict)
-    _process_db_answer(getproperty(dbh, Symbol(request))(args...; kwargs...))
-end
-
-function _run_request(db_url::String, request::String, args::Tuple, kwargs::Dict; upgrade=false)
-    dbh = _create_db_handler(db_url, upgrade)
-    args = _convert_arrays_to_py_vectors(args)
-    kwargs = _convert_arrays_to_py_vectors(kwargs)
-    Base.invokelatest(_do_run_request, dbh, request, args, kwargs)
-end
-function _run_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict; upgrade=nothing)
-    _run_server_request(server_uri, request, args, kwargs)
+function _run_request(db, request::String, args::Tuple, kwargs::Dict)
+    _run_server_request(db, request, args, kwargs)
 end
 
 function _to_dict(obj_cls::ObjectClass)
@@ -651,7 +665,6 @@ function _to_dict(obj_cls::ObjectClass)
         ]
     )
 end
-
 function _to_dict(rel_cls::RelationshipClass)
     Dict(
         :object_classes => unique(rel_cls.intact_object_class_names),

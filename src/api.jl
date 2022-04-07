@@ -733,8 +733,7 @@ function write_parameters(
     on_conflict="merge",
     comment=""
 )
-    uri = URI(url)
-    db = (uri.scheme == "http") ? uri : url
+    db = _db(url; upgrade=upgrade)
     import_data = Dict{Symbol,Any}(:on_conflict => on_conflict)
     for (parameter_name, value_by_entity) in parameters
         update_import_data!(
@@ -748,7 +747,7 @@ function write_parameters(
         alternatives = get!(import_data, :alternatives, [])
         push!(alternatives, [alternative])
     end
-    errors = _import_data(db, import_data, comment; upgrade=upgrade)
+    errors = _import_data(db, import_data, comment)
     isempty(errors) || @warn join(errors, "\n")
 end
 
@@ -909,10 +908,13 @@ function import_data(url::String, data::Dict{String,T}, comment::String) where {
     import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment)
 end
 function import_data(url::String, data::Dict{Symbol,T}, comment::String) where {T}
-    uri = URI(url)
-    db = (uri.scheme == "http") ? uri : url
+    db = _db(url)
     _import_data(db, data, comment)
 end
+function import_data(url::String, comment::String; kwargs...)
+    import_data(url, Dict(Symbol(k) => v for (k, v) in pairs(kwargs)), comment)
+end
+
 
 """
     run_request(url::String, request::String, args, kwargs; upgrade=false)
@@ -929,9 +931,8 @@ function run_request(url::String, request::String, kwargs::Dict; upgrade=false)
     run_request(url, request, (), kwargs; upgrade=upgrade)
 end
 function run_request(url::String, request::String, args::Tuple, kwargs::Dict; upgrade=false)
-    uri = URI(url)
-    db = (uri.scheme == "http") ? uri : url
-    _run_request(db, request, args, kwargs; upgrade=upgrade)
+    db = _db(url; upgrade=upgrade)
+    _run_request(db, request, args, kwargs)
 end
 
 """
