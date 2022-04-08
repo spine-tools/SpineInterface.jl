@@ -818,7 +818,7 @@ function parse_time_period(union_str::String)
     union
 end
 
-# parse_db_value(value::Dict) = parse_db_value(value, Val(Symbol(value["type"])))
+parse_db_value(value::Dict) = parse_db_value(value, Val(Symbol(value["type"])))
 parse_db_value(::Nothing, type) = nothing
 parse_db_value(value::Vector{UInt8}, type::String) = parse_db_value(JSON.parse(String(value)), Val(Symbol(type)))
 parse_db_value(value::Vector{UInt8}, ::Nothing) = parse_db_value(JSON.parse(String(value)))

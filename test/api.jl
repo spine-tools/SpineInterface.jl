@@ -284,7 +284,7 @@ end
     end
     @testset "array" begin
         isfile(path) && rm(path)
-        parameters = Dict(:apero_time => Dict((country=:France,) => PyVector([1.0, 2.0, 3.0])))
+        parameters = Dict(:apero_time => Dict((country=:France,) => [1.0, 2.0, 3.0]))
         write_parameters(parameters, url)
         using_spinedb(url)
         @test apero_time(country=country(:France)) == [1, 2, 3]
@@ -402,14 +402,14 @@ end
     # Add parameter values of all types
     scalar_value = 18
     array_data = [4, 8, 7]
-    array_value = Dict("type" => "array", "value_type" => "float", "data" => PyVector(array_data))
+    array_value = Dict("type" => "array", "value_type" => "float", "data" => array_data)
     time_pattern_data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
     time_pattern_value = Dict("type" => "time_pattern", "data" => time_pattern_data)
     time_series_data = [1.0, 4.0, 5.0, NaN, 7.0]
     time_series_index =
         Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
     time_series_value =
-        Dict("type" => "time_series", "data" => PyVector(time_series_data), "index" => time_series_index)
+        Dict("type" => "time_series", "data" => time_series_data, "index" => time_series_index)
     map_value = Dict(
         "type" => "map",
         "index_type" => "str",
@@ -420,7 +420,7 @@ end
                 "data" => Dict(
                     "1999-12-01T00:00" => Dict(
                         "type" => "time_series",
-                        "data" => PyVector([4.0, 5.6]),
+                        "data" => [4.0, 5.6],
                         "index" => Dict(
                             "start" => "2000-01-01T00:00:00",
                             "resolution" => "1M",

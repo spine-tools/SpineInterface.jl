@@ -533,10 +533,10 @@ function _process_db_answer(result, err::Int64)
 end
 _process_db_answer(result, err) = error(string(err))
 
-_MSG_END = '\0'
-_TAIL_BEGIN = '#'
-_MARKER_BEGIN = '@'
-_MARKER_SEP = ':'
+const _EOT = '\u04'  # End of transmission
+const _START_OF_TAIL = '\u1f'  # Unit separator
+const _START_OF_ADDRESS = '\u91'  # Private Use 1
+const _ADDRESS_SEP = ':'
 
 struct _TailSerialization <: JSON.CommonSerialization
     tail::Vector{UInt8}
@@ -546,7 +546,7 @@ end
 function JSON.show_json(io::JSON.StructuralContext, s::_TailSerialization, bytes::Base.CodeUnits{UInt8,String})
     tip = length(s.tail)
     from, to = tip, tip + length(bytes) - 1  # 0-based
-    marker = string(_MARKER_BEGIN, from, _MARKER_SEP, to)
+    marker = string(_START_OF_ADDRESS, from, _ADDRESS_SEP, to)
     append!(s.tail, bytes)
     JSON.show_json(io, JSON.StandardSerialization(), marker)
 end
@@ -554,39 +554,40 @@ end
 function _encode(obj)
     s = _TailSerialization()
     body = sprint(JSON.show_json, s, obj)
-    vcat(Vector{UInt8}(body), UInt8(_TAIL_BEGIN), s.tail)
+    vcat(Vector{UInt8}(body), UInt8(_START_OF_TAIL), s.tail)
 end
-
-function _replace_markers!(o::Dict, tail)
-    for (k, v) in o
-        o[k] = _replace_markers!(v, tail)
-    end
-    o
-end
-function _replace_markers!(o::Array, tail)
-    for (k, e) in enumerate(o)
-        o[k] = _replace_markers!(e, tail)
-    end
-    o
-end
-function _replace_markers!(o::String, tail)
-    startswith(o, _MARKER_BEGIN) || return o
-    from, to = (parse(Int64, x) + 1 for x in split(o[2:end], _MARKER_SEP))  # 1-based
-    tail[from:to]
-end
-_replace_markers!(o, tail) = o
 
 function _decode(io)
     bytes = take!(io)
-    i = findlast(bytes .== UInt8(_TAIL_BEGIN))
+    i = findlast(bytes .== UInt8(_START_OF_TAIL))
     body, tail = bytes[1 : i - 1], bytes[i + 1 : end]
     o = JSON.parse(String(body))
-    _replace_markers!(o, tail)
+    _expand_addresses!(o, tail)
 end
+
+function _expand_addresses!(o::Dict, tail)
+    for (k, v) in o
+        o[k] = _expand_addresses!(v, tail)
+    end
+    o
+end
+function _expand_addresses!(o::Array, tail)
+    for (k, e) in enumerate(o)
+        o[k] = _expand_addresses!(e, tail)
+    end
+    o
+end
+function _expand_addresses!(o::String, tail)
+    startswith(o, _START_OF_ADDRESS) || return o
+    marker = lstrip(o, _START_OF_ADDRESS)
+    from, to = (parse(Int64, x) + 1 for x in split(marker, _ADDRESS_SEP))  # 1-based
+    tail[from:to]
+end
+_expand_addresses!(o, tail) = o
 
 function _do_run_server_request(server_uri::URI, full_request::Array; timeout=Inf)
     clientside = connect(server_uri.host, parse(Int, server_uri.port))
-    write(clientside, _encode(full_request) * _MSG_END)
+    write(clientside, _encode(full_request) * _EOT)
     io = IOBuffer()
     elapsed = 0
     while true
@@ -594,7 +595,7 @@ function _do_run_server_request(server_uri::URI, full_request::Array; timeout=In
         if !isempty(bytes)
             write(io, bytes)
             elapsed = 0
-            if bytes[end] == UInt8(_MSG_END)
+            if bytes[end] == UInt8(_EOT)
                 break
             end
             continue

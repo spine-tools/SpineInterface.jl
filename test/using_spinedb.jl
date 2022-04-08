@@ -155,7 +155,7 @@ end
     end
     @testset "array" begin
         data = [4, 8, 7]
-        value = Dict("type" => "array", "value_type" => "float", "data" => PyVector(data))
+        value = Dict("type" => "array", "value_type" => "float", "data" => data)
         object_parameter_values = [["country", "France", "apero_time", value]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
@@ -195,7 +195,7 @@ end
     @testset "std_time_series" begin
         data = [1.0, 4.0, 5.0, NaN, 7.0]
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
-        value = Dict("type" => "time_series", "data" => PyVector(data), "index" => index)
+        value = Dict("type" => "time_series", "data" => data, "index" => index)
         object_parameter_values = [["country", "France", "apero_time", value]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
@@ -213,7 +213,7 @@ end
     @testset "repeating_time_series" begin
         data = [1, 4, 5, 3, 7]
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => true, "ignore_year" => true)
-        value = Dict("type" => "time_series", "data" => PyVector(data), "index" => index)
+        value = Dict("type" => "time_series", "data" => data, "index" => index)
         object_parameter_values = [["country", "France", "apero_time", value]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
@@ -238,7 +238,7 @@ end
                     "data" => Dict(
                         "1999-12-01T00:00" => Dict(
                             "type" => "time_series",
-                            "data" => PyVector([4.0, 5.6]),
+                            "data" => [4.0, 5.6],
                             "index" => Dict(
                                 "start" => "2000-01-01T00:00:00",
                                 "resolution" => "1M",
@@ -254,7 +254,7 @@ end
                     "data" => Dict(
                         "1999-12-01T00:00" => Dict(
                             "type" => "time_series",
-                            "data" => PyVector([2.1, 1.8]),
+                            "data" => [2.1, 1.8],
                             "index" => Dict(
                                 "start" => "2000-01-01T00:00:00",
                                 "resolution" => "1M",
