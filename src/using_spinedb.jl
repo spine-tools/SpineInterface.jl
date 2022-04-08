@@ -95,7 +95,7 @@ end
 
 function _try_parameter_value_from_db(db_value, err_msg)
     try
-        parameter_value(parse_db_value(db_value...))
+        parameter_value(parse_db_value(db_value))
     catch e
         rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
     end
