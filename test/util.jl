@@ -28,9 +28,11 @@ using_spinedb("sqlite://")
     d_obs = SpineInterface._to_dict(cls)
     d_exp = Dict(
         :object_classes => [:cat],
-        :object_parameters => [[:cat, :age, 9]],
+        :object_parameters => [[:cat, :age, unparse_db_value(9)]],
         :objects => [[:cat, :silvester], [:cat, :tom]],
-        :object_parameter_values => [[:cat, :tom, :age, 2], [:cat, :silvester, :age, 1]]
+        :object_parameter_values => [
+            [:cat, :tom, :age, unparse_db_value(2)], [:cat, :silvester, :age, unparse_db_value(1)]
+        ]
     )
     @test keys(d_obs) == keys(d_exp)
     for (k, v) in d_exp
@@ -51,10 +53,10 @@ end
         :objects => [[:cat, :silvester], [:cat, :tom], [:dog, :pluto]],
         :relationship_classes => [[:cat__cat__dog, [:cat, :cat, :dog]]],
         :relationships => [[:cat__cat__dog, [:silvester, :tom, :pluto]], [:cat__cat__dog, [:tom, :silvester, :pluto]]],
-        :relationship_parameters => [[:cat__cat__dog, :aver_age, 9]],
+        :relationship_parameters => [[:cat__cat__dog, :aver_age, unparse_db_value(9)]],
         :relationship_parameter_values => [
-            [:cat__cat__dog, [:silvester, :tom, :pluto], :aver_age, 1],
-            [:cat__cat__dog, [:tom, :silvester, :pluto], :aver_age, 2]
+            [:cat__cat__dog, [:silvester, :tom, :pluto], :aver_age, unparse_db_value(1)],
+            [:cat__cat__dog, [:tom, :silvester, :pluto], :aver_age, unparse_db_value(2)]
         ]
     )
     @test keys(d_obs) == keys(d_exp)

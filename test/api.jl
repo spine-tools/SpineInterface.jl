@@ -27,10 +27,10 @@ db_url = "sqlite://"
     countries = ["Sweden", "France"]
     objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
     relationships = [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]]
-    object_parameter_values = [["institution", "KTH", "since_year", 1827]]
+    object_parameter_values = [["institution", "KTH", "since_year", unparse_db_value(1827)]]
     relationship_parameter_values = [
-        ["institution__country", ["KTH", "Sweden"], "people_count", 3],
-        ["institution__country", ["KTH", "France"], "people_count", 1],
+        ["institution__country", ["KTH", "Sweden"], "people_count", unparse_db_value(3)],
+        ["institution__country", ["KTH", "France"], "people_count", unparse_db_value(1)],
     ]
     import_test_data(
         db_url;
@@ -58,7 +58,10 @@ end
     object_parameters = [["institution", "since_year"]]
     institutions = ["KTH", "ER"]
     objects = [["institution", x] for x in institutions]
-    object_parameter_values = [["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]]
+    object_parameter_values = [
+        ["institution", "KTH", "since_year", unparse_db_value(1827)],
+        ["institution", "ER", "since_year", unparse_db_value(2010)]
+    ]
     import_test_data(
         db_url;
         object_classes=object_classes,
@@ -180,7 +183,8 @@ end
         objects = [["institution", x] for x in institutions]
         object_parameters = [["institution", "since_year"]]
         object_parameter_values = [
-            ["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]
+            ["institution", "KTH", "since_year", unparse_db_value(1827)],
+            ["institution", "ER", "since_year", unparse_db_value(2010)]
         ]
         import_test_data(
             db_url;
@@ -221,7 +225,7 @@ end
             ["institution__country", [inst, country]] for (inst, country) in institution_country_tuples
         ]
         relationship_parameter_values = [
-            ["institution__country", [inst, country], "people_count", k]
+            ["institution__country", [inst, country], "people_count", unparse_db_value(k)]
             for (k, (inst, country)) in enumerate(institution_country_tuples)
         ]
         import_test_data(
@@ -433,12 +437,12 @@ end
         ),
     )
     relationship_parameter_values = [
-        ["institution__country", ["ER", "France"], "people_count", scalar_value],
-        ["institution__country", ["ER", "Ireland"], "people_count", array_value],
-        ["institution__country", ["KTH", "Sweden"], "people_count", time_pattern_value],
-        ["institution__country", ["KTH", "France"], "people_count", time_series_value],
-        ["institution__country", ["VTT", "Finland"], "people_count", map_value],
-        ["institution__country", ["VTT", "Ireland"], "people_count", nothing],
+        ["institution__country", ["ER", "France"], "people_count", unparse_db_value(scalar_value)],
+        ["institution__country", ["ER", "Ireland"], "people_count", unparse_db_value(array_value)],
+        ["institution__country", ["KTH", "Sweden"], "people_count", unparse_db_value(time_pattern_value)],
+        ["institution__country", ["KTH", "France"], "people_count", unparse_db_value(time_series_value)],
+        ["institution__country", ["VTT", "Finland"], "people_count", unparse_db_value(map_value)],
+        ["institution__country", ["VTT", "Ireland"], "people_count", unparse_db_value(nothing)],
     ]
     import_test_data(
         db_url;

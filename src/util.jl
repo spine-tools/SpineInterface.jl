@@ -354,6 +354,41 @@ end
 const db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
 const alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
 
+
+_parse_db_value(value::Dict) = _parse_db_value(value, value["type"])
+_parse_db_value(value, type::String) = _parse_db_value(value, Val(Symbol(type)))
+_parse_db_value(value, ::Nothing) = _parse_db_value(value)
+_parse_db_value(value::Dict, ::Val{:date_time}) = _parse_date_time(value["data"])
+_parse_db_value(value::Dict, ::Val{:duration}) = _parse_duration(value["data"])
+_parse_db_value(value::Dict, ::Val{:time_pattern}) = Dict(parse_time_period(ind) => val for (ind, val) in value["data"])
+function _parse_db_value(value::Dict, type::Val{:time_series})
+    _parse_db_value(get(value, "index", Dict()), value["data"], type)
+end
+function _parse_db_value(index::Dict, vals::Array, ::Val{:time_series})
+    ignore_year = get(index, "ignore_year", false)
+    inds = _collect_ts_indexes(index["start"], index["resolution"], length(vals))
+    ignore_year && (inds .-= Year.(inds))
+    TimeSeries(inds, _parse_float.(vals), ignore_year, get(index, "repeat", false))
+end
+function _parse_db_value(index::Dict, data::Union{OrderedDict,Dict}, ::Val{:time_series})
+    ignore_year = get(index, "ignore_year", false)
+    inds = _parse_date_time.(keys(data))
+    ignore_year && (inds .-= Year.(inds))
+    vals = _parse_float.(values(data))
+    TimeSeries(inds, vals, ignore_year, get(index, "repeat", false))
+end
+_parse_db_value(value::Dict, type::Val{:array}) = _parse_inner_value.(value["data"], Val(Symbol(value["value_type"])))
+function _parse_db_value(::Nothing, data::Array{T,1}, ::Val{:array}) where {T}
+    _parse_inner_value.(data, Val(Symbol(_inner_type_str(T))))
+end
+function _parse_db_value(value::Dict, ::Val{:map})
+    raw_inds, raw_vals = _map_inds_and_vals(value["data"])
+    inds = _parse_inner_value.(raw_inds, Val(Symbol(value["index_type"])))
+    vals = _parse_db_value.(raw_vals)
+    Map(inds, vals)
+end
+_parse_db_value(value) = value
+
 function _parse_date_time(data::String)
     try
         DateTime(data, db_df)
@@ -424,6 +459,38 @@ function _unparse_time_pattern(union::UnionOfIntersections)
     ]
     join(union_arr, union_op)
 end
+
+_db_value(x) = x
+_db_value(x::Dict) = Dict(k => v for (k, v) in x if k != "type")
+_db_value(x::DateTime) = Dict("data" => string(Dates.format(x, db_df)))
+_db_value(x::T) where {T<:Period} = Dict("data" => _unparse_duration(x))
+function _db_value(x::Array{T}) where {T}
+    Dict("value_type" => _inner_type_str(T), "data" => _unparse_element.(x))
+end
+function _db_value(x::TimePattern)
+    Dict("data" => Dict(_unparse_time_pattern(k) => v for (k, v) in x))
+end
+function _db_value(x::TimeSeries)
+    Dict(
+        "index" => Dict("repeat" => x.repeat, "ignore_year" => x.ignore_year),
+        "data" => OrderedDict(_unparse_date_time(i) => v for (i, v) in zip(x.indexes, x.values)),
+    )
+end
+function _db_value(x::Map{K,V}) where {K,V}
+    Dict(
+        "index_type" => _inner_type_str(K),
+        "data" => [(string(i), unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
+    )
+end
+
+_db_type(x) = nothing
+_db_type(x::Dict) = x["type"]
+_db_type(::DateTime) = "date_time"
+_db_type(::T) where {T<:Period} = "duration"
+_db_type(x::Array{T}) where {T} = "array"
+_db_type(x::TimePattern) = "time_pattern"
+_db_type(x::TimeSeries) = "time_series"
+_db_type(x::Map{K,V}) where {K,V} = "map"
 
 # db api
 const _required_spinedb_api_version = v"0.16.7"
