@@ -309,7 +309,7 @@ Non unique indices in a sorted Array.
 function _nonunique_inds_sorted(arr)
     nonunique_inds = []
     sizehint!(nonunique_inds, length(arr))
-    for (i, (x, y)) in enumerate(zip(arr[1:(end - 1)], arr[2:end]))
+    for (i, (x, y)) in enumerate(zip(arr[1 : end - 1], arr[2:end]))
         isequal(x, y) && push!(nonunique_inds, i)
     end
     nonunique_inds
@@ -364,7 +364,7 @@ end
 
 function _parse_duration(data::String)
     o = match(r"\D", data).offset  # position of first non-numeric character
-    quantity, unit = parse(Int64, data[1:(o - 1)]), strip(data[o:end])
+    quantity, unit = parse(Int64, data[1 : o - 1]), strip(data[o:end])
     key = (startswith(lowercase(unit), "month") || unit == "M") ? 'M' : lowercase(unit[1])
     Dict('s' => Second, 'm' => Minute, 'h' => Hour, 'd' => Day, 'M' => Month, 'y' => Year)[key](quantity)
 end
@@ -378,10 +378,10 @@ _inner_type_str(::Type{String}) = "str"
 _inner_type_str(::Type{DateTime}) = "date_time"
 _inner_type_str(::Type{T}) where {T<:Period} = "duration"
 
-_parse_inner_value(::Val{:str}, value::String) = value
-_parse_inner_value(::Val{:float}, value::T) where {T<:Number} = _parse_float(value)
-_parse_inner_value(::Val{:duration}, value::String) = _parse_duration(value)
-_parse_inner_value(::Val{:date_time}, value::String) = _parse_date_time(value)
+_parse_inner_value(value::String, ::Val{:str}) = value
+_parse_inner_value(value::T, ::Val{:float}) where {T<:Number} = _parse_float(value)
+_parse_inner_value(value::String, ::Val{:duration}) = _parse_duration(value)
+_parse_inner_value(value::String, ::Val{:date_time}) = _parse_date_time(value)
 
 _resolution_iterator(resolution::String) = (_parse_duration(resolution),)
 _resolution_iterator(resolution::Array{String,1}) = (_parse_duration(r) for r in resolution)
@@ -533,52 +533,60 @@ function _process_db_answer(result, err::Int64)
 end
 _process_db_answer(result, err) = error(string(err))
 
-_MARKER_TAG = '@'
-_TAIL_TAG = '#'
+_MSG_END = '\0'
+_TAIL_BEGIN = '#'
+_MARKER_BEGIN = '@'
 _MARKER_SEP = ':'
 
-import JSON.Serializations: CommonSerialization, StandardSerialization
-import JSON.Writer: StructuralContext, show_json
-
-struct TailSerialization <: CommonSerialization
+struct _TailSerialization <: JSON.CommonSerialization
     tail::Vector{UInt8}
-    TailSerialization() = new(Vector{UInt8}())
+    _TailSerialization() = new(Vector{UInt8}())
 end
 
-function show_json(io::StructuralContext, s::TailSerialization, bytes::Base.CodeUnits{UInt8,String})
+function JSON.show_json(io::JSON.StructuralContext, s::_TailSerialization, bytes::Base.CodeUnits{UInt8,String})
     tip = length(s.tail)
-    from, to = tip + 1, tip + length(bytes)
-    marker = string(_MARKER_TAG, from, _MARKER_SEP, to, _MARKER_TAG)
+    from, to = tip, tip + length(bytes) - 1  # 0-based
+    marker = string(_MARKER_BEGIN, from, _MARKER_SEP, to)
     append!(s.tail, bytes)
-    show_json(io, StandardSerialization(), marker)
+    JSON.show_json(io, JSON.StandardSerialization(), marker)
 end
 
 function _encode(obj)
-    s = TailSerialization()
-    body = sprint(show_json, s, obj)
-    tail = String(s.tail)
-    string(body, _TAIL_TAG, tail)
+    s = _TailSerialization()
+    body = sprint(JSON.show_json, s, obj)
+    vcat(Vector{UInt8}(body), UInt8(_TAIL_BEGIN), s.tail)
 end
 
-function _decode(str)
-    body, tail = split(str, _TAIL_TAG)
-    body_parts = split(body, _MARKER_TAG)
-    length(body_parts) == 1 && return JSON.parse(body)  # no markers
-    # Replace markers
-    for (k, tuples) in (Iterators.partition(body_parts, 2))
-        length(tuples == 1) && break
-        marker = tuples[2]
-        from, to = split(marker, _MARKER_SEP)
-        i = 2 * (k - 1) + 1
-        body_parts[i] = tail[from:to]
+function _replace_markers!(o::Dict, tail)
+    for (k, v) in o
+        o[k] = _replace_markers!(v, tail)
     end
-    final_body = join(body_parts, "")
-    JSON.parse(final_body)
+    o
+end
+function _replace_markers!(o::Array, tail)
+    for (k, e) in enumerate(o)
+        o[k] = _replace_markers!(e, tail)
+    end
+    o
+end
+function _replace_markers!(o::String, tail)
+    startswith(o, _MARKER_BEGIN) || return o
+    from, to = (parse(Int64, x) + 1 for x in split(o[2:end], _MARKER_SEP))  # 1-based
+    tail[from:to]
+end
+_replace_markers!(o, tail) = o
+
+function _decode(io)
+    bytes = take!(io)
+    i = findlast(bytes .== UInt8(_TAIL_BEGIN))
+    body, tail = bytes[1 : i - 1], bytes[i + 1 : end]
+    o = JSON.parse(String(body))
+    _replace_markers!(o, tail)
 end
 
 function _do_run_server_request(server_uri::URI, full_request::Array; timeout=Inf)
     clientside = connect(server_uri.host, parse(Int, server_uri.port))
-    write(clientside, _encode(full_request) * '\0')
+    write(clientside, _encode(full_request) * _MSG_END)
     io = IOBuffer()
     elapsed = 0
     while true
@@ -586,7 +594,7 @@ function _do_run_server_request(server_uri::URI, full_request::Array; timeout=In
         if !isempty(bytes)
             write(io, bytes)
             elapsed = 0
-            if bytes[end] == 0x00
+            if bytes[end] == UInt8(_MSG_END)
                 break
             end
             continue
@@ -599,14 +607,12 @@ function _do_run_server_request(server_uri::URI, full_request::Array; timeout=In
         elapsed += 0.02
     end
     close(clientside)
-    bytes = take!(io)
-    str = String(bytes)
-    isempty(str) && return
-    @show answer = _decode(str)
+    answer = _decode(io)
+    isempty(answer) && return  # FIXME: needed?
     _process_db_answer(answer)
 end
 
-_handle_data(dbh, data) = dbh.handle_data(data)
+_handle_request(dbh, request) = dbh.handle_request(request)
 
 function _run_server_request(db, request::String)
     _run_server_request(db, request, (), Dict())
@@ -629,9 +635,11 @@ function _run_server_request(server_uri::URI, request::String, args::Tuple, kwar
 end
 function _run_server_request(dbh, request::String, args::Tuple, kwargs::Dict)
     full_request = [request, args, kwargs, _client_version]
-    data = _encode(full_request)
-    str = Base.invokelatest(_handle_data, dbh, data)
-    answer = _decode(str)
+    request = pybytes(_encode(full_request))
+    io = IOBuffer()
+    str = Base.invokelatest(_handle_request, dbh, request)
+    write(io, str)
+    answer = _decode(io)
     _process_db_answer(answer)
 end
 

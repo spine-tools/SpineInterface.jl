@@ -818,35 +818,38 @@ function parse_time_period(union_str::String)
     union
 end
 
-parse_db_value(value) = value
-parse_db_value(value::Dict) = parse_db_value(Val(Symbol(value["type"])), value)
-parse_db_value(::Val{:date_time}, value::Dict) = _parse_date_time(value["data"])
-parse_db_value(::Val{:duration}, value::Dict) = _parse_duration(value["data"])
-parse_db_value(::Val{:time_pattern}, value::Dict) = Dict(parse_time_period(ind) => val for (ind, val) in value["data"])
-parse_db_value(type::Val{:time_series}, value::Dict) = parse_db_value(type, get(value, "index", Dict()), value["data"])
-function parse_db_value(::Val{:time_series}, index::Dict, vals::Array)
+# parse_db_value(value::Dict) = parse_db_value(value, Val(Symbol(value["type"])))
+parse_db_value(::Nothing, type) = nothing
+parse_db_value(value::Vector{UInt8}, type::String) = parse_db_value(JSON.parse(String(value)), Val(Symbol(type)))
+parse_db_value(value::Vector{UInt8}, ::Nothing) = parse_db_value(JSON.parse(String(value)))
+parse_db_value(value::Dict, ::Val{:date_time}) = _parse_date_time(value["data"])
+parse_db_value(value::Dict, ::Val{:duration}) = _parse_duration(value["data"])
+parse_db_value(value::Dict, ::Val{:time_pattern}) = Dict(parse_time_period(ind) => val for (ind, val) in value["data"])
+parse_db_value(value::Dict, type::Val{:time_series}) = parse_db_value(get(value, "index", Dict()), value["data"], type)
+function parse_db_value(index::Dict, vals::Array, ::Val{:time_series})
     ignore_year = get(index, "ignore_year", false)
     inds = _collect_ts_indexes(index["start"], index["resolution"], length(vals))
     ignore_year && (inds .-= Year.(inds))
     TimeSeries(inds, _parse_float.(vals), ignore_year, get(index, "repeat", false))
 end
-function parse_db_value(::Val{:time_series}, index::Dict, data::Union{OrderedDict,Dict})
+function parse_db_value(index::Dict, data::Union{OrderedDict,Dict}, ::Val{:time_series})
     ignore_year = get(index, "ignore_year", false)
     inds = _parse_date_time.(keys(data))
     ignore_year && (inds .-= Year.(inds))
     vals = _parse_float.(values(data))
     TimeSeries(inds, vals, ignore_year, get(index, "repeat", false))
 end
-parse_db_value(type::Val{:array}, value::Dict) = _parse_inner_value.(Val(Symbol(value["value_type"])), value["data"])
-function parse_db_value(::Val{:array}, ::Nothing, data::Array{T,1}) where {T}
-    _parse_inner_value.(Val(Symbol(_inner_type_str(T))), data)
+parse_db_value(value::Dict, type::Val{:array}) = _parse_inner_value.(value["data"], Val(Symbol(value["value_type"])))
+function parse_db_value(::Nothing, data::Array{T,1}, ::Val{:array}) where {T}
+    _parse_inner_value.(data, Val(Symbol(_inner_type_str(T))))
 end
-function parse_db_value(::Val{:map}, value::Dict)
+function parse_db_value(value::Dict, ::Val{:map})
     raw_inds, raw_vals = _map_inds_and_vals(value["data"])
-    inds = _parse_inner_value.(Val(Symbol(value["index_type"])), raw_inds)
+    inds = _parse_inner_value.(raw_inds, Val(Symbol(value["index_type"])))
     vals = parse_db_value.(raw_vals)
     Map(inds, vals)
 end
+parse_db_value(value) = value
 
 unparse_db_value(x) = x
 unparse_db_value(x::DateTime) = Dict("type" => "date_time", "data" => string(Dates.format(x, db_df)))
