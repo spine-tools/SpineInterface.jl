@@ -821,6 +821,7 @@ end
 parse_db_value(value_and_type::Vector{Any}) = parse_db_value(value_and_type...)
 parse_db_value(value::Vector{UInt8}, type::Union{String,Nothing}) = _parse_db_value(JSON.parse(String(value)), type)
 parse_db_value(::Nothing, type) = nothing
+parse_db_value(x) = _parse_db_value(x)
 
 unparse_db_value(x) = Base.CodeUnits(JSON.json(_db_value(x))), _db_type(x)
 unparse_db_value(x::AbstractParameterValue) = unparse_db_value(x.value)
@@ -866,7 +867,6 @@ end
 function import_data(url::String, comment::String; kwargs...)
     import_data(url, Dict(Symbol(k) => v for (k, v) in pairs(kwargs)), comment)
 end
-
 
 """
     run_request(url::String, request::String, args, kwargs; upgrade=false)

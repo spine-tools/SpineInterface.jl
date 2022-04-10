@@ -102,10 +102,10 @@ db_url = "sqlite://"
         countries = ["Sweden", "France"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
         relationships = [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]]
-        object_parameter_values = [["institution", "KTH", "since_year", unparse_db_value(1827)]]
+        object_parameter_values = [["institution", "KTH", "since_year", 1827]]
         relationship_parameter_values = [
-            ["institution__country", ["KTH", "Sweden"], "people_count", unparse_db_value(3)],
-            ["institution__country", ["KTH", "France"], "people_count", unparse_db_value(1)],
+            ["institution__country", ["KTH", "Sweden"], "people_count", 3],
+            ["institution__country", ["KTH", "France"], "people_count", 1],
         ]    
         import_test_data(
             db_url;
@@ -136,19 +136,19 @@ end
     object_parameters = [["country", "apero_time"]]
     import_test_data(db_url; object_classes=object_classes, objects=objects, object_parameters=object_parameters)
     @testset "true" begin
-        object_parameter_values = [["country", "France", "apero_time", unparse_db_value(true)]]
+        object_parameter_values = [["country", "France", "apero_time", true]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         @test apero_time(country=country(:France))
     end
     @testset "false" begin
-        object_parameter_values = [["country", "France", "apero_time", unparse_db_value(false)]]
+        object_parameter_values = [["country", "France", "apero_time", false]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         @test !apero_time(country=country(:France))
     end
     @testset "string" begin
-        object_parameter_values = [["country", "France", "apero_time", unparse_db_value("now!")]]
+        object_parameter_values = [["country", "France", "apero_time", "now!"]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         @test apero_time(country=country(:France)) == Symbol("now!")
@@ -156,7 +156,7 @@ end
     @testset "array" begin
         data = [4, 8, 7]
         value = Dict("type" => "array", "value_type" => "float", "data" => data)
-        object_parameter_values = [["country", "France", "apero_time", unparse_db_value(value)]]
+        object_parameter_values = [["country", "France", "apero_time", value]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         @test apero_time(country=country(:France)) == data
@@ -165,7 +165,7 @@ end
     @testset "date_time" begin
         data = "2000-01-01T00:00:00"
         value = Dict("type" => "date_time", "data" => data)
-        object_parameter_values = [["country", "France", "apero_time", unparse_db_value(value)]]
+        object_parameter_values = [["country", "France", "apero_time", value]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         @test apero_time(country=country(:France)) == DateTime(data)
@@ -173,7 +173,7 @@ end
     @testset "duration" begin
         @testset for (k, (t, data)) in enumerate([(Minute, "m"), (Hour, "h"), (Day, "D"), (Month, "M"), (Year, "Y")])
             value = Dict("type" => "duration", "data" => string(k, data))
-            object_parameter_values = [["country", "France", "apero_time", unparse_db_value(value)]]
+            object_parameter_values = [["country", "France", "apero_time", value]]
             import_data(db_url; object_parameter_values=object_parameter_values)
             using_spinedb(db_url)
             @test apero_time(country=country(:France)) == t(k)
@@ -182,7 +182,7 @@ end
     @testset "time_pattern" begin
         data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
         value = Dict("type" => "time_pattern", "data" => data)
-        object_parameter_values = [["country", "France", "apero_time", unparse_db_value(value)]]
+        object_parameter_values = [["country", "France", "apero_time", value]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         France = country(:France)
@@ -196,7 +196,7 @@ end
         data = [1.0, 4.0, 5.0, NaN, 7.0]
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
         value = Dict("type" => "time_series", "data" => data, "index" => index)
-        object_parameter_values = [["country", "France", "apero_time", unparse_db_value(value)]]
+        object_parameter_values = [["country", "France", "apero_time", value]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         France = country(:France)
@@ -214,7 +214,7 @@ end
         data = [1, 4, 5, 3, 7]
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => true, "ignore_year" => true)
         value = Dict("type" => "time_series", "data" => data, "index" => index)
-        object_parameter_values = [["country", "France", "apero_time", unparse_db_value(value)]]
+        object_parameter_values = [["country", "France", "apero_time", value]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         France = country(:France)
@@ -266,7 +266,7 @@ end
                 ),
             ),
         )
-        object_parameter_values = [["country", "France", "apero_time", unparse_db_value(value)]]
+        object_parameter_values = [["country", "France", "apero_time", value]]
         import_data(
             db_url;
             object_classes=object_classes,
