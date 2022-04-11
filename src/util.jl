@@ -354,7 +354,6 @@ end
 const db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
 const alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
 
-
 _parse_db_value(value::Dict) = _parse_db_value(value, value["type"])
 _parse_db_value(value, type::String) = _parse_db_value(value, Val(Symbol(type)))
 _parse_db_value(value, ::Nothing) = _parse_db_value(value)
@@ -387,6 +386,7 @@ function _parse_db_value(value::Dict, ::Val{:map})
     vals = _parse_db_value.(raw_vals)
     Map(inds, vals)
 end
+_parse_db_value(value::Float64) = isinteger(value) ? Int64(value) : value
 _parse_db_value(value) = value
 
 function _parse_date_time(data::String)
@@ -460,6 +460,15 @@ function _unparse_time_pattern(union::UnionOfIntersections)
     join(union_arr, union_op)
 end
 
+_unparse_map_value(x::AbstractParameterValue) = _unparse_map_value(x.value)
+_unparse_map_value(x) = _add_db_type!(_db_value(x), x)
+
+function _add_db_type!(db_value::Dict, x)
+    db_value["type"] = _db_type(x)
+    db_value
+end
+_add_db_type!(db_value, x) = db_value
+
 _db_value(x) = x
 _db_value(x::Dict) = Dict(k => v for (k, v) in x if k != "type")
 _db_value(x::DateTime) = Dict("data" => string(Dates.format(x, db_df)))
@@ -491,14 +500,6 @@ _db_type(x::Array{T}) where {T} = "array"
 _db_type(x::TimePattern) = "time_pattern"
 _db_type(x::TimeSeries) = "time_series"
 _db_type(x::Map{K,V}) where {K,V} = "map"
-
-_unparse_db_value(x) = _add_db_type!(_db_value(x), x)
-
-function _add_db_type!(db_value::Dict, x)
-    db_value["type"] = _db_type(x)
-    db_value
-end
-_add_db_type!(db_value, x) = db_value
 
 # db api
 const _required_spinedb_api_version = v"0.16.7"

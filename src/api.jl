@@ -819,7 +819,10 @@ function parse_time_period(union_str::String)
 end
 
 parse_db_value(value_and_type::Vector{Any}) = parse_db_value(value_and_type...)
-parse_db_value(value::Vector{UInt8}, type::Union{String,Nothing}) = _parse_db_value(JSON.parse(String(value)), type)
+function parse_db_value(value::Vector{UInt8}, type::Union{String,Nothing})
+    isempty(value) && return nothing
+    _parse_db_value(JSON.parse(String(value)), type)
+end
 parse_db_value(::Nothing, type) = nothing
 parse_db_value(x) = _parse_db_value(x)
 
