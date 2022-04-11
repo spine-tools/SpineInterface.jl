@@ -465,21 +465,21 @@ _db_value(x::Dict) = Dict(k => v for (k, v) in x if k != "type")
 _db_value(x::DateTime) = Dict("data" => string(Dates.format(x, db_df)))
 _db_value(x::T) where {T<:Period} = Dict("data" => _unparse_duration(x))
 function _db_value(x::Array{T}) where {T}
-    Dict("value_type" => _inner_type_str(T), "data" => _unparse_element.(x))
+    Dict{String,Any}("value_type" => _inner_type_str(T), "data" => _unparse_element.(x))
 end
 function _db_value(x::TimePattern)
-    Dict("data" => Dict(_unparse_time_pattern(k) => v for (k, v) in x))
+    Dict{String,Any}("data" => Dict(_unparse_time_pattern(k) => v for (k, v) in x))
 end
 function _db_value(x::TimeSeries)
-    Dict(
+    Dict{String,Any}(
         "index" => Dict("repeat" => x.repeat, "ignore_year" => x.ignore_year),
         "data" => OrderedDict(_unparse_date_time(i) => v for (i, v) in zip(x.indexes, x.values)),
     )
 end
 function _db_value(x::Map{K,V}) where {K,V}
-    Dict(
+    Dict{String,Any}(
         "index_type" => _inner_type_str(K),
-        "data" => [(string(i), unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
+        "data" => [(string(i), _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
     )
 end
 
@@ -491,6 +491,14 @@ _db_type(x::Array{T}) where {T} = "array"
 _db_type(x::TimePattern) = "time_pattern"
 _db_type(x::TimeSeries) = "time_series"
 _db_type(x::Map{K,V}) where {K,V} = "map"
+
+_unparse_db_value(x) = _add_db_type!(_db_value(x), x)
+
+function _add_db_type!(db_value::Dict, x)
+    db_value["type"] = _db_type(x)
+    db_value
+end
+_add_db_type!(db_value, x) = db_value
 
 # db api
 const _required_spinedb_api_version = v"0.16.7"
@@ -610,7 +618,7 @@ struct _TailSerialization <: JSON.CommonSerialization
     _TailSerialization() = new(Vector{UInt8}())
 end
 
-function JSON.show_json(io::JSON.StructuralContext, s::_TailSerialization, bytes::Base.CodeUnits{UInt8,String})
+function JSON.show_json(io::JSON.StructuralContext, s::_TailSerialization, bytes::Vector{UInt8})
     tip = length(s.tail)
     from, to = tip, tip + length(bytes) - 1  # 0-based
     marker = string(_START_OF_ADDRESS, from, _ADDRESS_SEP, to)
