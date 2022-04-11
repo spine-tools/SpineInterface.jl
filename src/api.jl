@@ -920,35 +920,22 @@ timedata_operation(f::Function, y::Number, x::TimeSeries) = TimeSeries(
 timedata_operation(f::Function, x::TimePattern, y::Number) = Dict(key => f(val, y) for (key, val) in x)
 timedata_operation(f::Function, y::Number, x::TimePattern) = Dict(key => f(y, val) for (key, val) in x)
 function timedata_operation(f::Function, x::TimeSeries, y::TimeSeries)
-    if x.indexes == y.indexes && !x.ignore_year && !y.ignore_year && !x.repeat && !y.repeat
-        indexes = x.indexes
-        values = broadcast(f, x.values, y.values)
+    indexes, values = if x.indexes == y.indexes && !x.ignore_year && !y.ignore_year && !x.repeat && !y.repeat
+        x.indexes, broadcast(f, x.values, y.values)
     else
-        param_val_x = parameter_value(x)
-        param_val_y = parameter_value(y)
-        indexes = sort!(unique!(vcat(x.indexes, y.indexes)))
-        values = [_apply_or_nothing(f, param_val_x(ind), param_val_y(ind)) for ind in indexes]
-        _remove_nothing_values!(indexes, values)
+        _timedata_operation(f, x, y)
     end
     ignore_year = x.ignore_year && y.ignore_year
     repeat = x.repeat && y.repeat
     TimeSeries(indexes, values, ignore_year, repeat)
 end
 function timedata_operation(f::Function, x::TimeSeries, y::TimePattern)
-    param_val_x = parameter_value(x)
-    param_val_y = parameter_value(y)
-    indexes = copy(x.indexes)
-    values = [_apply_or_nothing(f, param_val_x(ind), param_val_y(ind)) for ind in indexes]
-    _remove_nothing_values!(indexes, values)
+    indexes, values = _timedata_operation(f, x, y)
     TimeSeries(indexes, values, x.ignore_year, x.repeat)
 end
-function timedata_operation(f::Function, y::TimePattern, x::TimeSeries)
-    param_val_y = parameter_value(y)
-    param_val_x = parameter_value(x)
-    indexes = copy(x.indexes)
-    values = [_apply_or_nothing(f, param_val_y(ind), param_val_x(ind)) for ind in x.indexes]
-    _remove_nothing_values!(indexes, values)
-    TimeSeries(indexes, values, x.ignore_year, x.repeat)
+function timedata_operation(f::Function, x::TimePattern, y::TimeSeries)
+    indexes, values = _timedata_operation(f, x, y)
+    TimeSeries(indexes, values, y.ignore_year, y.repeat)
 end
 function timedata_operation(f::Function, x::TimePattern, y::TimePattern)
     if keys(x) == keys(y)

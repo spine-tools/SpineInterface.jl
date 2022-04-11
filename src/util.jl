@@ -775,25 +775,23 @@ function _to_dict(rel_cls::RelationshipClass)
     )
 end
 
-"""
-    _apply_or_nothing(f, x, y)
-
-The result of applying `f` on `x` and `y`, or `nothing` if either `x` or `y` is `nothing`.
-"""
-_apply_or_nothing(f, x, y) = f(x, y)
-_apply_or_nothing(f, ::Nothing, y) = nothing
-_apply_or_nothing(f, x, ::Nothing) = nothing
+_common_indexes(x::TimeSeries, y::TimeSeries) = sort!(unique!(vcat(x.indexes, y.indexes)))
+_common_indexes(x::TimeSeries, y::TimePattern) = copy(x.indexes)
+_common_indexes(x::TimePattern, y::TimeSeries) = copy(y.indexes)
 
 """
-    _remove_nothing_values!(inds, vals)
-
-Remove `nothing` from `vals`, and corresponding positions from `inds`.
+Generate indexes and values for a time series by applying f over arguments x and y.
 """
-function _remove_nothing_values!(inds, vals)
-    to_remove = findall(isnothing, vals)
-    deleteat!(inds, to_remove)
-    deleteat!(vals, to_remove)
-    nothing
+function _timedata_operation(f, x, y)
+    indexes = _common_indexes(x, y)
+    param_val_x = parameter_value(x)
+    param_val_y = parameter_value(y)
+    values = Any[(param_val_x(ind), param_val_y(ind)) for ind in indexes]
+    to_remove = findall(x -> nothing in x, values)
+    deleteat!(indexes, to_remove)
+    deleteat!(values, to_remove)
+    map!(x -> f(x...), values, values)
+    indexes, values
 end
 
 """
