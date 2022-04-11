@@ -488,7 +488,7 @@ end
 function _db_value(x::Map{K,V}) where {K,V}
     Dict{String,Any}(
         "index_type" => _inner_type_str(K),
-        "data" => [(string(i), _unparse_db_value(v)) for (i, v) in zip(x.indexes, x.values)],
+        "data" => [(string(i), _unparse_map_value(v)) for (i, v) in zip(x.indexes, x.values)],
     )
 end
 
