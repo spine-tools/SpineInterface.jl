@@ -662,7 +662,8 @@ _expand_addresses!(o, tail) = o
 
 function _do_run_server_request(server_uri::URI, full_request::Array; timeout=Inf)
     clientside = connect(server_uri.host, parse(Int, server_uri.port))
-    write(clientside, _encode(full_request) * _EOT)
+    write(clientside, _encode(full_request))
+    write(clientside, UInt8(_EOT))
     io = IOBuffer()
     elapsed = 0
     while true
