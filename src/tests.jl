@@ -3,7 +3,7 @@
 
 This file contains functions for testing `Parameter`, `ObjectClass`, and `RelationshipClass` entities.
 The primary purpose is to make writing database tests easier, e.g. ensuring that all values of a `Parameter` are
-of a certain type, or withing a specified range for values.
+of a certain type, or within a specified range for values.
 =#
 
 """
