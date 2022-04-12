@@ -504,6 +504,38 @@ end
         false
     end
 end
+@testset "difference" begin
+    Left = Module()
+    Right = Module()
+    import_test_data(
+        db_url;
+        object_classes=["institution", "country"],
+        relationship_classes=[["institution__country", ["institution", "country"]]],
+        object_parameters=[["institution", "since_year"]],
+        relationship_parameters=[["institution__country", "people_count"]],
+    )
+    using_spinedb(db_url, Left)
+    import_test_data(
+        db_url;
+        object_classes=["institution", "idea"],
+        relationship_classes=[["institution__idea", ["institution", "idea"]]],
+        object_parameters=[["institution", "since_year"]],
+        relationship_parameters=[["institution__idea", "creator"]],
+    )
+    using_spinedb(db_url, Right)
+    left_diff = difference(Left, Right)
+    left_parts = [split(strip(x), "  ") for x in split(left_diff, '\n') if !isempty(x)]
+    left_expected = [
+        ["object classes", "country"], ["relationship classes", "institution__country"], ["parameters", "people_count"]
+    ]
+    @test left_parts == left_expected
+    right_diff = difference(Right, Left)
+    right_parts = [split(strip(x), "  ") for x in split(right_diff, '\n') if !isempty(x)]
+    right_expected = [
+        ["object classes", "idea"], ["relationship classes", "institution__idea"], ["parameters", "creator"]
+    ]
+    @test right_parts == right_expected
+end
 
 # Clear in-memory DB for safety
 import_test_data(db_url; object_classes=[])
