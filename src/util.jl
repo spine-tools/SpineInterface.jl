@@ -502,9 +502,9 @@ _db_type(x::TimeSeries) = "time_series"
 _db_type(x::Map{K,V}) where {K,V} = "map"
 
 # db api
-const _required_spinedb_api_version = v"0.16.7"
+const _required_spinedb_api_version = v"0.17.0"
 
-const _client_version = 3
+const _client_version = 4
 
 _spinedb_api_not_found(pyprogramname) = """
 The required Python package `spinedb_api` could not be found in the current Python environment
