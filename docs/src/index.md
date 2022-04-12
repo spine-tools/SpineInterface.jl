@@ -2,17 +2,16 @@
 
 This package provides the ability to access the contents of a Spine database in a way
 that's convenient for writing algorithms.
-The function `using_spinedb` is the main star of the package.
+The function `using_spinedb` is the main star of the package:
 Given the url of a Spine database,
 it creates a series of convenience functions to retrieve the contents of that database 
 in the Julia module or session where it's called.
-In this way, you can populate a Spine database with your data for, e.g.,
-and optimisation model,
-call `using_spinedb` in your module to generate convenience functions,
-and then use those functions to do something specific.
+In this way, you can populate a Spine database with that data for a system you want to study,
+call `using_spinedb` in your module to generate the convenience functions,
+and then use those functions to build, e.g., an optimisation model for that system.
 This allows you to develop fully data-driven applications.
 One key example is the [`SpineOpt`](https://github.com/Spine-project/SpineOpt.jl) package,
-which uses this technique to generate and run energy system integration models.
+which uses the above technique to generate and run energy system integration models.
 
 ## Compatibility
 
