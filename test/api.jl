@@ -478,24 +478,18 @@ end
     # Create objects and object class for testing
     to1 = Object(:test_object_1)
     to2 = Object(:test_object_2)
-    original_object_class = ObjectClass(:test_object_class, [to1, to2], Dict(to1 => pv_dict), pv_dict)
-    original_relationship_class = RelationshipClass(
-        :test_relationship_class,
-        [:test_object_class, :test_object_class],
-        [(to1, to2)],
-        Dict((to1, to2) => pv_dict),
-        pv_dict
-    )
+    original_oc = ObjectClass(:test_oc, [to1, to2], Dict(to1 => pv_dict), pv_dict)
+    original_rc = RelationshipClass(:test_rc, [:test_oc, :test_oc], [(to1, to2)], Dict((to1, to2) => pv_dict), pv_dict)
     # Import the newly created `ObjectClass` and `RelationshipClass`
-    @test import_data(db_url, original_object_class, "Import test object class.") == []
-    @test import_data(db_url, original_relationship_class, "Import test relationship class.") == []
+    @test import_data(db_url, original_oc, "Import test object class.") == []
+    @test import_data(db_url, original_rc, "Import test relationship class.") == []
     Y = Module()
     using_spinedb(db_url, Y)
-    @testset for (pname, pval) in pv_dict
+    @testset for pname in keys(pv_dict)
+        pval = pv_dict[pname]
         param = getproperty(Y, pname)
-        # @test param(test_object_class=Y.test_object_class(:test_object_1)) === pval.value
+        @test param(test_oc=Y.test_oc(:test_object_1)) == ((pname == :nothing_parameter) ? nothing : pval.value)
     end
-
 end
 @testset "difference" begin
     Left = Module()
