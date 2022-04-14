@@ -350,9 +350,16 @@ function _sort_unique!(inds, vals)
     deleteat!(sorted_inds, nonunique_inds), deleteat!(sorted_vals, nonunique_inds)
 end
 
-# parse db values
+# parse/unparse db values
+# parse
 const db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
 const alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
+
+_inner_type_str(::Type{Float64}) = "float"
+_inner_type_str(::Type{Symbol}) = "str"
+_inner_type_str(::Type{String}) = "str"
+_inner_type_str(::Type{DateTime}) = "date_time"
+_inner_type_str(::Type{T}) where {T<:Period} = "duration"
 
 _parse_db_value(value::Dict) = _parse_db_value(value, value["type"])
 _parse_db_value(value, type::String) = _parse_db_value(value, Val(Symbol(type)))
@@ -407,12 +414,6 @@ end
 _parse_float(x) = Float64(x)
 _parse_float(::Nothing) = NaN
 
-_inner_type_str(::Type{Float64}) = "float"
-_inner_type_str(::Type{Symbol}) = "str"
-_inner_type_str(::Type{String}) = "str"
-_inner_type_str(::Type{DateTime}) = "date_time"
-_inner_type_str(::Type{T}) where {T<:Period} = "duration"
-
 _parse_inner_value(value::String, ::Val{:str}) = value
 _parse_inner_value(value::T, ::Val{:float}) where {T<:Number} = _parse_float(value)
 _parse_inner_value(value::String, ::Val{:duration}) = _parse_duration(value)
@@ -437,7 +438,7 @@ _map_inds_and_vals(data::Matrix) = data[:,1], data[:,2]
 _map_inds_and_vals(data::Array) = (x[1] for x in data), (x[2] for x in data)
 _map_inds_and_vals(data::Dict) = keys(data), values(data)
 
-# unparse db values
+# unparse
 _unparse_date_time(x::DateTime) = string(Dates.format(x, db_df))
 function _unparse_duration(x::T) where {T<:Period}
     d = Dict(Minute => "m", Hour => "h", Day => "D", Month => "M", Year => "Y")
@@ -488,7 +489,7 @@ end
 function _db_value(x::Map{K,V}) where {K,V}
     Dict{String,Any}(
         "index_type" => _inner_type_str(K),
-        "data" => [(string(i), _unparse_map_value(v)) for (i, v) in zip(x.indexes, x.values)],
+        "data" => [(i, _unparse_map_value(v)) for (i, v) in zip(x.indexes, x.values)],
     )
 end
 

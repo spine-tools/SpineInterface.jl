@@ -220,7 +220,7 @@ end
 
 (p::TimePatternParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
 (p::TimePatternParameterValue)(::Nothing) = p.value
-(p::TimePatternParameterValue)(t::DateTime) = p(TimeSlice(t,t))
+(p::TimePatternParameterValue)(t::DateTime) = p(TimeSlice(t, t))
 function (p::TimePatternParameterValue)(t::TimeSlice)
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
     isempty(vals) && return nothing
@@ -828,7 +828,7 @@ parse_db_value(x) = _parse_db_value(x)
 
 unparse_db_value(x) = Vector{UInt8}(JSON.json(_db_value(x))), _db_type(x)
 unparse_db_value(x::AbstractParameterValue) = unparse_db_value(x.value)
-unparse_db_value(::NothingParameterValue) = nothing, nothing
+unparse_db_value(::NothingParameterValue) = unparse_db_value(nothing)
 
 """
     import_data(url, data, comment)
@@ -863,12 +863,12 @@ end
 function import_data(url::String, data::Dict{String,T}, comment::String) where {T}
     import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment)
 end
+function import_data(url::String, comment::String; kwargs...)
+    import_data(url, Dict(Symbol(k) => v for (k, v) in pairs(kwargs)), comment)
+end
 function import_data(url::String, data::Dict{Symbol,T}, comment::String) where {T}
     db = _db(url)
     _import_data(db, data, comment)
-end
-function import_data(url::String, comment::String; kwargs...)
-    import_data(url, Dict(Symbol(k) => v for (k, v) in pairs(kwargs)), comment)
 end
 
 """
