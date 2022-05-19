@@ -91,6 +91,10 @@ function Base.show(io::IO, union::UnionOfIntersections)
     ]
     print(io, join(intersections, ", or "))
 end
+Base.show(io::IO, ts::TimeSeries) = print(
+    io,
+    "TimeSeries{$(first(ts.indexes))~>$(last(ts.indexes))}[$(minimum(ts.values)),$(maximum(ts.values))]($(ts.ignore_year),$(ts.repeat))"
+)
 
 Base.convert(::Type{Call}, x::T) where {T<:Real} = Call(x)
 
