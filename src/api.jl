@@ -860,8 +860,8 @@ import_data(url, d, "arf!")
 function import_data(url::String, data::Union{ObjectClass,RelationshipClass}, comment::String)
     import_data(url, _to_dict(data), comment)
 end
-function import_data(url::String, data::Vector{Any}, comment::String)
-    import_data(url, merge(_to_dict.(data)...), comment)
+function import_data(url::String, data::Vector, comment::String)
+    import_data(url, mergewith(append!, _to_dict.(data)...), comment)
 end
 function import_data(url::String, data::Dict{String,T}, comment::String) where {T}
     import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment)
