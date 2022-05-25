@@ -483,6 +483,7 @@ end
     # Import the newly created `ObjectClass` and `RelationshipClass`
     @test import_data(db_url, original_oc, "Import test object class.") == []
     @test import_data(db_url, original_rc, "Import test relationship class.") == []
+    @test import_data(db_url, [original_oc, original_rc], "Import both object and relationship class.") == []
     Y = Module()
     using_spinedb(db_url, Y)
     @testset for pname in keys(pv_dict)
