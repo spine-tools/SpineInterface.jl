@@ -461,6 +461,7 @@ function _unparse_time_pattern(union::UnionOfIntersections)
     join(union_arr, union_op)
 end
 
+_unparse_map_value(x::NothingParameterValue) = _unparse_map_value(nothing)
 _unparse_map_value(x::AbstractParameterValue) = _unparse_map_value(x.value)
 _unparse_map_value(x) = _add_db_type!(_db_value(x), x)
 
