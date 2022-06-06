@@ -19,8 +19,12 @@ end
 
 """
     test_parameter(
-        param::Parameter, value_type::Union{DataType,Union,UnionAll}, m::Module=@__MODULE__;
-        value_min::Real=-Inf, value_max::Real=Inf, limit::Real=Inf
+        param::Parameter,
+        value_type::Union{DataType,Union,UnionAll},
+        m::Module = @__MODULE__;
+        value_min::Real = -Inf,
+        value_max::Real = Inf,
+        limit::Real = Inf,
     )
 
 Test if `param` value in module `m` has the expected `DataType` and is contained between `value_min`, and `value_max`.
@@ -118,8 +122,12 @@ end
 
 """
     test_object_class(
-        obj_class::ObjectClass, rel_class::RelationshipClass, m::Module=@__MODULE__;
-        count_min::Real=0, count_max::Real=Inf, limit::Real=Inf
+        obj_class::ObjectClass,
+        rel_class::RelationshipClass,
+        m::Module = @__MODULE__;
+        count_min::Real = 0,
+        count_max::Real = Inf,
+        limit::Real = Inf,
     )
 
 Test if the `object_class` in module `m` is included in `relationship_class` with a desired entry count for each `object`.
@@ -160,8 +168,12 @@ end
 
 """
     test_relationship_class(
-        rel_class:RelationshipClass, in_rel_class::RelationshipClass, m::Module=@__MODULE__;
-        count_min::Real=0, count_max::Real=Inf, limit::Real=Inf
+        rel_class::RelationshipClass,
+        in_rel_class::RelationshipClass,
+        m::Module = @__MODULE__;
+        count_min::Real = 0,
+        count_max::Real = Inf,
+        limit::Real = Inf,
     )
 
 Test if `relationship_class` in module `m` is included in `in_rel_class` with the desired number of entries.
