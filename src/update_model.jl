@@ -118,13 +118,15 @@ function JuMP.add_constraint(
 ) where {S<:CallSet}
     realized_con = ScalarConstraint(realize(con.func), realize(con.set))
     con_ref = add_constraint(model, realized_con, name)
-    # Register varying stuff in `model.ext` so we can do work in `update_varying_constraints!`. This is the entire trick.
+    # Register varying stuff in `model.ext` so we can do work in `update_varying_constraints!`.
+    # This is the entire trick.
+    spineinterface_ext = get!(model.ext, :spineinterface, SpineInterfaceExt())
     varying_terms = Dict(var => coef for (var, coef) in con.func.terms if is_varying(coef))
     if !isempty(varying_terms)
-        get!(model.ext, :varying_constraint_terms, Dict())[con_ref] = varying_terms
+        spineinterface_ext.varying_constraint_terms[con_ref] = varying_terms
     end
     if is_varying(MOI.constant(con.set))
-        get!(model.ext, :varying_constraint_rhs, Dict())[con_ref] = MOI.constant(con.set)
+        spineinterface_ext.varying_constraint_rhs[con_ref] = MOI.constant(con.set)
     end
     con_ref
 end
@@ -255,25 +257,38 @@ Base.:-(lhs::GenericAffExpr{C,VariableRef}, rhs::GenericAffExpr{Call,VariableRef
 
 # @objective extension
 function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
-    model.ext[:varying_objective_terms] = Dict(var => coef for (var, coef) in func.terms if is_varying(coef))
+    spineinterface_ext = get!(model.ext, :spineinterface, SpineInterfaceExt())
+    spineinterface_ext.varying_objective_terms = Dict(var => coef for (var, coef) in func.terms if is_varying(coef))
     set_objective_function(model, realize(func))
 end
 
 function update_varying_objective!(model::Model)
-    for (var, coef) in get(model.ext, :varying_objective_terms, ())
+    spineinterface_ext = get!(model.ext, :spineinterface, SpineInterfaceExt())
+    for (var, coef) in spineinterface_ext.varying_objective_terms
         set_objective_coefficient(model, var, realize(coef))
     end
 end
 
 function update_varying_constraints!(model::Model)
-    for (con_ref, terms) in get(model.ext, :varying_constraint_terms, ())
+    spineinterface_ext = get!(model.ext, :spineinterface, SpineInterfaceExt())
+    for (con_ref, terms) in spineinterface_ext.varying_constraint_terms
         for (var, coef) in terms
             set_normalized_coefficient(con_ref, var, realize(coef))
         end
     end
-    for (con_ref, rhs) in get(model.ext, :varying_constraint_rhs, ())
+    for (con_ref, rhs) in spineinterface_ext.varying_constraint_rhs
         set_normalized_rhs(con_ref, realize(rhs))
     end
 end
 
 update_model!(m) = (update_varying_constraints!(m); update_varying_objective!(m))
+
+
+mutable struct SpineInterfaceExt
+    varying_objective_terms::Dict
+    varying_constraint_terms::Dict
+    varying_constraint_rhs::Dict
+    SpineInterfaceExt() = new(Dict(), Dict(), Dict())
+end
+
+JuMP.copy_extension_data(data::SpineInterfaceExt, new_model::AbstractModel, model::AbstractModel) = nothing
