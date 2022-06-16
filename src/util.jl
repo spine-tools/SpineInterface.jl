@@ -815,3 +815,22 @@ _object_class_name(key, val::ObjectLike) = _object_class_name(key, val, val.clas
 _object_class_name(key, val::ObjectLike, class_name::Symbol) = string(class_name)
 _object_class_name(key, val::ObjectLike, ::Nothing) = string(key)
 _object_class_name(key, val) = string(key)
+
+"""A custom JSONContext that serializes NaN values in parameter values as 'NaN'"""
+mutable struct _ParameterValueJSONContext <: JSON.Writer.JSONContext
+    underlying::JSON.Writer.JSONContext
+end
+
+for delegate in (:indent, :delimit, :separate, :begin_array, :end_array, :begin_object, :end_object)
+    @eval JSON.Writer.$delegate(ctx::_ParameterValueJSONContext) = JSON.Writer.$delegate(ctx.underlying)
+end
+Base.write(ctx::_ParameterValueJSONContext, byte::UInt8) = write(ctx.underlying, byte)
+
+JSON.Writer.show_null(ctx::_ParameterValueJSONContext) = print(ctx, "NaN")
+
+function _serialize_pv(obj)
+    io = IOBuffer()
+    ctx = _ParameterValueJSONContext(JSON.Writer.CompactContext(io))
+    JSON.print(ctx, obj)
+    String(take!(io))
+end
