@@ -460,7 +460,7 @@ end
     str = "test"
     dt = DateTime(1)
     dur = Hour(1)
-    ar = [1.0, 2.0, 3.0]
+    ar = [1.0, NaN, 3.0]
     tp = Dict(SpineInterface.parse_time_period("Y1-2") => 1.0)
     ts = TimeSeries([DateTime(1), DateTime(2), DateTime(3)], [1.0, 2.0, 1.0], false, false)
     map = Map([1.0, 2.0], [3.0, 4.0])
@@ -489,7 +489,7 @@ end
     @testset for pname in keys(pv_dict)
         pval = pv_dict[pname]
         param = getproperty(Y, pname)
-        @test param(test_oc=Y.test_oc(:test_object_1)) == ((pname == :nothing_parameter) ? nothing : pval.value)
+        @test isequal(param(test_oc=Y.test_oc(:test_object_1)), ((pname == :nothing_parameter) ? nothing : pval.value))
     end
 end
 @testset "difference" begin

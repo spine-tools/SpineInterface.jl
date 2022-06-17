@@ -283,7 +283,6 @@ end
 
 update_model!(m) = (update_varying_constraints!(m); update_varying_objective!(m))
 
-
 mutable struct SpineInterfaceExt
     varying_objective_terms::Dict
     varying_constraint_terms::Dict
