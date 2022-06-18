@@ -343,12 +343,17 @@ function _sort_unique!(inds, vals)
         end
         trimmed_inds, trimmed_vals
     end
-    nonunique_inds = _nonunique_inds_sorted(sorted_inds)
-    if !isempty(nonunique_inds)        
-        #@warn("repeated indices $(sorted_inds[unique(nonunique_inds)]), taking only last one")
-        @warn("$(length(nonunique_inds)) repeated indices, taking only last one")
+
+    nonunique = _nonunique_inds_sorted(sorted_inds)
+    if !isempty(nonunique)
+        n = length(nonunique)
+        if n <= 5
+            @warn("repeated indices $([sorted_inds[i] => sorted_vals[i] for i in nonunique]), taking only last one")
+        else
+            @warn("repeated indices $([sorted_inds[i] => sorted_vals[i] for (index, i) in enumerate(nonunique) if index <= 5]), ... plus $(n-5) more")
+        end             
     end
-    deleteat!(sorted_inds, nonunique_inds), deleteat!(sorted_vals, nonunique_inds)
+    deleteat!(sorted_inds, nonunique), deleteat!(sorted_vals, nonunique)
 end
 
 # parse/unparse db values
@@ -494,6 +499,26 @@ function _db_value(x::Map{K,V}) where {K,V}
         "data" => [(i, _unparse_map_value(v)) for (i, v) in zip(x.indexes, x.values)],
     )
 end
+
+"""A custom JSONContext that serializes NaN values in complex parameter values as 'NaN'"""
+mutable struct _ParameterValueJSONContext <: JSON.Writer.JSONContext
+    underlying::JSON.Writer.JSONContext
+end
+
+for delegate in (:indent, :delimit, :separate, :begin_array, :end_array, :begin_object, :end_object)
+    @eval JSON.Writer.$delegate(ctx::_ParameterValueJSONContext) = JSON.Writer.$delegate(ctx.underlying)
+end
+Base.write(ctx::_ParameterValueJSONContext, byte::UInt8) = write(ctx.underlying, byte)
+
+JSON.Writer.show_null(ctx::_ParameterValueJSONContext) = print(ctx, "NaN")
+
+function _serialize_pv(obj::Dict)
+    io = IOBuffer()
+    ctx = _ParameterValueJSONContext(JSON.Writer.CompactContext(io))
+    JSON.print(ctx, obj)
+    String(take!(io))
+end
+_serialize_pv(x) = JSON.json(x)
 
 _db_type(x) = nothing
 _db_type(x::Dict) = x["type"]

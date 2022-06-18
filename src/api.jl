@@ -826,7 +826,7 @@ end
 parse_db_value(::Nothing, type) = nothing
 parse_db_value(x) = _parse_db_value(x)
 
-unparse_db_value(x) = Vector{UInt8}(JSON.json(_db_value(x))), _db_type(x)
+unparse_db_value(x) = Vector{UInt8}(_serialize_pv(_db_value(x))), _db_type(x)
 unparse_db_value(x::AbstractParameterValue) = unparse_db_value(x.value)
 unparse_db_value(::NothingParameterValue) = unparse_db_value(nothing)
 
