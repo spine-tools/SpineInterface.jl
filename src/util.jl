@@ -344,8 +344,9 @@ function _sort_unique!(inds, vals)
         trimmed_inds, trimmed_vals
     end
     nonunique_inds = _nonunique_inds_sorted(sorted_inds)
-    if !isempty(nonunique_inds)
-        @warn("repeated indices $(sorted_inds[unique(nonunique_inds)]), taking only last one")
+    if !isempty(nonunique_inds)        
+        #@warn("repeated indices $(sorted_inds[unique(nonunique_inds)]), taking only last one")
+        @warn("$(length(nonunique_inds)) repeated indices, taking only last one")
     end
     deleteat!(sorted_inds, nonunique_inds), deleteat!(sorted_vals, nonunique_inds)
 end
