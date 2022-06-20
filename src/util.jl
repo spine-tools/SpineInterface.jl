@@ -343,9 +343,15 @@ function _sort_unique!(inds, vals)
         end
         trimmed_inds, trimmed_vals
     end
+
     nonunique = _nonunique_inds_sorted(sorted_inds)
     if !isempty(nonunique)
-        @warn("repeated indices $([sorted_inds[i] => sorted_vals[i] for i in nonunique]), taking only last one")
+        n = length(nonunique)
+        if n <= 5
+            @warn("repeated indices $([sorted_inds[i] => sorted_vals[i] for i in nonunique]), taking only last one")
+        else
+            @warn("repeated indices $([sorted_inds[i] => sorted_vals[i] for (index, i) in enumerate(nonunique) if index <= 5]), ... plus $(n-5) more")
+        end             
     end
     deleteat!(sorted_inds, nonunique), deleteat!(sorted_vals, nonunique)
 end
