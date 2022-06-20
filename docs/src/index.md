@@ -62,7 +62,7 @@ with the Spine database schema in it.
 The next step is to add some content to the database. Run:
 
 ```jldoctest quick_start_guide
-julia> db_api.import_data_to_url(url; object_classes=["actor", "film"])
+julia> import_data(url; object_classes=["actor", "film"])
 
 ```
 

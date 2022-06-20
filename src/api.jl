@@ -826,9 +826,33 @@ end
 parse_db_value(::Nothing, type) = nothing
 parse_db_value(x) = _parse_db_value(x)
 
-unparse_db_value(x) = Vector{UInt8}(_serialize_pv(_db_value(x))), _db_type(x)
+unparse_db_value(x) = Vector{UInt8}(_serialize_pv(db_value(x))), _db_type(x)
 unparse_db_value(x::AbstractParameterValue) = unparse_db_value(x.value)
 unparse_db_value(::NothingParameterValue) = unparse_db_value(nothing)
+
+db_value(x) = x
+db_value(x::Dict) = Dict(k => v for (k, v) in x if k != "type")
+db_value(x::DateTime) = Dict("data" => string(Dates.format(x, db_df)))
+db_value(x::T) where {T<:Period} = Dict("data" => _unparse_duration(x))
+function db_value(x::Array{T}) where {T}
+    Dict{String,Any}("value_type" => _inner_type_str(T), "data" => _unparse_element.(x))
+end
+function db_value(x::TimePattern)
+    Dict{String,Any}("data" => Dict(_unparse_time_pattern(k) => v for (k, v) in x))
+end
+function db_value(x::TimeSeries)
+    Dict{String,Any}(
+        "index" => Dict("repeat" => x.repeat, "ignore_year" => x.ignore_year),
+        "data" => OrderedDict(_unparse_date_time(i) => v for (i, v) in zip(x.indexes, x.values)),
+    )
+end
+function db_value(x::Map{K,V}) where {K,V}
+    Dict{String,Any}(
+        "index_type" => _inner_type_str(K),
+        "data" => [(i, _unparse_map_value(v)) for (i, v) in zip(x.indexes, x.values)],
+    )
+end
+
 
 """
     import_data(url, data, comment)

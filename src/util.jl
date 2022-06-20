@@ -463,36 +463,13 @@ end
 
 _unparse_map_value(x::NothingParameterValue) = _unparse_map_value(nothing)
 _unparse_map_value(x::AbstractParameterValue) = _unparse_map_value(x.value)
-_unparse_map_value(x) = _add_db_type!(_db_value(x), x)
+_unparse_map_value(x) = _add_db_type!(db_value(x), x)
 
-function _add_db_type!(db_value::Dict, x)
-    db_value["type"] = _db_type(x)
-    db_value
+function _add_db_type!(db_val::Dict, x)
+    db_val["type"] = _db_type(x)
+    db_val
 end
-_add_db_type!(db_value, x) = db_value
-
-_db_value(x) = x
-_db_value(x::Dict) = Dict(k => v for (k, v) in x if k != "type")
-_db_value(x::DateTime) = Dict("data" => string(Dates.format(x, db_df)))
-_db_value(x::T) where {T<:Period} = Dict("data" => _unparse_duration(x))
-function _db_value(x::Array{T}) where {T}
-    Dict{String,Any}("value_type" => _inner_type_str(T), "data" => _unparse_element.(x))
-end
-function _db_value(x::TimePattern)
-    Dict{String,Any}("data" => Dict(_unparse_time_pattern(k) => v for (k, v) in x))
-end
-function _db_value(x::TimeSeries)
-    Dict{String,Any}(
-        "index" => Dict("repeat" => x.repeat, "ignore_year" => x.ignore_year),
-        "data" => OrderedDict(_unparse_date_time(i) => v for (i, v) in zip(x.indexes, x.values)),
-    )
-end
-function _db_value(x::Map{K,V}) where {K,V}
-    Dict{String,Any}(
-        "index_type" => _inner_type_str(K),
-        "data" => [(i, _unparse_map_value(v)) for (i, v) in zip(x.indexes, x.values)],
-    )
-end
+_add_db_type!(db_val, x) = db_val
 
 """A custom JSONContext that serializes NaN values in complex parameter values as 'NaN'"""
 mutable struct _ParameterValueJSONContext <: JSON.Writer.JSONContext

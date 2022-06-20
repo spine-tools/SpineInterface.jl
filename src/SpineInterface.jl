@@ -96,6 +96,7 @@ export test_parameter
 export timedata_operation
 export run_request
 export difference
+export db_value
 
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin
