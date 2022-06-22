@@ -74,10 +74,10 @@ _entity_tuple(r::RelationshipLike, class) = r
 _entity_tuples(class::ObjectClass; kwargs...) = (_entity_tuple(o, class) for o in class())
 _entity_tuples(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
 
-_show_call(io::IO, call::Call, ::Function) = print(io, join(call.args, string(" ", call.func, " ")))
-_show_call(io::IO, call::Call, ::Nothing) = print(io, _do_realize(call))
-function _show_call(io::IO, call::Call, ::T) where {T<:AbstractParameterValue}
-    pname, kwargs = call.call_expr
+_show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
+_show_call(io::IO, call::Call, expr::Nothing, func::Function) = print(io, join(call.args, string(" ", func, " ")))
+function _show_call(io::IO, call::Call, expr::_CallExpr, func)
+    pname, kwargs = expr
     kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
     result = _do_realize(call)
     print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))

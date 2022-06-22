@@ -74,7 +74,7 @@ Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, v::ScalarParameterValue) = print(io, v.value)
-Base.show(io::IO, call::Call) = _show_call(io, call, call.func)
+Base.show(io::IO, call::Call) = _show_call(io, call, call.call_expr, call.func)
 function Base.show(io::IO, union::UnionOfIntersections)
     d = Dict{Symbol,String}(
         :Y => "year",
