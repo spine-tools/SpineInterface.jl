@@ -319,7 +319,7 @@ end
 Modify `inds` and `vals` in place, trimmed so they are both of the same size, sorted,
 and with non unique elements of `inds` removed.
 """
-function _sort_unique!(inds, vals)
+function _sort_unique!(inds, vals; merge_ok=false)
     ind_count = length(inds)
     val_count = length(vals)
     trimmed_inds, trimmed_vals = if ind_count == val_count
@@ -343,15 +343,12 @@ function _sort_unique!(inds, vals)
         end
         trimmed_inds, trimmed_vals
     end
-
     nonunique = _nonunique_inds_sorted(sorted_inds)
-    if !isempty(nonunique)
+    if !merge_ok && !isempty(nonunique)
         n = length(nonunique)
-        if n <= 5
-            @warn("repeated indices $([sorted_inds[i] => sorted_vals[i] for i in nonunique]), taking only last one")
-        else
-            @warn("repeated indices $([sorted_inds[i] => sorted_vals[i] for (index, i) in enumerate(nonunique) if index <= 5]), ... plus $(n-5) more")
-        end             
+        dupes = ", "join([sorted_inds[i] => sorted_vals[i] for i in nonunique[1:5]])
+        tail = n > 5 ? "... plus $(n - 5) more" : ""
+        @warn("repeated indices, taking only last one: $dupes, $tail")          
     end
     deleteat!(sorted_inds, nonunique), deleteat!(sorted_vals, nonunique)
 end

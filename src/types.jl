@@ -119,9 +119,9 @@ struct TimeSeries{V}
     ignore_year::Bool
     repeat::Bool
     _lookup::Dict
-    function TimeSeries(inds, vals::Array{V,1}, iy, rep) where {V}
+    function TimeSeries(inds, vals::Array{V,1}, iy, rep; merge_ok=false) where {V}
         inds, vals = copy(inds), copy(vals)
-        _sort_unique!(inds, vals)
+        _sort_unique!(inds, vals; merge_ok=merge_ok)
         new{V}(inds, vals, iy, rep, Dict(zip(inds, vals)))
     end
 end
