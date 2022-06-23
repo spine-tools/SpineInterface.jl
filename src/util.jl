@@ -346,7 +346,7 @@ function _sort_unique!(inds, vals; merge_ok=false)
     nonunique = _nonunique_inds_sorted(sorted_inds)
     if !merge_ok && !isempty(nonunique)
         n = length(nonunique)
-        dupes = ", "join([sorted_inds[i] => sorted_vals[i] for i in nonunique[1:5]])
+        dupes = [sorted_inds[i] => sorted_vals[i] for i in nonunique[1:5]]
         tail = n > 5 ? "... plus $(n - 5) more" : ""
         @warn("repeated indices, taking only last one: $dupes, $tail")          
     end
