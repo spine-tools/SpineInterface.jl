@@ -56,7 +56,7 @@ julia> sort(node())
  Nimes
  Sthlm
 
-julia> commodity(state_of_matter=:gas)
+julia> commodity(state_of_matter=commodity(:gas))
 1-element Array{Object,1}:
  wind
 ```
@@ -114,12 +114,12 @@ julia> sort(node__commodity())
  (node = Nimes, commodity = water)
  (node = Sthlm, commodity = water)
 
-julia> node__commodity(commodity=:water)
+julia> node__commodity(commodity=commodity(:water))
 2-element Array{Object,1}:
  Nimes
  Sthlm
 
-julia> node__commodity(node=(:Dublin, :Espoo))
+julia> node__commodity(node=(node(:Dublin), node(:Espoo)))
 1-element Array{Object,1}:
  wind
 
@@ -128,12 +128,12 @@ julia> sort(node__commodity(node=anything))
  water
  wind
 
-julia> sort(node__commodity(commodity=:water, _compact=false))
+julia> sort(node__commodity(commodity=commodity(:water), _compact=false))
 2-element Array{NamedTuple,1}:
  (node = Nimes, commodity = water)
  (node = Sthlm, commodity = water)
 
-julia> node__commodity(commodity=:gas, _default=:nogas)
+julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 :nogas
 ```
 """
@@ -193,10 +193,10 @@ julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "exa
 julia> using_spinedb(url)
 
 
-julia> tax_net_flow(node=:Sthlm, commodity=:water)
+julia> tax_net_flow(node=node(:Sthlm), commodity=commodity(:water))
 4
 
-julia> demand(node=:Sthlm, i=1)
+julia> demand(node=node(:Sthlm), i=1)
 21
 ```
 """
