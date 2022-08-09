@@ -42,25 +42,50 @@ end
 function _lookup_parameter_value(p::Parameter; _strict=true, kwargs...)
     for class in p.classes
         lookup_key, new_kwargs = _lookup_key(class; kwargs...)
-        parameter_values = get(class.parameter_values, lookup_key, nothing)
+        parameter_values = _entity_pvals(class, lookup_key)
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults), new_kwargs
     end
     if _strict
-        error("parameter $p is not specified for argument(s) $(join(kwargs, ", "))")
+        error("can't find a value of $p for argument(s) $((; kwargs...))")
+    end
+end
+
+_entity_pvals(class, lookup_key) = _entity_pvals(class, lookup_key, get(class.parameter_values, lookup_key, nothing))
+_entity_pvals(class, lookup_key, something) = something
+function _entity_pvals(class, lookup_key, ::Nothing)
+    pvals = class.parameter_values
+    matching = filter(k -> _matches(k, lookup_key), keys(pvals))
+    if length(matching) === 1
+        return pvals[first(matching)]
+    else
+        full_key = _full_key(class, lookup_key)
+        given_key = (; (k => v for (k, v) in pairs(full_key) if v !== missing)...)
+        if isempty(matching)
+            @info "no value matching $given_key"
+        else
+            missing_indices = join((k for (k, v) in pairs(full_key) if v === missing), ", ", ", or ")
+            @info "too many values matching $given_key - try specifying $missing_indices"
+        end
     end
 end
 
 function _lookup_key(class::ObjectClass; kwargs...)
     new_kwargs = OrderedDict(kwargs...)
-    pop!(new_kwargs, class.name, nothing), (; new_kwargs...)
+    pop!(new_kwargs, class.name, missing), (; new_kwargs...)
 end
 function _lookup_key(class::RelationshipClass; kwargs...)
     new_kwargs = OrderedDict(kwargs...)
-    objects = Tuple(pop!(new_kwargs, oc, nothing) for oc in class.object_class_names)
-    nothing in objects && return nothing, (; new_kwargs...)
+    objects = Tuple(pop!(new_kwargs, oc, missing) for oc in class.object_class_names)
     objects, (; new_kwargs...)
 end
+
+_full_key(class::ObjectClass, key) = (; (class.name => key,)...)
+_full_key(class::RelationshipClass, key) = (; zip(class.object_class_names, key)...)
+
+_matches(first::Tuple, second::Tuple) = all(_matches(x, y) for (x, y) in zip(first, second))
+_matches(x, ::Missing) = true
+_matches(x, y) = x == y
 
 _entities(class::ObjectClass; kwargs...) = class()
 _entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
