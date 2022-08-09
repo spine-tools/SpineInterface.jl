@@ -750,6 +750,10 @@ function write_parameters(
     errors = _import_data(db, import_data, comment)
     isempty(errors) || @warn join(errors, "\n")
 end
+function write_parameters(parameter::Parameter, url::String, entities, fn=val->val; kwargs...)
+    write_parameters(Dict(parameter.name => Dict(e => fn(parameter(; e...)) for e in entities)), url; kwargs...)
+end
+
 
 """
     parameter_value(parsed_db_value)
