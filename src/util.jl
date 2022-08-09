@@ -58,15 +58,11 @@ function _entity_pvals(class, lookup_key, ::Nothing)
     matching = filter(k -> _matches(k, lookup_key), keys(pvals))
     if length(matching) === 1
         return pvals[first(matching)]
-    else
+    elseif !isempty(matching)
         full_key = _full_key(class, lookup_key)
         given_key = (; (k => v for (k, v) in pairs(full_key) if v !== missing)...)
-        if isempty(matching)
-            @info "no value matching $given_key"
-        else
-            missing_indices = join((k for (k, v) in pairs(full_key) if v === missing), ", ", ", or ")
-            @info "too many values matching $given_key - try specifying $missing_indices"
-        end
+        missing_indices = join((k for (k, v) in pairs(full_key) if v === missing), ", ", ", or ")
+        @info "too many values matching $given_key - try specifying $missing_indices"
     end
 end
 
