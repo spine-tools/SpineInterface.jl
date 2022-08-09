@@ -840,3 +840,10 @@ _object_class_name(key, val::ObjectLike) = _object_class_name(key, val, val.clas
 _object_class_name(key, val::ObjectLike, class_name::Symbol) = string(class_name)
 _object_class_name(key, val::ObjectLike, ::Nothing) = string(key)
 _object_class_name(key, val) = string(key)
+
+_get_range(arr, range) = arr[range]
+_get_range(arr, ::Nothing) = arr
+
+_inner_value(x) = x
+_inner_value(x::NothingParameterValue) = nothing
+_inner_value(x::AbstractParameterValue) = x.value

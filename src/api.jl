@@ -1001,3 +1001,16 @@ function difference(left, right)
     end
     diff_str
 end
+
+function map_to_time_series(
+    map::Map{K,V}, range=nothing
+) where {K,V<:Union{TimeSeries,AbstractTimeSeriesParameterValue}}
+    inds = []
+    vals = []
+    for ts in _inner_value.(values(map))
+        append!(inds, _get_range(ts.indexes, range))
+        append!(vals, _get_range(ts.values, range))
+    end
+    TimeSeries(inds, vals, false, false)
+end
+

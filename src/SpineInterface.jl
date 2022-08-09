@@ -97,6 +97,7 @@ export timedata_operation
 export run_request
 export difference
 export db_value
+export map_to_time_series
 
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin
