@@ -42,7 +42,7 @@ end
 function _lookup_parameter_value(p::Parameter; _strict=true, kwargs...)
     for class in p.classes
         lookup_key, new_kwargs = _lookup_key(class; kwargs...)
-        parameter_values = _entity_pvals(class, lookup_key)
+        parameter_values = _entity_pvals(class.parameter_values, lookup_key)
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults), new_kwargs
     end
@@ -51,18 +51,12 @@ function _lookup_parameter_value(p::Parameter; _strict=true, kwargs...)
     end
 end
 
-_entity_pvals(class, lookup_key) = _entity_pvals(class, lookup_key, get(class.parameter_values, lookup_key, nothing))
-_entity_pvals(class, lookup_key, something) = something
-function _entity_pvals(class, lookup_key, ::Nothing)
-    pvals = class.parameter_values
+_entity_pvals(pvals, lookup_key) = _entity_pvals(pvals, lookup_key, get(pvals, lookup_key, nothing))
+_entity_pvals(pvals, lookup_key, something) = something
+function _entity_pvals(pvals, lookup_key, ::Nothing)
     matching = filter(k -> _matches(k, lookup_key), keys(pvals))
     if length(matching) === 1
         return pvals[first(matching)]
-    elseif !isempty(matching)
-        full_key = _full_key(class, lookup_key)
-        given_key = (; (k => v for (k, v) in pairs(full_key) if v !== missing)...)
-        missing_indices = join((k for (k, v) in pairs(full_key) if v === missing), ", ", ", or ")
-        @info "too many values matching $given_key - try specifying $missing_indices"
     end
 end
 
@@ -75,9 +69,6 @@ function _lookup_key(class::RelationshipClass; kwargs...)
     objects = Tuple(pop!(new_kwargs, oc, missing) for oc in class.object_class_names)
     objects, (; new_kwargs...)
 end
-
-_full_key(class::ObjectClass, key) = (; (class.name => key,)...)
-_full_key(class::RelationshipClass, key) = (; zip(class.object_class_names, key)...)
 
 _matches(first::Tuple, second::Tuple) = all(_matches(x, y) for (x, y) in zip(first, second))
 _matches(x, ::Missing) = true
