@@ -53,6 +53,8 @@ end
 
 _entity_pvals(pvals, lookup_key) = _entity_pvals(pvals, lookup_key, get(pvals, lookup_key, nothing))
 _entity_pvals(pvals, lookup_key, something) = something
+_entity_pvals(pvals, ::Missing, ::Nothing) = nothing
+_entity_pvals(pvals, ::NTuple{N,Missing}, ::Nothing) where {N} = nothing
 function _entity_pvals(pvals, lookup_key, ::Nothing)
     matching = filter(k -> _matches(k, lookup_key), keys(pvals))
     if length(matching) === 1
@@ -80,7 +82,7 @@ _entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs.
 _entity_key(o::ObjectLike) = o
 _entity_key(r::RelationshipLike) = tuple(r...)
 
-_entity_tuple(o::ObjectLike, class) = (; Dict(class.name => o)...)
+_entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
 _entity_tuple(r::RelationshipLike, class) = r
 
 _entity_tuples(class::ObjectClass; kwargs...) = (_entity_tuple(o, class) for o in class())
