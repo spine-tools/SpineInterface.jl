@@ -297,11 +297,11 @@ function _update_realized_vals!(vals, st::_OperatorCallTraversalState)
     push!(parent_vals, current_val)
 end
 
-_realize(x, ::Int64, ::Dict) = _do_realize(x)
+_realize(x, ::Int64, ::Dict) = realize(x)
 _realize(call::Call, id::Int64, vals::Dict) = _realize(call, call.func, id, vals)
-_realize(call::Call, ::Nothing, id::Int64, vals::Dict) = _do_realize(call)
+_realize(call::Call, ::Nothing, id::Int64, vals::Dict) = realize(call)
 _realize(call::Call, ::Function, id::Int64, vals::Dict) = reduce(call.func, vals[id])
-_realize(call::Call, ::T, id::Int64, vals::Dict) where {T<:AbstractParameterValue} = _do_realize(call)
+_realize(call::Call, ::T, id::Int64, vals::Dict) where {T<:AbstractParameterValue} = realize(call)
 
 # Enable comparing Month and Year with all the other period types for computing the maximum parameter value
 _upper_bound(p) = p

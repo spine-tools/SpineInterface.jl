@@ -44,7 +44,7 @@ A Dict mapping `Int64` ids to the corresponding `Object`.
 """
 function _full_objects_per_id(objects, members_per_group, groups_per_member)
     objects_per_id = Dict(
-        (class_name, name) => Object(name, class_name) for (id, (class_name, name)) in enumerate(objects)
+        (class_name, name) => Object(name, class_name) for (class_name, name) in objects
     )
     # Specify `members` for each group
     for (id, object) in objects_per_id
