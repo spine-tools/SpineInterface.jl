@@ -643,13 +643,13 @@ is_varying(x) = false
 is_varying(call::Call) = _is_varying_call(call, call.func)
 
 """
-    update_import_data!(import_data, parameter_name, value_by_entity; for_object=true, report="", alternative="")
+    update_import_data!(data, parameter_name, value_by_entity; for_object=true, report="", alternative="")
 
-Update `import_data` with new data for importing `parameter_name` with value `parameter_value`.
+Update `data` with new data for importing `parameter_name` with value `parameter_value`.
 Link the entities to given `report` object.
 """
 function update_import_data!(
-    import_data::Dict{Symbol,Any},
+    data::Dict{Symbol,Any},
     parameter_name::T,
     value_by_entity::Dict{K,V};
     for_object::Bool=true,
@@ -657,14 +657,14 @@ function update_import_data!(
     alternative::String=""
 ) where {T,K<:NamedTuple,V}
     pname = string(parameter_name)
-    object_classes = get!(import_data, :object_classes, [])
-    object_parameters = get!(import_data, :object_parameters, [])
-    objects = get!(import_data, :objects, [])
-    object_parameter_values = get!(import_data, :object_parameter_values, [])
-    relationship_classes = get!(import_data, :relationship_classes, [])
-    relationship_parameters = get!(import_data, :relationship_parameters, [])
-    relationships = get!(import_data, :relationships, [])
-    relationship_parameter_values = get!(import_data, :relationship_parameter_values, [])
+    object_classes = get!(data, :object_classes, [])
+    object_parameters = get!(data, :object_parameters, [])
+    objects = get!(data, :objects, [])
+    object_parameter_values = get!(data, :object_parameter_values, [])
+    relationship_classes = get!(data, :relationship_classes, [])
+    relationship_parameters = get!(data, :relationship_parameters, [])
+    relationships = get!(data, :relationships, [])
+    relationship_parameter_values = get!(data, :relationship_parameter_values, [])
     !isempty(report) && pushfirst!(object_classes, "report")
     for obj_cls_names in unique(_object_class_names(entity) for entity in keys(value_by_entity))
         append!(object_classes, obj_cls_names)
@@ -734,20 +734,20 @@ function write_parameters(
     comment=""
 )
     db = _db(url; upgrade=upgrade)
-    import_data = Dict{Symbol,Any}(:on_conflict => on_conflict)
+    data = Dict{Symbol,Any}(:on_conflict => on_conflict)
     for (parameter_name, value_by_entity) in parameters
         update_import_data!(
-            import_data, parameter_name, value_by_entity; for_object=for_object, report=report, alternative=alternative
+            data, parameter_name, value_by_entity; for_object=for_object, report=report, alternative=alternative
         )
     end
     if isempty(comment)
         comment = string("Add $(join([string(k) for (k, v) in parameters])), automatically from SpineInterface.jl.")
     end
     if !isempty(alternative)
-        alternatives = get!(import_data, :alternatives, [])
+        alternatives = get!(data, :alternatives, [])
         push!(alternatives, [alternative])
     end
-    errors = _import_data(db, import_data, comment)
+    count, errors = _import_data(db, data, comment)
     isempty(errors) || @warn join(errors, "\n")
 end
 function write_parameters(parameter::Parameter, url::String, entities, fn=val->val; kwargs...)

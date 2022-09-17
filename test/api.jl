@@ -481,9 +481,9 @@ end
     original_oc = ObjectClass(:test_oc, [to1, to2], Dict(to1 => pv_dict), pv_dict)
     original_rc = RelationshipClass(:test_rc, [:test_oc, :test_oc], [(to1, to2)], Dict((to1, to2) => pv_dict), pv_dict)
     # Import the newly created `ObjectClass` and `RelationshipClass`
-    @test import_data(db_url, original_oc, "Import test object class.") == []
-    @test import_data(db_url, original_rc, "Import test relationship class.") == []
-    @test import_data(db_url, [original_oc, original_rc], "Import both object and relationship class.") == []
+    @test import_data(db_url, original_oc, "Import test object class.") == [21, []]
+    @test import_data(db_url, original_rc, "Import test relationship class.") == [23, []]
+    @test import_data(db_url, [original_oc, original_rc], "Import both object and relationship class.") == [40, []]
     Y = Module()
     using_spinedb(db_url, Y)
     @testset for pname in keys(pv_dict)
