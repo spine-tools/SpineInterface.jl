@@ -524,6 +524,3 @@ end
     ]
     @test right_parts == right_expected
 end
-
-# Clear in-memory DB for safety
-import_test_data(db_url; object_classes=[])

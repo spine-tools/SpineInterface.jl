@@ -754,7 +754,6 @@ function write_parameters(parameter::Parameter, url::String, entities, fn=val->v
     write_parameters(Dict(parameter.name => Dict(e => fn(parameter(; e...)) for e in entities)), url; kwargs...)
 end
 
-
 """
     parameter_value(parsed_db_value)
 
