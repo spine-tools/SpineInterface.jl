@@ -362,7 +362,7 @@ function _sort_unique!(inds, vals; merge_ok=false)
         n = length(nonunique)
         dupes = [sorted_inds[i] => sorted_vals[i] for i in nonunique[1 : min(n, 5)]]
         tail = n > 5 ? "... plus $(n - 5) more" : ""
-        @warn("repeated indices, taking only last one: $dupes, $tail")          
+        @warn("repeated indices, taking only last one: $dupes, $tail")
     end
     deleteat!(sorted_inds, nonunique), deleteat!(sorted_vals, nonunique)
 end
@@ -562,7 +562,7 @@ You can fix this in two different ways:
 const _required_spinedb_api_version_not_found_server = """
 The required version $_required_spinedb_api_version of `spinedb_api` could not be found.
 Please update Spine Toolbox by following the instructions at
-    
+
     https://github.com/Spine-project/Spine-Toolbox#installation
 """
 
@@ -588,7 +588,7 @@ function _import_spinedb_api()
         spinedb_api_version = _parse_spinedb_api_version(db_api.__version__)
         if spinedb_api_version < _required_spinedb_api_version
             error(_required_spinedb_api_version_not_found_py_call(PyCall.pyprogramname))
-        end        
+        end
     end
 end
 
@@ -794,7 +794,7 @@ function _to_dict(rel_cls::RelationshipClass)
             [obj_cls_name, obj.name]
             for relationship in rel_cls.relationships
             for (obj_cls_name, obj) in zip(rel_cls.intact_object_class_names, relationship)
-        ), 
+        ),
         :relationship_classes => [[rel_cls.name, rel_cls.intact_object_class_names]],
         :relationship_parameters => [
             [rel_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
@@ -845,7 +845,13 @@ end
 
 """An `Array` with the object class names of an entity."""
 _object_class_names(entity::NamedTuple) = [_object_class_name(key, val) for (key, val) in pairs(entity)]
-_object_class_name(key, val::ObjectLike) = _object_class_name(key, val, val.class_name)
+function _object_class_name(key, val::ObjectLike)
+    try
+        _object_class_name(key, val, val.class_name)
+    catch
+        _object_class_name(key, val, Symbol(val))
+    end
+end
 _object_class_name(key, val::ObjectLike, class_name::Symbol) = string(class_name)
 _object_class_name(key, val::ObjectLike, ::Nothing) = string(key)
 _object_class_name(key, val) = string(key)
