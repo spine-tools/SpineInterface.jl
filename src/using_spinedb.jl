@@ -230,8 +230,9 @@ See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](
 how to call the convenience functors.
 """
 function using_spinedb(url::String, mod=@__MODULE__; upgrade=false, filters=Dict())
-    db = _db(url; upgrade=upgrade)
-    data = _export_data(db; filters=filters)
+    data = _db(url; upgrade=upgrade) do db
+        _export_data(db; filters=filters)
+    end
     _generate_convenience_functions(data, mod; filters=filters)
 end
 function using_spinedb(template::Dict{Symbol,T}, mod=@__MODULE__; filters=nothing) where T

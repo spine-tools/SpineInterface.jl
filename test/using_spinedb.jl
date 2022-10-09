@@ -290,5 +290,3 @@ end
         @test apero_time(; country=France, s=drunk, t0=t0, whocares=t0, t=t2_3) == 5.6
     end
 end
-# Clear in-memory DB for safety
-import_test_data(db_url; object_classes=[])

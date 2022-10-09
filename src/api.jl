@@ -733,7 +733,6 @@ function write_parameters(
     on_conflict="merge",
     comment=""
 )
-    db = _db(url; upgrade=upgrade)
     data = Dict{Symbol,Any}(:on_conflict => on_conflict)
     for (parameter_name, value_by_entity) in parameters
         update_import_data!(
@@ -747,7 +746,7 @@ function write_parameters(
         alternatives = get!(data, :alternatives, [])
         push!(alternatives, [alternative])
     end
-    count, errors = _import_data(db, data, comment)
+    count, errors = import_data(url, data, comment; upgrade=upgrade)
     isempty(errors) || @warn join(errors, "\n")
 end
 function write_parameters(parameter::Parameter, url::String, entities, fn=val->val; kwargs...)
@@ -884,21 +883,22 @@ d = Dict(:object_classes => [:dog, :cat], :objects => [[:dog, :brian], [:dog, :s
 import_data(url, d, "arf!")
 ```
 """
-function import_data(url::String, data::Union{ObjectClass,RelationshipClass}, comment::String)
-    import_data(url, _to_dict(data), comment)
+function import_data(url::String, data::Union{ObjectClass,RelationshipClass}, comment::String; upgrade=false)
+    import_data(url, _to_dict(data), comment; upgrade=upgrade)
 end
-function import_data(url::String, data::Vector, comment::String)
-    import_data(url, merge(append!, _to_dict.(data)...), comment)
+function import_data(url::String, data::Vector, comment::String; upgrade=false)
+    import_data(url, merge(append!, _to_dict.(data)...), comment; upgrade=upgrade)
 end
-function import_data(url::String, data::Dict{String,T}, comment::String) where {T}
-    import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment)
+function import_data(url::String, data::Dict{String,T}, comment::String; upgrade=false) where {T}
+    import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment; upgrade=upgrade)
 end
-function import_data(url::String, comment::String; kwargs...)
-    import_data(url, Dict(Symbol(k) => v for (k, v) in pairs(kwargs)), comment)
+function import_data(url::String, comment::String; upgrade=false, kwargs...)
+    import_data(url, Dict(Symbol(k) => v for (k, v) in pairs(kwargs)), comment; upgrade=upgrade)
 end
-function import_data(url::String, data::Dict{Symbol,T}, comment::String) where {T}
-    db = _db(url)
-    _import_data(db, data, comment)
+function import_data(url::String, data::Dict{Symbol,T}, comment::String; upgrade=false) where {T}
+    _db(url; upgrade=upgrade) do db
+        _import_data(db, data, comment)
+    end
 end
 
 """
@@ -916,8 +916,9 @@ function run_request(url::String, request::String, kwargs::Dict; upgrade=false)
     run_request(url, request, (), kwargs; upgrade=upgrade)
 end
 function run_request(url::String, request::String, args::Tuple, kwargs::Dict; upgrade=false)
-    db = _db(url; upgrade=upgrade)
-    _run_request(db, request, args, kwargs)
+    _db(url; upgrade=upgrade) do db
+        _run_request(db, request, args, kwargs)
+    end
 end
 
 """
@@ -1011,5 +1012,14 @@ function map_to_time_series(
         append!(vals, _get_range(ts.values, range))
     end
     TimeSeries(inds, vals, false, false)
+end
+
+function open_connection(db_url)
+    _handlers[db_url] = _create_db_handler(db_url, false)
+end
+
+function close_connection(db_url)
+    handler = pop!(_handlers, db_url, nothing)
+    handler === nothing || _close_db_handler(handler)
 end
 

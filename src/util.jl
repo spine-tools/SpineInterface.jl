@@ -518,9 +518,9 @@ _db_type(x::TimeSeries) = "time_series"
 _db_type(x::Map{K,V}) where {K,V} = "map"
 
 # db api
-const _required_spinedb_api_version = v"0.23.0"
+const _required_spinedb_api_version = v"0.23.2"
 
-const _client_version = 5
+const _client_version = 6
 
 _spinedb_api_not_found(pyprogramname) = """
 The required Python package `spinedb_api` could not be found in the current Python environment
@@ -592,16 +592,36 @@ function _import_spinedb_api()
     end
 end
 
+_handlers = Dict()
+
 _do_create_db_handler(db_url::String, upgrade::Bool) = db_server.DBHandler(db_url, upgrade)
+
+_do_close_db_handler(handler) = handler.close()
 
 function _create_db_handler(db_url::String, upgrade::Bool)
     _import_spinedb_api()
-    Base.invokelatest(_do_create_db_handler, db_url, upgrade)
+    handler = Base.invokelatest(_do_create_db_handler, db_url, upgrade)
+    atexit(() -> _close_db_handler(handler))
+    handler
 end
 
-function _db(url; upgrade=false)
+_close_db_handler(handler) = Base.invokelatest(_do_close_db_handler, handler)
+
+function _db(f, url; upgrade=false)
     uri = URI(url)
-    (uri.scheme == "http") ? uri : _create_db_handler(url, upgrade)
+    if uri.scheme == "http"
+        f(uri)
+    else
+        handler = get(_handlers, url, nothing)
+        if handler !== nothing
+            f(handler)
+        else
+            handler = _create_db_handler(url, upgrade)
+            result = f(handler)
+            _close_db_handler(handler)
+            result
+        end
+    end
 end
 
 function _process_db_answer(answer::Dict)
