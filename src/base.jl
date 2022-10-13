@@ -242,6 +242,13 @@ function Base.empty!(x::Parameter)
     empty!(x.classes)
 end
 
+function Base.merge!(ts1::TimeSeries, ts2::TimeSeries)
+    for (index, value) in ts2
+        ts1[index] = value
+    end
+    ts1
+end
+
 Base.get(x::Map, key, default) = get(x._lookup, key, default)
 Base.get(x::TimeSeries, key, default) = get(x._lookup, key, default)
 
