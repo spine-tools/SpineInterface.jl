@@ -252,5 +252,7 @@ end
 Base.get(x::Map, key, default) = get(x._lookup, key, default)
 Base.get(x::TimeSeries, key, default) = get(x._lookup, key, default)
 
+Base.iszero(x::TimeSeries) = iszero(x.values)
+
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
 Base.abs(call::Call) = Call(abs, [call])
