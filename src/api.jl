@@ -651,11 +651,11 @@ Link the entities to given `report` object.
 function update_import_data!(
     data::Dict{Symbol,Any},
     parameter_name::T,
-    value_by_entity::Dict{K,V};
+    value_by_entity::Dict;
     for_object::Bool=true,
     report::String="",
     alternative::String=""
-) where {T,K<:NamedTuple,V}
+) where T
     pname = string(parameter_name)
     object_classes = get!(data, :object_classes, [])
     object_parameters = get!(data, :object_parameters, [])
