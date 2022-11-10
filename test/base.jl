@@ -255,6 +255,7 @@
         SpineInterface.parse_time_period("M2-3") => 2.0 ^ 8.0, SpineInterface.parse_time_period("M3-4") => 3.0 ^ -4.0
     )
     # Test timedata_operation for single-argument functions
+    @test timedata_operation(float, 0) == float(0)
     @test timedata_operation(float, ts1) == TimeSeries(ts1.indexes, float.(ts1.values), ts1.ignore_year, ts1.repeat)
     @test timedata_operation(float, tp1) == Dict(
         SpineInterface.parse_time_period("M2-3") => 2.0, SpineInterface.parse_time_period("M3-4") => 3.0
