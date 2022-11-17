@@ -871,9 +871,12 @@ Import data to a Spine db.
         :relationships => [[:rc_name, [:obj_name1, :obj_name2, ...], ...],
         :object_parameters => [[:oc_name, :param_name, default_value], ...],
         :relationship_parameters => [[:rc_name, :param_name, default_value], ...],
-        :object_parameter_values => [[:oc_name, :obj_name, :param_name, value], ...],
-        :relationship_parameter_values => [[:rc_name, [:obj_name1, :obj_name2, ...], :param_name, value], ...],
-        :object_groups => [[:class_name, :group_name, :member_name], ...]
+        :object_parameter_values => [[:oc_name, :obj_name, :param_name, value, :alt_name], ...],
+        :relationship_parameter_values => [[:rc_name, [:obj_name1, :obj_name2, ...], :param_name, value, :alt_name], ...],
+        :object_groups => [[:class_name, :group_name, :member_name], ...],
+        :scenarios => [(:scen_name, true), ...],  # true for the active flag, not in use at the moment
+        :alternatives => [:alt_name, ...],
+        :scenario_alternatives => [(:scen_name, :alt_name, nothing), (:scen_name, :lower_alt_name, :alt_name), ...]
     )
 - `comment::String`: the commit message.
 
