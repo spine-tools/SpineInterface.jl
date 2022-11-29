@@ -774,6 +774,35 @@ end
 parameter_value(parsed_db_value::T) where {T} = error("can't parse $parsed_db_value of unrecognized type $T")
 
 """
+    indexed_parameter_value(indexed_values)
+
+An `AbstractParameterValue` from a dictionary mapping indexes to values.
+"""
+indexed_parameter_value(indexed_values::Dict{Nothing,V}) where V = parameter_value(indexed_values[nothing])
+function indexed_parameter_value(indexed_values::Dict{DateTime,V}) where V
+    parameter_value(TimeSeries(collect(keys(indexed_values)), collect(values(indexed_values)), false, false))
+end
+
+"""
+    indexed_values(value)
+
+An iterator over pairs (index, value) of given value.
+In case of non-indexed values, the result only has one element and the index is nothing.
+In case of `Map`, the index is a tuple of all the indices leading to a value.
+"""
+indexed_values(::Nothing) = ((nothing, nothing),)
+indexed_values(value) = ((nothing, value),)
+indexed_values(value::Array) = enumerate(value)
+indexed_values(value::TimePattern) = value
+indexed_values(value::TimeSeries) = zip(value.indexes, value.values)
+function indexed_values(value::Map)
+    (x for (ind, val) in zip(value.indexes, value.values) for x in indexed_values((ind,), val))
+end
+indexed_values(prefix, value) = (((prefix..., ind), val) for (ind, val) in indexed_values(value))
+indexed_values(::NothingParameterValue) = indexed_values(nothing)
+indexed_values(pval::AbstractParameterValue) = indexed_values(pval.value)
+
+"""
     maximum_parameter_value(p::Parameter)
 
 Finds the singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses` in any

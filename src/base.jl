@@ -28,9 +28,10 @@ Base.iterate(v::ScalarParameterValue) = iterate((v,))
 Base.iterate(v::ScalarParameterValue, state::T) where {T} = iterate((v,), state)
 function Base.iterate(x::Union{TimeSeries,Map}, state=1)
     if state > length(x)
-        return nothing
+        nothing
+    else
+        (x.indexes[state] => x.values[state]), state + 1
     end
-    return (x.indexes[state] => x.values[state]), state + 1
 end
 
 Base.length(t::Union{Object,TimeSlice}) = 1
@@ -253,6 +254,8 @@ Base.get(x::Map, key, default) = get(x._lookup, key, default)
 Base.get(x::TimeSeries, key, default) = get(x._lookup, key, default)
 
 Base.iszero(x::TimeSeries) = iszero(x.values)
+Base.isapprox(x::TimeSeries, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in x.values)
+Base.isapprox(x::AbstractParameterValue, y; kwargs...) = isapprox(x(), y; kwargs...)
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
 Base.abs(call::Call) = Call(abs, [call])

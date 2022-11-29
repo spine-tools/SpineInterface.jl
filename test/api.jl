@@ -524,3 +524,73 @@ end
     ]
     @test right_parts == right_expected
 end
+@testset "indexed_values" begin
+    object_classes = ["country"]
+    countries = ["Sweden", "France", "Finland", "Ireland", "Netherlands", "Denmark"]
+    objects = [["country", x] for x in countries]
+    object_parameters = [["country", "people_count"]]
+    # Add parameter values of all types
+    scalar_value = 18
+    array_data = [4, 8, 7]
+    array_value = Dict("type" => "array", "value_type" => "float", "data" => array_data)
+    time_pattern_data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
+    time_pattern_value = Dict("type" => "time_pattern", "data" => time_pattern_data)
+    time_series_data = [1.0, 4.0, 5.0, -100.0, 7.0]
+    time_series_index =
+        Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
+    time_series_value =
+        Dict("type" => "time_series", "data" => time_series_data, "index" => time_series_index)
+    map_value = Dict(
+        "type" => "map",
+        "index_type" => "str",
+        "data" => Dict(
+            "drunk" => Dict(
+                "type" => "map",
+                "index_type" => "date_time",
+                "data" => Dict(
+                    "1999-12-01T00:00" => Dict(
+                        "type" => "time_series",
+                        "data" => [4.0, 5.6],
+                        "index" => Dict(
+                            "start" => "2000-01-01T00:00:00",
+                            "resolution" => "1M",
+                            "repeat" => false,
+                            "ignore_year" => true,
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+    object_parameter_values = [
+        ["country", "France", "people_count", scalar_value],
+        ["country", "Ireland", "people_count", array_value],
+        ["country", "Sweden", "people_count", time_pattern_value],
+        ["country", "Netherlands", "people_count", time_series_value],
+        ["country", "Finland", "people_count", map_value],
+        ["country", "Denmark", "people_count", nothing],
+    ]
+    import_test_data(
+        db_url;
+        object_classes=object_classes,
+        objects=objects,
+        object_parameters=object_parameters,
+        object_parameter_values=object_parameter_values,
+    )
+    using_spinedb(db_url)
+    @test collect(indexed_values(people_count(country=country(:France)))) == [(nothing, 18)]
+    @show collect(indexed_values(people_count(country=country(:Sweden))))
+    @test collect(indexed_values(people_count(country=country(:Finland)))) == [
+        ((:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-01-01T00:00:00"))), 4.0),
+        ((:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-02-01T00:00:00"))), 5.6)
+    ]
+    @test collect(indexed_values(people_count(country=country(:Ireland)))) == [(1, 4.0), (2, 8.0), (3, 7.0)]
+    @test collect(indexed_values(people_count(country=country(:Netherlands)))) == Any[
+        (DateTime("0000-01-01T00:00:00"), 1.0),
+        (DateTime("0000-02-01T00:00:00"), 4.0),
+        (DateTime("0000-03-01T00:00:00"), 5.0),
+        (DateTime("0000-04-01T00:00:00"), -100.0),
+        (DateTime("0000-05-01T00:00:00"), 7.0)
+    ]
+    @test collect(indexed_values(people_count(country=country(:Denmark)))) == [(nothing, nothing)]
+end

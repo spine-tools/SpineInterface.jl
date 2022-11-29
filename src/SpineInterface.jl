@@ -53,6 +53,7 @@ export using_spinedb
 export anything
 export indices
 export indices_as_tuples
+export indexed_values
 export write_parameters
 export members
 export groups
@@ -72,6 +73,7 @@ export t_lowest_resolution
 export t_highest_resolution!
 export t_highest_resolution
 export parameter_value
+export indexed_parameter_value
 export realize
 export is_varying
 export object_class
