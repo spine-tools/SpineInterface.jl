@@ -30,6 +30,24 @@ import .JuMP: MOI, MOIU
 
 _Constant = Union{Number,UniformScaling}
 
+mutable struct _ConstraintManager
+    constraint::Union{ConstraintRef,Nothing}
+    _ConstraintManager() = new(nothing)
+end
+
+abstract type _Manager
+
+struct _VariableManager <: _Manager
+    con_mngr::_ConstraintManager
+    variable::VariableRef
+end
+struct _ConstantManager <: _Manager
+    con_mngr::_ConstraintManager
+end
+struct _RHSManager <: _Manager
+    con_mngr::_ConstraintManager
+end
+
 abstract type CallSet <: MOI.AbstractScalarSet end
 
 struct GreaterThanCall <: CallSet
@@ -61,12 +79,15 @@ function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})
 end
 
 # realize
-realize(s::GreaterThanCall) = MOI.GreaterThan(realize(MOI.constant(s)))
-realize(s::LessThanCall) = MOI.LessThan(realize(MOI.constant(s)))
-realize(s::EqualToCall) = MOI.EqualTo(realize(MOI.constant(s)))
-function realize(e::GenericAffExpr{C,VariableRef}) where {C}
-    constant = realize(e.constant)
-    terms = OrderedDict{VariableRef,typeof(constant)}(var => realize(coef) for (var, coef) in e.terms)
+realize(s::GreaterThanCall, con_mngr) = MOI.GreaterThan(realize(MOI.constant(s), _RHSManager(con_mngr)))
+realize(s::LessThanCall, con_mngr) = MOI.LessThan(realize(MOI.constant(s), _RHSManager(con_mngr)))
+realize(s::EqualToCall, con_mngr) = MOI.EqualTo(realize(MOI.constant(s), _RHSManager(con_mngr)))
+function realize(e::GenericAffExpr{C,VariableRef}, con_mngr) where {C}
+    constant = realize(e.constant, _ConstantManager(con_mngr))
+    terms = OrderedDict{VariableRef,typeof(constant)}(
+        var => realize(coef, _VariableManager(con_mngr, var))
+        for (var, coef) in e.terms
+    )
     GenericAffExpr(constant, terms)
 end
 
@@ -84,7 +105,7 @@ end
 function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, set::MOI.AbstractScalarSet)
     constant = expr.constant
     expr.constant = zero(Call)
-    new_set = MOIU.shift_constant(set, - constant)
+    new_set = MOIU.shift_constant(set, -constant)
     ScalarConstraint(expr, new_set)
 end
 
@@ -101,14 +122,10 @@ function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,Varia
 end
 
 function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Call, ub::Call)
-    constant = expr.constant
-    if any(is_varying(x) for x in (lb, ub, constant))
-        _error("Range constraint with time-varying bounds or free-term is not supported at the moment.")
-    else
-        set = MOI.Interval(realize(lb), realize(ub))
-        new_set = MOIU.shift_constant(set, - realize(constant))
-        ScalarConstraint(expr, new_set)
-    end
+    @warn "range constraint won't have their bounds or free term updated when model rolls"
+    set = MOI.Interval(realize(lb), realize(ub))
+    new_set = MOIU.shift_constant(set, -realize(expr.constant))
+    ScalarConstraint(expr, new_set)
 end
 
 function JuMP.add_constraint(
@@ -116,19 +133,9 @@ function JuMP.add_constraint(
     con::ScalarConstraint{GenericAffExpr{Call,VariableRef},S},
     name::String="",
 ) where {S<:CallSet}
-    realized_con = ScalarConstraint(realize(con.func), realize(con.set))
-    con_ref = add_constraint(model, realized_con, name)
-    # Register varying stuff in `model.ext` so we can do work in `update_varying_constraints!`.
-    # This is the entire trick.
-    spineinterface_ext = get!(model.ext, :spineinterface, SpineInterfaceExt())
-    varying_terms = Dict(var => coef for (var, coef) in con.func.terms if is_varying(coef))
-    if !isempty(varying_terms)
-        spineinterface_ext.varying_constraint_terms[con_ref] = varying_terms
-    end
-    if is_varying(MOI.constant(con.set))
-        spineinterface_ext.varying_constraint_rhs[con_ref] = MOI.constant(con.set)
-    end
-    con_ref
+    con_mngr = _ConstraintManager()
+    realized_constraint = ScalarConstraint(realize(con.func, con_mngr), realize(con.set, con_mngr))
+    con_mngr.constraint = add_constraint(model, realized_constraint, name)
 end
 
 function JuMP.add_constraint(
@@ -136,7 +143,7 @@ function JuMP.add_constraint(
     con::ScalarConstraint{GenericAffExpr{Call,VariableRef},MOI.Interval{T}},
     name::String="",
 ) where {T}
-    realized_con = ScalarConstraint(realize(con.func), con.set)
+    realized_con = ScalarConstraint(realize(con.func), con.set)  # FIXME: Use con_mngr?
     add_constraint(model, realized_con, name)
 end
 
@@ -257,37 +264,5 @@ Base.:-(lhs::GenericAffExpr{C,VariableRef}, rhs::GenericAffExpr{Call,VariableRef
 
 # @objective extension
 function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
-    spineinterface_ext = get!(model.ext, :spineinterface, SpineInterfaceExt())
-    spineinterface_ext.varying_objective_terms = Dict(var => coef for (var, coef) in func.terms if is_varying(coef))
-    set_objective_function(model, realize(func))
+    set_objective_function(model, realize(func))  # FIXME: Use obj_mngr or something
 end
-
-function update_varying_objective!(model::Model)
-    spineinterface_ext = get!(model.ext, :spineinterface, SpineInterfaceExt())
-    for (var, coef) in spineinterface_ext.varying_objective_terms
-        set_objective_coefficient(model, var, realize(coef))
-    end
-end
-
-function update_varying_constraints!(model::Model)
-    spineinterface_ext = get!(model.ext, :spineinterface, SpineInterfaceExt())
-    for (con_ref, terms) in spineinterface_ext.varying_constraint_terms
-        for (var, coef) in terms
-            set_normalized_coefficient(con_ref, var, realize(coef))
-        end
-    end
-    for (con_ref, rhs) in spineinterface_ext.varying_constraint_rhs
-        set_normalized_rhs(con_ref, realize(rhs))
-    end
-end
-
-update_model!(m) = (update_varying_constraints!(m); update_varying_objective!(m))
-
-mutable struct SpineInterfaceExt
-    varying_objective_terms::Dict
-    varying_constraint_terms::Dict
-    varying_constraint_rhs::Dict
-    SpineInterfaceExt() = new(Dict(), Dict(), Dict())
-end
-
-JuMP.copy_extension_data(data::SpineInterfaceExt, new_model::AbstractModel, model::AbstractModel) = nothing

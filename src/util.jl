@@ -97,41 +97,90 @@ function _show_call(io::IO, call::Call, expr::_CallExpr, func)
     print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
 end
 
-_do_realize(x) = x
-_do_realize(call::Call) = _do_realize(call, call.func)
-_do_realize(call::Call, ::Nothing) = call.args[1]
-function _do_realize(call::Call, ::Function)
+_do_realize(x, mngr=nothing) = x
+_do_realize(call::Call, mngr=nothing) = _do_realize(call, call.func, mngr)
+_do_realize(call::Call, ::Nothing, mngr=nothing) = call.args[1]
+function _do_realize(call::Call, call_func::Function, mngr=nothing)
     realized_vals = Dict{Int64,Array}()
     st = _OperatorCallTraversalState(call)
     while true
         _visit_node(st)
         _visit_child(st) && continue
-        _update_realized_vals!(realized_vals, st)
+        _update_realized_vals!(realized_vals, st, mngr)
         _visit_sibling(st) && continue
         _revisit_parent(st) || break
     end
     vals = realized_vals[1]
     if length(vals) <= 1
-        call.func(vals...)
+        call_func(vals...)
     else
-        reduce(call.func, vals)
+        reduce(call_func, vals)
     end
 end
-_do_realize(call::Call, ::T) where {T<:AbstractParameterValue} = call.func(; call.kwargs...)
+_do_realize(call::Call, call_func::T, mngr=nothing) where {T<:AbstractParameterValue} = call_func(mngr; call.kwargs...)
 
-_is_varying_call(call::Call, ::Nothing) = false
-function _is_varying_call(call::Call, ::Function)
-    st = _OperatorCallTraversalState(call)
-    while true
-        st.current isa Call && st.current.func isa AbstractParameterValue && return true
-        _visit_node(st)
-        _visit_child(st) && continue
-        _visit_sibling(st) && continue
-        _revisit_parent(st) || break
+mutable struct _OperatorCallTraversalState
+    node_idx::Dict{Int64,Int64}
+    parent_ids::Dict{Int64,Int64}
+    next_id::Int64
+    parent_id::Int64
+    current_id::Int64
+    parents::Array{Any,1}
+    current::Any
+    children_visited::Bool
+    function _OperatorCallTraversalState(current)
+        new(Dict{Int64,Int64}(), Dict{Int64,Int64}(), 1, 0, 1, [], current, false)
     end
-    false
 end
-_is_varying_call(call::Call, ::T) where {T<:AbstractParameterValue} = true
+
+_visit_node(st::_OperatorCallTraversalState) = (st.parent_ids[st.current_id] = st.parent_id)
+
+function _visit_child(st::_OperatorCallTraversalState)
+    if !st.children_visited && st.current isa Call && st.current.func isa Function
+        push!(st.parents, st.current)
+        st.parent_id = st.current_id
+        st.current_id = st.next_id += 1
+        st.node_idx[st.parent_id] = 1
+        st.current = st.current.args[1]
+        true
+    else
+        false
+    end
+end
+
+function _visit_sibling(st::_OperatorCallTraversalState)
+    next_index = st.node_idx[st.parent_id] + 1
+    if next_index <= length(st.parents[end].args)
+        st.children_visited = false
+        st.node_idx[st.parent_id] = next_index
+        st.current_id = st.next_id += 1
+        st.current = st.parents[end].args[next_index]
+        true
+    else
+        false
+    end
+end
+
+function _revisit_parent(st::_OperatorCallTraversalState)
+    st.current_id = st.parent_id
+    st.parent_id = st.parent_ids[st.current_id]
+    st.parent_id == 0 && return false
+    st.current = pop!(st.parents)
+    st.children_visited = true
+    true
+end
+
+function _update_realized_vals!(vals, st::_OperatorCallTraversalState, mngr)
+    parent_vals = get!(vals, st.parent_id, [])
+    current_val = _realize(st.current, st.current_id, vals, mngr)
+    push!(parent_vals, current_val)
+end
+
+_realize(x, ::Int64, ::Dict, mngr) = realize(x, mngr)
+_realize(call::Call, id::Int64, vals::Dict, mngr) = _realize(call, call.func, id, vals, mngr)
+_realize(call::Call, ::Nothing, id::Int64, vals::Dict, mngr) = realize(call, mngr)
+_realize(call::Call, ::Function, id::Int64, vals::Dict, mngr) = reduce(call.func, vals[id])
+_realize(call::Call, ::T, id::Int64, vals::Dict, mngr) where {T<:AbstractParameterValue} = realize(call, mngr)
 
 function _pv_call(call_expr::_CallExpr, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
     _pv_call(_is_time_varying(T), call_expr, pv, inds)
@@ -239,69 +288,6 @@ function _any_other(func, t_arr::Array{T,1}) where T
     end
     result
 end
-
-mutable struct _OperatorCallTraversalState
-    node_idx::Dict{Int64,Int64}
-    parent_ids::Dict{Int64,Int64}
-    next_id::Int64
-    parent_id::Int64
-    current_id::Int64
-    parents::Array{Any,1}
-    current::Any
-    children_visited::Bool
-    function _OperatorCallTraversalState(current)
-        new(Dict(), Dict(), 1, 0, 1, [], current, false)
-    end
-end
-
-_visit_node(st::_OperatorCallTraversalState) = (st.parent_ids[st.current_id] = st.parent_id)
-
-function _visit_child(st::_OperatorCallTraversalState)
-    if !st.children_visited && st.current isa Call && st.current.func isa Function
-        push!(st.parents, st.current)
-        st.parent_id = st.current_id
-        st.current_id = st.next_id += 1
-        st.node_idx[st.parent_id] = 1
-        st.current = st.current.args[1]
-        true
-    else
-        false
-    end
-end
-
-function _visit_sibling(st::_OperatorCallTraversalState)
-    next_index = st.node_idx[st.parent_id] + 1
-    if next_index <= length(st.parents[end].args)
-        st.children_visited = false
-        st.node_idx[st.parent_id] = next_index
-        st.current_id = st.next_id += 1
-        st.current = st.parents[end].args[next_index]
-        true
-    else
-        false
-    end
-end
-
-function _revisit_parent(st::_OperatorCallTraversalState)
-    st.current_id = st.parent_id
-    st.parent_id = st.parent_ids[st.current_id]
-    st.parent_id == 0 && return false
-    st.current = pop!(st.parents)
-    st.children_visited = true
-    true
-end
-
-function _update_realized_vals!(vals, st::_OperatorCallTraversalState)
-    parent_vals = get!(vals, st.parent_id, [])
-    current_val = _realize(st.current, st.current_id, vals)
-    push!(parent_vals, current_val)
-end
-
-_realize(x, ::Int64, ::Dict) = realize(x)
-_realize(call::Call, id::Int64, vals::Dict) = _realize(call, call.func, id, vals)
-_realize(call::Call, ::Nothing, id::Int64, vals::Dict) = realize(call)
-_realize(call::Call, ::Function, id::Int64, vals::Dict) = reduce(call.func, vals[id])
-_realize(call::Call, ::T, id::Int64, vals::Dict) where {T<:AbstractParameterValue} = realize(call)
 
 # Enable comparing Month and Year with all the other period types for computing the maximum parameter value
 _upper_bound(p) = p

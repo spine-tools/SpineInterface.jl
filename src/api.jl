@@ -218,23 +218,23 @@ end
 (p::ArrayParameterValue)(::Nothing) = p.value
 (p::ArrayParameterValue)(i::Int64) = get(p.value, i, nothing)
 
-(p::TimePatternParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
-(p::TimePatternParameterValue)(::Nothing) = p.value
-(p::TimePatternParameterValue)(t::DateTime) = p(TimeSlice(t, t))
-function (p::TimePatternParameterValue)(t::TimeSlice)
+(p::TimePatternParameterValue)(mngr=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t, mngr)
+(p::TimePatternParameterValue)(::Nothing, mngr=nothing) = p.value
+(p::TimePatternParameterValue)(t::DateTime, mngr=nothing) = p(TimeSlice(t, t), mngr)
+function (p::TimePatternParameterValue)(t::TimeSlice, mngr=nothing)
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
     isempty(vals) && return nothing
     mean(vals)
 end
 
-(p::StandardTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
-(p::StandardTimeSeriesParameterValue)(::Nothing) = p.value
-function (p::StandardTimeSeriesParameterValue)(t::DateTime)
+(p::StandardTimeSeriesParameterValue)(mngr=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t, mngr)
+(p::StandardTimeSeriesParameterValue)(::Nothing, mngr=nothing) = p.value
+function (p::StandardTimeSeriesParameterValue)(t::DateTime, mngr=nothing)
     p.value.ignore_year && (t -= Year(t))
     p.value.indexes[1] <= t <= p.value.indexes[end] || return nothing
     p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
 end
-function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
+function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, mngr=nothing)
     p.value.ignore_year && (t -= Year(start(t)))
     ab = _search_overlap(p.value, start(t), end_(t))
     isempty(ab) && return nothing
@@ -242,6 +242,9 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice)
     isempty(a:b) && return nothing
     vals = Iterators.filter(!isnan, p.value.values[a:b])
     mean(vals)
+    # TODO: here, we associate the TimeSlice with the manager and probably with the StandardTimeSeriesParameterValue,
+    # so whenever the TimeSlice rolls, we check if the value of the parameter will change and update the coefficient
+    # via the manager
 end
 
 (p::RepeatingTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
@@ -624,23 +627,14 @@ end
 
 Perform the given `Call` and return the result.
 """
-function realize(x)
+function realize(x, mngr)
     try
-        _do_realize(x)
+        _do_realize(x, mngr)
     catch e
         err_msg = "unable to evaluate expression:\n\t$x\n"
         rethrow(ErrorException("$err_msg$(sprint(showerror, e))"))
     end
 end
-
-"""
-    is_varying(x::Call)
-
-Whether or not the given `Call` might return a different result if realized a second time.
-This is true for `ParameterValueCall`s which are sensitive to the `t` argument.
-"""
-is_varying(x) = false
-is_varying(call::Call) = _is_varying_call(call, call.func)
 
 """
     update_import_data!(data, parameter_name, value_by_entity; for_object=true, report="", alternative="")

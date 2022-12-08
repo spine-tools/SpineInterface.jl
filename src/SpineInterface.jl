@@ -75,7 +75,6 @@ export t_highest_resolution
 export parameter_value
 export indexed_parameter_value
 export realize
-export is_varying
 export object_class
 export object_classes
 export relationship_class
