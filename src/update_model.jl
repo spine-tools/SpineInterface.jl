@@ -30,24 +30,6 @@ import .JuMP: MOI, MOIU
 
 _Constant = Union{Number,UniformScaling}
 
-mutable struct _ConstraintManager
-    constraint::Union{ConstraintRef,Nothing}
-    _ConstraintManager() = new(nothing)
-end
-
-abstract type _Manager
-
-struct _VariableManager <: _Manager
-    con_mngr::_ConstraintManager
-    variable::VariableRef
-end
-struct _ConstantManager <: _Manager
-    con_mngr::_ConstraintManager
-end
-struct _RHSManager <: _Manager
-    con_mngr::_ConstraintManager
-end
-
 abstract type CallSet <: MOI.AbstractScalarSet end
 
 struct GreaterThanCall <: CallSet
@@ -60,6 +42,25 @@ end
 
 struct EqualToCall <: CallSet
     value::Call
+end
+
+abstract type _Observer end
+
+struct _ObjectiveCoefficientObserver <: _Observer
+    model::Model
+    variable::VariableRef
+    coefficient::Call
+end
+
+struct _ConstraintCoefficientObserver <: _Observer
+    constraint_reference::Base.RefValue{ConstraintRef}
+    variable::VariableRef
+    coefficient::Call
+end
+
+struct _RHSObserver <: _Observer
+    constraint_reference::Base.RefValue{ConstraintRef}
+    rhs::Call
 end
 
 MOI.constant(s::GreaterThanCall) = s.lower
@@ -78,14 +79,45 @@ function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})
     print(io, str)
 end
 
+_coefficient_observer(m::Model, v, c) = _ObjectiveCoefficientObserver(m, v, c)
+_coefficient_observer(cr::Base.RefValue{ConstraintRef}, v, c) = _ConstraintCoefficientObserver(cr, v, c)
+_coefficient_observer(::Nothing, _v, _c) = nothing
+
+function _set_time_to_update(f, t::TimeSlice, observer::_Observer)
+    t.observer_time_to_update[observer] = f()
+end
+_set_time_to_update(f, t::TimeSlice, ::Nothing) = nothing
+
+function _update(observer::_ObjectiveCoefficientObserver)
+    new_coef = realize(observer.coefficient, observer)
+    set_objective_coefficient(observer.model, observer.variable, new_coef)
+end
+function _update(observer::_ConstraintCoefficientObserver)
+    new_coef = realize(observer.coefficient, observer)
+    set_normalized_coefficient(observer.constraint_reference[], observer.variable, new_coef)
+end
+function _update(observer::_RHSObserver)
+    new_rhs = realize(observer.rhs, observer)
+    set_normalized_rhs(observer.constraint_reference[], new_rhs)
+end
+
 # realize
-realize(s::GreaterThanCall, con_mngr) = MOI.GreaterThan(realize(MOI.constant(s), _RHSManager(con_mngr)))
-realize(s::LessThanCall, con_mngr) = MOI.LessThan(realize(MOI.constant(s), _RHSManager(con_mngr)))
-realize(s::EqualToCall, con_mngr) = MOI.EqualTo(realize(MOI.constant(s), _RHSManager(con_mngr)))
-function realize(e::GenericAffExpr{C,VariableRef}, con_mngr) where {C}
-    constant = realize(e.constant, _ConstantManager(con_mngr))
+function realize(s::GreaterThanCall, con_ref)
+    c = MOI.constant(s)
+    MOI.GreaterThan(realize(c, _RHSObserver(con_ref, c)))
+end
+function realize(s::LessThanCall, con_ref)
+    c = MOI.constant(s)
+    MOI.LessThan(realize(c, _RHSObserver(con_ref, c)))
+end
+function realize(s::EqualToCall, con_ref)
+    c = MOI.constant(s)
+    MOI.EqualTo(realize(c, _RHSObserver(con_ref, c)))
+end
+function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
+    constant = realize(e.constant)
     terms = OrderedDict{VariableRef,typeof(constant)}(
-        var => realize(coef, _VariableManager(con_mngr, var))
+        var => realize(coef, _coefficient_observer(model_or_con_ref, var, coef))
         for (var, coef) in e.terms
     )
     GenericAffExpr(constant, terms)
@@ -133,9 +165,9 @@ function JuMP.add_constraint(
     con::ScalarConstraint{GenericAffExpr{Call,VariableRef},S},
     name::String="",
 ) where {S<:CallSet}
-    con_mngr = _ConstraintManager()
-    realized_constraint = ScalarConstraint(realize(con.func, con_mngr), realize(con.set, con_mngr))
-    con_mngr.constraint = add_constraint(model, realized_constraint, name)
+    con_ref = Ref{ConstraintRef}()
+    realized_constraint = ScalarConstraint(realize(con.func, con_ref), realize(con.set, con_ref))
+    con_ref[] = add_constraint(model, realized_constraint, name)
 end
 
 function JuMP.add_constraint(
@@ -143,8 +175,9 @@ function JuMP.add_constraint(
     con::ScalarConstraint{GenericAffExpr{Call,VariableRef},MOI.Interval{T}},
     name::String="",
 ) where {T}
-    realized_con = ScalarConstraint(realize(con.func), con.set)  # FIXME: Use con_mngr?
-    add_constraint(model, realized_con, name)
+    con_ref = Ref{ConstraintRef}()
+    realized_con = ScalarConstraint(realize(con.func, con_ref), con.set)
+    con_ref[] = add_constraint(model, realized_con, name)
 end
 
 # add_to_expression!
@@ -184,33 +217,25 @@ function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, other::C
 end
 
 function JuMP.add_to_expression!(
-    aff::GenericAffExpr{Call,VariableRef},
-    coef::_Constant,
-    other::GenericAffExpr{Call,VariableRef},
+    aff::GenericAffExpr{Call,VariableRef}, coef::_Constant, other::GenericAffExpr{Call,VariableRef}
 )
     add_to_expression!(aff, coef * other)
 end
 
 function JuMP.add_to_expression!(
-    aff::GenericAffExpr{Call,VariableRef},
-    other::GenericAffExpr{Call,VariableRef},
-    coef::_Constant,
+    aff::GenericAffExpr{Call,VariableRef}, other::GenericAffExpr{Call,VariableRef}, coef::_Constant
 )
     add_to_expression!(aff, coef, other)
 end
 
 function JuMP.add_to_expression!(
-    aff::GenericAffExpr{Call,VariableRef},
-    coef::_Constant,
-    other::GenericAffExpr{C,VariableRef},
+    aff::GenericAffExpr{Call,VariableRef}, coef::_Constant, other::GenericAffExpr{C,VariableRef}
 ) where {C}
     add_to_expression!(aff, coef, convert(GenericAffExpr{Call,VariableRef}, other))
 end
 
 function JuMP.add_to_expression!(
-    aff::GenericAffExpr{Call,VariableRef},
-    other::GenericAffExpr{C,VariableRef},
-    coef::_Constant,
+    aff::GenericAffExpr{Call,VariableRef}, other::GenericAffExpr{C,VariableRef}, coef::_Constant
 ) where {C}
     add_to_expression!(aff, coef, other)
 end
@@ -264,5 +289,5 @@ Base.:-(lhs::GenericAffExpr{C,VariableRef}, rhs::GenericAffExpr{Call,VariableRef
 
 # @objective extension
 function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
-    set_objective_function(model, realize(func))  # FIXME: Use obj_mngr or something
+    set_objective_function(model, realize(func, model))
 end

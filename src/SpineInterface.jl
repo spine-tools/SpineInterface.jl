@@ -103,9 +103,6 @@ export map_to_time_series
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin
 		include("update_model.jl")
-		export update_varying_objective!
-		export update_varying_constraints!
-		export update_model!
 	end
 end
 

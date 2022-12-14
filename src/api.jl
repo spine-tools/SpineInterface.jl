@@ -218,45 +218,55 @@ end
 (p::ArrayParameterValue)(::Nothing) = p.value
 (p::ArrayParameterValue)(i::Int64) = get(p.value, i, nothing)
 
-(p::TimePatternParameterValue)(mngr=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t, mngr)
-(p::TimePatternParameterValue)(::Nothing, mngr=nothing) = p.value
-(p::TimePatternParameterValue)(t::DateTime, mngr=nothing) = p(TimeSlice(t, t), mngr)
-function (p::TimePatternParameterValue)(t::TimeSlice, mngr=nothing)
+function (p::TimePatternParameterValue)(observer=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...)
+    p(t, observer)
+end
+(p::TimePatternParameterValue)(::Nothing, observer=nothing) = p.value
+(p::TimePatternParameterValue)(t::DateTime, observer=nothing) = p(TimeSlice(t, t), observer)
+function (p::TimePatternParameterValue)(t::TimeSlice, observer=nothing)
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
     isempty(vals) && return nothing
     mean(vals)
 end
 
-(p::StandardTimeSeriesParameterValue)(mngr=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t, mngr)
-(p::StandardTimeSeriesParameterValue)(::Nothing, mngr=nothing) = p.value
-function (p::StandardTimeSeriesParameterValue)(t::DateTime, mngr=nothing)
+function (
+    p::StandardTimeSeriesParameterValue)(observer=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+)
+    p(t, observer)
+end
+(p::StandardTimeSeriesParameterValue)(::Nothing, observer=nothing) = p.value
+function (p::StandardTimeSeriesParameterValue)(t::DateTime, observer=nothing)
     p.value.ignore_year && (t -= Year(t))
     p.value.indexes[1] <= t <= p.value.indexes[end] || return nothing
     p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
 end
-function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, mngr=nothing)
+function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     p.value.ignore_year && (t -= Year(start(t)))
     ab = _search_overlap(p.value, start(t), end_(t))
+    _set_time_to_update(t, observer) do
+        Second(0)
+    end
     isempty(ab) && return nothing
     a, b = ab
     isempty(a:b) && return nothing
     vals = Iterators.filter(!isnan, p.value.values[a:b])
     mean(vals)
-    # TODO: here, we associate the TimeSlice with the manager and probably with the StandardTimeSeriesParameterValue,
-    # so whenever the TimeSlice rolls, we check if the value of the parameter will change and update the coefficient
-    # via the manager
 end
 
-(p::RepeatingTimeSeriesParameterValue)(; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...) = p(t)
-(p::RepeatingTimeSeriesParameterValue)(::Nothing) = p.value
-function (p::RepeatingTimeSeriesParameterValue)(t::DateTime)
+function (p::RepeatingTimeSeriesParameterValue)(
+    observer=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+)
+    p(t, observer)
+end
+(p::RepeatingTimeSeriesParameterValue)(::Nothing, observer=nothing) = p.value
+function (p::RepeatingTimeSeriesParameterValue)(t::DateTime, observer=nothing)
     p.value.ignore_year && (t -= Year(t))
     mismatch = t - p.value.indexes[1]
     reps = fld(mismatch, p.span)
     t -= reps * p.span
     p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
 end
-function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
+function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     t_start = start(t)
     t_end = end_(t)
     p.value.ignore_year && (t_start -= Year(t_start))
@@ -267,6 +277,9 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice)
     mismatch = t_end - p.value.indexes[1]
     reps = div(mismatch, p.span)
     ab = _search_overlap(p.value, t_start, t_end - reps * p.span)
+    _set_time_to_update(t, observer) do
+        Second(0)
+    end
     isempty(ab) && return nothing
     a, b = ab
     asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
@@ -536,6 +549,14 @@ Roll the given `t` in time by the period specified by `forward`.
 function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
     t.start[] += forward
     t.end_[] += forward
+    for (observer, time_to_update) in t.observer_time_to_update
+        time_to_update -= forward
+        if time_to_update < Second(0)
+            _update(observer)
+        else
+            t.observer_time_to_update[observer] = time_to_update
+        end
+    end
     t
 end
 
@@ -627,9 +648,9 @@ end
 
 Perform the given `Call` and return the result.
 """
-function realize(x, mngr)
+function realize(x, observer=nothing)
     try
-        _do_realize(x, mngr)
+        _do_realize(x, observer)
     catch e
         err_msg = "unable to evaluate expression:\n\t$x\n"
         rethrow(ErrorException("$err_msg$(sprint(showerror, e))"))

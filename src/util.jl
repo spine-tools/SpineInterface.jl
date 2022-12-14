@@ -97,16 +97,16 @@ function _show_call(io::IO, call::Call, expr::_CallExpr, func)
     print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
 end
 
-_do_realize(x, mngr=nothing) = x
-_do_realize(call::Call, mngr=nothing) = _do_realize(call, call.func, mngr)
-_do_realize(call::Call, ::Nothing, mngr=nothing) = call.args[1]
-function _do_realize(call::Call, call_func::Function, mngr=nothing)
+_do_realize(x, observer=nothing) = x
+_do_realize(call::Call, observer=nothing) = _do_realize(call, call.func, observer)
+_do_realize(call::Call, ::Nothing, observer=nothing) = call.args[1]
+function _do_realize(call::Call, call_func::Function, observer=nothing)
     realized_vals = Dict{Int64,Array}()
     st = _OperatorCallTraversalState(call)
     while true
         _visit_node(st)
         _visit_child(st) && continue
-        _update_realized_vals!(realized_vals, st, mngr)
+        _update_realized_vals!(realized_vals, st, observer)
         _visit_sibling(st) && continue
         _revisit_parent(st) || break
     end
@@ -117,7 +117,9 @@ function _do_realize(call::Call, call_func::Function, mngr=nothing)
         reduce(call_func, vals)
     end
 end
-_do_realize(call::Call, call_func::T, mngr=nothing) where {T<:AbstractParameterValue} = call_func(mngr; call.kwargs...)
+function _do_realize(call::Call, call_func::T, observer=nothing) where {T<:AbstractParameterValue}
+    call_func(observer; call.kwargs...)
+end
 
 mutable struct _OperatorCallTraversalState
     node_idx::Dict{Int64,Int64}
@@ -170,34 +172,28 @@ function _revisit_parent(st::_OperatorCallTraversalState)
     true
 end
 
-function _update_realized_vals!(vals, st::_OperatorCallTraversalState, mngr)
+function _update_realized_vals!(vals, st::_OperatorCallTraversalState, observer)
     parent_vals = get!(vals, st.parent_id, [])
-    current_val = _realize(st.current, st.current_id, vals, mngr)
+    current_val = _realize(st.current, st.current_id, vals, observer)
     push!(parent_vals, current_val)
 end
 
-_realize(x, ::Int64, ::Dict, mngr) = realize(x, mngr)
-_realize(call::Call, id::Int64, vals::Dict, mngr) = _realize(call, call.func, id, vals, mngr)
-_realize(call::Call, ::Nothing, id::Int64, vals::Dict, mngr) = realize(call, mngr)
-_realize(call::Call, ::Function, id::Int64, vals::Dict, mngr) = reduce(call.func, vals[id])
-_realize(call::Call, ::T, id::Int64, vals::Dict, mngr) where {T<:AbstractParameterValue} = realize(call, mngr)
+_realize(x, ::Int64, ::Dict, observer) = realize(x, observer)
+_realize(call::Call, id::Int64, vals::Dict, observer) = _realize(call, call.func, id, vals, observer)
+_realize(call::Call, ::Nothing, id::Int64, vals::Dict, observer) = realize(call, observer)
+_realize(call::Call, ::Function, id::Int64, vals::Dict, observer) = reduce(call.func, vals[id])
+_realize(call::Call, ::T, id::Int64, vals::Dict, observer) where {T<:AbstractParameterValue} = realize(call, observer)
 
 function _pv_call(call_expr::_CallExpr, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
     _pv_call(_is_time_varying(T), call_expr, pv, inds)
 end
 function _pv_call(
-    is_time_varying::Val{false},
-    call_expr::_CallExpr,
-    pv::T,
-    inds::NamedTuple,
+    is_time_varying::Val{false}, call_expr::_CallExpr, pv::T, inds::NamedTuple
 ) where {T<:AbstractParameterValue}
     Call(call_expr, pv(; inds...))
 end
 function _pv_call(
-    is_time_varying::Val{true},
-    call_expr::_CallExpr,
-    pv::T,
-    inds::NamedTuple,
+    is_time_varying::Val{true}, call_expr::_CallExpr,  pv::T, inds::NamedTuple
 ) where {T<:AbstractParameterValue}
     Call(call_expr, pv, inds)
 end
