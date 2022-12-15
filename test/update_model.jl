@@ -53,7 +53,6 @@
 	optimize!(m)
 	@test objective_value(m) == 12
 	roll!(t, Year(1))
-	update_model!(m)
 	optimize!(m)
 	@test objective_value(m) == 2
 end

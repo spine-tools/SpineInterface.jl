@@ -218,7 +218,9 @@ end
 (p::ArrayParameterValue)(::Nothing) = p.value
 (p::ArrayParameterValue)(i::Int64) = get(p.value, i, nothing)
 
-function (p::TimePatternParameterValue)(observer=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...)
+function (p::TimePatternParameterValue)(
+    observer::Union{Nothing,_Observer}=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+)
     p(t, observer)
 end
 (p::TimePatternParameterValue)(::Nothing, observer=nothing) = p.value
@@ -229,8 +231,8 @@ function (p::TimePatternParameterValue)(t::TimeSlice, observer=nothing)
     mean(vals)
 end
 
-function (
-    p::StandardTimeSeriesParameterValue)(observer=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+function (p::StandardTimeSeriesParameterValue)(
+    observer::Union{Nothing,_Observer}=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
     p(t, observer)
 end
@@ -243,18 +245,23 @@ end
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     p.value.ignore_year && (t -= Year(start(t)))
     ab = _search_overlap(p.value, start(t), end_(t))
-    _set_time_to_update(t, observer) do
-        Second(0)
-    end
     isempty(ab) && return nothing
     a, b = ab
     isempty(a:b) && return nothing
+    _set_time_to_update(t, observer) do
+        minimum(
+            _stride(p.value.indexes, x) do
+                Second(0)
+            end
+            for x in (a, b)
+        )
+    end
     vals = Iterators.filter(!isnan, p.value.values[a:b])
     mean(vals)
 end
 
 function (p::RepeatingTimeSeriesParameterValue)(
-    observer=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+    observer::Union{Nothing,_Observer}=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
     p(t, observer)
 end
@@ -277,11 +284,16 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     mismatch = t_end - p.value.indexes[1]
     reps = div(mismatch, p.span)
     ab = _search_overlap(p.value, t_start, t_end - reps * p.span)
-    _set_time_to_update(t, observer) do
-        Second(0)
-    end
     isempty(ab) && return nothing
     a, b = ab
+    _set_time_to_update(t, observer) do
+        minimum(
+            _stride(p.value.indexes, x) do
+                Second(0)
+            end
+            for x in (a, b)
+        )
+    end
     asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
     bsum = sum(Iterators.filter(!isnan, p.value.values[1:b]))
     alen = count(!isnan, p.value.values[a:end])
@@ -289,32 +301,33 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     (asum + bsum + (reps - 1) * p.valsum) / (alen + blen + (reps - 1) * p.len)
 end
 
-function (p::MapParameterValue)(; t=nothing, i=nothing, kwargs...)
+function (p::MapParameterValue)(observer::Union{Nothing,_Observer}=nothing; t=nothing, i=nothing, kwargs...)
     isempty(kwargs) && return p.value
     arg = first(values(kwargs))
     new_kwargs = Base.tail((; kwargs...))
-    p(arg; t=t, i=i, new_kwargs...)
+    p(arg, observer; t=t, i=i, new_kwargs...)
 end
-function (p::MapParameterValue)(k; kwargs...)
+function (p::MapParameterValue)(k, observer=nothing; kwargs...)
     i = _search_equal(p.value.indexes, k)
     i === nothing && return p(; kwargs...)
     pvs = p.value.values[i]
-    pvs(; kwargs...)
+    pvs(observer; kwargs...)
 end
-function (p::MapParameterValue{Symbol,V})(o::ObjectLike; kwargs...) where {V}
+function (p::MapParameterValue{Symbol,V})(o::ObjectLike, observer=nothing; kwargs...) where {V}
     i = _search_equal(p.value.indexes, o.name)
     i === nothing && return p(; kwargs...)
     pvs = p.value.values[i]
-    pvs(; kwargs...)
+    pvs(observer; kwargs...)
 end
-function (p::MapParameterValue{DateTime,V})(d::DateTime; kwargs...) where {V}
+function (p::MapParameterValue{DateTime,V})(d::DateTime, observer=nothing; kwargs...) where {V}
     i = _search_nearest(p.value.indexes, d)
     i === nothing && return p(; kwargs...)
     pvs = p.value.values[i]
-    pvs(; kwargs...)
+    pvs(observer; kwargs...)
 end
-function (p::MapParameterValue{DateTime,V})(d::_DateTimeRef; kwargs...) where {V}
-    p(d.ref[]; kwargs...)
+function (p::MapParameterValue{DateTime,V})(d::_DateTimeRef, observer=nothing; kwargs...) where {V}
+    # TODO: _set_time_to_update
+    p(d.ref[], observer; kwargs...)
 end
 
 members(::Anything) = anything
@@ -549,12 +562,14 @@ Roll the given `t` in time by the period specified by `forward`.
 function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
     t.start[] += forward
     t.end_[] += forward
-    for (observer, time_to_update) in t.observer_time_to_update
+    for time_to_update in collect(keys(t.observers))
+        observers = pop!(t.observers, time_to_update)
         time_to_update -= forward
-        if time_to_update < Second(0)
-            _update(observer)
+        if forward <= Second(0) || time_to_update <= Second(0)
+            println("updating $(length(observers))")
+            _update.(observers)
         else
-            t.observer_time_to_update[observer] = time_to_update
+            t.observers[time_to_update] = observers
         end
     end
     t
@@ -651,6 +666,7 @@ Perform the given `Call` and return the result.
 function realize(x, observer=nothing)
     try
         _do_realize(x, observer)
+        #_do_realize(x, nothing)
     catch e
         err_msg = "unable to evaluate expression:\n\t$x\n"
         rethrow(ErrorException("$err_msg$(sprint(showerror, e))"))

@@ -98,9 +98,9 @@ function _show_call(io::IO, call::Call, expr::_CallExpr, func)
 end
 
 _do_realize(x, observer=nothing) = x
-_do_realize(call::Call, observer=nothing) = _do_realize(call, call.func, observer)
-_do_realize(call::Call, ::Nothing, observer=nothing) = call.args[1]
-function _do_realize(call::Call, call_func::Function, observer=nothing)
+_do_realize(call::Call, observer=nothing) = _do_realize(call, observer, call.func)
+_do_realize(call::Call, observer, ::Nothing) = call.args[1]
+function _do_realize(call::Call, observer, call_func::Function)
     realized_vals = Dict{Int64,Array}()
     st = _OperatorCallTraversalState(call)
     while true
@@ -117,7 +117,7 @@ function _do_realize(call::Call, call_func::Function, observer=nothing)
         reduce(call_func, vals)
     end
 end
-function _do_realize(call::Call, call_func::T, observer=nothing) where {T<:AbstractParameterValue}
+function _do_realize(call::Call, observer, call_func::T) where {T<:AbstractParameterValue}
     call_func(observer; call.kwargs...)
 end
 
@@ -844,3 +844,5 @@ _get_range(arr, ::Nothing) = arr
 _inner_value(x) = x
 _inner_value(x::NothingParameterValue) = nothing
 _inner_value(x::AbstractParameterValue) = x.value
+
+_stride(f, arr, pos) = pos == length(arr) ? f() : arr[pos + 1] - arr[pos]

@@ -61,7 +61,7 @@ struct TimeSlice
     duration::Float64
     blocks::NTuple{N,Object} where {N}
     id::UInt64
-    observer_time_to_update::Dict
+    observers::Dict
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
         id = objectid((start, end_, duration, blocks))
@@ -191,3 +191,5 @@ end
 struct _DateTimeRef
     ref::Ref{DateTime}
 end
+
+abstract type _Observer end

@@ -44,8 +44,6 @@ struct EqualToCall <: CallSet
     value::Call
 end
 
-abstract type _Observer end
-
 struct _ObjectiveCoefficientObserver <: _Observer
     model::Model
     variable::VariableRef
@@ -84,7 +82,12 @@ _coefficient_observer(cr::Base.RefValue{ConstraintRef}, v, c) = _ConstraintCoeff
 _coefficient_observer(::Nothing, _v, _c) = nothing
 
 function _set_time_to_update(f, t::TimeSlice, observer::_Observer)
-    t.observer_time_to_update[observer] = f()
+    push!(
+        get!(t.observers, f()) do
+            @show Set()
+        end,
+        observer
+    )
 end
 _set_time_to_update(f, t::TimeSlice, ::Nothing) = nothing
 
