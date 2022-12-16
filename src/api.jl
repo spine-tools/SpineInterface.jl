@@ -656,7 +656,6 @@ Perform the given `Call` and return the result.
 function realize(x, observer=nothing)
     try
         _do_realize(x, observer)
-        #_do_realize(x, nothing)
     catch e
         err_msg = "unable to evaluate expression:\n\t$x\n"
         rethrow(ErrorException("$err_msg$(sprint(showerror, e))"))

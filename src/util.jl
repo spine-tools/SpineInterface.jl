@@ -88,6 +88,20 @@ _entity_tuple(r::RelationshipLike, class) = r
 _entity_tuples(class::ObjectClass; kwargs...) = (_entity_tuple(o, class) for o in class())
 _entity_tuples(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
 
+struct _CallNode
+    call::Call
+    parent::Union{_CallNode,Nothing}
+    child_number::Int64
+    children::Vector{_CallNode}
+    function _CallNode(call, parent, child_number)
+        node = new(call, parent, child_number, Vector{_CallNode}())
+        if parent !== nothing
+            push!(parent.children, node)
+        end
+        node
+    end
+end
+
 _show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
 _show_call(io::IO, call::Call, expr::Nothing, func::Function) = print(io, join(call.args, string(" ", func, " ")))
 function _show_call(io::IO, call::Call, expr::_CallExpr, func)
@@ -100,89 +114,44 @@ end
 _do_realize(x, observer=nothing) = x
 _do_realize(call::Call, observer=nothing) = _do_realize(call, observer, call.func)
 _do_realize(call::Call, observer, ::Nothing) = call.args[1]
-function _do_realize(call::Call, observer, call_func::Function)
-    realized_vals = Dict{Int64,Array}()
-    st = _OperatorCallTraversalState(call)
-    while true
-        _visit_node(st)
-        _visit_child(st) && continue
-        _update_realized_vals!(realized_vals, st, observer)
-        _visit_sibling(st) && continue
-        _revisit_parent(st) || break
-    end
-    vals = realized_vals[1]
-    if length(vals) <= 1
-        call_func(vals...)
-    else
-        reduce(call_func, vals)
-    end
-end
 function _do_realize(call::Call, observer, call_func::T) where {T<:AbstractParameterValue}
     call_func(observer; call.kwargs...)
 end
-
-mutable struct _OperatorCallTraversalState
-    node_idx::Dict{Int64,Int64}
-    parent_ids::Dict{Int64,Int64}
-    next_id::Int64
-    parent_id::Int64
-    current_id::Int64
-    parents::Array{Any,1}
-    current::Any
-    children_visited::Bool
-    function _OperatorCallTraversalState(current)
-        new(Dict{Int64,Int64}(), Dict{Int64,Int64}(), 1, 0, 1, [], current, false)
+function _do_realize(call::Call, observer, ::Function)
+    current = _CallNode(call, nothing, -1)
+    values = Dict()
+    while true
+        vals = [values[child] for child in current.children]
+        if !isempty(vals)
+            values[current] = if length(vals) <= 1
+                current.call.func(vals...)
+            else
+                reduce(current.call.func, vals)
+            end
+            current.parent === nothing && break
+            current = current.parent
+        else
+            if current.call.func isa Function
+                current = _first_child(current)
+            else
+                values[current] = realize(current.call, observer)
+                if current.child_number < length(current.parent.call.args)
+                    current = _next_sibling(current)
+                else
+                    current = current.parent
+                end
+            end
+        end
     end
+    values[current]
 end
 
-_visit_node(st::_OperatorCallTraversalState) = (st.parent_ids[st.current_id] = st.parent_id)
+_first_child(node::_CallNode) = _CallNode(node.call.args[1], node, 1)
 
-function _visit_child(st::_OperatorCallTraversalState)
-    if !st.children_visited && st.current isa Call && st.current.func isa Function
-        push!(st.parents, st.current)
-        st.parent_id = st.current_id
-        st.current_id = st.next_id += 1
-        st.node_idx[st.parent_id] = 1
-        st.current = st.current.args[1]
-        true
-    else
-        false
-    end
+function _next_sibling(node::_CallNode)
+    sibling_child_number = node.child_number + 1
+    _CallNode(node.parent.call.args[sibling_child_number], node.parent, sibling_child_number)
 end
-
-function _visit_sibling(st::_OperatorCallTraversalState)
-    next_index = st.node_idx[st.parent_id] + 1
-    if next_index <= length(st.parents[end].args)
-        st.children_visited = false
-        st.node_idx[st.parent_id] = next_index
-        st.current_id = st.next_id += 1
-        st.current = st.parents[end].args[next_index]
-        true
-    else
-        false
-    end
-end
-
-function _revisit_parent(st::_OperatorCallTraversalState)
-    st.current_id = st.parent_id
-    st.parent_id = st.parent_ids[st.current_id]
-    st.parent_id == 0 && return false
-    st.current = pop!(st.parents)
-    st.children_visited = true
-    true
-end
-
-function _update_realized_vals!(vals, st::_OperatorCallTraversalState, observer)
-    parent_vals = get!(vals, st.parent_id, [])
-    current_val = _realize(st.current, st.current_id, vals, observer)
-    push!(parent_vals, current_val)
-end
-
-_realize(x, ::Int64, ::Dict, observer) = realize(x, observer)
-_realize(call::Call, id::Int64, vals::Dict, observer) = _realize(call, call.func, id, vals, observer)
-_realize(call::Call, ::Nothing, id::Int64, vals::Dict, observer) = realize(call, observer)
-_realize(call::Call, ::Function, id::Int64, vals::Dict, observer) = reduce(call.func, vals[id])
-_realize(call::Call, ::T, id::Int64, vals::Dict, observer) where {T<:AbstractParameterValue} = realize(call, observer)
 
 function _pv_call(call_expr::_CallExpr, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
     _pv_call(_is_time_varying(T), call_expr, pv, inds)

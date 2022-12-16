@@ -294,5 +294,5 @@
     @test isnothing(iterate(ts1, 4))
     @test iterate(m) == (1 => 5, 2)
     @test iterate(m, 3) == (3 => 7, 4)
-    @test isnothing(iterate(m,5))
+    @test isnothing(iterate(m, 5))
 end
