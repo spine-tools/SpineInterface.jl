@@ -123,24 +123,23 @@ function _do_realize(call::Call, observer, ::Function)
     while true
         vals = [values[child] for child in current.children]
         if !isempty(vals)
-            values[current] = if length(vals) <= 1
-                current.call.func(vals...)
-            else
-                reduce(current.call.func, vals)
-            end
-            current.parent === nothing && break
-            current = current.parent
+            # children already visited, compute value
+            values[current] = length(vals) == 1 ? current.call.func(vals[1]) : reduce(current.call.func, vals)
+        elseif current.call.func isa Function
+            # visit children
+            current = _first_child(current)
+            continue
         else
-            if current.call.func isa Function
-                current = _first_child(current)
-            else
-                values[current] = realize(current.call, observer)
-                if current.child_number < length(current.parent.call.args)
-                    current = _next_sibling(current)
-                else
-                    current = current.parent
-                end
-            end
+            # no children, realize value
+            values[current] = realize(current.call, observer)
+        end
+        current.parent === nothing && break
+        if current.child_number < length(current.parent.call.args)
+            # visit sibling
+            current = _next_sibling(current)
+        else
+            # go back to parent
+            current = current.parent
         end
     end
     values[current]
