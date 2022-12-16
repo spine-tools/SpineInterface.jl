@@ -845,4 +845,11 @@ _inner_value(x) = x
 _inner_value(x::NothingParameterValue) = nothing
 _inner_value(x::AbstractParameterValue) = x.value
 
-_stride(f, arr, pos) = pos == length(arr) ? f() : arr[pos + 1] - arr[pos]
+function _time_to_change(ts::TimeSeries, pos)
+    i = findfirst(val -> val != ts.values[pos], ts.values[pos + 1 : end])
+    if i === nothing
+        ts.indexes[end] - ts.indexes[pos]
+    else
+        ts.indexes[pos + i] - ts.indexes[pos]
+    end
+end

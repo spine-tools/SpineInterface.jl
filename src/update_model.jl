@@ -82,12 +82,10 @@ _coefficient_observer(cr::Base.RefValue{ConstraintRef}, v, c) = _ConstraintCoeff
 _coefficient_observer(::Nothing, _v, _c) = nothing
 
 function _set_time_to_update(f, t::TimeSlice, observer::_Observer)
-    push!(
-        get!(t.observers, f()) do
-            @show Set()
-        end,
-        observer
-    )
+    observers = get!(t.observers, f()) do
+        Set()
+    end
+    push!(observers, observer)
 end
 _set_time_to_update(f, t::TimeSlice, ::Nothing) = nothing
 
