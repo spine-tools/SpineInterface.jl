@@ -553,7 +553,7 @@ function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
     for time_to_update in collect(keys(t.observers))
         observers = pop!(t.observers, time_to_update)
         time_to_update -= forward
-        if sign(forward) < 0 || sign(time_to_update) <= 0
+        if Dates.toms(forward) < 0 || Dates.toms(time_to_update) <= 0
             _update.(observers)
         else
             t.observers[time_to_update] = observers
