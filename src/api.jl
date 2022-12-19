@@ -210,17 +210,15 @@ function _call(p::Parameter; _strict=true, kwargs...)
     end
 end
 
-(p::NothingParameterValue)(; kwargs...) = nothing
+(p::NothingParameterValue)(observer=nothing; kwargs...) = nothing
 
-(p::ScalarParameterValue)(; kwargs...) = p.value
+(p::ScalarParameterValue)(observer=nothing; kwargs...) = p.value
 
-(p::ArrayParameterValue)(; i::Union{Int64,Nothing}=nothing, kwargs...) = p(i)
+(p::ArrayParameterValue)(observer=nothing; i::Union{Int64,Nothing}=nothing, kwargs...) = p(i)
 (p::ArrayParameterValue)(::Nothing) = p.value
 (p::ArrayParameterValue)(i::Int64) = get(p.value, i, nothing)
 
-function (p::TimePatternParameterValue)(
-    observer::Union{Nothing,_Observer}=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
-)
+function (p::TimePatternParameterValue)(observer=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...)
     p(t, observer)
 end
 (p::TimePatternParameterValue)(::Nothing, observer=nothing) = p.value
@@ -232,7 +230,7 @@ function (p::TimePatternParameterValue)(t::TimeSlice, observer=nothing)
 end
 
 function (p::StandardTimeSeriesParameterValue)(
-    observer::Union{Nothing,_Observer}=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+    observer=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
     p(t, observer)
 end
@@ -256,7 +254,7 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
 end
 
 function (p::RepeatingTimeSeriesParameterValue)(
-    observer::Union{Nothing,_Observer}=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+    observer=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
     p(t, observer)
 end
@@ -555,7 +553,7 @@ function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
     for time_to_update in collect(keys(t.observers))
         observers = pop!(t.observers, time_to_update)
         time_to_update -= forward
-        if forward <= Second(0) || time_to_update <= Second(0)
+        if forward <= Year(0) || time_to_update <= Year(0)
             _update.(observers)
         else
             t.observers[time_to_update] = observers
