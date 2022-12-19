@@ -203,7 +203,7 @@ julia> demand(node=node(:Sthlm), i=1)
 (p::Parameter)(args...; kwargs...) = _call(p, args...; kwargs...)
 
 function _call(p::Parameter; _strict=true, kwargs...)
-    pv_new_kwargs = _lookup_parameter_value(p; _strict=_strict, kwargs...)
+    pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, kwargs...)
     if pv_new_kwargs !== nothing
         parameter_value, new_kwargs = pv_new_kwargs
         parameter_value(; new_kwargs...)
@@ -556,7 +556,6 @@ function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
         observers = pop!(t.observers, time_to_update)
         time_to_update -= forward
         if forward <= Second(0) || time_to_update <= Second(0)
-            println("updating $(length(observers))")
             _update.(observers)
         else
             t.observers[time_to_update] = observers
@@ -829,7 +828,7 @@ Finds the singe maximum value of a `Parameter` across all its `ObjectClasses` or
 `AbstractParameterValue` types.
 """
 function maximum_parameter_value(p::Parameter)
-    pvs = (first(_lookup_parameter_value(p; ent_tup...)) for class in p.classes for ent_tup in _entity_tuples(class))
+    pvs = (first(_split_parameter_value_kwargs(p; ent_tup...)) for class in p.classes for ent_tup in _entity_tuples(class))
     pvs_skip_nothing = (pv for pv in pvs if pv() !== nothing)
     isempty(pvs_skip_nothing) && return nothing
     maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)

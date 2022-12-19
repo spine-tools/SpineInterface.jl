@@ -51,13 +51,13 @@ struct _ObjectiveCoefficientObserver <: _Observer
 end
 
 struct _ConstraintCoefficientObserver <: _Observer
-    constraint_reference::Base.RefValue{ConstraintRef}
+    constraint_reference::Ref{ConstraintRef}
     variable::VariableRef
     coefficient::Call
 end
 
 struct _RHSObserver <: _Observer
-    constraint_reference::Base.RefValue{ConstraintRef}
+    constraint_reference::Ref{ConstraintRef}
     rhs::Call
 end
 
@@ -78,7 +78,7 @@ function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})
 end
 
 _coefficient_observer(m::Model, v, c) = _ObjectiveCoefficientObserver(m, v, c)
-_coefficient_observer(cr::Base.RefValue{ConstraintRef}, v, c) = _ConstraintCoefficientObserver(cr, v, c)
+_coefficient_observer(cr::Ref{ConstraintRef}, v, c) = _ConstraintCoefficientObserver(cr, v, c)
 _coefficient_observer(::Nothing, _v, _c) = nothing
 
 function _set_time_to_update(f, t::TimeSlice, observer::_Observer)

@@ -198,7 +198,7 @@ Base.keys(apv::AbstractParameterValue) = keys(apv.value)
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 function Base.getindex(p::Parameter, inds::NamedTuple)
-    pv_new_kwargs = _lookup_parameter_value(p; inds...)
+    pv_new_kwargs = _split_parameter_value_kwargs(p; inds...)
     if pv_new_kwargs !== nothing
         parameter_value, new_inds = pv_new_kwargs
         _pv_call((p.name, inds), parameter_value, new_inds)

@@ -39,10 +39,10 @@ function _get(d, key, backup)
     end
 end
 
-function _lookup_parameter_value(p::Parameter; _strict=true, kwargs...)
+function _split_parameter_value_kwargs(p::Parameter; _strict=true, kwargs...)
     for class in p.classes
-        lookup_key, new_kwargs = _lookup_key(class; kwargs...)
-        parameter_values = _entity_pvals(class.parameter_values, lookup_key)
+        entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
+        parameter_values = _entity_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults), new_kwargs
     end
@@ -51,22 +51,28 @@ function _lookup_parameter_value(p::Parameter; _strict=true, kwargs...)
     end
 end
 
-_entity_pvals(pvals, lookup_key) = _entity_pvals(pvals, lookup_key, get(pvals, lookup_key, nothing))
-_entity_pvals(pvals, lookup_key, something) = something
-_entity_pvals(pvals, ::Missing, ::Nothing) = nothing
-_entity_pvals(pvals, ::NTuple{N,Missing}, ::Nothing) where {N} = nothing
-function _entity_pvals(pvals, lookup_key, ::Nothing)
-    matching = filter(k -> _matches(k, lookup_key), keys(pvals))
-    if length(matching) === 1
-        return pvals[first(matching)]
+_entity_pvals(pvals_by_entity, ::Nothing) = nothing
+_entity_pvals(pvals_by_entity, entity) = _entity_pvals(pvals_by_entity, entity, get(pvals_by_entity, entity, nothing))
+_entity_pvals(pvals_by_entity, entity, pvals) = pvals
+_entity_pvals(pvals_by_entity, ::Missing, ::Nothing) = nothing
+_entity_pvals(pvals_by_entity, ::NTuple{N,Missing}, ::Nothing) where {N} = nothing
+function _entity_pvals(pvals_by_entity, entity::Tuple, ::Nothing)
+    any(x === missing for x in entity) || return nothing
+    matched = nothing
+    for (key, value) in pvals_by_entity
+        if _matches(key, entity)
+            matched === nothing || return nothing
+            matched = value
+        end
     end
+    matched
 end
 
-function _lookup_key(class::ObjectClass; kwargs...)
+function _split_entity_kwargs(class::ObjectClass; kwargs...)
     new_kwargs = OrderedDict(kwargs...)
     pop!(new_kwargs, class.name, missing), (; new_kwargs...)
 end
-function _lookup_key(class::RelationshipClass; kwargs...)
+function _split_entity_kwargs(class::RelationshipClass; kwargs...)
     new_kwargs = OrderedDict(kwargs...)
     objects = Tuple(pop!(new_kwargs, oc, missing) for oc in class.object_class_names)
     objects, (; new_kwargs...)
@@ -93,8 +99,9 @@ struct _CallNode
     parent::Union{_CallNode,Nothing}
     child_number::Int64
     children::Vector{_CallNode}
+    value::Ref{Any}
     function _CallNode(call, parent, child_number)
-        node = new(call, parent, child_number, Vector{_CallNode}())
+        node = new(call, parent, child_number, Vector{_CallNode}(), Ref(nothing))
         if parent !== nothing
             push!(parent.children, node)
         end
@@ -119,19 +126,18 @@ function _do_realize(call::Call, observer, call_func::T) where {T<:AbstractParam
 end
 function _do_realize(call::Call, observer, ::Function)
     current = _CallNode(call, nothing, -1)
-    values = Dict()
     while true
-        vals = [values[child] for child in current.children]
+        vals = [child.value[] for child in current.children]
         if !isempty(vals)
             # children already visited, compute value
-            values[current] = length(vals) == 1 ? current.call.func(vals[1]) : reduce(current.call.func, vals)
+            current.value[] = length(vals) == 1 ? current.call.func(vals[1]) : reduce(current.call.func, vals)
         elseif current.call.func isa Function
             # visit children
             current = _first_child(current)
             continue
         else
             # no children, realize value
-            values[current] = realize(current.call, observer)
+            current.value[] = realize(current.call, observer)
         end
         current.parent === nothing && break
         if current.child_number < length(current.parent.call.args)
@@ -142,7 +148,7 @@ function _do_realize(call::Call, observer, ::Function)
             current = current.parent
         end
     end
-    values[current]
+    current.value[]
 end
 
 _first_child(node::_CallNode) = _CallNode(node.call.args[1], node, 1)
