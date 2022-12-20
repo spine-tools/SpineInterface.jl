@@ -198,8 +198,8 @@ struct Call
     kwargs::NamedTuple
 end
 
-struct _DateTimeRef
-    ref::Ref{DateTime}
+struct _StartRef
+    time_slice::TimeSlice
 end
 
 abstract type _Observer end

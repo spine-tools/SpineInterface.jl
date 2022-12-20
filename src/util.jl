@@ -209,7 +209,7 @@ function _search_nearest(arr::AbstractArray{T,1}, x::T) where {T}
 end
 _search_nearest(arr, x) = nothing
 
-function _next_index(ts::TimeSeries, pos)
+function _next_index(ts::Union{TimeSeries,Map}, pos)
     i = findfirst(val -> val != ts.values[pos], ts.values[pos + 1 : end])
     i === nothing ? ts.indexes[end] : ts.indexes[pos + i]
 end

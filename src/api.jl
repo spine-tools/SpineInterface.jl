@@ -313,9 +313,15 @@ function (p::MapParameterValue{DateTime,V})(d::DateTime, observer=nothing; kwarg
     pvs = p.value.values[i]
     pvs(observer; kwargs...)
 end
-function (p::MapParameterValue{DateTime,V})(d::_DateTimeRef, observer=nothing; kwargs...) where {V}
-    # TODO: _set_time_to_update
-    p(d.ref[], observer; kwargs...)
+function (p::MapParameterValue{DateTime,V})(s::_StartRef, observer=nothing; kwargs...) where {V}
+    t = s.time_slice
+    i = _search_nearest(p.value.indexes, start(t))
+    _set_time_to_update(t, observer) do
+        i === nothing ? Second(0) : _next_index(p.value, i) - start(t)
+    end    
+    i === nothing && return p(; kwargs...)
+    pvs = p.value.values[i]
+    pvs(observer; kwargs...)
 end
 
 members(::Anything) = anything
@@ -438,9 +444,9 @@ start(t::TimeSlice) = t.start[]
 """
     startref(t::TimeSlice)
 
-The start of time slice or time slice map `t` as a `_DateTimeRef` value.
+A reference to the start of time slice `t`.
 """
-startref(t::TimeSlice) = _DateTimeRef(t.start)
+startref(t::TimeSlice) = _StartRef(t)
 
 """
     end_(t::TimeSlice)
