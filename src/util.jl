@@ -209,6 +209,12 @@ function _search_nearest(arr::AbstractArray{T,1}, x::T) where {T}
 end
 _search_nearest(arr, x) = nothing
 
+function _next_index(ts::TimeSeries, pos)
+    i = findfirst(val -> val != ts.values[pos], ts.values[pos + 1 : end])
+    i === nothing ? ts.indexes[end] : ts.indexes[pos + i]
+end
+
+
 """
     _deleteat!(t_coll, func)
 
@@ -819,11 +825,3 @@ _inner_value(x) = x
 _inner_value(x::NothingParameterValue) = nothing
 _inner_value(x::AbstractParameterValue) = x.value
 
-function _time_to_change(ts::TimeSeries, pos)
-    i = findfirst(val -> val != ts.values[pos], ts.values[pos + 1 : end])
-    if i === nothing
-        ts.indexes[end] - ts.indexes[pos]
-    else
-        ts.indexes[pos + i] - ts.indexes[pos]
-    end
-end

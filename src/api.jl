@@ -247,7 +247,7 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     a, b = ab
     isempty(a:b) && return nothing
     _set_time_to_update(t, observer) do
-        minimum(_time_to_change(p.value, x) for x in (a, b))
+        min(_next_index(p.value, a) - start(t), _next_index(p.value, b) - end_(t))
     end
     vals = Iterators.filter(!isnan, p.value.values[a:b])
     mean(vals)
@@ -280,7 +280,7 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     isempty(ab) && return nothing
     a, b = ab
     _set_time_to_update(t, observer) do
-        minimum(_time_to_change(p.value, x) for x in (a, b))
+        min(_next_index(p.value, a) - start(t), _next_index(p.value, b) - end_(t))
     end
     asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
     bsum = sum(Iterators.filter(!isnan, p.value.values[1:b]))
