@@ -189,7 +189,7 @@ function _from_to_minute(m_start::DateTime, t_start::DateTime, t_end::DateTime)
 end
 
 function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
-    (t_start <= ts.indexes[end] && t_end >= ts.indexes[1]) || return ()
+    (t_start <= ts.indexes[end] && t_end >= ts.indexes[1]) || return (nothing, nothing)
     a = max(1, searchsortedlast(ts.indexes, t_start))
     b = searchsortedfirst(ts.indexes, t_end) - 1
     (a, b)
@@ -214,6 +214,7 @@ function _next_index(ts::TimeSeries, pos)
     i === nothing ? ts.indexes[end] : ts.indexes[pos + i]
 end
 
+_precision(key) = Dict(:Y => Year, :M => Month, :D => Day, :WD => Day, :h => Hour, :m => Minute, :s => Second)[key](1)
 
 """
     _deleteat!(t_coll, func)

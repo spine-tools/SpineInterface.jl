@@ -160,6 +160,16 @@ end
 
 struct TimePatternParameterValue{T} <: AbstractParameterValue
     value::TimePattern{T}
+    precision::Millisecond
+    function TimePatternParameterValue(value::TimePattern{T}) where {T}
+        ms_precision = minimum(
+            Dates.toms(_precision(interval.key))
+            for union in keys(value)
+            for intersection in union
+            for interval in intersection
+        )
+        new{T}(value, Millisecond(ms_precision))
+    end
 end
 
 struct StandardTimeSeriesParameterValue{V} <: AbstractTimeSeriesParameterValue

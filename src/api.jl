@@ -225,6 +225,9 @@ end
 (p::TimePatternParameterValue)(t::DateTime, observer=nothing) = p(TimeSlice(t, t), observer)
 function (p::TimePatternParameterValue)(t::TimeSlice, observer=nothing)
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
+    _set_time_to_update(t, observer) do
+        isempty(vals) ? Second(0) : p.precision
+    end
     isempty(vals) && return nothing
     mean(vals)
 end
@@ -242,13 +245,11 @@ function (p::StandardTimeSeriesParameterValue)(t::DateTime, observer=nothing)
 end
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     p.value.ignore_year && (t -= Year(start(t)))
-    ab = _search_overlap(p.value, start(t), end_(t))
-    isempty(ab) && return nothing
-    a, b = ab
-    isempty(a:b) && return nothing
+    a, b = _search_overlap(p.value, start(t), end_(t))
     _set_time_to_update(t, observer) do
-        min(_next_index(p.value, a) - start(t), _next_index(p.value, b) - end_(t))
+        a === nothing ? Second(0) : min(_next_index(p.value, a) - start(t), _next_index(p.value, b) - end_(t))
     end
+    (a === nothing || isempty(a:b)) && return nothing
     vals = Iterators.filter(!isnan, p.value.values[a:b])
     mean(vals)
 end
@@ -276,12 +277,11 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     t_end -= reps * p.span
     mismatch = t_end - p.value.indexes[1]
     reps = div(mismatch, p.span)
-    ab = _search_overlap(p.value, t_start, t_end - reps * p.span)
-    isempty(ab) && return nothing
-    a, b = ab
+    a, b = _search_overlap(p.value, t_start, t_end - reps * p.span)
     _set_time_to_update(t, observer) do
-        min(_next_index(p.value, a) - start(t), _next_index(p.value, b) - end_(t))
+        a === nothing ? Second(0) : min(_next_index(p.value, a) - start(t), _next_index(p.value, b) - end_(t))
     end
+    a === nothing && return nothing
     asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
     bsum = sum(Iterators.filter(!isnan, p.value.values[1:b]))
     alen = count(!isnan, p.value.values[a:end])
@@ -490,7 +490,7 @@ function overlaps(t::TimeSlice, union::UnionOfIntersections)
         :s => (second, minute, Second),
     )
     for intersection in union
-        result = true
+        does_overlap = true
         for interval in intersection
             component, enclosing, rounding = component_enclosing_rounding[interval.key]
             # Compute component and enclosing component for both start and end of time slice.
@@ -510,7 +510,7 @@ function overlaps(t::TimeSlice, union::UnionOfIntersections)
                 # Time slice starts and ends on the same day
                 # We just need to check whether the time slice and the interval overlap
                 if !(interval.lower <= t_lower <= interval.upper || t_lower <= interval.lower < t_upper)
-                    result = false
+                    does_overlap = false
                     break
                 end
             elseif t_upper_enclosing == t_lower_enclosing + 1
@@ -518,14 +518,14 @@ function overlaps(t::TimeSlice, union::UnionOfIntersections)
                 # We just need to check that time slice doesn't start after the interval ends on the first day,
                 # or ends before the interval starts on the second day
                 if t_lower > interval.upper && t_upper <= interval.lower
-                    result = false
+                    does_overlap = false
                     break
                 end
                 # Time slice spans more than one day
                 # Nothing to do, time slice will always contain the interval
             end
         end
-        result && return true
+        does_overlap && return true
     end
     false
 end
@@ -539,7 +539,7 @@ function overlap_duration(a::TimeSlice, b::TimeSlice)
     overlaps(a, b) || return 0.0
     overlap_start = max(start(a), start(b))
     overlap_end = min(end_(a), end_(b))
-    duration(a) * (Minute(overlap_end - overlap_start) / Minute(end_(a) - start(a)))
+    duration(a) * Minute(overlap_end - overlap_start) / Minute(end_(a) - start(a))
 end
 
 """
