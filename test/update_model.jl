@@ -56,3 +56,61 @@
 	optimize!(m)
 	@test objective_value(m) == 2
 end
+
+struct _TestObserver <: SpineInterface._Observer
+	pv::AbstractParameterValue
+	t::TimeSlice
+	values::Vector{Any}
+	_TestObserver(pv, t) = new(pv, t, DateTime[])
+end
+
+function SpineInterface._update(observer::_TestObserver)
+	push!(observer.values, observer.pv(observer; t=observer.t))
+end
+
+@testset "time series observer" begin
+	t1, t2, t3 = DateTime(0, 1, 1), DateTime(0, 1, 8), DateTime(0, 2, 1)
+	ts_pval = parameter_value(TimeSeries([t1, t2, t3], [20, 4, -1], false, false))
+	t = TimeSlice(DateTime(0, 1, 1, 0), DateTime(0, 1, 1, 1))
+	observer = _TestObserver(ts_pval, t)
+	@test ts_pval(observer; t=t) == 20
+	roll!(t, Hour(1))
+	@test isempty(observer.values)
+	roll!(t, Day(1))
+	@test isempty(observer.values)
+	delta = t2 - t1
+	roll!(t, delta - Day(1) - Hour(1))
+	@test observer.values == [4.0]
+	@test start(t) == t2
+	delta = t3 - t2
+	roll!(t, delta - Hour(1))
+	@test observer.values == [4.0]
+	roll!(t, Hour(1))
+	@test observer.values == [4.0, -1.0]
+end
+@testset "time pattern observer" begin
+	parse_tp = SpineInterface.parse_time_period
+	tp = Dict(parse_tp("M1-6;WD1-5") => 1.0, parse_tp("M1-6;WD6-7") => 20, parse_tp("M7-12") => -4.0)
+	tp_pval = parameter_value(tp)
+	t_start, t_end = DateTime(7, 1, 1, 0), DateTime(7, 1, 1, 1)
+	@test dayofweek(t_start) == 1
+	t = TimeSlice(t_start, t_end)
+	observer = _TestObserver(tp_pval, t)
+	@test tp_pval(observer; t=t) == 1.0
+	roll!(t, Hour(1))
+	@test isempty(observer.values)
+	roll!(t, Day(4))
+	@test observer.values == [1.0]
+	roll!(t, Hour(23))
+	@test observer.values == [1.0, 20.0]
+	@test start(t) == t_start + Day(5)
+	roll!(t, Day(2))
+	@test observer.values == [1.0, 20.0, 1.0]
+	roll!(t, Day(5))
+	@test observer.values == [1.0, 20.0, 1.0, 20.0]
+	delta = start(t) - t_start
+	roll!(t, Month(6) - delta)
+	@test observer.values == [1.0, 20.0, 1.0, 20.0, -4.0]
+	roll!(t, Month(6))
+	@test observer.values == [1.0, 20.0, 1.0, 20.0, -4.0, 1.0]
+end
