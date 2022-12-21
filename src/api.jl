@@ -226,7 +226,14 @@ end
 function (p::TimePatternParameterValue)(t::TimeSlice, observer=nothing)
     vals = [val for (tp, val) in p.value if overlaps(t, tp)]
     _set_time_to_update(t, observer) do
-        isempty(vals) ? Second(0) : p.precision
+        if isempty(vals)
+            Second(0)
+        else
+            min(
+                floor(start(t), p.precision) + p.precision(1) - start(t),
+                ceil(end_(t), p.precision) + Millisecond(1) - end_(t)
+            )
+        end
     end
     isempty(vals) && return nothing
     mean(vals)
@@ -247,7 +254,11 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     p.value.ignore_year && (t -= Year(start(t)))
     a, b = _search_overlap(p.value, start(t), end_(t))
     _set_time_to_update(t, observer) do
-        a === nothing ? Second(0) : min(_next_index(p.value, a) - start(t), _next_index(p.value, b) - end_(t))
+        if a === nothing
+            Second(0)
+        else
+            min(_next_index(p.value, a) - start(t), _next_index(p.value, b) + Millisecond(1) - end_(t))
+        end
     end
     (a === nothing || isempty(a:b)) && return nothing
     vals = Iterators.filter(!isnan, p.value.values[a:b])
@@ -279,7 +290,11 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     reps = div(mismatch, p.span)
     a, b = _search_overlap(p.value, t_start, t_end - reps * p.span)
     _set_time_to_update(t, observer) do
-        a === nothing ? Second(0) : min(_next_index(p.value, a) - start(t), _next_index(p.value, b) - end_(t))
+        if a === nothing
+            Second(0)
+        else
+            min(_next_index(p.value, a) - start(t), _next_index(p.value, b) + Millisecond(1) - end_(t))
+        end
     end
     a === nothing && return nothing
     asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))

@@ -214,8 +214,6 @@ function _next_index(ts::Union{TimeSeries,Map}, pos)
     i === nothing ? ts.indexes[end] : ts.indexes[pos + i]
 end
 
-_precision(key) = Dict(:Y => Year, :M => Month, :D => Day, :WD => Day, :h => Hour, :m => Minute, :s => Second)[key](1)
-
 """
     _deleteat!(t_coll, func)
 

@@ -160,15 +160,16 @@ end
 
 struct TimePatternParameterValue{T} <: AbstractParameterValue
     value::TimePattern{T}
-    precision::Millisecond
+    precision::DataType
     function TimePatternParameterValue(value::TimePattern{T}) where {T}
-        ms_precision = minimum(
-            Dates.toms(_precision(interval.key))
-            for union in keys(value)
-            for intersection in union
-            for interval in intersection
+        prec_by_key = Dict(
+            :Y => Year, :M => Month, :D => Day, :WD => Day, :h => Hour, :m => Minute, :s => Second
         )
-        new{T}(value, Millisecond(ms_precision))
+        precisions = unique(
+            prec_by_key[interval.key] for union in keys(value) for intersection in union for interval in intersection
+        )
+        sort!(precisions; by=x -> Dates.toms(x(1)))
+        new{T}(value, first(precisions))
     end
 end
 
