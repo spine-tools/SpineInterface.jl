@@ -575,7 +575,7 @@ end
     )
     using_spinedb(db_url)
     @test collect(indexed_values(people_count(country=country(:France)))) == [(nothing, 18)]
-    @show collect(indexed_values(people_count(country=country(:Sweden))))
+    # @show collect(indexed_values(people_count(country=country(:Sweden))))
     @test collect(indexed_values(people_count(country=country(:Finland)))) == [
         ((:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-01-01T00:00:00"))), 4.0),
         ((:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-02-01T00:00:00"))), 5.6)
