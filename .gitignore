@@ -14,3 +14,6 @@
 docs/build/
 docs/site/
 /process-palette.json
+test/Manifest.toml
+Manifest.toml
+test/test_out.sqlite
