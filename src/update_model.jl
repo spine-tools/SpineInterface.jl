@@ -87,7 +87,6 @@ function _set_time_to_update(f, t::TimeSlice, observer::_Observer)
     end
     push!(observers, observer)
 end
-_set_time_to_update(f, t::TimeSlice, ::Nothing) = nothing
 
 function _update(observer::_ObjectiveCoefficientObserver)
     new_coef = realize(observer.coefficient, observer)

@@ -824,3 +824,4 @@ _inner_value(x) = x
 _inner_value(x::NothingParameterValue) = nothing
 _inner_value(x::AbstractParameterValue) = x.value
 
+_set_time_to_update(f, t::TimeSlice, ::Nothing) = nothing
