@@ -560,7 +560,7 @@ function overlap_duration(a::TimeSlice, b::TimeSlice)
     overlaps(a, b) || return 0.0
     overlap_start = max(start(a), start(b))
     overlap_end = min(end_(a), end_(b))
-    duration(a) * Minute(overlap_end - overlap_start) / Minute(end_(a) - start(a))
+    duration(a) * (Minute(overlap_end - overlap_start) / Minute(end_(a) - start(a)))
 end
 
 """
