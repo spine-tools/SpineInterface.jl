@@ -318,9 +318,9 @@ end
         @test isnothing(apero_time(country=country(:France), t=DateTime(0)))
         @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(1))))
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(2))) == 4
-        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1,2), DateTime(1,12))) == 4
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1, 2), DateTime(1, 12))) == 4
         @test apero_time(country=country(:France), t=DateTime(1)) == 4
-        @test apero_time(country=country(:France), t=DateTime(1,12)) == 4
+        @test apero_time(country=country(:France), t=DateTime(1, 12)) == 4
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(2), DateTime(3))) == 5
         @test apero_time(country=country(:France), t=DateTime(2)) == 5
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(3))) == 4.5
@@ -332,24 +332,22 @@ end
     end
     @testset "repeating time_series" begin
         isfile(path) && rm(path)
-        # NOTE! Repeating time series should always end with the same value as it started!
-        # NOTE! Needs to include a 4-year span to avoid 1-day mismatches caused by leap years.
+        # NOTE: Repeating time series should always end with the same value as it started!
+        # NOTE: Needs to include a 4-year span to avoid 1-day mismatches caused by leap years.
         val = TimeSeries([DateTime(1), DateTime(2), DateTime(3), DateTime(4), DateTime(5)], [4, 5, 6, 7, 4], false, true)
         parameters = Dict(:apero_time => Dict((country=:France,) => val))
         write_parameters(parameters, url)
         using_spinedb(url)
         @test apero_time(country=country(:France), t=DateTime(0)) == 7
-        # NOTE! The repeat-boundary behaves quite counterintuitively, but I don't know how to fix it...
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(1))) == 5.5
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(2))) == 4
-        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1,2), DateTime(1,12))) == 4
+        @test apero_time(country=country(:France), t=TimeSlice(DateTime(1, 2), DateTime(1, 12))) == 4
         @test apero_time(country=country(:France), t=DateTime(1)) == 4
-        @test apero_time(country=country(:France), t=DateTime(1,12)) == 4
+        @test apero_time(country=country(:France), t=DateTime(1, 12)) == 4
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(2), DateTime(3))) == 5
         @test apero_time(country=country(:France), t=DateTime(2)) == 5
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(3))) == 4.5
         @test apero_time(country=country(:France), t=DateTime(4)) == 7
-        # NOTE! The repeat-boundary behaves quite counterintuitively, but I don't know how to fix it...
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(4), DateTime(5))) == 5.5
         @test apero_time(country=country(:France), t=DateTime(5)) == 4
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(5), DateTime(6))) == 4
@@ -361,8 +359,9 @@ end
         isfile(path) && rm(path)
         parameters = Dict(:apero_time => Dict((country=:France,) => "later..."))
         write_parameters(parameters, url; report="report_x")
-        using_spinedb(url)
-        @test apero_time(country=country(:France), report=report(:report_x)) === Symbol("later...")
+        M = Module()
+        using_spinedb(url, M)
+        @test M.apero_time(country=M.country(:France), report=M.report(:report_x)) === Symbol("later...")
     end
 end
 @testset "Call" begin

@@ -189,27 +189,33 @@ function _from_to_minute(m_start::DateTime, t_start::DateTime, t_end::DateTime)
 end
 
 function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
-    (t_start <= ts.indexes[end] && t_end >= ts.indexes[1]) || return (nothing, nothing)
-    a = max(1, searchsortedlast(ts.indexes, t_start))
+    a = if t_start < ts.indexes[1]
+        1
+    elseif t_start > ts.indexes[end]
+        length(ts.indexes)
+    else
+        searchsortedlast(ts.indexes, t_start)
+    end
     b = searchsortedfirst(ts.indexes, t_end) - 1
     (a, b)
 end
 
 function _search_equal(arr::AbstractArray{T,1}, x::T) where {T}
-    i = searchsortedfirst(arr, x)  # index of the first value in arr greater than or equal to x
+    i = searchsortedfirst(arr, x)  # index of the first value in arr greater than or equal to x, length(arr) + 1 if none
     i <= length(arr) && arr[i] === x && return i
     nothing
 end
 _search_equal(arr, x) = nothing
 
 function _search_nearest(arr::AbstractArray{T,1}, x::T) where {T}
-    i = searchsortedlast(arr, x)  # index of the last value in arr less than or equal to x
+    i = searchsortedlast(arr, x)  # index of the last value in arr less than or equal to x, 0 if none
     i > 0 && return i
     nothing
 end
 _search_nearest(arr, x) = nothing
 
 function _next_index(ts::Union{TimeSeries,Map}, pos)
+    pos == 0 && return ts.indexes[1]
     i = findfirst(val -> val != ts.values[pos], ts.values[pos + 1 : end])
     i === nothing ? ts.indexes[end] : ts.indexes[pos + i]
 end

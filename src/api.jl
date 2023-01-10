@@ -247,20 +247,18 @@ end
 (p::StandardTimeSeriesParameterValue)(::Nothing, observer=nothing) = p.value
 function (p::StandardTimeSeriesParameterValue)(t::DateTime, observer=nothing)
     p.value.ignore_year && (t -= Year(t))
-    p.value.indexes[1] <= t <= p.value.indexes[end] || return nothing
+    t < p.value.indexes[1] && return nothing
+    t > p.value.indexes[end] && !p.value.ignore_year && return nothing
     p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
 end
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     p.value.ignore_year && (t -= Year(start(t)))
     a, b = _search_overlap(p.value, start(t), end_(t))
     _set_time_to_update(t, observer) do
-        if a === nothing
-            Second(0)
-        else
-            min(_next_index(p.value, a) - start(t), _next_index(p.value, b) + Millisecond(1) - end_(t))
-        end
+        min(_next_index(p.value, a) - start(t), _next_index(p.value, b) + Millisecond(1) - end_(t))
     end
-    (a === nothing || isempty(a:b)) && return nothing
+    end_(t) <= p.value.indexes[1] && return nothing
+    start(t) > p.value.indexes[end] && !p.value.ignore_year && return nothing
     vals = Iterators.filter(!isnan, p.value.values[a:b])
     mean(vals)
 end
@@ -279,28 +277,24 @@ function (p::RepeatingTimeSeriesParameterValue)(t::DateTime, observer=nothing)
     p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
 end
 function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
+    p.value.ignore_year && (t -= Year(start(t)))
     t_start = start(t)
     t_end = end_(t)
-    p.value.ignore_year && (t_start -= Year(t_start))
-    mismatch = t_start - p.value.indexes[1]
-    reps = fld(mismatch, p.span)
-    t_start -= reps * p.span
-    t_end -= reps * p.span
-    mismatch = t_end - p.value.indexes[1]
-    reps = div(mismatch, p.span)
-    a, b = _search_overlap(p.value, t_start, t_end - reps * p.span)
+    mismatch_start = t_start - p.value.indexes[1]
+    mismatch_end = t_end - p.value.indexes[1]
+    reps_start = fld(mismatch_start, p.span)
+    reps_end = fld(mismatch_end, p.span)
+    t_start -= reps_start * p.span
+    t_end -= reps_end * p.span
+    a, b = _search_overlap(p.value, t_start, t_end)
     _set_time_to_update(t, observer) do
-        if a === nothing
-            Second(0)
-        else
-            min(_next_index(p.value, a) - start(t), _next_index(p.value, b) + Millisecond(1) - end_(t))
-        end
+        min(_next_index(p.value, a) - start(t), _next_index(p.value, b) + Millisecond(1) - end_(t))
     end
-    a === nothing && return nothing
     asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
     bsum = sum(Iterators.filter(!isnan, p.value.values[1:b]))
     alen = count(!isnan, p.value.values[a:end])
     blen = count(!isnan, p.value.values[1:b])
+    reps = reps_end - reps_start
     (asum + bsum + (reps - 1) * p.valsum) / (alen + blen + (reps - 1) * p.len)
 end
 

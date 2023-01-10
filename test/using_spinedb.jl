@@ -208,7 +208,7 @@ end
         @test isnan(apero_time(country=France, t=TimeSlice(DateTime(0, 4), DateTime(0, 5))))
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 4), DateTime(0, 5, 2))) == 7.0
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 3), DateTime(0, 5, 2))) == (5.0 + 7.0) / 2
-        @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) === nothing
+        @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) === 7.0
     end
     @testset "repeating_time_series" begin
         data = [1, 4, 5, 3, 7]
