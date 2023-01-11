@@ -214,13 +214,7 @@ function _search_nearest(arr::AbstractArray{T,1}, x::T) where {T}
 end
 _search_nearest(arr, x) = nothing
 
-function _next_index(ts::Union{TimeSeries,Map}, pos)
-    pos == 0 && return ts.indexes[1]
-    ts.indexes[min(pos + 1, length(ts.indexes))]
-    # FIXME: The below optimisation doesn't work, why?
-    # i = findfirst(val -> val != ts.values[pos], ts.values[pos + 1 : end])
-    # i === nothing ? ts.indexes[end] : ts.indexes[pos + i]
-end
+_next_index(val::Union{TimeSeries,Map}, pos) = val.indexes[min(pos + 1, length(val.indexes))]
 
 """
     _deleteat!(t_coll, func)
