@@ -216,8 +216,10 @@ _search_nearest(arr, x) = nothing
 
 function _next_index(ts::Union{TimeSeries,Map}, pos)
     pos == 0 && return ts.indexes[1]
-    i = findfirst(val -> val != ts.values[pos], ts.values[pos + 1 : end])
-    i === nothing ? ts.indexes[end] : ts.indexes[pos + i]
+    ts.indexes[min(pos + 1, length(ts.indexes))]
+    # FIXME: The below optimisation doesn't work, why?
+    # i = findfirst(val -> val != ts.values[pos], ts.values[pos + 1 : end])
+    # i === nothing ? ts.indexes[end] : ts.indexes[pos + i]
 end
 
 """

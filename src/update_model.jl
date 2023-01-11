@@ -176,8 +176,8 @@ function JuMP.add_constraint(
     name::String="",
 ) where {T}
     con_ref = Ref{ConstraintRef}()
-    realized_con = ScalarConstraint(realize(con.func, con_ref), con.set)
-    con_ref[] = add_constraint(model, realized_con, name)
+    realized_constraint = ScalarConstraint(realize(con.func, con_ref), con.set)
+    con_ref[] = add_constraint(model, realized_constraint, name)
 end
 
 # add_to_expression!

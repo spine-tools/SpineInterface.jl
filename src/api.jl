@@ -252,13 +252,14 @@ function (p::StandardTimeSeriesParameterValue)(t::DateTime, observer=nothing)
     p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
 end
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
-    p.value.ignore_year && (t -= Year(start(t)))
-    a, b = _search_overlap(p.value, start(t), end_(t))
+    adjusted_t = p.value.ignore_year ? t - Year(start(t)) : t
+    t_start, t_end = start(adjusted_t), end_(adjusted_t)
+    a, b = _search_overlap(p.value, t_start, t_end)
     _set_time_to_update(t, observer) do
-        min(_next_index(p.value, a) - start(t), _next_index(p.value, b) + Millisecond(1) - end_(t))
+        min(_next_index(p.value, a) - t_start, _next_index(p.value, b) + Millisecond(1) - t_end)
     end
-    end_(t) <= p.value.indexes[1] && return nothing
-    start(t) > p.value.indexes[end] && !p.value.ignore_year && return nothing
+    t_end <= p.value.indexes[1] && return nothing
+    t_start > p.value.indexes[end] && !p.value.ignore_year && return nothing
     vals = Iterators.filter(!isnan, p.value.values[a:b])
     mean(vals)
 end
@@ -277,9 +278,9 @@ function (p::RepeatingTimeSeriesParameterValue)(t::DateTime, observer=nothing)
     p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
 end
 function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
-    p.value.ignore_year && (t -= Year(start(t)))
-    t_start = start(t)
-    t_end = end_(t)
+    adjusted_t = p.value.ignore_year ? t - Year(start(t)) : t
+    t_start = start(adjusted_t)
+    t_end = end_(adjusted_t)
     mismatch_start = t_start - p.value.indexes[1]
     mismatch_end = t_end - p.value.indexes[1]
     reps_start = fld(mismatch_start, p.span)
@@ -288,7 +289,7 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     t_end -= reps_end * p.span
     a, b = _search_overlap(p.value, t_start, t_end)
     _set_time_to_update(t, observer) do
-        min(_next_index(p.value, a) - start(t), _next_index(p.value, b) + Millisecond(1) - end_(t))
+        min(_next_index(p.value, a) - t_start, _next_index(p.value, b) + Millisecond(1) - t_end)
     end
     asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
     bsum = sum(Iterators.filter(!isnan, p.value.values[1:b]))
