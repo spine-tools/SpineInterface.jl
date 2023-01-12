@@ -260,8 +260,7 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     end
     t_end <= p.value.indexes[1] && return nothing
     t_start > p.value.indexes[end] && !p.value.ignore_year && return nothing
-    vals = Iterators.filter(!isnan, p.value.values[a:b])
-    mean(vals)
+    mean(Iterators.filter(!isnan, p.value.values[a:b]))
 end
 
 function (p::RepeatingTimeSeriesParameterValue)(
@@ -291,11 +290,12 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     _set_time_to_update(t, observer) do
         min(_next_index(p.value, a) - t_start, _next_index(p.value, b) + Millisecond(1) - t_end)
     end
+    reps = reps_end - reps_start
+    reps == 0 && return mean(Iterators.filter(!isnan, p.value.values[a:b]))
     asum = sum(Iterators.filter(!isnan, p.value.values[a:end]))
     bsum = sum(Iterators.filter(!isnan, p.value.values[1:b]))
     alen = count(!isnan, p.value.values[a:end])
     blen = count(!isnan, p.value.values[1:b])
-    reps = reps_end - reps_start
     (asum + bsum + (reps - 1) * p.valsum) / (alen + blen + (reps - 1) * p.len)
 end
 
