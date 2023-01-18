@@ -815,6 +815,7 @@ indexed_parameter_value(indexed_values::Dict{Nothing,V}) where V = parameter_val
 function indexed_parameter_value(indexed_values::Dict{DateTime,V}) where V
     parameter_value(TimeSeries(collect(keys(indexed_values)), collect(values(indexed_values)), false, false))
 end
+indexed_parameter_value(indexed_values::TimePattern) = parameter_value(indexed_values)
 
 """
     indexed_values(value)
@@ -1035,12 +1036,74 @@ function timedata_operation(f::Function, x::TimePattern, y::TimeSeries)
     TimeSeries(indexes, values, y.ignore_year, y.repeat)
 end
 function timedata_operation(f::Function, x::TimePattern, y::TimePattern)
-    if keys(x) == keys(y)
-        Dict(key => f(x[key], y[key]) for key in keys(x))
-    else
-        @error "`TimePattern-TimePattern` arithmetic currently only supported if the keys are identical!"
-    end
+    Dict(
+        key => f(x_value, y_value)
+        for (key, x_value, y_value) in (
+            (combine(x_key, y_key), x_value, y_value)
+            for (x_key, x_value) in cannonicalize(x)
+            for (y_key, y_value) in cannonicalize(y)
+        )
+        if !isempty(key[1])
+    )
 end
+
+"""
+    combine(x, y)
+
+Combine given unions of intervals so e.g. M1-6;D1-5 combined with D3-7 results in M1-6;D3-5
+"""
+function combine(x::UnionOfIntersections, y::UnionOfIntersections)
+    for z in (x, y)
+        length(z) == 1 || error("can't combine union of multiple intersections $z")
+    end
+    unresolved_intersection = vcat(x[1], y[1])
+    [resolve(unresolved_intersection)]
+end
+
+"""
+    resolve(intersection)
+
+Resolve the given intersection of intervals by turning something like D1-5;D3-7 into D3-5
+"""
+function resolve(unresolved::IntersectionOfIntervals)
+    intervals_by_key = Dict()
+    for interval in unresolved
+        push!(get!(intervals_by_key, interval.key, []), interval)
+    end
+    TimeInterval[
+        TimeInterval(key, lower, upper)
+        for (key, lower, upper) in (
+            (key, maximum(interval.lower for interval in intervals), minimum(interval.upper for interval in intervals))
+            for (key, intervals) in intervals_by_key
+        )
+        if lower <= upper
+    ]
+end
+
+"""
+    cannonicalize!(time_pattern)
+
+Modify a time-pattern in place so each key is a single range.
+So something like {"M1-6,M9-12": 5} becomes {"M1-6": 5, "M9-12": 5}
+"""
+function cannonicalize!(time_pattern::TimePattern)
+    for union_of_intersections in collect(keys(time_pattern))
+        length(union_of_intersections) > 1 || continue
+        value = pop!(time_pattern, union_of_intersections)
+        for intersection in union_of_intersections
+            time_pattern[[intersection]] = value
+        end
+    end
+    time_pattern
+end
+
+"""
+    cannonicalize(time_pattern)
+
+A new time-pattern where each key is a single range.
+So something like {"M1-6,M9-12": 5} becomes {"M1-6": 5, "M9-12": 5}
+"""
+cannonicalize(time_pattern::TimePattern) = cannonicalize!(copy(time_pattern))
 
 """
     difference(left, right)

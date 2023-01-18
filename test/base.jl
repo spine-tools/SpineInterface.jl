@@ -191,8 +191,10 @@
     ts1_repeat = TimeSeries(ts1_dates, ts1_vals, false, true)
     ts1_ignore_year = TimeSeries(ts1_dates .- Year(DateTime(1)), ts1_vals, true, false)
     ts2 = TimeSeries(ts2_dates, ts2_vals, false, false)
-    tp1 = Dict(SpineInterface.parse_time_period("M2-3") => 2.0, SpineInterface.parse_time_period("M3-4") => 3.0)
-    tp2 = Dict(SpineInterface.parse_time_period("M2-3") => 8.0, SpineInterface.parse_time_period("M3-4") => -4.0)
+    month2to3 = SpineInterface.parse_time_period("M2-3")
+    month4to5 = SpineInterface.parse_time_period("M4-5")
+    tp1 = Dict(month2to3 => 2.0, month4to5 => 3.0)
+    tp2 = Dict(month2to3 => 8.0, month4to5 => -4.0)
     # plus
     @test +ts1 == ts1
     @test ts1 + 4.2 == 4.2 + ts1 == TimeSeries(ts1.indexes, ts1.values .+ 4.2, false, false)
@@ -208,9 +210,7 @@
     @test ts1 + ts2 == ts2 + ts1 == TimeSeries([DateTime(1, i) for i in 2:4], [4.0, 5.0, 8.0], false, false)
     @test tp1 + 4.2 == 4.2 + tp1 == Dict(k => 4.2 + v for (k, v) in tp1)
     @test tp1 + tp1 == 2.0 * tp1 == tp1 * 2.0
-    @test tp1 + tp2 == Dict(
-        SpineInterface.parse_time_period("M2-3") => 2.0 + 8.0, SpineInterface.parse_time_period("M3-4") => 3.0 - 4.0
-    )
+    @test tp1 + tp2 == Dict(month2to3 => 2.0 + 8.0, month4to5 => 3.0 - 4.0)
     # minus
     @test ts1 + tp1 == tp1 + ts1 == TimeSeries(ts1_dates[2:end], [2.0 + 2.0, 4.0 + 3.0], false, false)
     @test -ts1 == TimeSeries(ts1.indexes, -ts1.values, false, false)
@@ -221,19 +221,13 @@
     @test 4.2 - tp1 == Dict(k => 4.2 - v for (k, v) in tp1)
     @test ts1 - tp1 == TimeSeries(ts1_dates[2:end], [2.0 - 2.0, 4.0 - 3.0], false, false)
     @test tp1 - ts1 == TimeSeries(ts1_dates[2:end], [2.0 - 2.0, 3.0 - 4.0], false, false)
-    @test tp1 - tp2 == Dict(
-        SpineInterface.parse_time_period("M2-3") => 2.0 - 8.0, SpineInterface.parse_time_period("M3-4") => 3.0 + 4.0
-    )
+    @test tp1 - tp2 == Dict(month2to3 => 2.0 - 8.0, month4to5 => 3.0 + 4.0)
     # times
     @test ts1 * 2.0 == 2.0 * ts1 == TimeSeries(ts1.indexes, 2.0 * ts1.values, false, false)
-    @test tp1 * 2.0 == 2.0 * tp1 == Dict(
-        SpineInterface.parse_time_period("M2-3") => 4.0, SpineInterface.parse_time_period("M3-4") => 6.0
-    )
+    @test tp1 * 2.0 == 2.0 * tp1 == Dict(month2to3 => 4.0, month4to5 => 6.0)
     @test ts1 * ts1 == ts1 ^ 2.0
     @test ts1 * tp1 == tp1 * ts1 == TimeSeries(ts1_dates[2:end], [2.0 * 2.0, 3.0 * 4.0], false, false)
-    @test tp1 * tp2 == tp2 * tp1 == Dict(
-        SpineInterface.parse_time_period("M2-3") => 2.0 * 8.0, SpineInterface.parse_time_period("M3-4") => 3.0 * -4.0
-    )
+    @test tp1 * tp2 == tp2 * tp1 == Dict(month2to3 => 2.0 * 8.0, month4to5 => 3.0 * -4.0)
     # divided by
     @test ts1 / 2.0 == TimeSeries(ts1.indexes, ts1.values ./ 2.0, false, false)
     @test 2.0 / ts1 == TimeSeries(ts1.indexes, 2.0 ./ ts1.values, false, false)
@@ -251,15 +245,11 @@
     @test ts1 ^ ts2 == TimeSeries([DateTime(1, i) for i in 2:4], [4.0, 8.0, 256.0], false, false)
     @test ts1 ^ tp1 == TimeSeries(ts1.indexes[2:end], [4.0, 64.0], false, false)
     @test tp1 ^ ts1 == TimeSeries(ts1.indexes[2:end], [4.0, 81.0], false, false)
-    @test tp1 ^ tp2 == Dict(
-        SpineInterface.parse_time_period("M2-3") => 2.0 ^ 8.0, SpineInterface.parse_time_period("M3-4") => 3.0 ^ -4.0
-    )
+    @test tp1 ^ tp2 == Dict(month2to3 => 2.0 ^ 8.0, month4to5 => 3.0 ^ -4.0)
     # Test timedata_operation for single-argument functions
     @test timedata_operation(float, 0) == float(0)
     @test timedata_operation(float, ts1) == TimeSeries(ts1.indexes, float.(ts1.values), ts1.ignore_year, ts1.repeat)
-    @test timedata_operation(float, tp1) == Dict(
-        SpineInterface.parse_time_period("M2-3") => 2.0, SpineInterface.parse_time_period("M3-4") => 3.0
-    )
+    @test timedata_operation(float, tp1) == Dict(month2to3 => 2.0, month4to5 => 3.0)
     m = Map(collect(1:4), collect(5:8))
     # values
     @test values(ts1) == ts1_vals
@@ -295,4 +285,27 @@
     @test iterate(m) == (1 => 5, 2)
     @test iterate(m, 3) == (3 => 7, 4)
     @test isnothing(iterate(m, 5))
+end
+@testset "TimePattern-TimePattern arithmetic" begin
+    month1to3or7to12 = SpineInterface.parse_time_period("M1-3,M7-12")
+    month4to6 = SpineInterface.parse_time_period("M4-6")
+    weekday1to5 = SpineInterface.parse_time_period("WD1-5")
+    weekday6to7 = SpineInterface.parse_time_period("WD6-7")
+    weekday3to6 = SpineInterface.parse_time_period("WD3-6")
+    tp1 = Dict(month1to3or7to12 => 1, month4to6 => 2)
+    tp2 = Dict(weekday1to5 => 1, weekday6to7 => 2)
+    tp3 = Dict(weekday3to6 => 10)
+    observed = tp1 + tp2
+    expected = Dict(
+        SpineInterface.parse_time_period("WD1-5;M1-3") => 2,
+        SpineInterface.parse_time_period("WD1-5;M4-6") => 3,
+        SpineInterface.parse_time_period("WD1-5;M7-12") => 2,
+        SpineInterface.parse_time_period("WD6-7;M1-3") => 3,
+        SpineInterface.parse_time_period("WD6-7;M4-6") => 4,
+        SpineInterface.parse_time_period("WD6-7;M7-12") => 3,
+    )
+    @test observed == expected
+    observed = tp2 - tp3
+    expected = Dict(SpineInterface.parse_time_period("WD3-5") => -9, SpineInterface.parse_time_period("WD6-6") => -8)
+    @test observed == expected
 end

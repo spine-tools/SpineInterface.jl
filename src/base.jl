@@ -253,8 +253,8 @@ end
 Base.get(x::Map, key, default) = get(x._lookup, key, default)
 Base.get(x::TimeSeries, key, default) = get(x._lookup, key, default)
 
-Base.iszero(x::TimeSeries) = iszero(x.values)
-Base.isapprox(x::TimeSeries, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in x.values)
+Base.iszero(x::Union{TimeSeries,TimePattern}) = iszero(values(x))
+Base.isapprox(x::Union{TimeSeries,TimePattern}, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in values(x))
 Base.isapprox(x::AbstractParameterValue, y; kwargs...) = isapprox(x(), y; kwargs...)
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
