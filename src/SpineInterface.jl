@@ -100,7 +100,6 @@ export unparse_db_value
 export using_spinedb
 export write_parameters
 
-
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin
 		include("update_model.jl")

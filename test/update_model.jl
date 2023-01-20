@@ -114,3 +114,22 @@ end
 	roll!(t, Month(6))
 	@test observer.values == [1.0, 20.0, 1.0, 20.0, -4.0, 1.0]
 end
+@testset "update_range_constraint" begin
+	m = Model(Cbc.Optimizer)
+	@variable(m, x)
+	pval1 = parameter_value(TimeSeries([DateTime(1), DateTime(2)], [20, 4], false, false))
+	pval2 = parameter_value(TimeSeries([DateTime(1), DateTime(2)], [40, 8], false, false))
+	t = TimeSlice(DateTime(1), DateTime(2))
+	p1 = Call((:p1, (a=1,)), pval1, (t=t,))
+	p2 = Call((:p2, (a=1,)), pval2, (t=t,))
+	@objective(m, Min, x)
+	@constraint(m, p1 <= x <= p2)
+	optimize!(m)
+	@test objective_value(m) == 20
+	roll!(t, Year(1))
+	optimize!(m)
+	@test objective_value(m) == 4
+	set_objective_coefficient(m, x, -1)
+	optimize!(m)
+	@test objective_value(m) == -8
+end

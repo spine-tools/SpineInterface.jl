@@ -44,6 +44,11 @@ struct EqualToCall <: CallSet
     value::Call
 end
 
+struct CallInterval <: CallSet
+    lower::Call
+    upper::Call
+end
+
 struct _ObjectiveCoefficientObserver <: _Observer
     model::Model
     variable::VariableRef
@@ -59,6 +64,16 @@ end
 struct _RHSObserver <: _Observer
     constraint_reference::Ref{ConstraintRef}
     rhs::Call
+end
+
+struct _LowerBoundObserver <: _Observer
+    constraint_reference::Ref{ConstraintRef}
+    lower::Call
+end
+
+struct _UpperBoundObserver <: _Observer
+    constraint_reference::Ref{ConstraintRef}
+    upper::Call
 end
 
 MOI.constant(s::GreaterThanCall) = s.lower
@@ -100,6 +115,20 @@ function _update(observer::_RHSObserver)
     new_rhs = realize(observer.rhs, observer)
     set_normalized_rhs(observer.constraint_reference[], new_rhs)
 end
+function _update(observer::_LowerBoundObserver)
+    constraint = observer.constraint_reference[]
+    model = owner_model(constraint)
+    upper = MOI.get(model, MOI.ConstraintSet(), constraint).upper
+    new_lower = realize(observer.lower, observer)
+    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(new_lower, upper))
+end
+function _update(observer::_UpperBoundObserver)
+    constraint = observer.constraint_reference[]
+    model = owner_model(constraint)
+    lower = MOI.get(model, MOI.ConstraintSet(), constraint).lower
+    new_upper = realize(observer.upper, observer)
+    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, new_upper))
+end
 
 # realize
 function realize(s::GreaterThanCall, con_ref)
@@ -113,6 +142,10 @@ end
 function realize(s::EqualToCall, con_ref)
     c = MOI.constant(s)
     MOI.EqualTo(realize(c, _RHSObserver(con_ref, c)))
+end
+function realize(s::CallInterval, con_ref)
+    l, u = s.lower, s.upper
+    MOI.Interval(realize(l, _LowerBoundObserver(con_ref, l)), realize(u, _UpperBoundObserver(con_ref, u)))
 end
 function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
     constant = realize(e.constant)
@@ -128,35 +161,40 @@ end
 MOIU.shift_constant(s::MOI.GreaterThan, call::Call) = GreaterThanCall(MOI.constant(s) + call)
 MOIU.shift_constant(s::MOI.LessThan, call::Call) = LessThanCall(MOI.constant(s) + call)
 MOIU.shift_constant(s::MOI.EqualTo, call::Call) = EqualToCall(MOI.constant(s) + call)
+MOIU.shift_constant(s::CallInterval, call::Call) = CallInterval(s.lower + call, s.upper + call)
 
 function JuMP.build_constraint(_error::Function, call::Call, set::MOI.AbstractScalarSet)
     expr = GenericAffExpr{Call,VariableRef}(call, OrderedDict{VariableRef,Call}())
     build_constraint(_error, expr, set)
 end
-
+function JuMP.build_constraint(_error::Function, var::VariableRef, set::CallSet)
+    build_constraint(_error, Call(1) * var, set)
+end
+function JuMP.build_constraint(_error::Function, var::VariableRef, lb::Call, ub::Real)
+    build_constraint(_error, expr, lb, Call(ub))
+end
+function JuMP.build_constraint(_error::Function, var::VariableRef, lb::Real, ub::Call)
+    build_constraint(_error, expr, Call(lb), ub)
+end
+function JuMP.build_constraint(_error::Function, var::VariableRef, lb::Call, ub::Call)
+    build_constraint(_error, Call(1) * var, lb, ub)
+end
+function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Real, ub::Real)
+    build_constraint(_error, expr, Call(lb), Call(ub))
+end
+function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Real, ub::Call)
+    build_constraint(_error, expr, Call(lb), ub)
+end
+function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Call, ub::Real)
+    build_constraint(_error, expr, lb, Call(ub))
+end
+function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Call, ub::Call)
+    build_constraint(_error, expr, CallInterval(lb, ub))
+end
 function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, set::MOI.AbstractScalarSet)
     constant = expr.constant
     expr.constant = zero(Call)
     new_set = MOIU.shift_constant(set, -constant)
-    ScalarConstraint(expr, new_set)
-end
-
-function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Real, ub::Real)
-    build_constraint(_error, expr, Call(lb), Call(ub))
-end
-
-function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Real, ub::Call)
-    build_constraint(_error, expr, Call(lb), ub)
-end
-
-function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Call, ub::Real)
-    build_constraint(_error, expr, lb, Call(ub))
-end
-
-function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Call, ub::Call)
-    @warn "range constraint won't have their bounds or free term updated when model rolls"
-    set = MOI.Interval(realize(lb), realize(ub))
-    new_set = MOIU.shift_constant(set, -realize(expr.constant))
     ScalarConstraint(expr, new_set)
 end
 
@@ -169,7 +207,6 @@ function JuMP.add_constraint(
     realized_constraint = ScalarConstraint(realize(con.func, con_ref), realize(con.set, con_ref))
     con_ref[] = add_constraint(model, realized_constraint, name)
 end
-
 function JuMP.add_constraint(
     model::Model,
     con::ScalarConstraint{GenericAffExpr{Call,VariableRef},MOI.Interval{T}},
@@ -185,55 +222,45 @@ function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, call::Ca
     aff.constant += call
     aff
 end
-
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, other::GenericAffExpr{C,VariableRef}) where {C}
     merge!(+, aff.terms, other.terms)
     aff.constant += other.constant
     aff
 end
-
 # TODO: Try to find out why we need this one
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, new_coef::Call, new_coef_::Call)
     add_to_expression!(aff, new_coef * new_coef_)
 end
-
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, new_coef::Call, new_var::VariableRef)
     if !iszero(new_coef)
         aff.terms[new_var] = get(aff.terms, new_var, zero(Call)) + new_coef
     end
     aff
 end
-
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, new_var::VariableRef, new_coef::Call)
     add_to_expression!(aff, new_coef, new_var)
 end
-
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, coef::_Constant, other::Call)
     add_to_expression!(aff, coef * other)
 end
-
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, other::Call, coef::_Constant)
     add_to_expression!(aff, coef, other)
 end
-
 function JuMP.add_to_expression!(
     aff::GenericAffExpr{Call,VariableRef}, coef::_Constant, other::GenericAffExpr{Call,VariableRef}
 )
     add_to_expression!(aff, coef * other)
 end
-
 function JuMP.add_to_expression!(
     aff::GenericAffExpr{Call,VariableRef}, other::GenericAffExpr{Call,VariableRef}, coef::_Constant
 )
     add_to_expression!(aff, coef, other)
 end
-
 function JuMP.add_to_expression!(
     aff::GenericAffExpr{Call,VariableRef}, coef::_Constant, other::GenericAffExpr{C,VariableRef}
 ) where {C}
     add_to_expression!(aff, coef, convert(GenericAffExpr{Call,VariableRef}, other))
 end
-
 function JuMP.add_to_expression!(
     aff::GenericAffExpr{Call,VariableRef}, other::GenericAffExpr{C,VariableRef}, coef::_Constant
 ) where {C}
