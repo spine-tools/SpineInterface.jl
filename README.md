@@ -1,6 +1,6 @@
 # SpineInterface.jl
 
-[![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://spine-project.github.io/SpineInterface.jl/latest/index.html)
+[![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://spine-tools.github.io/SpineInterface.jl/latest/index.html)
 [![Build Status](https://travis-ci.com/Spine-project/SpineInterface.jl.svg?branch=master)](https://travis-ci.com/Spine-project/SpineInterface.jl)
 [![codecov](https://codecov.io/gh/Spine-project/SpineInterface.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Spine-project/SpineInterface.jl)
 
