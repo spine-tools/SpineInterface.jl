@@ -40,7 +40,7 @@ function _get(d, key, backup)
 end
 
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, kwargs...)
-    for class in p.classes
+    for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
         entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
         parameter_values = _entity_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
@@ -50,6 +50,9 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, kwargs...)
         error("can't find a value of $p for argument(s) $((; kwargs...))")
     end
 end
+
+_dimensionality(x::ObjectClass) = 0
+_dimensionality(x::RelationshipClass) = length(x.object_class_names)
 
 _entity_pvals(pvals_by_entity, ::Nothing) = nothing
 _entity_pvals(pvals_by_entity, entity) = _entity_pvals(pvals_by_entity, entity, get(pvals_by_entity, entity, nothing))

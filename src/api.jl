@@ -61,9 +61,7 @@ julia> commodity(state_of_matter=commodity(:gas))
  wind
 ```
 """
-(oc::ObjectClass)(args...; kwargs...) = Base.invokelatest(_call, oc, args...; kwargs...)
-
-function _call(oc::ObjectClass; kwargs...)
+function (oc::ObjectClass)(; kwargs...)
     isempty(kwargs) && return oc.objects
     function cond(o)
         for (p, v) in kwargs
@@ -74,12 +72,12 @@ function _call(oc::ObjectClass; kwargs...)
     end
     filter(cond, oc.objects)
 end
-function _call(oc::ObjectClass, name::Symbol)
+function (oc::ObjectClass)(name::Symbol)
     i = findfirst(o -> o.name == name, oc.objects)
     i != nothing && return oc.objects[i]
     nothing
 end
-_call(oc::ObjectClass, name::String) = oc(Symbol(name))
+(oc::ObjectClass)(name::String) = oc(Symbol(name))
 
 """
     (<rc>::RelationshipClass)(;<keyword arguments>)
@@ -137,9 +135,7 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 :nogas
 ```
 """
-(rc::RelationshipClass)(args...; kwargs...) = _call(rc, args...; kwargs...)
-
-function _call(rc::RelationshipClass; _compact::Bool=true, _default::Any=[], kwargs...)
+function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
     lookup_key = Tuple(_immutable(get(kwargs, oc, nothing)) for oc in rc.object_class_names)
     relationships = get!(rc.lookup_cache[_compact], lookup_key) do
@@ -200,9 +196,7 @@ julia> demand(node=node(:Sthlm), i=1)
 21
 ```
 """
-(p::Parameter)(args...; kwargs...) = _call(p, args...; kwargs...)
-
-function _call(p::Parameter; _strict=true, kwargs...)
+function (p::Parameter)(; _strict=true, kwargs...)
     pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, kwargs...)
     if pv_new_kwargs !== nothing
         parameter_value, new_kwargs = pv_new_kwargs
