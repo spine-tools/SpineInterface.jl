@@ -250,8 +250,9 @@ function Base.merge!(ts1::TimeSeries, ts2::TimeSeries)
     ts1
 end
 
-Base.get(x::Map, key, default) = get(x._lookup, key, default)
-Base.get(x::TimeSeries, key, default) = get(x._lookup, key, default)
+Base.get(x::Union{TimeSeries,Map}, key, default) = get(x._lookup, key, default)
+
+Base.getindex(x::Union{TimeSeries,Map}, key) = x._lookup[key]
 
 Base.iszero(x::Union{TimeSeries,TimePattern}) = iszero(values(x))
 Base.isapprox(x::Union{TimeSeries,TimePattern}, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in values(x))

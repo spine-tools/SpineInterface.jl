@@ -801,34 +801,58 @@ end
 parameter_value(parsed_db_value::T) where {T} = error("can't parse $parsed_db_value of unrecognized type $T")
 
 """
-    indexed_parameter_value(indexed_values)
-
-An `AbstractParameterValue` from a dictionary mapping indexes to values.
-"""
-indexed_parameter_value(indexed_values::Dict{Nothing,V}) where V = parameter_value(indexed_values[nothing])
-function indexed_parameter_value(indexed_values::Dict{DateTime,V}) where V
-    parameter_value(TimeSeries(collect(keys(indexed_values)), collect(values(indexed_values)), false, false))
-end
-indexed_parameter_value(indexed_values::TimePattern) = parameter_value(indexed_values)
-
-"""
     indexed_values(value)
 
-An iterator over pairs (index, value) of given value.
-In case of non-indexed values, the result only has one element and the index is nothing.
-In case of `Map`, the index is a tuple of all the indices leading to a value.
+An iterator over tuples (index, inner_value) for given value.
+In case of a scalar - non-indexed - value, the result has only one element: (nothing, value).
+In case of `Map`, the index is a tuple of all the indexes leading to a value.
 """
-indexed_values(::Nothing) = ((nothing, nothing),)
+indexed_values(::NothingParameterValue) = indexed_values(nothing)
+indexed_values(pval::AbstractParameterValue) = indexed_values(pval.value)
 indexed_values(value) = ((nothing, value),)
 indexed_values(value::Array) = enumerate(value)
-indexed_values(value::TimePattern) = value
+indexed_values(value::TimePattern) = ((k, v) for (k, v) in value)
 indexed_values(value::TimeSeries) = zip(value.indexes, value.values)
 function indexed_values(value::Map)
     (x for (ind, val) in zip(value.indexes, value.values) for x in indexed_values((ind,), val))
 end
 indexed_values(prefix, value) = (((prefix..., ind), val) for (ind, val) in indexed_values(value))
-indexed_values(::NothingParameterValue) = indexed_values(nothing)
-indexed_values(pval::AbstractParameterValue) = indexed_values(pval.value)
+
+"""
+    collect_indexed_values(d)
+
+A value (TimeSeries, TimePattern, Map, etc.) from an iterator over tuples (index, inner_value).
+
+# Example
+
+```
+@assert collect_indexed_values(indexed_values(ts)...) == ts
+```
+
+"""
+collect_indexed_values(x) = collect_indexed_values(x...)
+collect_indexed_values(x::Pair...) = collect_indexed_values((a, b) for (a, b) in x)
+collect_indexed_values(x::Tuple{Nothing,V}) where V = x[2]
+collect_indexed_values(x::Tuple{UnionOfIntersections,V}...) where V = Dict(x)
+function collect_indexed_values(x::Tuple{DateTime,V}...) where V
+    indexes, values = zip(x...)
+    TimeSeries(collect(indexes), collect(values), false, false)
+end
+function collect_indexed_values(x::Tuple{T,V}...) where {S,T<:Tuple{S,Vararg},V}
+    d = Dict{S,Any}()
+    for (key, value) in x
+        head, tail... = key
+        new_key = if isempty(tail)
+            nothing
+        elseif length(tail) == 1
+            first(tail)
+        else
+            tail
+        end
+        push!(get!(d, head, Dict{typeof(new_key),typeof(value)}()), new_key => value)
+    end
+    Map(collect(keys(d)), collect_indexed_values.(values(d)))
+end
 
 """
     maximum_parameter_value(p::Parameter)
@@ -837,7 +861,9 @@ Finds the singe maximum value of a `Parameter` across all its `ObjectClasses` or
 `AbstractParameterValue` types.
 """
 function maximum_parameter_value(p::Parameter)
-    pvs = (first(_split_parameter_value_kwargs(p; ent_tup...)) for class in p.classes for ent_tup in _entity_tuples(class))
+    pvs = (
+        first(_split_parameter_value_kwargs(p; ent_tup...)) for class in p.classes for ent_tup in _entity_tuples(class)
+    )
     pvs_skip_nothing = (pv for pv in pvs if pv() !== nothing)
     isempty(pvs_skip_nothing) && return nothing
     maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)

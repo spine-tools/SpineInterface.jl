@@ -55,8 +55,8 @@ export duration
 export end_
 export groups
 export import_data
-export indexed_parameter_value
 export indexed_values
+export collect_indexed_values
 export indices
 export indices_as_tuples
 export iscontained
