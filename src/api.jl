@@ -1015,7 +1015,7 @@ Perform `f` element-wise for potentially `TimeSeries`, `TimePattern`, or `Map` a
 timedata_operation(f::Function, x::TimeSeries) = TimeSeries(x.indexes, f.(x.values), x.ignore_year, x.repeat)
 timedata_operation(f::Function, x::TimePattern) = Dict(key => f(val) for (key, val) in x)
 timedata_operation(f::Function, x::Number) = f(x)
-timedata_operation(f::Function, x::Map) = Map(x.indexes, timedata_operation.(f, x.values))
+timedata_operation(f::Function, x::Map) = Map(x.indexes, [timedata_operation(f, val) for val in x.values])
 
 """
     timedata_operation(f::Function, x, y)
