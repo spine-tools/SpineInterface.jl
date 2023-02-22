@@ -1010,24 +1010,25 @@ end
 """
     timedata_operation(f::Function, x)
 
-Perform `f` element-wise for potentially `TimeSeries` or `TimePattern` argument `x`.
+Perform `f` element-wise for potentially `TimeSeries`, `TimePattern`, or `Map` argument `x`.
 """
 timedata_operation(f::Function, x::TimeSeries) = TimeSeries(x.indexes, f.(x.values), x.ignore_year, x.repeat)
 timedata_operation(f::Function, x::TimePattern) = Dict(key => f(val) for (key, val) in x)
 timedata_operation(f::Function, x::Number) = f(x)
+timedata_operation(f::Function, x::Map) = Map(x.indexes, timedata_operation.(f, x.values))
 
 """
     timedata_operation(f::Function, x, y)
 
-Perform `f` element-wise for potentially `TimeSeries` or `TimePattern` arguments `x` and `y`.
+Perform `f` element-wise for potentially `TimeSeries`, `TimePattern`, or ``Map` arguments `x` and `y`.
 
-Operations between `TimeSeries`/`TimePattern` and `Number` are supported.
 If both `x` and `y` are either `TimeSeries` or `TimePattern`, the timestamps of `x` and `y` are combined,
 and both time-dependent data are sampled on each timestamps to perform the desired operation.
 If either `ts1` or `ts2` are `TimeSeries`, returns a `TimeSeries`.
 If either `ts1` or `ts2` has the `ignore_year` or `repeat` flags set to `true`, so does the resulting `TimeSeries`.
+For `Map`s, perform recursion until non-map operands are found.
 
-Operations between two `TimePattern`s are currently supported only if they have the exact same keys.
+NOTE! Currently, `Map-Map` operations require that `Map` indexes are identical!
 """
 timedata_operation(f::Function, x::TimeSeries, y::Number) = TimeSeries(
     x.indexes, f.(x.values, y), x.ignore_year, x.repeat
@@ -1064,6 +1065,19 @@ function timedata_operation(f::Function, x::TimePattern, y::TimePattern)
             for (y_key, y_value) in cannonicalize(y)
         )
         if !isempty(key[1])
+    )
+end
+function timedata_operation(f::Function, x::Map, y::Union{Number,TimeSeries,TimePattern})
+    Map(x.indexes, [timedata_operation(f, val, y) for val in x.values])
+end
+function timedata_operation(f::Function, x::Union{Number,TimeSeries,TimePattern}, y::Map)
+    Map(y.indexes, [timedata_operation(f, x, val) for val in y.values])
+end
+function timedata_operation(f::Function, x::Map, y::Map)
+    x.indexes != y.indexes && @error "`Map` indexes need to be indentical for `Map-Map` operations!"
+    Map(
+        x.indexes,
+        [timedata_operation(f, valx, valy) for (valx, valy) in zip(x.values, y.values)]
     )
 end
 
