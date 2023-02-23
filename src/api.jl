@@ -803,43 +803,41 @@ parameter_value(parsed_db_value::T) where {T} = error("can't parse $parsed_db_va
 """
     indexed_values(value)
 
-An iterator over tuples (index, inner_value) for given value.
-In case of a scalar - non-indexed - value, the result has only one element: (nothing, value).
-In case of `Map`, the index is a tuple of all the indexes leading to a value.
+A Dict mapping indexes to inner values for given value.
+In case of a scalar - non-indexed - value, the result is Dict(nothing => value).
+In case of `Map`, each key in the result is a tuple of all the indexes leading to a value.
 """
 indexed_values(::NothingParameterValue) = indexed_values(nothing)
 indexed_values(pval::AbstractParameterValue) = indexed_values(pval.value)
-indexed_values(value) = ((nothing, value),)
-indexed_values(value::Array) = enumerate(value)
-indexed_values(value::TimePattern) = ((k, v) for (k, v) in value)
-indexed_values(value::TimeSeries) = zip(value.indexes, value.values)
+indexed_values(value) = Dict(nothing => value)
+indexed_values(value::Array) = Dict(enumerate(value))
+indexed_values(value::TimePattern) = value
+indexed_values(value::TimeSeries) = Dict(zip(value.indexes, value.values))
 function indexed_values(value::Map)
-    (x for (ind, val) in zip(value.indexes, value.values) for x in indexed_values((ind,), val))
+    Dict(i => v for (ind, val) in zip(value.indexes, value.values) for (i, v) in indexed_values((ind,), val))
 end
-indexed_values(prefix, value) = (((prefix..., ind), val) for (ind, val) in indexed_values(value))
+indexed_values(prefix, value) = Dict((prefix..., ind) => val for (ind, val) in indexed_values(value))
 
 """
     collect_indexed_values(d)
 
-A value (TimeSeries, TimePattern, Map, etc.) from an iterator over tuples (index, inner_value).
+A value (TimeSeries, TimePattern, Map, etc.) from a Dict mapping indexes to values.
 
 # Example
 
 ```
-@assert collect_indexed_values(indexed_values(ts)...) == ts
+@assert collect_indexed_values(indexed_values(ts)) == ts
 ```
 
 """
-collect_indexed_values(x) = collect_indexed_values(x...)
-collect_indexed_values(x::Pair...) = collect_indexed_values((a, b) for (a, b) in x)
-collect_indexed_values(x::Tuple{Nothing,V}) where V = x[2]
-collect_indexed_values(x::Tuple{UnionOfIntersections,V}...) where V = Dict(x)
-function collect_indexed_values(x::Tuple{DateTime,V}...) where V
-    indexes, values = zip(x...)
-    TimeSeries(collect(indexes), collect(values), false, false)
+collect_indexed_values(x::Dict{Nothing,V}) where V = x[nothing]
+collect_indexed_values(x::Dict{K,V}) where {K<:Integer,V} = [x[i] for i in sort(collect(keys(x)))]
+collect_indexed_values(x::TimePattern) = x
+function collect_indexed_values(x::Dict{DateTime,V}) where V
+    TimeSeries(collect(keys(x)), collect(values(x)), false, false)
 end
-function collect_indexed_values(x::Tuple{T,V}...) where {S,T<:Tuple{S,Vararg},V}
-    d = Dict{S,Any}()
+function collect_indexed_values(x::Dict{K,V}) where {H,K<:Tuple{H,Vararg},V}
+    d = Dict{H,Any}()
     for (key, value) in x
         head, tail... = key
         new_key = if isempty(tail)
