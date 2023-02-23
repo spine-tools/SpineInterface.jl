@@ -295,7 +295,6 @@
     @test sort(collect(values(tp1))) == [2, 3]
     @test values(m) == collect(5:8)
     @test values(parameter_value(ts1)) == values(ts1)
-    @test values(parameter_value(m)) == parameter_value.(values(m))
     # keys
     @test keys(ts1) == ts1_dates
     @test keys(m) == collect(1:4)

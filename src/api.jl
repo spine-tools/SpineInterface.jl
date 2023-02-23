@@ -302,19 +302,19 @@ end
 function (p::MapParameterValue)(k, observer=nothing; kwargs...)
     i = _search_equal(p.value.indexes, k)
     i === nothing && return p(; kwargs...)
-    pvs = p.value.values[i]
+    pvs = parameter_value(p.value.values[i])
     pvs(observer; kwargs...)
 end
 function (p::MapParameterValue{Symbol,V})(o::ObjectLike, observer=nothing; kwargs...) where {V}
     i = _search_equal(p.value.indexes, o.name)
     i === nothing && return p(; kwargs...)
-    pvs = p.value.values[i]
+    pvs = parameter_value(p.value.values[i])
     pvs(observer; kwargs...)
 end
 function (p::MapParameterValue{DateTime,V})(d::DateTime, observer=nothing; kwargs...) where {V}
     i = _search_nearest(p.value.indexes, d)
     i === nothing && return p(; kwargs...)
-    pvs = p.value.values[i]
+    pvs = parameter_value(p.value.values[i])
     pvs(observer; kwargs...)
 end
 function (p::MapParameterValue{DateTime,V})(s::_StartRef, observer=nothing; kwargs...) where {V}
@@ -324,7 +324,7 @@ function (p::MapParameterValue{DateTime,V})(s::_StartRef, observer=nothing; kwar
         i === nothing ? Second(0) : _next_index(p.value, i) - start(t)
     end    
     i === nothing && return p(; kwargs...)
-    pvs = p.value.values[i]
+    pvs = parameter_value(p.value.values[i])
     pvs(observer; kwargs...)
 end
 
@@ -796,7 +796,7 @@ parameter_value(parsed_db_value::Array) = ArrayParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimePattern) = TimePatternParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_db_value)
 function parameter_value(parsed_db_value::Map)
-    MapParameterValue(Map(parsed_db_value.indexes, parameter_value.(parsed_db_value.values)))
+    MapParameterValue(Map(parsed_db_value.indexes, parsed_db_value.values))
 end
 parameter_value(parsed_db_value::T) where {T} = error("can't parse $parsed_db_value of unrecognized type $T")
 
