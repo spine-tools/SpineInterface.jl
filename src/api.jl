@@ -1015,7 +1015,7 @@ Perform `f` element-wise for potentially `TimeSeries`, `TimePattern`, or `Map` a
 timedata_operation(f::Function, x::TimeSeries) = TimeSeries(x.indexes, f.(x.values), x.ignore_year, x.repeat)
 timedata_operation(f::Function, x::TimePattern) = Dict(key => f(val) for (key, val) in x)
 timedata_operation(f::Function, x::Number) = f(x)
-timedata_operation(f::Function, x::Map) = Map(x.indexes, [timedata_operation(f, val) for val in x.values])
+timedata_operation(f::Function, x::Map) = Map(x.indexes, [timedata_operation(f, val) for val in values(x)])
 
 """
     timedata_operation(f::Function, x, y)
@@ -1068,16 +1068,16 @@ function timedata_operation(f::Function, x::TimePattern, y::TimePattern)
     )
 end
 function timedata_operation(f::Function, x::Map, y::Union{Number,TimeSeries,TimePattern})
-    Map(x.indexes, [timedata_operation(f, val, y) for val in x.values])
+    Map(x.indexes, [timedata_operation(f, val, y) for val in values(x)])
 end
 function timedata_operation(f::Function, x::Union{Number,TimeSeries,TimePattern}, y::Map)
-    Map(y.indexes, [timedata_operation(f, x, val) for val in y.values])
+    Map(y.indexes, [timedata_operation(f, x, val) for val in values(y)])
 end
 function timedata_operation(f::Function, x::Map, y::Map)
     x.indexes != y.indexes && @error "`Map` indexes need to be indentical for `Map-Map` operations!"
     Map(
         x.indexes,
-        [timedata_operation(f, valx, valy) for (valx, valy) in zip(x.values, y.values)]
+        [timedata_operation(f, valx, valy) for (valx, valy) in zip(values(x), values(y))]
     )
 end
 
