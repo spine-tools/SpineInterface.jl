@@ -47,7 +47,7 @@ Base.isless(t::TimeSlice, dt::DateTime) = isless(end_(t), dt)
 Base.isless(dt::DateTime, t::TimeSlice) = isless(dt, start(t))
 
 Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
-Base.:(==)(a::TimeSlice, b::TimeSlice) = all(x(a) == x(b) for x in (start, end_, duration, blocks))
+Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
 Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all(
     [getfield(ts1, field) == getfield(ts2, field) for field in fieldnames(TimeSeries)]
 )
