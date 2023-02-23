@@ -573,19 +573,19 @@ end
         object_parameter_values=object_parameter_values,
     )
     using_spinedb(db_url)
-    @test collect(indexed_values(people_count(country=country(:France)))) == [(nothing, 18)]
+    @test indexed_values(people_count(country=country(:France))) == Dict(nothing => 18)
     # @show collect(indexed_values(people_count(country=country(:Sweden))))
-    @test collect(indexed_values(people_count(country=country(:Finland)))) == [
-        ((:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-01-01T00:00:00"))), 4.0),
-        ((:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-02-01T00:00:00"))), 5.6)
-    ]
-    @test collect(indexed_values(people_count(country=country(:Ireland)))) == [(1, 4.0), (2, 8.0), (3, 7.0)]
-    @test collect(indexed_values(people_count(country=country(:Netherlands)))) == Any[
-        (DateTime("0000-01-01T00:00:00"), 1.0),
-        (DateTime("0000-02-01T00:00:00"), 4.0),
-        (DateTime("0000-03-01T00:00:00"), 5.0),
-        (DateTime("0000-04-01T00:00:00"), -100.0),
-        (DateTime("0000-05-01T00:00:00"), 7.0)
-    ]
-    @test collect(indexed_values(people_count(country=country(:Denmark)))) == [(nothing, nothing)]
+    @test indexed_values(people_count(country=country(:Finland))) == Dict(
+        (:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-01-01T00:00:00"))) => 4.0,
+        (:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-02-01T00:00:00"))) => 5.6
+    )
+    @test indexed_values(people_count(country=country(:Ireland))) == Dict(1 => 4.0, 2 => 8.0, 3 => 7.0)
+    @test (indexed_values(people_count(country=country(:Netherlands)))) == Dict(
+        DateTime("0000-01-01T00:00:00") => 1.0,
+        DateTime("0000-02-01T00:00:00") => 4.0,
+        DateTime("0000-03-01T00:00:00") => 5.0,
+        DateTime("0000-04-01T00:00:00") => -100.0,
+        DateTime("0000-05-01T00:00:00") => 7.0
+    )
+    @test indexed_values(people_count(country=country(:Denmark))) == Dict(nothing => nothing)
 end

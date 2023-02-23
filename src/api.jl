@@ -823,7 +823,7 @@ indexed_values(prefix, value) = Dict((prefix..., ind) => val for (ind, val) in i
 
 A value (TimeSeries, TimePattern, Map, etc.) from a Dict mapping indexes to values.
 
-# Example
+## Examples
 
 ```
 @assert collect_indexed_values(indexed_values(ts)) == ts
