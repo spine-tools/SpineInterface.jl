@@ -326,8 +326,11 @@
     @test isnothing(iterate(m, 5))
     # AbstractParameterValue consistency
     @test parameter_value(ts1)() == ts1
+    @test parameter_value(ts1)(asd = :asd) == ts1
     @test parameter_value(tp1)() == tp1
+    @test parameter_value(tp1)(asd = :asd) == tp1
     @test parameter_value(m1)() == m1
+    @test parameter_value(m1)(asd = :asd) == m1
 end
 @testset "TimePattern-TimePattern arithmetic" begin
     month1to3or7to12 = SpineInterface.parse_time_period("M1-3,M7-12")
