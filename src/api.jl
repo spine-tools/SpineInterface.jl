@@ -1072,7 +1072,7 @@ function timedata_operation(f::Function, x::Union{Number,TimeSeries,TimePattern}
     Map(y.indexes, [timedata_operation(f, x, val) for val in values(y)])
 end
 function timedata_operation(f::Function, x::Map, y::Map)
-    x.indexes != y.indexes && @error "`Map` indexes need to be indentical for `Map-Map` operations!"
+    x.indexes != y.indexes && error("`Map` indexes need to be indentical for `Map-Map` operations!")
     Map(
         x.indexes,
         [timedata_operation(f, valx, valy) for (valx, valy) in zip(values(x), values(y))]
