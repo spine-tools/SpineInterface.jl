@@ -281,7 +281,7 @@ _maximum_parameter_value(pv::ScalarParameterValue) = _upper_bound(pv.value)
 _maximum_parameter_value(pv::ArrayParameterValue) = _maximum_skipnan(pv.value)
 _maximum_parameter_value(pv::TimePatternParameterValue) = _maximum_skipnan(values(pv.value))
 _maximum_parameter_value(pv::AbstractTimeSeriesParameterValue) = _maximum_skipnan(pv.value.values)
-_maximum_parameter_value(pv::MapParameterValue) = _maximum_skipnan(_maximum_parameter_value.(parameter_value.(pv.value.values)))
+_maximum_parameter_value(pv::MapParameterValue) = _maximum_skipnan(_maximum_parameter_value.(pv.value.values))
 
 """
 Non unique indices in a sorted Array.
@@ -830,3 +830,10 @@ _inner_value(x::NothingParameterValue) = nothing
 _inner_value(x::AbstractParameterValue) = x.value
 
 _set_time_to_update(f, t::TimeSlice, ::Nothing) = nothing
+
+_recursive_data(x) = x
+_recursive_data(x::AbstractParameterValue) = _recursive_value(x.value)
+_recursive_data(x::NothingParameterValue) = nothing
+function _recursive_data(x::Map)
+    Map(x.indexes, _recursive_value.(x.values))
+end
