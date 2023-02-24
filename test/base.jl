@@ -295,6 +295,7 @@
     @test sort(collect(values(tp1))) == [2, 3]
     @test values(m) == collect(5:8)
     @test values(parameter_value(ts1)) == values(ts1)
+    @test values(parameter_value(m)) == parameter_value.(values(m))
     # keys
     @test keys(ts1) == ts1_dates
     @test keys(m) == collect(1:4)
@@ -323,6 +324,10 @@
     @test iterate(m) == (1 => 5, 2)
     @test iterate(m, 3) == (3 => 7, 4)
     @test isnothing(iterate(m, 5))
+    # AbstractParameterValue consistency
+    @test parameter_value(ts1)() == ts1
+    @test parameter_value(tp1)() == tp1
+    @test parameter_value(m1)() == m1
 end
 @testset "TimePattern-TimePattern arithmetic" begin
     month1to3or7to12 = SpineInterface.parse_time_period("M1-3,M7-12")
