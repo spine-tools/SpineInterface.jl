@@ -484,7 +484,7 @@ end
     @testset for pname in keys(pv_dict)
         pval = pv_dict[pname]
         param = getproperty(Y, pname)
-        @test isequal(param(test_oc=Y.test_oc(:test_object_1)), ((pname == :nothing_parameter) ? nothing : pval.value))
+        @test isequal(param(test_oc=Y.test_oc(:test_object_1)), SpineInterface._recursive_inner_value(pval))
     end
 end
 @testset "difference" begin
