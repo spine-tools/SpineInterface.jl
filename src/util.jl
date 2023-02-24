@@ -831,9 +831,9 @@ _inner_value(x::AbstractParameterValue) = x.value
 
 _set_time_to_update(f, t::TimeSlice, ::Nothing) = nothing
 
-_recursive_data(x) = x
-_recursive_data(x::AbstractParameterValue) = _recursive_value(x.value)
-_recursive_data(x::NothingParameterValue) = nothing
-function _recursive_data(x::Map)
-    Map(x.indexes, _recursive_value.(x.values))
+_recursive_inner_value(x) = x
+_recursive_inner_value(x::NothingParameterValue) = nothing
+_recursive_inner_value(x::AbstractParameterValue) = _recursive_inner_value(x.value)
+function _recursive_inner_value(x::Map)
+    Map(x.indexes, _recursive_inner_value.(x.values))
 end

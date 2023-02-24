@@ -294,10 +294,10 @@ function (p::RepeatingTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
 end
 
 function (p::MapParameterValue)(observer::Union{Nothing,_Observer}=nothing; t=nothing, i=nothing, kwargs...)
-    isempty(kwargs) && return p.value
+    isempty(kwargs) && return _recursive_inner_value(p.value)
     arg = first(values(kwargs))
     new_kwargs = Base.tail((; kwargs...))
-    _recursive_data(p(arg, observer; t=t, i=i, new_kwargs...))
+    _recursive_inner_value(p(arg, observer; t=t, i=i, new_kwargs...))
 end
 function (p::MapParameterValue)(k, observer=nothing; kwargs...)
     i = _search_equal(p.value.indexes, k)
