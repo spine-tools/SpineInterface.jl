@@ -62,6 +62,9 @@ end
 struct _VariableFixValueObserver <: _Observer
     variable::VariableRef
     fix_value::Call
+    lower_bound::Ref{T} where T<:Number
+    upper_bound::Ref{T} where T<:Number
+    _VariableFixValueObserver(v, fv) = new(v, fv, Ref(NaN), Ref(NaN))
 end
 
 struct _ObjectiveCoefficientObserver <: _Observer
@@ -120,15 +123,15 @@ end
 
 function _update(observer::_VariableLBObserver)
     new_lb = realize(observer.lb, observer)
-    set_lower_bound(observer.variable, new_lb)
+    _set_lower_bound(observer.variable, new_lb)
 end
 function _update(observer::_VariableUBObserver)
     new_ub = realize(observer.ub, observer)
-    set_upper_bound(observer.variable, new_ub)
+    _set_upper_bound(observer.variable, new_ub)
 end
 function _update(observer::_VariableFixValueObserver)
     new_fix_value = realize(observer.fix_value, observer)
-    _fix_or_unfix(observer.variable, new_fix_value)
+    _fix_or_unfix(observer.variable, new_fix_value, observer)
 end
 function _update(observer::_ObjectiveCoefficientObserver)
     new_coef = realize(observer.coefficient, observer)
@@ -159,21 +162,53 @@ end
 
 function JuMP.set_lower_bound(var::VariableRef, call::Call)
     lb = realize(call, _VariableLBObserver(var, call))
-    set_lower_bound(var, lb)
+    _set_lower_bound(var, lb)
 end
+
+_set_lower_bound(var, lb) = set_lower_bound(var, lb)
+_set_lower_bound(var, ::Nothing) = nothing
 
 function JuMP.set_upper_bound(var::VariableRef, call::Call)
     ub = realize(call, _VariableUBObserver(var, call))
-    set_upper_bound(var, ub)
+    _set_upper_bound(var, ub)
 end
 
-function JuMP.fix(var::VariableRef, call::Call; kwargs...)
-    fix_value = realize(call, _VariableUBObserver(var, call))
-    _fix_or_unfix(var, fix_value; kwargs...)
+_set_upper_bound(var, ub) = set_upper_bound(var, ub)
+_set_upper_bound(var, ::Nothing) = nothing
+
+function fix_or_unfix(var::VariableRef, call::Call)
+    observer = _VariableFixValueObserver(var, call)
+    fix_value = realize(call, observer)
+    _fix_or_unfix(var, fix_value, observer)
 end
 
-_fix_or_unfix(var, fix_value; kwargs...) = isnan(fix_value) ? unfix(value) : fix(var, fix_value; kwargs...)
-_fix_or_unfix(var, ::Nothing; kwargs...) = nothing
+function _fix_or_unfix(var, fix_value, observer)
+    var = observer.variable
+    if !isnan(fix_value)
+        # Save bounds, remove them and then fix the value
+        if has_lower_bound(var)
+            observer.lower_bound[] = lower_bound(var)
+            delete_lower_bound(var)
+        end
+        if has_upper_bound(var)
+            observer.upper_bound[] = upper_bound(var)
+            delete_upper_bound(var)
+        end
+        fix(var, fix_value)
+    else
+        # Unfix the value and restore saved bounds
+        unfix(var)
+        if !isnan(observer.lower_bound[])
+            set_lower_bound(var, observer.lower_bound[])
+            observer.lower_bound[] = NaN
+        end
+        if !isnan(observer.upper_bound[])
+            set_upper_bound(var, observer.upper_bound[])
+            observer.upper_bound[] = NaN
+        end
+    end
+end
+_fix_or_unfix(var, ::Nothing, observer) = nothing
 
 # realize
 function realize(s::_GreaterThanCall, con_ref)

@@ -53,6 +53,7 @@ export db_value
 export difference
 export duration
 export end_
+export fix_or_unfix
 export groups
 export import_data
 export indexed_values
