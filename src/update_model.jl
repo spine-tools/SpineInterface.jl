@@ -30,23 +30,41 @@ import .JuMP: MOI, MOIU
 
 _Constant = Union{Number,UniformScaling}
 
-abstract type CallSet <: MOI.AbstractScalarSet end
+abstract type _CallSet <: MOI.AbstractScalarSet end
 
-struct GreaterThanCall <: CallSet
+struct _GreaterThanCall <: _CallSet
     lower::Call
 end
 
-struct LessThanCall <: CallSet
+struct _LessThanCall <: _CallSet
     upper::Call
 end
 
-struct EqualToCall <: CallSet
+struct _EqualToCall <: _CallSet
     value::Call
 end
 
-struct CallInterval <: CallSet
+struct _CallInterval <: _CallSet
     lower::Call
     upper::Call
+end
+
+struct _VariableLBObserver <: _Observer
+    variable::VariableRef
+    lb::Call
+end
+
+struct _VariableUBObserver <: _Observer
+    variable::VariableRef
+    ub::Call
+end
+
+struct _VariableFixValueObserver <: _Observer
+    variable::VariableRef
+    fix_value::Call
+    lower_bound::Ref{T} where T<:Number
+    upper_bound::Ref{T} where T<:Number
+    _VariableFixValueObserver(v, fv) = new(v, fv, Ref(NaN), Ref(NaN))
 end
 
 struct _ObjectiveCoefficientObserver <: _Observer
@@ -76,9 +94,9 @@ struct _UpperBoundObserver <: _Observer
     upper::Call
 end
 
-MOI.constant(s::GreaterThanCall) = s.lower
-MOI.constant(s::LessThanCall) = s.upper
-MOI.constant(s::EqualToCall) = s.value
+MOI.constant(s::_GreaterThanCall) = s.lower
+MOI.constant(s::_LessThanCall) = s.upper
+MOI.constant(s::_EqualToCall) = s.value
 
 function Base.convert(::Type{GenericAffExpr{Call,VariableRef}}, expr::GenericAffExpr{C,VariableRef}) where {C}
     constant = Call(expr.constant)
@@ -103,6 +121,18 @@ function _set_time_to_update(f, t::TimeSlice, observer::_Observer)
     push!(observers, observer)
 end
 
+function _update(observer::_VariableLBObserver)
+    new_lb = realize(observer.lb, observer)
+    _set_lower_bound(observer.variable, new_lb)
+end
+function _update(observer::_VariableUBObserver)
+    new_ub = realize(observer.ub, observer)
+    _set_upper_bound(observer.variable, new_ub)
+end
+function _update(observer::_VariableFixValueObserver)
+    new_fix_value = realize(observer.fix_value, observer)
+    _fix(observer.variable, new_fix_value)
+end
 function _update(observer::_ObjectiveCoefficientObserver)
     new_coef = realize(observer.coefficient, observer)
     set_objective_coefficient(observer.model, observer.variable, new_coef)
@@ -130,20 +160,111 @@ function _update(observer::_UpperBoundObserver)
     MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, new_upper))
 end
 
+"""
+    JuMP.set_lower_bound(var, call)
+
+Set the lower bound of given variable to the result of given call and bind them together, so whenever
+the result of the call changes because time slices have rolled, the lower bound is automatically updated.
+"""
+function JuMP.set_lower_bound(var::VariableRef, call::Call)
+    lb = realize(call, _VariableLBObserver(var, call))
+    _set_lower_bound(var, lb)
+end
+
+_set_lower_bound(var, ::Nothing) = nothing
+function _set_lower_bound(var, lb)
+    if is_fixed(var)
+        # Save bound
+        m = owner_model(var)
+        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        ext.lower_bound[var] = lb
+    else
+        set_lower_bound(var, lb)
+    end
+end
+
+"""
+    JuMP.set_upper_bound(var, call)
+
+Set the upper bound of given variable to the result of given call and bind them together, so whenever
+the result of the call changes because time slices have rolled, the upper bound is automatically updated.
+"""
+function JuMP.set_upper_bound(var::VariableRef, call::Call)
+    ub = realize(call, _VariableUBObserver(var, call))
+    _set_upper_bound(var, ub)
+end
+
+_set_upper_bound(var, ::Nothing) = nothing
+function _set_upper_bound(var, ub)
+    if is_fixed(var)
+        # Save bound
+        m = owner_model(var)
+        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        ext.upper_bound[var] = lb
+    else
+        set_upper_bound(var, ub)
+    end
+end
+
+"""
+    JuMP.fix(var, call)
+
+Fix the value of given variable to the result of given call and bind them together, so whenever
+the result of the call changes because time slices have rolled, the variable is automatically updated.
+If the result is a number, then the variable value is fixed to that number.
+If the result is NaN, then the variable is freed.
+Any bounds on the variable at the moment of fixing it are restored when freeing it.
+"""
+function JuMP.fix(var::VariableRef, call::Call)
+    fix_value = realize(call, _VariableFixValueObserver(var, call))
+    _fix(var, fix_value)
+end
+
+_fix(var, ::Nothing) = nothing
+function _fix(var, fix_value)
+    if !isnan(fix_value)
+        m = owner_model(var)
+        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        # Save bounds, remove them and then fix the value
+        if has_lower_bound(var)
+            ext.lower_bound[var] = lower_bound(var)
+            delete_lower_bound(var)
+        end
+        if has_upper_bound(var)
+            ext.upper_bound[var] = upper_bound(var)
+            delete_upper_bound(var)
+        end
+        fix(var, fix_value)
+    elseif is_fixed(var)
+        # Unfix the variable and restore saved bounds
+        m = owner_model(var)
+        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        unfix(var)
+        lb = pop!(ext.lower_bound, var, nothing)
+        ub = pop!(ext.upper_bound, var, nothing)
+        if lb !== nothing
+            set_lower_bound(var, lb)
+        end
+        if ub !== nothing
+            set_upper_bound(var, ub)
+        end
+    end
+end
+
 # realize
-function realize(s::GreaterThanCall, con_ref)
+function realize(s::_GreaterThanCall, con_ref)
     c = MOI.constant(s)
     MOI.GreaterThan(realize(c, _RHSObserver(con_ref, c)))
 end
-function realize(s::LessThanCall, con_ref)
+function realize(s::_LessThanCall, con_ref)
     c = MOI.constant(s)
     MOI.LessThan(realize(c, _RHSObserver(con_ref, c)))
 end
-function realize(s::EqualToCall, con_ref)
+function realize(s::_EqualToCall, con_ref)
     c = MOI.constant(s)
     MOI.EqualTo(realize(c, _RHSObserver(con_ref, c)))
 end
-function realize(s::CallInterval, con_ref)
+function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
     MOI.Interval(realize(l, _LowerBoundObserver(con_ref, l)), realize(u, _UpperBoundObserver(con_ref, u)))
 end
@@ -158,16 +279,16 @@ end
 
 # @constraint macro extension
 # utility
-MOIU.shift_constant(s::MOI.GreaterThan, call::Call) = GreaterThanCall(MOI.constant(s) + call)
-MOIU.shift_constant(s::MOI.LessThan, call::Call) = LessThanCall(MOI.constant(s) + call)
-MOIU.shift_constant(s::MOI.EqualTo, call::Call) = EqualToCall(MOI.constant(s) + call)
-MOIU.shift_constant(s::CallInterval, call::Call) = CallInterval(s.lower + call, s.upper + call)
+MOIU.shift_constant(s::MOI.GreaterThan, call::Call) = _GreaterThanCall(MOI.constant(s) + call)
+MOIU.shift_constant(s::MOI.LessThan, call::Call) = _LessThanCall(MOI.constant(s) + call)
+MOIU.shift_constant(s::MOI.EqualTo, call::Call) = _EqualToCall(MOI.constant(s) + call)
+MOIU.shift_constant(s::_CallInterval, call::Call) = _CallInterval(s.lower + call, s.upper + call)
 
 function JuMP.build_constraint(_error::Function, call::Call, set::MOI.AbstractScalarSet)
     expr = GenericAffExpr{Call,VariableRef}(call, OrderedDict{VariableRef,Call}())
     build_constraint(_error, expr, set)
 end
-function JuMP.build_constraint(_error::Function, var::VariableRef, set::CallSet)
+function JuMP.build_constraint(_error::Function, var::VariableRef, set::_CallSet)
     build_constraint(_error, Call(1) * var, set)
 end
 function JuMP.build_constraint(_error::Function, var::VariableRef, lb::Call, ub::Real)
@@ -189,7 +310,7 @@ function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,Varia
     build_constraint(_error, expr, lb, Call(ub))
 end
 function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Call, ub::Call)
-    build_constraint(_error, expr, CallInterval(lb, ub))
+    build_constraint(_error, expr, _CallInterval(lb, ub))
 end
 function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, set::MOI.AbstractScalarSet)
     constant = expr.constant
@@ -202,7 +323,7 @@ function JuMP.add_constraint(
     model::Model,
     con::ScalarConstraint{GenericAffExpr{Call,VariableRef},S},
     name::String="",
-) where {S<:CallSet}
+) where {S<:_CallSet}
     con_ref = Ref{ConstraintRef}()
     realized_constraint = ScalarConstraint(realize(con.func, con_ref), realize(con.set, con_ref))
     con_ref[] = add_constraint(model, realized_constraint, name)
@@ -318,3 +439,11 @@ Base.:-(lhs::GenericAffExpr{C,VariableRef}, rhs::GenericAffExpr{Call,VariableRef
 function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
     set_objective_function(model, realize(func, model))
 end
+
+struct SpineInterfaceExt
+    lower_bound::Dict{VariableRef,Any}
+    upper_bound::Dict{VariableRef,Any}
+    SpineInterfaceExt() = new(Dict(), Dict())
+end
+
+JuMP.copy_extension_data(data::SpineInterfaceExt, new_model::AbstractModel, model::AbstractModel) = nothing
