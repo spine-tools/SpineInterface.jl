@@ -441,8 +441,9 @@ function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,Var
 end
 
 struct SpineInterfaceExt
-    lower_bound::Dict{VariableRef,T} where T<:Number
-    upper_bound::Dict{VariableRef,T} where T<:Number
+    lower_bound::Dict{VariableRef,Any}
+    upper_bound::Dict{VariableRef,Any}
+    SpineInterfaceExt() = new(Dict(), Dict())
 end
 
 JuMP.copy_extension_data(data::SpineInterfaceExt, new_model::AbstractModel, model::AbstractModel) = nothing
