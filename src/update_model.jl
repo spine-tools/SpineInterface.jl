@@ -131,7 +131,7 @@ function _update(observer::_VariableUBObserver)
 end
 function _update(observer::_VariableFixValueObserver)
     new_fix_value = realize(observer.fix_value, observer)
-    _fix_or_unfix(observer.variable, new_fix_value, observer)
+    _fix_or_free(observer.variable, new_fix_value, observer)
 end
 function _update(observer::_ObjectiveCoefficientObserver)
     new_coef = realize(observer.coefficient, observer)
@@ -160,6 +160,12 @@ function _update(observer::_UpperBoundObserver)
     MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, new_upper))
 end
 
+"""
+    JuMP.set_lower_bound(var, call)
+
+Set the lower bound of given variable to the result of given call and bind them together, so whenever
+the result of the call changes because time slices have rolled, the lower bound is automatically updated.
+"""
 function JuMP.set_lower_bound(var::VariableRef, call::Call)
     lb = realize(call, _VariableLBObserver(var, call))
     _set_lower_bound(var, lb)
@@ -168,6 +174,12 @@ end
 _set_lower_bound(var, lb) = set_lower_bound(var, lb)
 _set_lower_bound(var, ::Nothing) = nothing
 
+"""
+    JuMP.set_upper_bound(var, call)
+
+Set the upper bound of given variable to the result of given call and bind them together, so whenever
+the result of the call changes because time slices have rolled, the upper bound is automatically updated.
+"""
 function JuMP.set_upper_bound(var::VariableRef, call::Call)
     ub = realize(call, _VariableUBObserver(var, call))
     _set_upper_bound(var, ub)
@@ -176,13 +188,21 @@ end
 _set_upper_bound(var, ub) = set_upper_bound(var, ub)
 _set_upper_bound(var, ::Nothing) = nothing
 
-function fix_or_unfix(var::VariableRef, call::Call)
+"""
+    fix_or_free(var, call)
+
+Fix or free the given variable to the result of given call and bind them together, so whenever
+the result of the call changes because time slices have rolled, the variable is automatically updated.
+If the result is a number, then the variable is fixed. If the result is NaN, then the variable is freed.
+Any bounds on the variable at the moment of fixing it are restored when freeing it.
+"""
+function fix_or_free(var::VariableRef, call::Call)
     observer = _VariableFixValueObserver(var, call)
     fix_value = realize(call, observer)
-    _fix_or_unfix(var, fix_value, observer)
+    _fix_or_free(var, fix_value, observer)
 end
 
-function _fix_or_unfix(var, fix_value, observer)
+function _fix_or_free(var, fix_value, observer)
     var = observer.variable
     if !isnan(fix_value)
         # Save bounds, remove them and then fix the value
@@ -208,7 +228,7 @@ function _fix_or_unfix(var, fix_value, observer)
         end
     end
 end
-_fix_or_unfix(var, ::Nothing, observer) = nothing
+_fix_or_free(var, ::Nothing, observer) = nothing
 
 # realize
 function realize(s::_GreaterThanCall, con_ref)
