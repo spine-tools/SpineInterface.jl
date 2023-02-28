@@ -203,7 +203,7 @@ function Base.getindex(p::Parameter, inds::NamedTuple)
         parameter_value, new_inds = pv_new_kwargs
         _pv_call((p.name, inds), parameter_value, new_inds)
     else
-        nothing
+        Call(nothing)
     end
 end
 
