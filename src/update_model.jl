@@ -131,7 +131,7 @@ function _update(observer::_VariableUBObserver)
 end
 function _update(observer::_VariableFixValueObserver)
     new_fix_value = realize(observer.fix_value, observer)
-    _fix_or_free(observer.variable, new_fix_value, observer)
+    _fix(observer.variable, new_fix_value)
 end
 function _update(observer::_ObjectiveCoefficientObserver)
     new_coef = realize(observer.coefficient, observer)
@@ -171,8 +171,17 @@ function JuMP.set_lower_bound(var::VariableRef, call::Call)
     _set_lower_bound(var, lb)
 end
 
-_set_lower_bound(var, lb) = set_lower_bound(var, lb)
 _set_lower_bound(var, ::Nothing) = nothing
+function _set_lower_bound(var, lb)
+    if is_fixed(var)
+        # Save bound
+        m = owner_model(var)
+        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        ext.lower_bound[var] = lb
+    else
+        set_lower_bound(var, lb)
+    end
+end
 
 """
     JuMP.set_upper_bound(var, call)
@@ -185,50 +194,62 @@ function JuMP.set_upper_bound(var::VariableRef, call::Call)
     _set_upper_bound(var, ub)
 end
 
-_set_upper_bound(var, ub) = set_upper_bound(var, ub)
 _set_upper_bound(var, ::Nothing) = nothing
-
-"""
-    fix_or_free(var, call)
-
-Fix or free the given variable to the result of given call and bind them together, so whenever
-the result of the call changes because time slices have rolled, the variable is automatically updated.
-If the result is a number, then the variable is fixed. If the result is NaN, then the variable is freed.
-Any bounds on the variable at the moment of fixing it are restored when freeing it.
-"""
-function fix_or_free(var::VariableRef, call::Call)
-    observer = _VariableFixValueObserver(var, call)
-    fix_value = realize(call, observer)
-    _fix_or_free(var, fix_value, observer)
+function _set_upper_bound(var, ub)
+    if is_fixed(var)
+        # Save bound
+        m = owner_model(var)
+        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        ext.upper_bound[var] = lb
+    else
+        set_upper_bound(var, ub)
+    end
 end
 
-function _fix_or_free(var, fix_value, observer)
-    var = observer.variable
+"""
+    JuMP.fix(var, call)
+
+Fix the value of given variable to the result of given call and bind them together, so whenever
+the result of the call changes because time slices have rolled, the variable is automatically updated.
+If the result is a number, then the variable value is fixed to that number.
+If the result is NaN, then the variable is freed.
+Any bounds on the variable at the moment of fixing it are restored when freeing it.
+"""
+function JuMP.fix(var::VariableRef, call::Call)
+    fix_value = realize(call, _VariableFixValueObserver(var, call))
+    _fix(var, fix_value)
+end
+
+_fix(var, ::Nothing) = nothing
+function _fix(var, fix_value)
     if !isnan(fix_value)
+        m = owner_model(var)
+        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
         # Save bounds, remove them and then fix the value
         if has_lower_bound(var)
-            observer.lower_bound[] = lower_bound(var)
+            ext.lower_bound[var] = lower_bound(var)
             delete_lower_bound(var)
         end
         if has_upper_bound(var)
-            observer.upper_bound[] = upper_bound(var)
+            ext.upper_bound[var] = upper_bound(var)
             delete_upper_bound(var)
         end
         fix(var, fix_value)
-    else
-        # Unfix the value and restore saved bounds
-        is_fixed(var) && unfix(var)
-        if !isnan(observer.lower_bound[])
-            set_lower_bound(var, observer.lower_bound[])
-            observer.lower_bound[] = NaN
+    elseif is_fixed(var)
+        # Unfix the variable and restore saved bounds
+        m = owner_model(var)
+        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        unfix(var)
+        lb = pop!(ext.lower_bound, var, nothing)
+        ub = pop!(ext.upper_bound, var, nothing)
+        if lb !== nothing
+            set_lower_bound(var, lb)
         end
-        if !isnan(observer.upper_bound[])
-            set_upper_bound(var, observer.upper_bound[])
-            observer.upper_bound[] = NaN
+        if ub !== nothing
+            set_upper_bound(var, ub)
         end
     end
 end
-_fix_or_free(var, ::Nothing, observer) = nothing
 
 # realize
 function realize(s::_GreaterThanCall, con_ref)
@@ -418,3 +439,10 @@ Base.:-(lhs::GenericAffExpr{C,VariableRef}, rhs::GenericAffExpr{Call,VariableRef
 function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
     set_objective_function(model, realize(func, model))
 end
+
+struct SpineInterfaceExt
+    lower_bound::Dict{VariableRef,T} where T<:Number
+    upper_bound::Dict{VariableRef,T} where T<:Number
+end
+
+JuMP.copy_extension_data(data::SpineInterfaceExt, new_model::AbstractModel, model::AbstractModel) = nothing
