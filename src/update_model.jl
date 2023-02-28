@@ -217,7 +217,7 @@ function _fix_or_free(var, fix_value, observer)
         fix(var, fix_value)
     else
         # Unfix the value and restore saved bounds
-        unfix(var)
+        is_fixed(var) && unfix(var)
         if !isnan(observer.lower_bound[])
             set_lower_bound(var, observer.lower_bound[])
             observer.lower_bound[] = NaN
