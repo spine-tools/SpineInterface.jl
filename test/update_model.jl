@@ -59,20 +59,20 @@ end
 
 struct _TestObserver <: SpineInterface._Observer
 	pv::AbstractParameterValue
-	t::TimeSlice
+	kwargs::Dict{Symbol,Any}
 	values::Vector{Any}
-	_TestObserver(pv, t) = new(pv, t, DateTime[])
+	_TestObserver(pv; kwargs...) = new(pv, kwargs, [])
 end
 
 function SpineInterface._update(observer::_TestObserver)
-	push!(observer.values, observer.pv(observer; t=observer.t))
+	push!(observer.values, observer.pv(observer; observer.kwargs...))
 end
 
 @testset "time series observer" begin
 	t1, t2, t3 = DateTime(0, 1, 1), DateTime(0, 1, 8), DateTime(0, 2, 1)
 	ts_pval = parameter_value(TimeSeries([t1, t2, t3], [20, 4, -1], false, false))
 	t = TimeSlice(DateTime(0, 1, 1, 0), DateTime(0, 1, 1, 1))
-	observer = _TestObserver(ts_pval, t)
+	observer = _TestObserver(ts_pval; t=t)
 	@test ts_pval(observer; t=t) == 20
 	roll!(t, Hour(1))
 	@test isempty(observer.values)
@@ -95,7 +95,7 @@ end
 	t_start, t_end = DateTime(7, 1, 1, 0), DateTime(7, 1, 1, 1)
 	@test dayofweek(t_start) == 1
 	t = TimeSlice(t_start, t_end)
-	observer = _TestObserver(tp_pval, t)
+	observer = _TestObserver(tp_pval; t=t)
 	@test tp_pval(observer; t=t) == 1.0
 	roll!(t, Hour(1))
 	@test isempty(observer.values)
@@ -113,6 +113,62 @@ end
 	@test observer.values == [1.0, 20.0, 1.0, 20.0, -4.0]
 	roll!(t, Month(6))
 	@test observer.values == [1.0, 20.0, 1.0, 20.0, -4.0, 1.0]
+end
+@testset "map observer" begin
+	db_map = Dict(
+        "type" => "map",
+        "index_type" => "str",
+        "data" => Dict(
+            "scen1" => Dict(
+                "type" => "map",
+                "index_type" => "date_time",
+                "data" => Dict(
+                    "2022-01-01T00:00:00" => Dict(
+                        "type" => "time_series",
+                        "data" => [1.0, 2.0, 3.0],
+                        "index" => Dict(
+                            "start" => "2022-01-01T00:00:00",
+                            "resolution" => "1h",
+                            "repeat" => false,
+                            "ignore_year" => true,
+                        ),
+                    ),
+                    "2022-01-01T06:00:00" => Dict(
+                        "type" => "time_series",
+                        "data" => [4.0, 5.0, 6.0],
+                        "index" => Dict(
+                            "start" => "2022-01-01T06:00:00",
+                            "resolution" => "1h",
+                            "repeat" => false,
+                            "ignore_year" => true,
+                        )
+                    )
+                )
+            )
+        )
+    )
+    map = parse_db_value(db_map)
+    map_pval = parameter_value(map)
+	window = TimeSlice(DateTime("2022-01-01T00:00:00"), DateTime("2022-01-01T06:00:00"))
+	t = TimeSlice(DateTime("2022-01-01T00:00:00"), DateTime("2022-01-01T01:00:00"))
+	at = startref(window)
+	observer = _TestObserver(map_pval; stochastic_scenario=:scen1, analysis_time=at, t=t)
+	@test map_pval(observer; stochastic_scenario=:scen1, analysis_time=at, t=t) == 1
+	@test isempty(observer.values)
+	roll!(t, Hour(1))
+	@test last(observer.values) == 2
+	roll!(t, Hour(1))
+	@test last(observer.values) == 3
+	roll!(t, Hour(-1))
+	@test last(observer.values) == 2
+	roll!(t, Hour(-1))
+	@test last(observer.values) == 1
+	roll!.([t, window], Hour(6))
+	@test last(observer.values) == 4
+	roll!(t, Hour(1))
+	@test last(observer.values) == 5
+	roll!(t, Hour(2))
+	@test last(observer.values) == 6
 end
 @testset "update_range_constraint" begin
 	m = Model(Cbc.Optimizer)
