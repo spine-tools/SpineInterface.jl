@@ -216,7 +216,7 @@ function Base.getindex(p::Parameter, inds::NamedTuple)
     pv_new_kwargs = _split_parameter_value_kwargs(p; inds...)
     if pv_new_kwargs !== nothing
         parameter_value, new_inds = pv_new_kwargs
-        _pv_call((p.name, inds), parameter_value, new_inds)
+        Call((p.name, inds), parameter_value, new_inds)
     else
         Call(nothing)
     end

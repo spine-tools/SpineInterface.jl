@@ -161,25 +161,6 @@ function _next_sibling(node::_CallNode)
     _CallNode(node.parent.call.args[sibling_child_number], node.parent, sibling_child_number)
 end
 
-function _pv_call(call_expr::_CallExpr, pv::T, inds::NamedTuple) where {T<:AbstractParameterValue}
-    _pv_call(_is_time_varying(T), call_expr, pv, inds)
-end
-function _pv_call(
-    is_time_varying::Val{false}, call_expr::_CallExpr, pv::T, inds::NamedTuple
-) where {T<:AbstractParameterValue}
-    Call(call_expr, pv(; inds...))
-end
-function _pv_call(
-    is_time_varying::Val{true}, call_expr::_CallExpr,  pv::T, inds::NamedTuple
-) where {T<:AbstractParameterValue}
-    Call(call_expr, pv, inds)
-end
-
-_is_time_varying(::Type{MapParameterValue{K,V}}) where {K,V} = _is_time_varying(V)
-_is_time_varying(::Type{MapParameterValue{DateTime,V}}) where {V} = Val(true)
-_is_time_varying(::Type{T}) where {T<:ConstantParameterValue} = Val(false)
-_is_time_varying(::Type{T}) where {T<:AbstractParameterValue} = Val(true)
-
 _is_associative(x) = Val(false)
 _is_associative(::typeof(+)) = Val(true)
 _is_associative(::typeof(*)) = Val(true)
