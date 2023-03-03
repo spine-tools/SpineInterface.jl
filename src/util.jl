@@ -177,8 +177,8 @@ end
 
 _is_time_varying(::Type{MapParameterValue{K,V}}) where {K,V} = _is_time_varying(V)
 _is_time_varying(::Type{MapParameterValue{DateTime,V}}) where {V} = Val(true)
-_is_time_varying(::Type{T}) where {T<:TimeVaryingParameterValue} = Val(true)
-_is_time_varying(::Type{T}) where {T<:AbstractParameterValue} = Val(false)
+_is_time_varying(::Type{T}) where {T<:ConstantParameterValue} = Val(false)
+_is_time_varying(::Type{T}) where {T<:AbstractParameterValue} = Val(true)
 
 _is_associative(x) = Val(false)
 _is_associative(::typeof(+)) = Val(true)
