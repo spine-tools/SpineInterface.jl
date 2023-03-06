@@ -553,20 +553,22 @@ function overlap_duration(a::TimeSlice, b::TimeSlice)
 end
 
 """
-    roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
+    roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod}; update::Bool=true)
 
 Roll the given `t` in time by the period specified by `forward`.
 """
-function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
+function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod}; update::Bool=true)
     t.start[] += forward
     t.end_[] += forward
-    for time_to_update in collect(keys(t.observers))
-        observers = pop!(t.observers, time_to_update)
-        time_to_update -= forward
-        if Dates.toms(forward) < 0 || Dates.toms(time_to_update) <= 0
-            _update.(observers)
-        else
-            t.observers[time_to_update] = observers
+    if update
+        for time_to_update in collect(keys(t.observers))
+            observers = pop!(t.observers, time_to_update)
+            time_to_update -= forward
+            if Dates.toms(forward) < 0 || Dates.toms(time_to_update) <= 0
+                _update.(observers)
+            else
+                t.observers[time_to_update] = observers
+            end
         end
     end
     t
