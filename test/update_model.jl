@@ -144,7 +144,19 @@ end
                         )
                     )
                 )
-            )
+            ),
+			"scen2" => Dict(
+				"type" => "time_series",
+				"data" => collect(1.0:9.0),
+				"index" => Dict(
+					"start" => "2022-01-01T00:00:00",
+					"resolution" => "1h",
+					"repeat" => false,
+					"ignore_year" => true,
+				),
+			),
+			"scen3" => 1.0,
+			"unused_scen" => nothing,
         )
     )
     map = parse_db_value(db_map)
@@ -152,23 +164,52 @@ end
 	window = TimeSlice(DateTime("2022-01-01T00:00:00"), DateTime("2022-01-01T06:00:00"))
 	t = TimeSlice(DateTime("2022-01-01T00:00:00"), DateTime("2022-01-01T01:00:00"))
 	at = startref(window)
-	observer = _TestObserver(map_pval; stochastic_scenario=:scen1, analysis_time=at, t=t)
-	@test map_pval(observer; stochastic_scenario=:scen1, analysis_time=at, t=t) == 1
-	@test isempty(observer.values)
+	scen1_observer = _TestObserver(map_pval; stochastic_scenario=:scen1, analysis_time=at, t=t)
+	scen2_observer = _TestObserver(map_pval; stochastic_scenario=:scen2, analysis_time=at, t=t)
+	scen3_observer = _TestObserver(map_pval; stochastic_scenario=:scen3, analysis_time=at, t=t)
+	@test map_pval(scen1_observer; stochastic_scenario=:scen1, analysis_time=at, t=t) == 1
+	@test map_pval(scen2_observer; stochastic_scenario=:scen2, analysis_time=at, t=t) == 1
+	@test map_pval(scen3_observer; stochastic_scenario=:scen3, analysis_time=at, t=t) == 1
+	@test isempty(scen1_observer.values)
+	@test isempty(scen2_observer.values)
+	@test isempty(scen3_observer.values)
 	roll!(t, Hour(1))
-	@test last(observer.values) == 2
+	@test last(scen1_observer.values) == 2
+	@test last(scen2_observer.values) == 2
 	roll!(t, Hour(1))
-	@test last(observer.values) == 3
+	@test last(scen1_observer.values) == 3
+	@test last(scen2_observer.values) == 3
+	roll!(t, Hour(1))
+	@test last(scen1_observer.values) == 3
+	@test last(scen2_observer.values) == 4
+	roll!(t, Hour(1))
+	@test last(scen1_observer.values) == 3
+	@test last(scen2_observer.values) == 5
+	roll!(t, Hour(1))
+	@test last(scen1_observer.values) == 3
+	@test last(scen2_observer.values) == 6
+	roll!(t, Hour(1))
+	@test last(scen1_observer.values) == 3
+	@test last(scen2_observer.values) == 7
+	roll!(t, Hour(-4))
+	@test last(scen1_observer.values) == 3
+	@test last(scen2_observer.values) == 3
 	roll!(t, Hour(-1))
-	@test last(observer.values) == 2
+	@test last(scen1_observer.values) == 2
+	@test last(scen2_observer.values) == 2
 	roll!(t, Hour(-1))
-	@test last(observer.values) == 1
+	@test last(scen1_observer.values) == 1
+	@test last(scen2_observer.values) == 1
 	roll!.([t, window], Hour(6))
-	@test last(observer.values) == 4
+	@test last(scen1_observer.values) == 4
+	@test last(scen2_observer.values) == 7
 	roll!(t, Hour(1))
-	@test last(observer.values) == 5
+	@test last(scen1_observer.values) == 5
+	@test last(scen2_observer.values) == 8
 	roll!(t, Hour(2))
-	@test last(observer.values) == 6
+	@test last(scen1_observer.values) == 6
+	@test last(scen2_observer.values) == 9
+	@test isempty(scen3_observer.values)
 end
 @testset "update_range_constraint" begin
 	m = Model(Cbc.Optimizer)

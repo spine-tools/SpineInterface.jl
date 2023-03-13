@@ -188,7 +188,7 @@ struct MapParameterValue{K,V} <: AbstractParameterValue where {V<:AbstractParame
     value::Map{K,V}
 end
 
-TimeVaryingParameterValue = Union{AbstractTimeSeriesParameterValue,TimePatternParameterValue}
+ConstantParameterValue = Union{NothingParameterValue,ScalarParameterValue,ArrayParameterValue}
 
 _CallExpr = Tuple{Symbol,NamedTuple}
 

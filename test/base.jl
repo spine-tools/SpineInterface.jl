@@ -182,7 +182,7 @@
     abs_call = abs(Call(-5))
     @test abs_call isa Call
     @test realize(abs_call) === 5
-    # Arithmetic for TimeSeries and TimePattern
+    # Arithmetic TimeSeries, TimePattern, and Map
     ts1_vals = [1, 2, 4]
     ts1_dates = [DateTime(1, i) for i in ts1_vals]
     ts2_vals = [2, 3, 4]
@@ -195,6 +195,11 @@
     month4to5 = SpineInterface.parse_time_period("M4-5")
     tp1 = Dict(month2to3 => 2.0, month4to5 => 3.0)
     tp2 = Dict(month2to3 => 8.0, month4to5 => -4.0)
+    m_keys = [:one, :two]
+    m1_vals = [ts1, ts2]
+    m1 = Map(m_keys, m1_vals)
+    m2_vals = [1, 2]
+    m2 = Map(m_keys, m2_vals)
     # plus
     @test +ts1 == ts1
     @test ts1 + 4.2 == 4.2 + ts1 == TimeSeries(ts1.indexes, ts1.values .+ 4.2, false, false)
@@ -211,6 +216,10 @@
     @test tp1 + 4.2 == 4.2 + tp1 == Dict(k => 4.2 + v for (k, v) in tp1)
     @test tp1 + tp1 == 2.0 * tp1 == tp1 * 2.0
     @test tp1 + tp2 == Dict(month2to3 => 2.0 + 8.0, month4to5 => 3.0 - 4.0)
+    @test m1 + 1.0 == 1.0 + m1 == Map(m_keys, m1_vals .+ 1.0)
+    @test m1 + ts1 == ts1 + m1 == Map(m_keys, [val + ts1 for val in m1_vals])
+    @test m1 + tp1 == tp1 + m1 == Map(m_keys, [val + tp1 for val in m1_vals])
+    @test m1 + m2 == m2 + m1 == Map(m_keys, [val1 + val2 for (val1, val2) in zip(m1.values, m2.values)])
     # minus
     @test ts1 + tp1 == tp1 + ts1 == TimeSeries(ts1_dates[2:end], [2.0 + 2.0, 4.0 + 3.0], false, false)
     @test -ts1 == TimeSeries(ts1.indexes, -ts1.values, false, false)
@@ -222,12 +231,24 @@
     @test ts1 - tp1 == TimeSeries(ts1_dates[2:end], [2.0 - 2.0, 4.0 - 3.0], false, false)
     @test tp1 - ts1 == TimeSeries(ts1_dates[2:end], [2.0 - 2.0, 3.0 - 4.0], false, false)
     @test tp1 - tp2 == Dict(month2to3 => 2.0 - 8.0, month4to5 => 3.0 + 4.0)
+    @test m1 - 1.0 == Map(m_keys, m1_vals .- 1.0)
+    @test 1.0 - m1 == Map(m_keys, 1.0 .- m1_vals)
+    @test m1 - ts1 == Map(m_keys, [val - ts1 for val in m1_vals])
+    @test ts1 - m1 == Map(m_keys, [ts1 - val for val in m1_vals])
+    @test m1 - tp1 == Map(m_keys, [val - tp1 for val in m1_vals])
+    @test tp1 - m1 == Map(m_keys, [tp1 - val for val in m1_vals])
+    @test m1 - m2 == Map(m_keys, [val1 - val2 for (val1, val2) in zip(m1.values, m2.values)])
+    @test m2 - m1 == Map(m_keys, [val2 - val1 for (val2, val1) in zip(m2.values, m1.values)])
     # times
     @test ts1 * 2.0 == 2.0 * ts1 == TimeSeries(ts1.indexes, 2.0 * ts1.values, false, false)
     @test tp1 * 2.0 == 2.0 * tp1 == Dict(month2to3 => 4.0, month4to5 => 6.0)
     @test ts1 * ts1 == ts1 ^ 2.0
     @test ts1 * tp1 == tp1 * ts1 == TimeSeries(ts1_dates[2:end], [2.0 * 2.0, 3.0 * 4.0], false, false)
     @test tp1 * tp2 == tp2 * tp1 == Dict(month2to3 => 2.0 * 8.0, month4to5 => 3.0 * -4.0)
+    @test m1 * 2.0 == 2.0 * m1 == Map(m_keys, m1_vals .* 2.0)
+    @test m1 * ts1 == ts1 * m1 == Map(m_keys, [val * ts1 for val in m1_vals])
+    @test m1 * tp1 == tp1 * m1 == Map(m_keys, [val * tp1 for val in m1_vals])
+    @test m1 * m2 == m2 * m1 == Map(m_keys, [val1 * val2 for (val1, val2) in zip(m1.values, m2.values)])
     # divided by
     @test ts1 / 2.0 == TimeSeries(ts1.indexes, ts1.values ./ 2.0, false, false)
     @test 2.0 / ts1 == TimeSeries(ts1.indexes, 2.0 ./ ts1.values, false, false)
@@ -237,6 +258,14 @@
     @test ts1 / tp1 == TimeSeries(ts1.indexes[2:end], [2.0 / 2.0, 4.0 / 3.0], false, false)
     @test tp1 / ts1 == TimeSeries(ts1.indexes[2:end], [2.0 / 2.0, 3.0 / 4.0], false, false)
     @test tp1 / tp1 == Dict(k => 1.0 for (k, v) in tp1)
+    @test m1 / 2.0 == Map(m_keys, m1_vals ./ 2.0)
+    @test 2.0 / m1 == Map(m_keys, 2.0 ./ m1_vals)
+    @test m1 / ts1 == Map(m_keys, [val / ts1 for val in m1_vals])
+    @test ts1 / m1 == Map(m_keys, [ts1 / val for val in m1_vals])
+    @test m1 / tp1 == Map(m_keys, [val / tp1 for val in m1_vals])
+    @test tp1 / m1 == Map(m_keys, [tp1 / val for val in m1_vals])
+    @test m1 / m2 == Map(m_keys, [val1 / val2 for (val1, val2) in zip(m1.values, m2.values)])
+    @test m2 / m1 == Map(m_keys, [val2 / val1 for (val2, val1) in zip(m2.values, m1.values)])
     # to the power of
     @test ts1 ^ 2.0 == TimeSeries(ts1.indexes, ts1.values .^ 2.0, false, false)
     @test tp1 ^ 2.0 == Dict(k => v ^ 2.0 for (k, v) in tp1)
@@ -246,10 +275,20 @@
     @test ts1 ^ tp1 == TimeSeries(ts1.indexes[2:end], [4.0, 64.0], false, false)
     @test tp1 ^ ts1 == TimeSeries(ts1.indexes[2:end], [4.0, 81.0], false, false)
     @test tp1 ^ tp2 == Dict(month2to3 => 2.0 ^ 8.0, month4to5 => 3.0 ^ -4.0)
+    @test m1 ^ 2.0 == Map(m_keys, m1_vals .^ 2.0)
+    @test 2.0 ^ m1 == Map(m_keys, 2.0 .^ m1_vals)
+    @test m1 ^ ts1 == Map(m_keys, [val ^ ts1 for val in m1_vals])
+    @test ts1 ^ m1 == Map(m_keys, [ts1 ^ val for val in m1_vals])
+    @test m1 ^ tp1 == Map(m_keys, [val ^ tp1 for val in m1_vals])
+    @test tp1 ^ m1 == Map(m_keys, [tp1 ^ val for val in m1_vals])
+    @test m1 ^ m2 == Map(m_keys, [val1 ^ val2 for (val1, val2) in zip(m1.values, m2.values)])
+    @test m2 ^ m1 == Map(m_keys, [val2 ^ val1 for (val2, val1) in zip(m2.values, m1.values)])
     # Test timedata_operation for single-argument functions
     @test timedata_operation(float, 0) == float(0)
     @test timedata_operation(float, ts1) == TimeSeries(ts1.indexes, float.(ts1.values), ts1.ignore_year, ts1.repeat)
     @test timedata_operation(float, tp1) == Dict(month2to3 => 2.0, month4to5 => 3.0)
+    @test timedata_operation(float, m1) == Map(m_keys, [timedata_operation(float, val) for val in m1_vals])
+    @test timedata_operation(float, m2) == Map(m_keys, float.(m2_vals))
     m = Map(collect(1:4), collect(5:8))
     # values
     @test values(ts1) == ts1_vals
@@ -285,6 +324,13 @@
     @test iterate(m) == (1 => 5, 2)
     @test iterate(m, 3) == (3 => 7, 4)
     @test isnothing(iterate(m, 5))
+    # AbstractParameterValue consistency
+    @test parameter_value(ts1)() == ts1
+    @test parameter_value(ts1)(asd = :asd) == ts1
+    @test parameter_value(tp1)() == tp1
+    @test parameter_value(tp1)(asd = :asd) == tp1
+    @test parameter_value(m1)() == m1
+    @test parameter_value(m1)(asd = :asd) == m1
 end
 @testset "TimePattern-TimePattern arithmetic" begin
     month1to3or7to12 = SpineInterface.parse_time_period("M1-3,M7-12")
