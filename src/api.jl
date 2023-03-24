@@ -196,11 +196,14 @@ julia> demand(node=node(:Sthlm), i=1)
 21
 ```
 """
-function (p::Parameter)(; _strict=true, kwargs...)
+function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
+    _strict &= _default === nothing
     pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, kwargs...)
     if pv_new_kwargs !== nothing
         parameter_value, new_kwargs = pv_new_kwargs
         parameter_value(; new_kwargs...)
+    else
+        _default
     end
 end
 
