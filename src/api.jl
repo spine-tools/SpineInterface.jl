@@ -606,6 +606,23 @@ Return an `Array` containing only time slices from `t_iter` that aren't containe
 t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 
 """
+    t_lowest_resolution_sets!(mapping)
+
+Modify the given `Dict` (which must be a mapping from `TimeSlice` to `Set`) in place,
+so that if key `t1` is contained in key `t2`, then the former is removed and its value is merged into the latter's.
+"""
+t_lowest_resolution_sets!(mapping) = _compress!(contains, mapping)
+
+"""
+    t_highest_resolution_sets!(mapping)
+
+Modify the given `Dict` (which must be a mapping from `TimeSlice` to `Set`) in place,
+so that if key `t1` contains key `t2`, then the former is removed and its value is merged into the latter's.
+"""
+t_highest_resolution_sets!(mapping) = _compress!(iscontained, mapping)
+
+
+"""
     add_relationships!(relationship_class, relationships)
 
 Remove from `relationships` everything that's already in `relationship_class`, and append the rest.

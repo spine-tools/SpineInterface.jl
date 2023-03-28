@@ -87,8 +87,10 @@ export start
 export startref
 export t_highest_resolution
 export t_highest_resolution!
+export t_highest_resolution_sets!
 export t_lowest_resolution
 export t_lowest_resolution!
+export t_lowest_resolution_sets!
 export test_object_class
 export test_parameter
 export test_relationship_class

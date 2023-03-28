@@ -200,6 +200,17 @@ _search_nearest(arr, x) = nothing
 
 _next_index(val::Union{TimeSeries,Map}, pos) = val.indexes[min(pos + 1, length(val.indexes))]
 
+function _compress!(func, d::Dict{K,V}) where {K,V}
+    for (key, value) in d
+        for other_key in setdiff(keys(d), key)
+            if func(key, other_key)
+                union!(value, pop!(d, other_key))
+            end
+        end
+    end
+    d
+end
+
 """
     _deleteat!(t_coll, func)
 
