@@ -94,16 +94,24 @@ function Base.show(io::IO, union::UnionOfIntersections)
     print(io, join(intersections, ", or "))
 end
 function Base.show(io::IO, ts::TimeSeries{T}) where T <: Number
+    if isempty(ts.indexes)
+        print(io, "TimeSeries[](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
+        return
+    end
     first_ = first(ts.indexes)
     last_ = last(ts.indexes)
     min_ = minimum(ts.values)
     max_ = maximum(ts.values)
-    print(io, "TimeSeries{$first_~>$last_}[$min_,$max_]($(ts.ignore_year),$(ts.repeat))")
+    print(io, "TimeSeries[$first_~>$last_][$min_,$max_](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
 end
 function Base.show(io::IO, ts::TimeSeries)
+    if isempty(ts.indexes)
+        print(io, "TimeSeries[](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
+        return
+    end
     first_ = string(first(ts.indexes), "=>", first(ts.values))
     last_ = string(last(ts.indexes), "=>", last(ts.values))
-    print(io, "TimeSeries{$first_ ... $last_}, ($(ts.ignore_year), $(ts.repeat))")
+    print(io, "TimeSeries[$first_ ... $last_](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
 end
 
 Base.convert(::Type{Call}, x::T) where {T<:Real} = Call(x)
@@ -222,25 +230,6 @@ function Base.getindex(p::Parameter, inds::NamedTuple)
     end
 end
 
-function Base.push!(ts::TimeSeries, pair)
-    index, value = pair
-    i = searchsortedfirst(ts.indexes, index)
-    if get(ts.indexes, i, nothing) == index
-        ts.values[i] = value
-    else
-        insert!(ts.indexes, i, index)
-        insert!(ts.values, i, value)
-    end
-    ts._lookup[index] = value
-    ts
-end
-
-function Base.setindex!(ts::TimeSeries, value, key...)
-    length(key) > 1 && error("invalid index $key")
-    push!(ts, first(key) => value)
-    value
-end
-
 function Base.empty!(x::ObjectClass)
     empty!(x.objects)
     empty!(x.parameter_values)
@@ -265,9 +254,54 @@ function Base.merge!(ts1::TimeSeries, ts2::TimeSeries)
     ts1
 end
 
-Base.get(x::Union{TimeSeries,Map}, key, default) = get(x._lookup, key, default)
+function Base.push!(x::Union{TimeSeries,Map}, pair)
+    index, value = pair
+    i = searchsortedfirst(x.indexes, index)
+    if get(x.indexes, i, nothing) == index
+        x.values[i] = value
+    else
+        insert!(x.indexes, i, index)
+        insert!(x.values, i, value)
+    end
+    x
+end
 
-Base.getindex(x::Union{TimeSeries,Map}, key) = x._lookup[key]
+function Base.setindex!(x::Union{TimeSeries,Map}, value, key...)
+    length(key) > 1 && error("invalid index $key")
+    push!(x, first(key) => value)
+    value
+end
+
+function Base.get(x::Union{TimeSeries,Map}, key, default)
+    i = searchsortedfirst(x.indexes, key)
+    get(x.indexes, i, nothing) == key ? x.values[i] : default
+end
+
+function Base.getindex(x::Union{TimeSeries,Map}, key)
+    i = searchsortedfirst(x.indexes, key)
+    if get(x.indexes, i, nothing) == key
+        x.values[i]
+    else
+        throw(BoundsError(x, key))
+    end
+end
+
+function Base.get!(x::Union{TimeSeries,Map}, key, default)
+    i = searchsortedfirst(x.indexes, key)
+    if get(x.indexes, i, nothing) == key
+        x.values[i]
+    else
+        x.values[i] = default
+    end
+end
+function Base.get!(f::Function, x::Union{TimeSeries,Map}, key)
+    i = searchsortedfirst(x.indexes, key)
+    if get(x.indexes, i, nothing) == key
+        x.values[i]
+    else
+        x.values[i] = f()
+    end
+end
 
 Base.iszero(x::Union{TimeSeries,TimePattern}) = iszero(values(x))
 Base.isapprox(x::Union{TimeSeries,TimePattern}, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in values(x))
