@@ -71,7 +71,9 @@ end
 
 ObjectLike = Union{Object,TimeSlice,Int64}
 
-RelationshipLike{K} = NamedTuple{K,V} where {K,V<:Tuple{Vararg{ObjectLike}}}
+ObjectTupleLike = Tuple{Vararg{ObjectLike}}
+
+RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
 
 struct ObjectClass
     name::Symbol
@@ -86,7 +88,7 @@ struct RelationshipClass
     intact_object_class_names::Array{Symbol,1}
     object_class_names::Array{Symbol,1}
     relationships::Array{RelationshipLike,1}
-    parameter_values::Dict{Tuple{Vararg{ObjectLike}},Dict{Symbol,AbstractParameterValue}}
+    parameter_values::Dict{ObjectTupleLike,Dict{Symbol,AbstractParameterValue}}
     parameter_defaults::Dict{Symbol,AbstractParameterValue}
     lookup_cache::Dict{Bool,Dict}
     function RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())

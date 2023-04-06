@@ -38,9 +38,11 @@ include("tests.jl")
 
 export AbstractParameterValue
 export add_object_parameter_values!
+export add_object_parameter_defaults!
 export add_object!
 export add_objects!
 export add_relationship_parameter_values!
+export add_relationship_parameter_defaults!
 export add_relationships!
 export Anything
 export anything
