@@ -833,6 +833,7 @@ function parameter_value(parsed_db_value::Map)
     MapParameterValue(Map(parsed_db_value.indexes, parameter_value.(parsed_db_value.values)))
 end
 parameter_value(parsed_db_value::T) where {T} = error("can't parse $parsed_db_value of unrecognized type $T")
+parameter_value(x::T) where {T<:AbstractParameterValue} = x
 
 """
     indexed_values(value)
