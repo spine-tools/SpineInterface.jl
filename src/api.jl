@@ -628,8 +628,12 @@ t_highest_resolution_sets!(mapping) = _compress!(iscontained, mapping)
 Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
 Return the modified `relationship_class`.
 """
-function add_relationships!(relationship_class::RelationshipClass, relationships::Array)
-    setdiff!(relationships, relationship_class.relationships)
+function add_relationships!(relationship_class::RelationshipClass, object_tuples::Vector{T}) where T<:ObjectTupleLike
+    relationships = [(; zip(relationship_class.object_class_names, obj_tup)...) for obj_tup in object_tuples]
+    add_relationships!(relationship_class, relationships)
+end
+function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
+    relationships = setdiff(relationships, relationship_class.relationships)
     append!(relationship_class.relationships, relationships)
     merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
     if !isempty(relationships)
