@@ -7,15 +7,20 @@
 A package to interact with Spine databases from a Julia session.
 See [Spine](http://www.spine-model.org/) for more information.
 
+
 ### :exclamation: :exclamation:  **GitHub organisation has been renamed!** 
 
 New name [spine-tools](https://github.com/spine-tools), used to be spine-project (19.1.2023). Update your weblinks and git origin to all repositories (in each repository folder `git remote set-url origin https://github.com/spine-tools/repository-name`): Spine Toolbox, SpineOpt.jl, SpineInterface.jl, Spine-Database-API, spine-engine, spine-items.
+
 
 ## Compatibility
 
 This package requires Julia 1.2 or later.
 
+
 ## Installation
+
+You can install SpineInterface from the SpineJuliaRegistry as follows:
 
 ```julia
 using Pkg
@@ -23,7 +28,19 @@ pkg"registry add https://github.com/Spine-project/SpineJuliaRegistry"
 pkg"add SpineInterface"
 ```
 
+However, for keeping up with the latest developments, it is highly recommended to install directly from the source.
+This can be done by downloading the repository on your computer, and then installing the module locally with
+
+```julia
+using Pkg
+Pkg.develop("<PATH_TO_SPINEINTERFACE>")
+```
+
+where `<PATH_TO_SPINEINTERFACE>` is the path to the root folder of the SpineInterface repository on your computer *(the one containing the `Project.toml` file)*. 
+
+
 ## Upgrading
+
 SpineInterface may be updated from time to time. To get the most recent version, just:
 
 1. Start the Julia REPL (can be done also in the Julia console of Spine Toolbox).
@@ -37,20 +54,40 @@ SpineInterface may be updated from time to time. To get the most recent version,
 	
 NOTE. It seems that Pkg.update does not always guarantee the latest version. `Pkg.rm("SpineInterface")` followed by `Pkg.add("SpineInterface")` may help.
 
+If you have installed SpineInterface from source locally on your machine, you can update it simply by pulling the latest `master` from the repository.
+
+
 ## Usage
+
+SpineInterface has been primarily designed to work through [Spine Toolbox](https://github.com/spine-tools/Spine-Toolbox),
+and shouldn't require specific setup when being called from Spine Toolbox workflows.
+Essentially, SpineInterface works just like any Julia module
 
 ```julia
 using SpineInterface
 using_spinedb("...url of a Spine database...")
 ```
 
+with `using_spinedb` being the key function that creates the interface for a Spine Datastore.
+
+When running SpineInterface outside Spine Toolbox *(e.g. from a Julia script directly)*, however,
+SpineInterface relies on the [Spine Database API](https://github.com/spine-tools/Spine-Database-API)
+Python package, which is accessed using the [PyCall.jl](https://github.com/JuliaPy/PyCall.jl) module.
+Thus, one needs to configure PyCall.jl to use a Python executable with Spine Database API installed,
+which can be done according to the PyCall readme.
+If you're using Conda environments for Python, the `.configure_pycall_in_conda.jl` script can be used to
+automatically configure PyCall to use the Python executable of that Conda environment.
+
+
 ## Reporting Issues and Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
 
+
 ## License
 
 SpineInterface is licensed under GNU Lesser General Public License version 3.0 or later.
+
 
 ### Acknowledgements
 
