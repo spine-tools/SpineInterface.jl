@@ -17,3 +17,4 @@ docs/site/
 test/Manifest.toml
 Manifest.toml
 test/test_out.sqlite
+.vscode/settings.json
