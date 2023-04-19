@@ -220,11 +220,12 @@ Base.keys(m::Map) = m.indexes
 Base.keys(apv::AbstractParameterValue) = keys(apv.value)
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
-function Base.getindex(p::Parameter, inds::NamedTuple)
-    pv_new_kwargs = _split_parameter_value_kwargs(p; inds...)
+Base.getindex(p::Parameter, inds::NamedTuple) = _getindex(p; inds...)
+function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
+    pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
     if pv_new_kwargs !== nothing
         parameter_value, new_inds = pv_new_kwargs
-        Call((p.name, inds), parameter_value, new_inds)
+        Call((p.name, (; kwargs...)), parameter_value, new_inds)
     else
         Call(nothing)
     end

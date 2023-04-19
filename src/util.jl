@@ -33,18 +33,19 @@ end
 _immutable(x) = x
 _immutable(arr::T) where {T<:AbstractArray} = (length(arr) == 1) ? first(arr) : Tuple(arr)
 
-function _get(d, key, backup)
+function _get(d, key, backup, default=nothing)
     get(d, key) do
-        backup[key]
+        default !== nothing ? parameter_value(default) : backup[key]
     end
 end
 
-function _split_parameter_value_kwargs(p::Parameter; _strict=true, kwargs...)
+function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
+    _strict &= _default === nothing
     for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
         entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
         parameter_values = _entity_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
-        return _get(parameter_values, p.name, class.parameter_defaults), new_kwargs
+        return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
     end
     if _strict
         error("can't find a value of $p for argument(s) $((; kwargs...))")

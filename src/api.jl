@@ -197,13 +197,10 @@ julia> demand(node=node(:Sthlm), i=1)
 ```
 """
 function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
-    _strict &= _default === nothing
-    pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, kwargs...)
+    pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
     if pv_new_kwargs !== nothing
         parameter_value, new_kwargs = pv_new_kwargs
         parameter_value(; new_kwargs...)
-    else
-        _default
     end
 end
 
@@ -325,7 +322,7 @@ function (p::MapParameterValue{DateTime,V})(s::_StartRef, observer=nothing; kwar
     i = _search_nearest(p.value.indexes, start(t))
     _set_time_to_update(t, observer) do
         i === nothing ? Second(0) : _next_index(p.value, i) - start(t)
-    end    
+    end
     i === nothing && return p(; kwargs...)
     pvs = p.value.values[i]
     pvs(observer; kwargs...)

@@ -19,9 +19,6 @@
 
 # Here we extend `JuMP.@constraint` so we're able to build constraints involving `Call` objects.
 # In `JuMP.add_constraint`, we `realize` all `Call`s to compute a constraint that can be added to the model.
-# But more importantly, we save all varying constraints (involving `ParameterCall`s) in the `Model` object
-# so we're able to automatically update them later, in `update_varying_constraints!`.
-# We extend @objective in a similar way.
 
 using .JuMP
 import DataStructures: OrderedDict
