@@ -201,6 +201,8 @@ function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
     if pv_new_kwargs !== nothing
         parameter_value, new_kwargs = pv_new_kwargs
         parameter_value(; new_kwargs...)
+    else
+        _default
     end
 end
 
