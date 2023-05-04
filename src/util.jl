@@ -55,6 +55,16 @@ end
 _dimensionality(x::ObjectClass) = 0
 _dimensionality(x::RelationshipClass) = length(x.object_class_names)
 
+function _split_entity_kwargs(class::ObjectClass; kwargs...)
+    new_kwargs = OrderedDict(kwargs...)
+    pop!(new_kwargs, class.name, missing), (; new_kwargs...)
+end
+function _split_entity_kwargs(class::RelationshipClass; kwargs...)
+    new_kwargs = OrderedDict(kwargs...)
+    objects = Tuple(pop!(new_kwargs, oc, missing) for oc in class.object_class_names)
+    objects, (; new_kwargs...)
+end
+
 _entity_pvals(pvals_by_entity, ::Nothing) = nothing
 _entity_pvals(pvals_by_entity, entity) = _entity_pvals(pvals_by_entity, entity, get(pvals_by_entity, entity, nothing))
 _entity_pvals(pvals_by_entity, entity, pvals) = pvals
@@ -70,16 +80,6 @@ function _entity_pvals(pvals_by_entity, entity::Tuple, ::Nothing)
         end
     end
     matched
-end
-
-function _split_entity_kwargs(class::ObjectClass; kwargs...)
-    new_kwargs = OrderedDict(kwargs...)
-    pop!(new_kwargs, class.name, missing), (; new_kwargs...)
-end
-function _split_entity_kwargs(class::RelationshipClass; kwargs...)
-    new_kwargs = OrderedDict(kwargs...)
-    objects = Tuple(pop!(new_kwargs, oc, missing) for oc in class.object_class_names)
-    objects, (; new_kwargs...)
 end
 
 _matches(first::Tuple, second::Tuple) = all(_matches(x, y) for (x, y) in zip(first, second))
@@ -98,6 +98,15 @@ _entity_tuple(r::RelationshipLike, class) = r
 _entity_tuples(class::ObjectClass; kwargs...) = (_entity_tuple(o, class) for o in class())
 _entity_tuples(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
 
+_show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
+_show_call(io::IO, call::Call, expr::Nothing, func::Function) = print(io, join(call.args, string(" ", func, " ")))
+function _show_call(io::IO, call::Call, expr::_CallExpr, func)
+    pname, kwargs = expr
+    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
+    result = _do_realize(call)
+    print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
+end
+
 struct _CallNode
     call::Call
     parent::Union{_CallNode,Nothing}
@@ -111,15 +120,6 @@ struct _CallNode
         end
         node
     end
-end
-
-_show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
-_show_call(io::IO, call::Call, expr::Nothing, func::Function) = print(io, join(call.args, string(" ", func, " ")))
-function _show_call(io::IO, call::Call, expr::_CallExpr, func)
-    pname, kwargs = expr
-    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
-    result = _do_realize(call)
-    print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
 end
 
 _do_realize(x, observer=nothing) = x
@@ -418,8 +418,12 @@ _map_inds_and_vals(data::Dict) = keys(data), values(data)
 _unparse_date_time(x::DateTime) = string(Dates.format(x, db_df))
 function _unparse_duration(x::T) where {T<:Period}
     d = Dict(Minute => "m", Hour => "h", Day => "D", Month => "M", Year => "Y")
-    suffix = get(d, T, "m")
-    string(x.value, suffix)
+    suffix = get(d, T, nothing)
+    if suffix === nothing
+        string(Minute(x).value, "m")
+    else
+        string(x.value, suffix)
+    end
 end
 
 _unparse_element(x::Union{Float64,String}) = x
