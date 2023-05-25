@@ -217,9 +217,8 @@ function JuMP.fix(var::VariableRef, call::Call)
     _fix(var, fix_value)
 end
 
-_fix(var, ::Nothing) = nothing
 function _fix(var, fix_value)
-    if !isnan(fix_value)
+    if !isnothing(fix_value) && !isnan(fix_value)
         m = owner_model(var)
         ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
         # Save bounds, remove them and then fix the value
