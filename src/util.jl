@@ -786,7 +786,7 @@ function _timedata_operation(f, x, y)
     param_val_x = parameter_value(x)
     param_val_y = parameter_value(y)
     values = Any[(param_val_x(ind), param_val_y(ind)) for ind in indexes]
-    to_remove = findall(x -> nothing in x, values)
+    to_remove = findall(x -> isnan(x[1]) || isnan(x[2]), values)
     deleteat!(indexes, to_remove)
     deleteat!(values, to_remove)
     map!(x -> f(x...), values, values)
