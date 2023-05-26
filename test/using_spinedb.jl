@@ -190,7 +190,7 @@ end
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == 300
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 5), DateTime(0, 8))) == 221.5
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 12))) == (221.5 + 300) / 2
-        @test apero_time(country=France, t=TimeSlice(DateTime(0, 11), DateTime(0, 12))) === nothing
+        @test isnan(apero_time(country=France, t=TimeSlice(DateTime(0, 11), DateTime(0, 12))))
     end
     @testset "std_time_series" begin
         data = [1.0, 4.0, 5.0, NaN, 7.0]

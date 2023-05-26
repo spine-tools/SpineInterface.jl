@@ -296,8 +296,8 @@ end
         parameters = Dict(:apero_time => Dict((country=:France,) => val))
         write_parameters(parameters, url)
         using_spinedb(url)
-        @test isnothing(apero_time(country=country(:France), t=DateTime(0, 1, 1)))
-        @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 1), DateTime(0, 1, 1, 23))))
+        @test isnan(apero_time(country=country(:France), t=DateTime(0, 1, 1)))
+        @test isnan(apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 1), DateTime(0, 1, 1, 23))))
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 1), DateTime(0, 1, 5))) == 30.5
         @test apero_time(country=country(:France), t=DateTime(0, 1, 2)) == 30.5
         @test apero_time(country=country(:France), t=DateTime(0, 1, 5)) == 30.5
@@ -306,8 +306,8 @@ end
         @test apero_time(country=country(:France), t=DateTime(0, 1, 6)) == 24.7
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 7), DateTime(0, 1, 8))) == 24.7
         @test apero_time(country=country(:France), t=DateTime(0, 1, 7)) == 24.7
-        @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 8), DateTime(0, 1, 31))))
-        @test isnothing(apero_time(country=country(:France), t=DateTime(0, 1, 8)))
+        @test isnan(apero_time(country=country(:France), t=TimeSlice(DateTime(0, 1, 8), DateTime(0, 1, 31))))
+        @test isnan(apero_time(country=country(:France), t=DateTime(0, 1, 8)))
     end
     @testset "time_series" begin
         isfile(path) && rm(path)
@@ -315,8 +315,8 @@ end
         parameters = Dict(:apero_time => Dict((country=:France,) => val))
         write_parameters(parameters, url)
         using_spinedb(url)
-        @test isnothing(apero_time(country=country(:France), t=DateTime(0)))
-        @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(1))))
+        @test isnan(apero_time(country=country(:France), t=DateTime(0)))
+        @test isnan(apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(1))))
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(2))) == 4
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1, 2), DateTime(1, 12))) == 4
         @test apero_time(country=country(:France), t=DateTime(1)) == 4
@@ -326,8 +326,8 @@ end
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(1), DateTime(3))) == 4.5
         @test apero_time(country=country(:France), t=DateTime(3)) == 6
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(3), DateTime(100))) == 6
-        @test isnothing(apero_time(country=country(:France), t=TimeSlice(DateTime(4), DateTime(100))))
-        @test isnothing(apero_time(country=country(:France), t=DateTime(100)))
+        @test isnan(apero_time(country=country(:France), t=TimeSlice(DateTime(4), DateTime(100))))
+        @test isnan(apero_time(country=country(:France), t=DateTime(100)))
         @test apero_time(country=country(:France), t=TimeSlice(DateTime(0), DateTime(100))) == 5
     end
     @testset "repeating time_series" begin

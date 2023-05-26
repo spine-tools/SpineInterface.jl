@@ -51,10 +51,10 @@ Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
 Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all(
     [getfield(ts1, field) == getfield(ts2, field) for field in fieldnames(TimeSeries)]
 )
-Base.:(==)(m1::Map, m2::Map) = all(m1.indexes == m2.indexes) && all(m1.values == m2.values)
 Base.:(==)(pv1::AbstractParameterValue, pv2::AbstractParameterValue) = pv1.value == pv2.value
 Base.:(==)(scalar::Number, ts::TimeSeries) = all(scalar == v for v in ts.values)
 Base.:(==)(ts::TimeSeries, scalar::Number) = all(v == scalar for v in ts.values)
+Base.:(==)(m1::Map, m2::Map) = all(m1.indexes == m2.indexes) && all(m1.values == m2.values)
 function Base.:(==)(x::Call, y::Call)
     result = all(getproperty(x, n) == getproperty(y, n) for n in setdiff(fieldnames(Call), (:args,)))
     result &= tuple(x.args...) == tuple(y.args...)

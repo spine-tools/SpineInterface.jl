@@ -59,9 +59,6 @@ end
 struct _VariableFixValueObserver <: _Observer
     variable::VariableRef
     fix_value::Call
-    lower_bound::Ref{T} where T<:Number
-    upper_bound::Ref{T} where T<:Number
-    _VariableFixValueObserver(v, fv) = new(v, fv, Ref(NaN), Ref(NaN))
 end
 
 struct _ObjectiveCoefficientObserver <: _Observer
@@ -217,8 +214,9 @@ function JuMP.fix(var::VariableRef, call::Call)
     _fix(var, fix_value)
 end
 
+_fix(var, ::Nothing) = nothing
 function _fix(var, fix_value)
-    if !isnothing(fix_value) && !isnan(fix_value)
+    if !isnan(fix_value)
         m = owner_model(var)
         ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
         # Save bounds, remove them and then fix the value

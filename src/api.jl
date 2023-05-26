@@ -231,7 +231,7 @@ function (p::TimePatternParameterValue)(t::TimeSlice, observer=nothing)
             )
         end
     end
-    isempty(vals) && return nothing
+    isempty(vals) && return NaN
     mean(vals)
 end
 
@@ -243,8 +243,8 @@ end
 (p::StandardTimeSeriesParameterValue)(::Nothing, observer=nothing) = p.value
 function (p::StandardTimeSeriesParameterValue)(t::DateTime, observer=nothing)
     p.value.ignore_year && (t -= Year(t))
-    t < p.value.indexes[1] && return nothing
-    t > p.value.indexes[end] && !p.value.ignore_year && return nothing
+    t < p.value.indexes[1] && return NaN
+    t > p.value.indexes[end] && !p.value.ignore_year && return NaN
     p.value.values[max(1, searchsortedlast(p.value.indexes, t))]
 end
 function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
@@ -254,8 +254,8 @@ function (p::StandardTimeSeriesParameterValue)(t::TimeSlice, observer=nothing)
     _set_time_to_update(t, observer) do
         min(_next_index(p.value, a) - t_start, _next_index(p.value, b) + Millisecond(1) - t_end)
     end
-    t_end <= p.value.indexes[1] && return nothing
-    t_start > p.value.indexes[end] && !p.value.ignore_year && return nothing
+    t_end <= p.value.indexes[1] && return NaN
+    t_start > p.value.indexes[end] && !p.value.ignore_year && return NaN
     mean(Iterators.filter(!isnan, p.value.values[a:b]))
 end
 
@@ -819,12 +819,9 @@ end
 An `AbstractParameterValue` object from the given parsed db value.
 """
 parameter_value(::Nothing) = NothingParameterValue()
-parameter_value(parsed_db_value::Bool) = ScalarParameterValue(parsed_db_value)
-parameter_value(parsed_db_value::Int64) = ScalarParameterValue(parsed_db_value)
-parameter_value(parsed_db_value::Float64) = ScalarParameterValue(parsed_db_value)
-parameter_value(parsed_db_value::String) = ScalarParameterValue(parsed_db_value)
-parameter_value(parsed_db_value::DateTime) = ScalarParameterValue(parsed_db_value)
-parameter_value(parsed_db_value::Period) = ScalarParameterValue(parsed_db_value)
+function parameter_value(parsed_db_value::Union{Bool,Int64,Float64,String,DateTime,Period})
+    ScalarParameterValue(parsed_db_value)
+end
 parameter_value(parsed_db_value::Array) = ArrayParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimePattern) = TimePatternParameterValue(parsed_db_value)
 parameter_value(parsed_db_value::TimeSeries) = TimeSeriesParameterValue(parsed_db_value)
