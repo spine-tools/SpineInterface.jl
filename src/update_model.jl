@@ -54,60 +54,56 @@ struct _CallInterval <: _CallSet
     upper::Call
 end
 
-abstract type AbstractObserver end
+abstract type AbstractUpdate end
 
-struct _VariableLBObserver <: AbstractObserver
+struct _VariableLBUpdate <: AbstractUpdate
     variable::VariableRef
 end
 
-struct _VariableUBObserver <: AbstractObserver
+struct _VariableUBUpdate <: AbstractUpdate
     variable::VariableRef
 end
 
-struct _VariableFixValueObserver <: AbstractObserver
+struct _VariableFixValueUpdate <: AbstractUpdate
     variable::VariableRef
 end
 
-struct _ObjectiveCoefficientObserver <: AbstractObserver
+struct _ObjectiveCoefficientUpdate <: AbstractUpdate
     model::Model
     variable::VariableRef
 end
 
-struct _ConstraintCoefficientObserver <: AbstractObserver
-    constraint_reference::Ref{ConstraintRef}
+struct _ConstraintCoefficientUpdate <: AbstractUpdate
+    constraint::Ref{ConstraintRef}
     variable::VariableRef
 end
 
-struct _RHSObserver <: AbstractObserver
-    constraint_reference::Ref{ConstraintRef}
+struct _RHSUpdate <: AbstractUpdate
+    constraint::Ref{ConstraintRef}
 end
 
-struct _LowerBoundObserver <: AbstractObserver
-    constraint_reference::Ref{ConstraintRef}
+struct _LowerBoundUpdate <: AbstractUpdate
+    constraint::Ref{ConstraintRef}
 end
 
-struct _UpperBoundObserver <: AbstractObserver
-    constraint_reference::Ref{ConstraintRef}
+struct _UpperBoundUpdate <: AbstractUpdate
+    constraint::Ref{ConstraintRef}
 end
 
-(observer::_VariableLBObserver)(new_lb) = _set_lower_bound(observer.variable, new_lb)
-(observer::_VariableUBObserver)(new_ub) = _set_upper_bound(observer.variable, new_ub)
-(observer::_VariableFixValueObserver)(new_fix_value) = _fix(observer.variable, new_fix_value)
-function (observer::_ObjectiveCoefficientObserver)(new_coef)
-    set_objective_coefficient(observer.model, observer.variable, new_coef)
-end
-function (observer::_ConstraintCoefficientObserver)(new_coef)
-    set_normalized_coefficient(observer.constraint_reference[], observer.variable, new_coef)
-end
-(observer::_RHSObserver)(new_rhs) = set_normalized_rhs(observer.constraint_reference[], new_rhs)
-function (observer::_LowerBoundObserver)(new_lower)
-    constraint = observer.constraint_reference[]
+(upd::_VariableLBUpdate)(new_lb) = _set_lower_bound(upd.variable, new_lb)
+(upd::_VariableUBUpdate)(new_ub) = _set_upper_bound(upd.variable, new_ub)
+(upd::_VariableFixValueUpdate)(new_fix_value) = _fix(upd.variable, new_fix_value)
+(upd::_ObjectiveCoefficientUpdate)(new_coef) = set_objective_coefficient(upd.model, upd.variable, new_coef)
+(upd::_ConstraintCoefficientUpdate)(new_coef) = set_normalized_coefficient(upd.constraint[], upd.variable, new_coef)
+(upd::_RHSUpdate)(new_rhs) = set_normalized_rhs(upd.constraint[], new_rhs)
+function (upd::_LowerBoundUpdate)(new_lower)
+    constraint = upd.constraint[]
     model = owner_model(constraint)
     upper = MOI.get(model, MOI.ConstraintSet(), constraint).upper
     MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(new_lower, upper))
 end
-function (observer::_UpperBoundObserver)(new_upper)
-    constraint = observer.constraint_reference[]
+function (upd::_UpperBoundUpdate)(new_upper)
+    constraint = upd.constraint[]
     model = owner_model(constraint)
     lower = MOI.get(model, MOI.ConstraintSet(), constraint).lower
     MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, new_upper))
@@ -122,7 +118,7 @@ Set the lower bound of given variable to the result of given call and bind them 
 the result of the call changes because time slices have rolled, the lower bound is automatically updated.
 """
 function JuMP.set_lower_bound(var::VariableRef, call::Call)
-    lb = realize(call, _VariableLBObserver(var))
+    lb = realize(call, _VariableLBUpdate(var))
     _set_lower_bound(var, lb)
 end
 
@@ -145,7 +141,7 @@ Set the upper bound of given variable to the result of given call and bind them 
 the result of the call changes because time slices have rolled, the upper bound is automatically updated.
 """
 function JuMP.set_upper_bound(var::VariableRef, call::Call)
-    ub = realize(call, _VariableUBObserver(var))
+    ub = realize(call, _VariableUBUpdate(var))
     _set_upper_bound(var, ub)
 end
 
@@ -171,7 +167,7 @@ If the result is NaN, then the variable is freed.
 Any bounds on the variable at the moment of fixing it are restored when freeing it.
 """
 function JuMP.fix(var::VariableRef, call::Call)
-    fix_value = realize(call, _VariableFixValueObserver(var))
+    fix_value = realize(call, _VariableFixValueUpdate(var))
     _fix(var, fix_value)
 end
 
@@ -279,32 +275,32 @@ end
 # _realize
 function _realize(s::_GreaterThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.GreaterThan(realize(c, _RHSObserver(con_ref)))
+    MOI.GreaterThan(realize(c, _RHSUpdate(con_ref)))
 end
 function _realize(s::_LessThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.LessThan(realize(c, _RHSObserver(con_ref)))
+    MOI.LessThan(realize(c, _RHSUpdate(con_ref)))
 end
 function _realize(s::_EqualToCall, con_ref)
     c = MOI.constant(s)
-    MOI.EqualTo(realize(c, _RHSObserver(con_ref)))
+    MOI.EqualTo(realize(c, _RHSUpdate(con_ref)))
 end
 function _realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
-    MOI.Interval(realize(l, _LowerBoundObserver(con_ref)), realize(u, _UpperBoundObserver(con_ref)))
+    MOI.Interval(realize(l, _LowerBoundUpdate(con_ref)), realize(u, _UpperBoundUpdate(con_ref)))
 end
 function _realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
     constant = realize(e.constant)
     terms = OrderedDict{VariableRef,typeof(constant)}(
-        var => realize(coef, _coefficient_observer(model_or_con_ref, var))
+        var => realize(coef, _coefficient_update(model_or_con_ref, var))
         for (var, coef) in e.terms
     )
     GenericAffExpr(constant, terms)
 end
 
-_coefficient_observer(m::Model, v) = _ObjectiveCoefficientObserver(m, v)
-_coefficient_observer(cr::Ref{ConstraintRef}, v) = _ConstraintCoefficientObserver(cr, v)
-_coefficient_observer(::Nothing, _v) = nothing
+_coefficient_update(m::Model, v) = _ObjectiveCoefficientUpdate(m, v)
+_coefficient_update(cr::Ref{ConstraintRef}, v) = _ConstraintCoefficientUpdate(cr, v)
+_coefficient_update(::Nothing, _v) = nothing
 
 # add_to_expression!
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, call::Call)

@@ -57,35 +57,35 @@
 	@test objective_value(m) == 2
 end
 
-struct _TestObserver <: SpineInterface.AbstractObserver
+struct _TestUpdate <: SpineInterface.AbstractUpdate
 	values::Vector{Any}
-	_TestObserver() = new([])
+	_TestUpdate() = new([])
 end
 
-(observer::_TestObserver)(new_value) = push!(observer.values, new_value)
+(upd::_TestUpdate)(new_value) = push!(upd.values, new_value)
 
-@testset "time series observer" begin
+@testset "time series upd" begin
 	t1, t2, t3 = DateTime(0, 1, 1), DateTime(0, 1, 8), DateTime(0, 2, 1)
 	ts_pval = parameter_value(TimeSeries([t1, t2, t3], [20, 4, -1], false, false))
 	t = TimeSlice(DateTime(0, 1, 1, 0), DateTime(0, 1, 1, 1))
 	call = Call(nothing, ts_pval, [], (; t=t))
-	observer = _TestObserver()
-	@test realize(call, observer) == 20
+	upd = _TestUpdate()
+	@test realize(call, upd) == 20
 	roll!(t, Hour(1))
-	@test isempty(observer.values)
+	@test isempty(upd.values)
 	roll!(t, Day(1))
-	@test isempty(observer.values)
+	@test isempty(upd.values)
 	delta = t2 - t1
 	roll!(t, delta - Day(1) - Hour(1))
-	@test observer.values == [4.0]
+	@test upd.values == [4.0]
 	@test start(t) == t2
 	delta = t3 - t2
 	roll!(t, delta - Hour(1))
-	@test observer.values == [4.0]
+	@test upd.values == [4.0]
 	roll!(t, Hour(1))
-	@test observer.values == [4.0, -1.0]
+	@test upd.values == [4.0, -1.0]
 end
-@testset "time pattern observer" begin
+@testset "time pattern upd" begin
 	parse_tp = SpineInterface.parse_time_period
 	tp = Dict(parse_tp("M1-6;WD1-5") => 1.0, parse_tp("M1-6;WD6-7") => 20, parse_tp("M7-12") => -4.0)
 	tp_pval = parameter_value(tp)
@@ -93,26 +93,26 @@ end
 	@test dayofweek(t_start) == 1
 	t = TimeSlice(t_start, t_end)
 	call = Call(nothing, tp_pval, [], (; t=t))
-	observer = _TestObserver()
-	@test realize(call, observer) == 1.0
+	upd = _TestUpdate()
+	@test realize(call, upd) == 1.0
 	roll!(t, Hour(1))
-	@test isempty(observer.values)
+	@test isempty(upd.values)
 	roll!(t, Day(4))
-	@test observer.values == [1.0]
+	@test upd.values == [1.0]
 	roll!(t, Hour(23))
-	@test observer.values == [1.0, 20.0]
+	@test upd.values == [1.0, 20.0]
 	@test start(t) == t_start + Day(5)
 	roll!(t, Day(2))
-	@test observer.values == [1.0, 20.0, 1.0]
+	@test upd.values == [1.0, 20.0, 1.0]
 	roll!(t, Day(5))
-	@test observer.values == [1.0, 20.0, 1.0, 20.0]
+	@test upd.values == [1.0, 20.0, 1.0, 20.0]
 	delta = start(t) - t_start
 	roll!(t, Month(6) - delta)
-	@test observer.values == [1.0, 20.0, 1.0, 20.0, -4.0]
+	@test upd.values == [1.0, 20.0, 1.0, 20.0, -4.0]
 	roll!(t, Month(6))
-	@test observer.values == [1.0, 20.0, 1.0, 20.0, -4.0, 1.0]
+	@test upd.values == [1.0, 20.0, 1.0, 20.0, -4.0, 1.0]
 end
-@testset "map observer" begin
+@testset "map upd" begin
 	db_map = Dict(
         "type" => "map",
         "index_type" => "str",
@@ -165,52 +165,52 @@ end
 	scen1_call = Call(nothing, map_pval, [], (; stochastic_scenario=:scen1, analysis_time=at, t=t))
 	scen2_call = Call(nothing, map_pval, [], (; stochastic_scenario=:scen2, analysis_time=at, t=t))
 	scen3_call = Call(nothing, map_pval, [], (; stochastic_scenario=:scen3, analysis_time=at, t=t))
-	scen1_observer = _TestObserver()
-	scen2_observer = _TestObserver()
-	scen3_observer = _TestObserver()
-	@test realize(scen1_call, scen1_observer) == 1
-	@test realize(scen2_call, scen2_observer) == 1
-	@test realize(scen3_call, scen3_observer) == 1
-	@test isempty(scen1_observer.values)
-	@test isempty(scen2_observer.values)
-	@test isempty(scen3_observer.values)
+	scen1_upd = _TestUpdate()
+	scen2_upd = _TestUpdate()
+	scen3_upd = _TestUpdate()
+	@test realize(scen1_call, scen1_upd) == 1
+	@test realize(scen2_call, scen2_upd) == 1
+	@test realize(scen3_call, scen3_upd) == 1
+	@test isempty(scen1_upd.values)
+	@test isempty(scen2_upd.values)
+	@test isempty(scen3_upd.values)
 	roll!(t, Hour(1))
-	@test last(scen1_observer.values) == 2
-	@test last(scen2_observer.values) == 2
+	@test last(scen1_upd.values) == 2
+	@test last(scen2_upd.values) == 2
 	roll!(t, Hour(1))
-	@test last(scen1_observer.values) == 3
-	@test last(scen2_observer.values) == 3
+	@test last(scen1_upd.values) == 3
+	@test last(scen2_upd.values) == 3
 	roll!(t, Hour(1))
-	@test last(scen1_observer.values) == 3
-	@test last(scen2_observer.values) == 4
+	@test last(scen1_upd.values) == 3
+	@test last(scen2_upd.values) == 4
 	roll!(t, Hour(1))
-	@test last(scen1_observer.values) == 3
-	@test last(scen2_observer.values) == 5
+	@test last(scen1_upd.values) == 3
+	@test last(scen2_upd.values) == 5
 	roll!(t, Hour(1))
-	@test last(scen1_observer.values) == 3
-	@test last(scen2_observer.values) == 6
+	@test last(scen1_upd.values) == 3
+	@test last(scen2_upd.values) == 6
 	roll!(t, Hour(1))
-	@test last(scen1_observer.values) == 3
-	@test last(scen2_observer.values) == 7
+	@test last(scen1_upd.values) == 3
+	@test last(scen2_upd.values) == 7
 	roll!(t, Hour(-4))
-	@test last(scen1_observer.values) == 3
-	@test last(scen2_observer.values) == 3
+	@test last(scen1_upd.values) == 3
+	@test last(scen2_upd.values) == 3
 	roll!(t, Hour(-1))
-	@test last(scen1_observer.values) == 2
-	@test last(scen2_observer.values) == 2
+	@test last(scen1_upd.values) == 2
+	@test last(scen2_upd.values) == 2
 	roll!(t, Hour(-1))
-	@test last(scen1_observer.values) == 1
-	@test last(scen2_observer.values) == 1
+	@test last(scen1_upd.values) == 1
+	@test last(scen2_upd.values) == 1
 	roll!.([t, window], Hour(6))
-	@test last(scen1_observer.values) == 4
-	@test last(scen2_observer.values) == 7
+	@test last(scen1_upd.values) == 4
+	@test last(scen2_upd.values) == 7
 	roll!(t, Hour(1))
-	@test last(scen1_observer.values) == 5
-	@test last(scen2_observer.values) == 8
+	@test last(scen1_upd.values) == 5
+	@test last(scen2_upd.values) == 8
 	roll!(t, Hour(2))
-	@test last(scen1_observer.values) == 6
-	@test last(scen2_observer.values) == 9
-	@test isempty(scen3_observer.values)
+	@test last(scen1_upd.values) == 6
+	@test last(scen2_upd.values) == 9
+	@test isempty(scen3_upd.values)
 end
 @testset "update_range_constraint" begin
 	m = Model(Cbc.Optimizer)
