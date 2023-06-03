@@ -220,5 +220,3 @@ struct Call
     args::Array{S,1} where S
     kwargs::NamedTuple
 end
-
-abstract type AbstractObserver end

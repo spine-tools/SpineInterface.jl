@@ -27,6 +27,14 @@ import .JuMP: MOI, MOIU
 
 _Constant = Union{Number,UniformScaling}
 
+struct SpineInterfaceExt
+    lower_bound::Dict{VariableRef,Any}
+    upper_bound::Dict{VariableRef,Any}
+    SpineInterfaceExt() = new(Dict(), Dict())
+end
+
+JuMP.copy_extension_data(data::SpineInterfaceExt, new_model::AbstractModel, model::AbstractModel) = nothing
+
 abstract type _CallSet <: MOI.AbstractScalarSet end
 
 struct _GreaterThanCall <: _CallSet
@@ -45,6 +53,8 @@ struct _CallInterval <: _CallSet
     lower::Call
     upper::Call
 end
+
+abstract type AbstractObserver end
 
 struct _VariableLBObserver <: AbstractObserver
     variable::VariableRef
@@ -80,50 +90,30 @@ struct _UpperBoundObserver <: AbstractObserver
     constraint_reference::Ref{ConstraintRef}
 end
 
-MOI.constant(s::_GreaterThanCall) = s.lower
-MOI.constant(s::_LessThanCall) = s.upper
-MOI.constant(s::_EqualToCall) = s.value
-
-function Base.convert(::Type{GenericAffExpr{Call,VariableRef}}, expr::GenericAffExpr{C,VariableRef}) where {C}
-    constant = Call(expr.constant)
-    terms = OrderedDict{VariableRef,Call}(var => Call(coef) for (var, coef) in expr.terms)
-    GenericAffExpr{Call,VariableRef}(constant, terms)
-end
-
-# TODO: try to get rid of this in favor of JuMP's generic implementation
-function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})
-    str = string(join([string(coef, " * ", var) for (var, coef) in e.terms], " + "), " + ", e.constant)
-    print(io, str)
-end
-
-_coefficient_observer(m::Model, v) = _ObjectiveCoefficientObserver(m, v)
-_coefficient_observer(cr::Ref{ConstraintRef}, v) = _ConstraintCoefficientObserver(cr, v)
-_coefficient_observer(::Nothing, _v) = nothing
-
-_update(observer::_VariableLBObserver, new_lb) = _set_lower_bound(observer.variable, new_lb)
-_update(observer::_VariableUBObserver, new_ub) = _set_upper_bound(observer.variable, new_ub)
-_update(observer::_VariableFixValueObserver, new_fix_value) = _fix(observer.variable, new_fix_value)
-function _update(observer::_ObjectiveCoefficientObserver, new_coef)
+(observer::_VariableLBObserver)(new_lb) = _set_lower_bound(observer.variable, new_lb)
+(observer::_VariableUBObserver)(new_ub) = _set_upper_bound(observer.variable, new_ub)
+(observer::_VariableFixValueObserver)(new_fix_value) = _fix(observer.variable, new_fix_value)
+function (observer::_ObjectiveCoefficientObserver)(new_coef)
     set_objective_coefficient(observer.model, observer.variable, new_coef)
 end
-function _update(observer::_ConstraintCoefficientObserver, new_coef)
+function (observer::_ConstraintCoefficientObserver)(new_coef)
     set_normalized_coefficient(observer.constraint_reference[], observer.variable, new_coef)
 end
-function _update(observer::_RHSObserver, new_rhs)
-    set_normalized_rhs(observer.constraint_reference[], new_rhs)
-end
-function _update(observer::_LowerBoundObserver, new_lower)
+(observer::_RHSObserver)(new_rhs) = set_normalized_rhs(observer.constraint_reference[], new_rhs)
+function (observer::_LowerBoundObserver)(new_lower)
     constraint = observer.constraint_reference[]
     model = owner_model(constraint)
     upper = MOI.get(model, MOI.ConstraintSet(), constraint).upper
     MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(new_lower, upper))
 end
-function _update(observer::_UpperBoundObserver, new_upper)
+function (observer::_UpperBoundObserver)(new_upper)
     constraint = observer.constraint_reference[]
     model = owner_model(constraint)
     lower = MOI.get(model, MOI.ConstraintSet(), constraint).lower
     MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, new_upper))
 end
+
+# @variable macro extension
 
 """
     JuMP.set_lower_bound(var, call)
@@ -216,34 +206,12 @@ function _fix(var, fix_value)
     end
 end
 
-# realize
-function realize(s::_GreaterThanCall, con_ref)
-    c = MOI.constant(s)
-    MOI.GreaterThan(realize(c, _RHSObserver(con_ref)))
-end
-function realize(s::_LessThanCall, con_ref)
-    c = MOI.constant(s)
-    MOI.LessThan(realize(c, _RHSObserver(con_ref)))
-end
-function realize(s::_EqualToCall, con_ref)
-    c = MOI.constant(s)
-    MOI.EqualTo(realize(c, _RHSObserver(con_ref)))
-end
-function realize(s::_CallInterval, con_ref)
-    l, u = s.lower, s.upper
-    MOI.Interval(realize(l, _LowerBoundObserver(con_ref)), realize(u, _UpperBoundObserver(con_ref)))
-end
-function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
-    constant = realize(e.constant)
-    terms = OrderedDict{VariableRef,typeof(constant)}(
-        var => realize(coef, _coefficient_observer(model_or_con_ref, var))
-        for (var, coef) in e.terms
-    )
-    GenericAffExpr(constant, terms)
-end
-
-# @constraint macro extension
+# @constraint extension
 # utility
+MOI.constant(s::_GreaterThanCall) = s.lower
+MOI.constant(s::_LessThanCall) = s.upper
+MOI.constant(s::_EqualToCall) = s.value
+
 MOIU.shift_constant(s::MOI.GreaterThan, call::Call) = _GreaterThanCall(MOI.constant(s) + call)
 MOIU.shift_constant(s::MOI.LessThan, call::Call) = _LessThanCall(MOI.constant(s) + call)
 MOIU.shift_constant(s::MOI.EqualTo, call::Call) = _EqualToCall(MOI.constant(s) + call)
@@ -290,7 +258,7 @@ function JuMP.add_constraint(
     name::String="",
 ) where {S<:_CallSet}
     con_ref = Ref{ConstraintRef}()
-    realized_constraint = ScalarConstraint(realize(con.func, con_ref), realize(con.set, con_ref))
+    realized_constraint = ScalarConstraint(_realize(con.func, con_ref), _realize(con.set, con_ref))
     con_ref[] = add_constraint(model, realized_constraint, name)
 end
 function JuMP.add_constraint(
@@ -299,9 +267,44 @@ function JuMP.add_constraint(
     name::String="",
 ) where {T}
     con_ref = Ref{ConstraintRef}()
-    realized_constraint = ScalarConstraint(realize(con.func, con_ref), con.set)
+    realized_constraint = ScalarConstraint(_realize(con.func, con_ref), con.set)
     con_ref[] = add_constraint(model, realized_constraint, name)
 end
+
+# @objective extension
+function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
+    set_objective_function(model, _realize(func, model))
+end
+
+# _realize
+function _realize(s::_GreaterThanCall, con_ref)
+    c = MOI.constant(s)
+    MOI.GreaterThan(realize(c, _RHSObserver(con_ref)))
+end
+function _realize(s::_LessThanCall, con_ref)
+    c = MOI.constant(s)
+    MOI.LessThan(realize(c, _RHSObserver(con_ref)))
+end
+function _realize(s::_EqualToCall, con_ref)
+    c = MOI.constant(s)
+    MOI.EqualTo(realize(c, _RHSObserver(con_ref)))
+end
+function _realize(s::_CallInterval, con_ref)
+    l, u = s.lower, s.upper
+    MOI.Interval(realize(l, _LowerBoundObserver(con_ref)), realize(u, _UpperBoundObserver(con_ref)))
+end
+function _realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
+    constant = realize(e.constant)
+    terms = OrderedDict{VariableRef,typeof(constant)}(
+        var => realize(coef, _coefficient_observer(model_or_con_ref, var))
+        for (var, coef) in e.terms
+    )
+    GenericAffExpr(constant, terms)
+end
+
+_coefficient_observer(m::Model, v) = _ObjectiveCoefficientObserver(m, v)
+_coefficient_observer(cr::Ref{ConstraintRef}, v) = _ConstraintCoefficientObserver(cr, v)
+_coefficient_observer(::Nothing, _v) = nothing
 
 # add_to_expression!
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, call::Call)
@@ -399,15 +402,14 @@ Base.:-(lhs::GenericAffExpr{Call,VariableRef}, rhs::GenericAffExpr{Call,Variable
 Base.:-(lhs::GenericAffExpr{Call,VariableRef}, rhs::GenericAffExpr{C,VariableRef}) where {C} = (+)(lhs, - rhs)
 Base.:-(lhs::GenericAffExpr{C,VariableRef}, rhs::GenericAffExpr{Call,VariableRef}) where {C} = (+)(lhs, - rhs)
 
-# @objective extension
-function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
-    set_objective_function(model, realize(func, model))
+function Base.convert(::Type{GenericAffExpr{Call,VariableRef}}, expr::GenericAffExpr{C,VariableRef}) where {C}
+    constant = Call(expr.constant)
+    terms = OrderedDict{VariableRef,Call}(var => Call(coef) for (var, coef) in expr.terms)
+    GenericAffExpr{Call,VariableRef}(constant, terms)
 end
 
-struct SpineInterfaceExt
-    lower_bound::Dict{VariableRef,Any}
-    upper_bound::Dict{VariableRef,Any}
-    SpineInterfaceExt() = new(Dict(), Dict())
+# TODO: try to get rid of this in favor of JuMP's generic implementation
+function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})
+    str = string(join([string(coef, " * ", var) for (var, coef) in e.terms], " + "), " + ", e.constant)
+    print(io, str)
 end
-
-JuMP.copy_extension_data(data::SpineInterfaceExt, new_model::AbstractModel, model::AbstractModel) = nothing

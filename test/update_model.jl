@@ -62,9 +62,7 @@ struct _TestObserver <: SpineInterface.AbstractObserver
 	_TestObserver() = new([])
 end
 
-function SpineInterface._update(observer::_TestObserver, new_value)
-	push!(observer.values, new_value)
-end
+(observer::_TestObserver)(new_value) = push!(observer.values, new_value)
 
 @testset "time series observer" begin
 	t1, t2, t3 = DateTime(0, 1, 1), DateTime(0, 1, 8), DateTime(0, 2, 1)

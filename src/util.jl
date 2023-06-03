@@ -170,7 +170,7 @@ function _do_realize(call::Call, callback, ::Function)
             continue
         else
             # no children, realize value
-            current.value[] = realize(current.call, callback)
+            current.value[] = _do_realize(current.call, callback)
         end
         current.parent === nothing && break
         if current.child_number < length(current.parent.call.args)
