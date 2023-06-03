@@ -38,19 +38,6 @@ end
 
 Map(inds::Array{String,1}, vals::Array{V,1}) where {V} = Map(Symbol.(inds), vals)
 
-ScalarParameterValue(s::String) = ScalarParameterValue(Symbol(s))
-
-function TimeSeriesParameterValue(ts::TimeSeries{V}) where {V}
-    if ts.repeat
-        span = ts.indexes[end] - ts.indexes[1]
-        valsum = sum(Iterators.filter(!isnan, ts.values))
-        len = count(!isnan, ts.values)
-        RepeatingTimeSeriesParameterValue(ts, span, valsum, len)
-    else
-        StandardTimeSeriesParameterValue(ts)
-    end
-end
-
 Call(x) = Call(nothing, x)
 Call(call_expr::Union{_CallExpr,Nothing}, x) = Call(call_expr, nothing, [x], NamedTuple())
 Call(op::Function, args::Array) = Call(nothing, op, args, NamedTuple())
@@ -64,7 +51,11 @@ Call(is_associative::Val{true}, op::Function, x::Call, y::Call) = Call(op, [x.ar
 Call(is_associative::Val{false}, op::Function, x, y::Call) = Call(op, [x, y])
 Call(is_associative::Val{false}, op::Function, x::Call, y) = Call(op, [x, y])
 Call(is_associative::Val{false}, op::Function, x::Call, y::Call) = Call(op, [x, y])
-function Call(call_expr::_CallExpr, func::T, kwargs::NamedTuple) where {T<:AbstractParameterValue}
+function Call(call_expr::_CallExpr, func::T, kwargs::NamedTuple) where {T<:ParameterValue}
     Call(call_expr, func, [], kwargs)
 end
 Call(other::Call) = copy(other)
+
+_is_associative(x) = Val(false)
+_is_associative(::typeof(+)) = Val(true)
+_is_associative(::typeof(*)) = Val(true)

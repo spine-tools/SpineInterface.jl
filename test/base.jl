@@ -77,31 +77,31 @@
     # copy
     val = parameter_value(nothing)
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.NothingParameterValue
+    @test val_copy isa SpineInterface.ParameterValue{Nothing}
     @test val_copy() === nothing
     val = parameter_value(10)
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.ScalarParameterValue
+    @test val_copy isa SpineInterface.ParameterValue{T} where T<:Integer
     @test val_copy() === 10
     val = parameter_value([4, 5, 6])
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.ArrayParameterValue
+    @test val_copy isa SpineInterface.ParameterValue{T} where T<:Array
     @test val_copy(i=1) === 4
     @test val_copy(i=2) === 5
     @test val_copy(i=3) === 6
     val = parameter_value(Dict(tp1 => 14))
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.TimePatternParameterValue
+    @test val_copy isa SpineInterface.ParameterValue{T} where T<:TimePattern
     @test convert(Int64, val_copy(t=TimeSlice(DateTime(1), DateTime(4)))) === 14
     ts = TimeSeries([DateTime(4), DateTime(5)], [100, 8], false, false)
     val = parameter_value(ts)
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.StandardTimeSeriesParameterValue
+    @test val_copy isa SpineInterface.ParameterValue{T} where T<:TimeSeries
     @test convert(Int64, val_copy(t=TimeSlice(DateTime(4), DateTime(5)))) === 100
     ts = TimeSeries([DateTime(4), DateTime(5)], [100, 8], false, true)
     val = parameter_value(ts)
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.RepeatingTimeSeriesParameterValue
+    @test val_copy isa SpineInterface.ParameterValue{T} where T<:TimeSeries
     @test val_copy(t=TimeSlice(DateTime(6), DateTime(7))) === (200 + 8) / 3
     call_copy = copy(id_call)
     @test call_copy isa Call

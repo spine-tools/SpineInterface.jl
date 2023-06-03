@@ -57,23 +57,22 @@
 	@test objective_value(m) == 2
 end
 
-struct _TestObserver <: SpineInterface._Observer
-	pv::AbstractParameterValue
-	kwargs::Dict{Symbol,Any}
+struct _TestObserver <: SpineInterface.AbstractObserver
 	values::Vector{Any}
-	_TestObserver(pv; kwargs...) = new(pv, kwargs, [])
+	_TestObserver() = new([])
 end
 
-function SpineInterface._update(observer::_TestObserver)
-	push!(observer.values, observer.pv(observer; observer.kwargs...))
+function SpineInterface._update(observer::_TestObserver, new_value)
+	push!(observer.values, new_value)
 end
 
 @testset "time series observer" begin
 	t1, t2, t3 = DateTime(0, 1, 1), DateTime(0, 1, 8), DateTime(0, 2, 1)
 	ts_pval = parameter_value(TimeSeries([t1, t2, t3], [20, 4, -1], false, false))
 	t = TimeSlice(DateTime(0, 1, 1, 0), DateTime(0, 1, 1, 1))
-	observer = _TestObserver(ts_pval; t=t)
-	@test ts_pval(observer; t=t) == 20
+	call = Call(nothing, ts_pval, [], (; t=t))
+	observer = _TestObserver()
+	@test realize(call, observer) == 20
 	roll!(t, Hour(1))
 	@test isempty(observer.values)
 	roll!(t, Day(1))
@@ -95,8 +94,9 @@ end
 	t_start, t_end = DateTime(7, 1, 1, 0), DateTime(7, 1, 1, 1)
 	@test dayofweek(t_start) == 1
 	t = TimeSlice(t_start, t_end)
-	observer = _TestObserver(tp_pval; t=t)
-	@test tp_pval(observer; t=t) == 1.0
+	call = Call(nothing, tp_pval, [], (; t=t))
+	observer = _TestObserver()
+	@test realize(call, observer) == 1.0
 	roll!(t, Hour(1))
 	@test isempty(observer.values)
 	roll!(t, Day(4))
@@ -164,12 +164,15 @@ end
 	window = TimeSlice(DateTime("2022-01-01T00:00:00"), DateTime("2022-01-01T06:00:00"))
 	t = TimeSlice(DateTime("2022-01-01T00:00:00"), DateTime("2022-01-01T01:00:00"))
 	at = startref(window)
-	scen1_observer = _TestObserver(map_pval; stochastic_scenario=:scen1, analysis_time=at, t=t)
-	scen2_observer = _TestObserver(map_pval; stochastic_scenario=:scen2, analysis_time=at, t=t)
-	scen3_observer = _TestObserver(map_pval; stochastic_scenario=:scen3, analysis_time=at, t=t)
-	@test map_pval(scen1_observer; stochastic_scenario=:scen1, analysis_time=at, t=t) == 1
-	@test map_pval(scen2_observer; stochastic_scenario=:scen2, analysis_time=at, t=t) == 1
-	@test map_pval(scen3_observer; stochastic_scenario=:scen3, analysis_time=at, t=t) == 1
+	scen1_call = Call(nothing, map_pval, [], (; stochastic_scenario=:scen1, analysis_time=at, t=t))
+	scen2_call = Call(nothing, map_pval, [], (; stochastic_scenario=:scen2, analysis_time=at, t=t))
+	scen3_call = Call(nothing, map_pval, [], (; stochastic_scenario=:scen3, analysis_time=at, t=t))
+	scen1_observer = _TestObserver()
+	scen2_observer = _TestObserver()
+	scen3_observer = _TestObserver()
+	@test realize(scen1_call, scen1_observer) == 1
+	@test realize(scen2_call, scen2_observer) == 1
+	@test realize(scen3_call, scen3_observer) == 1
 	@test isempty(scen1_observer.values)
 	@test isempty(scen2_observer.values)
 	@test isempty(scen3_observer.values)

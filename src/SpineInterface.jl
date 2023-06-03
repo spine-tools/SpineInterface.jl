@@ -32,17 +32,19 @@ include("types.jl")
 include("util.jl")
 include("base.jl")
 include("constructors.jl")
-include("using_spinedb.jl")
-include("api.jl")
-include("tests.jl")
+include("api/db.jl")
+include("api/core.jl")
+include("api/parameter_value.jl")
+include("api/time_slice.jl")
+include("api/tests.jl")
 
-export AbstractParameterValue
 export add_object_parameter_values!
 export add_object_parameter_defaults!
 export add_object!
 export add_objects!
 export add_relationship_parameter_values!
 export add_relationship_parameter_defaults!
+export add_relationship!
 export add_relationships!
 export Anything
 export anything

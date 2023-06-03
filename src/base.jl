@@ -24,8 +24,8 @@ Base.in(item, ::Anything) = true
 
 Base.iterate(o::Union{Object,TimeSlice}) = iterate((o,))
 Base.iterate(o::Union{Object,TimeSlice}, state::T) where {T} = iterate((o,), state)
-Base.iterate(v::ScalarParameterValue) = iterate((v,))
-Base.iterate(v::ScalarParameterValue, state::T) where {T} = iterate((v,), state)
+Base.iterate(v::ParameterValue{T}) where {T<:_Scalar} = iterate((v,))
+Base.iterate(v::ParameterValue{T}, state) where {T<:_Scalar} = iterate((v,), state)
 function Base.iterate(x::Union{TimeSeries,Map}, state=1)
     if state > length(x)
         nothing
@@ -35,12 +35,12 @@ function Base.iterate(x::Union{TimeSeries,Map}, state=1)
 end
 
 Base.length(t::Union{Object,TimeSlice}) = 1
-Base.length(v::ScalarParameterValue) = 1
+Base.length(v::ParameterValue{T}) where {T<:_Scalar} = 1
 Base.length(ts::Union{TimeSeries,Map}) = length(ts.indexes)
 
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
-Base.isless(v1::ScalarParameterValue, v2::ScalarParameterValue) = v1.value < v2.value
+Base.isless(v1::ParameterValue{T}, v2::ParameterValue{T}) where {T<:_Scalar} = v1.value < v2.value
 Base.isless(scalar::Number, ts::TimeSeries) = all(isless(scalar, v) for v in ts.values)
 Base.isless(ts::TimeSeries, scalar::Number) = all(isless(v, scalar) for v in ts.values)
 Base.isless(t::TimeSlice, dt::DateTime) = isless(end_(t), dt)
@@ -51,7 +51,7 @@ Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
 Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all(
     [getfield(ts1, field) == getfield(ts2, field) for field in fieldnames(TimeSeries)]
 )
-Base.:(==)(pv1::AbstractParameterValue, pv2::AbstractParameterValue) = pv1.value == pv2.value
+Base.:(==)(pv1::ParameterValue, pv2::ParameterValue) = pv1.value == pv2.value
 Base.:(==)(scalar::Number, ts::TimeSeries) = all(scalar == v for v in ts.values)
 Base.:(==)(ts::TimeSeries, scalar::Number) = all(v == scalar for v in ts.values)
 Base.:(==)(m1::Map, m2::Map) = all(m1.indexes == m2.indexes) && all(m1.values == m2.values)
@@ -75,8 +75,16 @@ Base.show(io::IO, s::_StartRef) = print(io, string(Dates.format(start(s.time_sli
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
-Base.show(io::IO, v::ScalarParameterValue) = print(io, v.value)
+Base.show(io::IO, v::ParameterValue{T}) where {T<:_Scalar} = print(io, v.value)
 Base.show(io::IO, call::Call) = _show_call(io, call, call.call_expr, call.func)
+_show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
+_show_call(io::IO, call::Call, expr::Nothing, func::Function) = print(io, join(call.args, string(" ", func, " ")))
+function _show_call(io::IO, call::Call, expr::_CallExpr, func)
+    pname, kwargs = expr
+    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
+    result = _do_realize(call)
+    print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
+end
 function Base.show(io::IO, union::UnionOfIntersections)
     d = Dict{Symbol,String}(
         :Y => "year",
@@ -93,38 +101,23 @@ function Base.show(io::IO, union::UnionOfIntersections)
     ]
     print(io, join(intersections, ", or "))
 end
-function Base.show(io::IO, ts::TimeSeries{T}) where T <: Number
-    if isempty(ts.indexes)
-        print(io, "TimeSeries[](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
-        return
-    end
-    first_ = first(ts.indexes)
-    last_ = last(ts.indexes)
-    min_ = minimum(ts.values)
-    max_ = maximum(ts.values)
-    print(io, "TimeSeries[$first_~>$last_][$min_,$max_](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
-end
 function Base.show(io::IO, ts::TimeSeries)
-    if isempty(ts.indexes)
-        print(io, "TimeSeries[](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
-        return
+    body = if isempty(ts.indexes)
+        ""
+    elseif length(ts.indexes) < 10
+        join((string(i, "=>", v) for (i, v) in zip(ts.indexes, ts.values)), ", ")
+    else
+        first_ = string(first(ts.indexes), "=>", first(ts.values))
+        last_ = string(last(ts.indexes), "=>", last(ts.values))
+        "$first_ ... $last_"
     end
-    first_ = string(first(ts.indexes), "=>", first(ts.values))
-    last_ = string(last(ts.indexes), "=>", last(ts.values))
-    print(io, "TimeSeries[$first_ ... $last_](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
+    print(io, "TimeSeries[$body](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
 end
 
 Base.convert(::Type{Call}, x::T) where {T<:Real} = Call(x)
 
 Base.copy(ts::TimeSeries{T}) where {T} = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
-Base.copy(c::NothingParameterValue) = c
-Base.copy(c::ScalarParameterValue) = c
-Base.copy(c::ArrayParameterValue) = ArrayParameterValue(copy(c.value))
-Base.copy(c::TimePatternParameterValue) = TimePatternParameterValue(copy(c.value))
-Base.copy(c::StandardTimeSeriesParameterValue) = StandardTimeSeriesParameterValue(copy(c.value))
-function Base.copy(c::RepeatingTimeSeriesParameterValue)
-    RepeatingTimeSeriesParameterValue(copy(c.value), c.span, c.valsum, c.len)
-end
+Base.copy(c::ParameterValue) = parameter_value(c.value)
 Base.copy(c::Call) = Call(c.call_expr, c.func, c.args, c.kwargs)
 
 Base.zero(::Type{T}) where {T<:Call} = Call(zero(Float64))
@@ -213,11 +206,11 @@ Base.:min(x, y::Call) = Call(min, x, y)
 
 Base.values(ts::TimeSeries) = ts.values
 Base.values(m::Map) = m.values
-Base.values(apv::AbstractParameterValue) = values(apv.value)
+Base.values(pv::ParameterValue{T}) where {T<:_Indexed} = values(pv.value)
 
 Base.keys(ts::TimeSeries) = ts.indexes
 Base.keys(m::Map) = m.indexes
-Base.keys(apv::AbstractParameterValue) = keys(apv.value)
+Base.keys(pv::ParameterValue{T}) where {T<:_Indexed} = keys(pv.value)
 
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 Base.getindex(p::Parameter, inds::NamedTuple) = _getindex(p; inds...)
@@ -248,11 +241,31 @@ function Base.empty!(x::Parameter)
     empty!(x.classes)
 end
 
-function Base.merge!(ts1::TimeSeries, ts2::TimeSeries)
-    for (index, value) in ts2
-        ts1[index] = value
+function Base.merge!(a::TimeSeries, b::TimeSeries)
+    for (b_index, b_value) in b
+        a[b_index] = b_value
     end
-    ts1
+    a
+end
+function Base.merge!(a::Map, b::Map)
+    for (b_index, b_value) in b
+        defaultset = false
+        a_value = get!(a, b_index) do
+            defaultset = true
+            b_value
+        end
+        defaultset && continue
+        merge!(a_value, b_value)
+    end
+    a
+end
+function Base.merge!(a::ParameterValue, b::ParameterValue)
+    # FIXME: How exactly do we do this without losing generality
+    # For example if a is a TimeSeries and b is a Map?
+    # We need to be able to change the `value` field of the `ParameterValue`
+    # which calls for a little bit of reengineering
+    merge!(a.value, b.value)
+    a
 end
 
 function Base.push!(x::Union{TimeSeries,Map}, pair)
@@ -306,7 +319,17 @@ end
 
 Base.iszero(x::Union{TimeSeries,TimePattern}) = iszero(values(x))
 Base.isapprox(x::Union{TimeSeries,TimePattern}, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in values(x))
-Base.isapprox(x::AbstractParameterValue, y; kwargs...) = isapprox(x(), y; kwargs...)
+Base.isapprox(x::ParameterValue, y; kwargs...) = isapprox(x(), y; kwargs...)
+
+function Base.getproperty(pv::ParameterValue, s::Symbol)
+    if s === :value
+        getfield(pv, s)
+    elseif !(s in (:metadata, :calls))
+        pv.metadata[s]
+    else
+        getfield(pv, s)
+    end
+end
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
 Base.abs(call::Call) = Call(abs, [call])

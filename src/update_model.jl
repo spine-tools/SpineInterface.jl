@@ -46,46 +46,38 @@ struct _CallInterval <: _CallSet
     upper::Call
 end
 
-struct _VariableLBObserver <: _Observer
+struct _VariableLBObserver <: AbstractObserver
     variable::VariableRef
-    lb::Call
 end
 
-struct _VariableUBObserver <: _Observer
+struct _VariableUBObserver <: AbstractObserver
     variable::VariableRef
-    ub::Call
 end
 
-struct _VariableFixValueObserver <: _Observer
+struct _VariableFixValueObserver <: AbstractObserver
     variable::VariableRef
-    fix_value::Call
 end
 
-struct _ObjectiveCoefficientObserver <: _Observer
+struct _ObjectiveCoefficientObserver <: AbstractObserver
     model::Model
     variable::VariableRef
-    coefficient::Call
 end
 
-struct _ConstraintCoefficientObserver <: _Observer
+struct _ConstraintCoefficientObserver <: AbstractObserver
     constraint_reference::Ref{ConstraintRef}
     variable::VariableRef
-    coefficient::Call
 end
 
-struct _RHSObserver <: _Observer
+struct _RHSObserver <: AbstractObserver
     constraint_reference::Ref{ConstraintRef}
-    rhs::Call
 end
 
-struct _LowerBoundObserver <: _Observer
+struct _LowerBoundObserver <: AbstractObserver
     constraint_reference::Ref{ConstraintRef}
-    lower::Call
 end
 
-struct _UpperBoundObserver <: _Observer
+struct _UpperBoundObserver <: AbstractObserver
     constraint_reference::Ref{ConstraintRef}
-    upper::Call
 end
 
 MOI.constant(s::_GreaterThanCall) = s.lower
@@ -104,53 +96,32 @@ function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})
     print(io, str)
 end
 
-_coefficient_observer(m::Model, v, c) = _ObjectiveCoefficientObserver(m, v, c)
-_coefficient_observer(cr::Ref{ConstraintRef}, v, c) = _ConstraintCoefficientObserver(cr, v, c)
-_coefficient_observer(::Nothing, _v, _c) = nothing
+_coefficient_observer(m::Model, v) = _ObjectiveCoefficientObserver(m, v)
+_coefficient_observer(cr::Ref{ConstraintRef}, v) = _ConstraintCoefficientObserver(cr, v)
+_coefficient_observer(::Nothing, _v) = nothing
 
-function _set_time_to_update(f, t::TimeSlice, observer::_Observer)
-    observers = get!(t.observers, f()) do
-        Set()
-    end
-    push!(observers, observer)
-end
-
-function _update(observer::_VariableLBObserver)
-    new_lb = realize(observer.lb, observer)
-    _set_lower_bound(observer.variable, new_lb)
-end
-function _update(observer::_VariableUBObserver)
-    new_ub = realize(observer.ub, observer)
-    _set_upper_bound(observer.variable, new_ub)
-end
-function _update(observer::_VariableFixValueObserver)
-    new_fix_value = realize(observer.fix_value, observer)
-    _fix(observer.variable, new_fix_value)
-end
-function _update(observer::_ObjectiveCoefficientObserver)
-    new_coef = realize(observer.coefficient, observer)
+_update(observer::_VariableLBObserver, new_lb) = _set_lower_bound(observer.variable, new_lb)
+_update(observer::_VariableUBObserver, new_ub) = _set_upper_bound(observer.variable, new_ub)
+_update(observer::_VariableFixValueObserver, new_fix_value) = _fix(observer.variable, new_fix_value)
+function _update(observer::_ObjectiveCoefficientObserver, new_coef)
     set_objective_coefficient(observer.model, observer.variable, new_coef)
 end
-function _update(observer::_ConstraintCoefficientObserver)
-    new_coef = realize(observer.coefficient, observer)
+function _update(observer::_ConstraintCoefficientObserver, new_coef)
     set_normalized_coefficient(observer.constraint_reference[], observer.variable, new_coef)
 end
-function _update(observer::_RHSObserver)
-    new_rhs = realize(observer.rhs, observer)
+function _update(observer::_RHSObserver, new_rhs)
     set_normalized_rhs(observer.constraint_reference[], new_rhs)
 end
-function _update(observer::_LowerBoundObserver)
+function _update(observer::_LowerBoundObserver, new_lower)
     constraint = observer.constraint_reference[]
     model = owner_model(constraint)
     upper = MOI.get(model, MOI.ConstraintSet(), constraint).upper
-    new_lower = realize(observer.lower, observer)
     MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(new_lower, upper))
 end
-function _update(observer::_UpperBoundObserver)
+function _update(observer::_UpperBoundObserver, new_upper)
     constraint = observer.constraint_reference[]
     model = owner_model(constraint)
     lower = MOI.get(model, MOI.ConstraintSet(), constraint).lower
-    new_upper = realize(observer.upper, observer)
     MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, new_upper))
 end
 
@@ -161,7 +132,7 @@ Set the lower bound of given variable to the result of given call and bind them 
 the result of the call changes because time slices have rolled, the lower bound is automatically updated.
 """
 function JuMP.set_lower_bound(var::VariableRef, call::Call)
-    lb = realize(call, _VariableLBObserver(var, call))
+    lb = realize(call, _VariableLBObserver(var))
     _set_lower_bound(var, lb)
 end
 
@@ -184,7 +155,7 @@ Set the upper bound of given variable to the result of given call and bind them 
 the result of the call changes because time slices have rolled, the upper bound is automatically updated.
 """
 function JuMP.set_upper_bound(var::VariableRef, call::Call)
-    ub = realize(call, _VariableUBObserver(var, call))
+    ub = realize(call, _VariableUBObserver(var))
     _set_upper_bound(var, ub)
 end
 
@@ -210,7 +181,7 @@ If the result is NaN, then the variable is freed.
 Any bounds on the variable at the moment of fixing it are restored when freeing it.
 """
 function JuMP.fix(var::VariableRef, call::Call)
-    fix_value = realize(call, _VariableFixValueObserver(var, call))
+    fix_value = realize(call, _VariableFixValueObserver(var))
     _fix(var, fix_value)
 end
 
@@ -248,24 +219,24 @@ end
 # realize
 function realize(s::_GreaterThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.GreaterThan(realize(c, _RHSObserver(con_ref, c)))
+    MOI.GreaterThan(realize(c, _RHSObserver(con_ref)))
 end
 function realize(s::_LessThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.LessThan(realize(c, _RHSObserver(con_ref, c)))
+    MOI.LessThan(realize(c, _RHSObserver(con_ref)))
 end
 function realize(s::_EqualToCall, con_ref)
     c = MOI.constant(s)
-    MOI.EqualTo(realize(c, _RHSObserver(con_ref, c)))
+    MOI.EqualTo(realize(c, _RHSObserver(con_ref)))
 end
 function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
-    MOI.Interval(realize(l, _LowerBoundObserver(con_ref, l)), realize(u, _UpperBoundObserver(con_ref, u)))
+    MOI.Interval(realize(l, _LowerBoundObserver(con_ref)), realize(u, _UpperBoundObserver(con_ref)))
 end
 function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
     constant = realize(e.constant)
     terms = OrderedDict{VariableRef,typeof(constant)}(
-        var => realize(coef, _coefficient_observer(model_or_con_ref, var, coef))
+        var => realize(coef, _coefficient_observer(model_or_con_ref, var))
         for (var, coef) in e.terms
     )
     GenericAffExpr(constant, terms)
@@ -342,7 +313,6 @@ function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, other::G
     aff.constant += other.constant
     aff
 end
-# TODO: Try to find out why we need this one
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, new_coef::Call, new_coef_::Call)
     add_to_expression!(aff, new_coef * new_coef_)
 end
