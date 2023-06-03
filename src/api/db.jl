@@ -307,8 +307,6 @@ function _generate_convenience_functions(data, mod; filters=Dict())
     end
 end
 
-
-
 """
     write_parameters(parameters, url::String; <keyword arguments>)
 

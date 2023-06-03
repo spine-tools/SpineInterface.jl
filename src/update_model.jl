@@ -254,7 +254,7 @@ function JuMP.add_constraint(
     name::String="",
 ) where {S<:_CallSet}
     con_ref = Ref{ConstraintRef}()
-    realized_constraint = ScalarConstraint(_realize(con.func, con_ref), _realize(con.set, con_ref))
+    realized_constraint = ScalarConstraint(realize(con.func, con_ref), realize(con.set, con_ref))
     con_ref[] = add_constraint(model, realized_constraint, name)
 end
 function JuMP.add_constraint(
@@ -263,33 +263,33 @@ function JuMP.add_constraint(
     name::String="",
 ) where {T}
     con_ref = Ref{ConstraintRef}()
-    realized_constraint = ScalarConstraint(_realize(con.func, con_ref), con.set)
+    realized_constraint = ScalarConstraint(realize(con.func, con_ref), con.set)
     con_ref[] = add_constraint(model, realized_constraint, name)
 end
 
 # @objective extension
 function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
-    set_objective_function(model, _realize(func, model))
+    set_objective_function(model, realize(func, model))
 end
 
-# _realize
-function _realize(s::_GreaterThanCall, con_ref)
+# realize
+function realize(s::_GreaterThanCall, con_ref)
     c = MOI.constant(s)
     MOI.GreaterThan(realize(c, _RHSUpdate(con_ref)))
 end
-function _realize(s::_LessThanCall, con_ref)
+function realize(s::_LessThanCall, con_ref)
     c = MOI.constant(s)
     MOI.LessThan(realize(c, _RHSUpdate(con_ref)))
 end
-function _realize(s::_EqualToCall, con_ref)
+function realize(s::_EqualToCall, con_ref)
     c = MOI.constant(s)
     MOI.EqualTo(realize(c, _RHSUpdate(con_ref)))
 end
-function _realize(s::_CallInterval, con_ref)
+function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
     MOI.Interval(realize(l, _LowerBoundUpdate(con_ref)), realize(u, _UpperBoundUpdate(con_ref)))
 end
-function _realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
+function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
     constant = realize(e.constant)
     terms = OrderedDict{VariableRef,typeof(constant)}(
         var => realize(coef, _coefficient_update(model_or_con_ref, var))
