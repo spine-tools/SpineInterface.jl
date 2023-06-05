@@ -260,11 +260,9 @@ function Base.merge!(a::Map, b::Map)
     a
 end
 function Base.merge!(a::ParameterValue, b::ParameterValue)
-    # FIXME: How exactly do we do this without losing generality
-    # For example if a is a TimeSeries and b is a Map?
-    # We need to be able to change the `value` field of the `ParameterValue`
-    # which calls for a little bit of reengineering
     merge!(a.value, b.value)
+    empty!(a.metadata)
+    merge!(a.metadata, _parameter_value_metadata(a.value))
     a
 end
 
@@ -321,13 +319,13 @@ Base.iszero(x::Union{TimeSeries,TimePattern}) = iszero(values(x))
 Base.isapprox(x::Union{TimeSeries,TimePattern}, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in values(x))
 Base.isapprox(x::ParameterValue, y; kwargs...) = isapprox(x(), y; kwargs...)
 
-function Base.getproperty(pv::ParameterValue, s::Symbol)
-    if s === :value
-        getfield(pv, s)
-    elseif !(s in (:metadata, :calls))
-        pv.metadata[s]
+function Base.getproperty(pv::ParameterValue, name::Symbol)
+    if name === :value
+        getfield(pv, name)
+    elseif name !== :metadata
+        pv.metadata[name]
     else
-        getfield(pv, s)
+        getfield(pv, name)
     end
 end
 

@@ -72,6 +72,7 @@ A type for representing a parameter value from a Spine db.
 struct ParameterValue{T}
     value::T
     metadata::Dict
+    ParameterValue(value::T) where T = new{T}(value, _parameter_value_metadata(value))
 end
 
 struct ObjectClass

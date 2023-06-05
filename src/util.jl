@@ -17,6 +17,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+# Constants, and utility functions that are used in more than one file.
+# (Everything that is used in only one file, we put it in the same file.)
+
 const _df = DateFormat("yyyy-mm-ddTHH:MM")
 const _db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
 const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
@@ -70,7 +73,6 @@ Please update Spine Toolbox by following the instructions at
 
     https://github.com/Spine-project/Spine-Toolbox#installation
 """
-
 
 function _getproperty(m::Module, name::Symbol, default)
     isdefined(m, name) ? getproperty(m, name) : default
@@ -189,4 +191,25 @@ _first_child(node::_CallNode) = _CallNode(node.call.args[1], node, 1)
 function _next_sibling(node::_CallNode)
     sibling_child_number = node.child_number + 1
     _CallNode(node.parent.call.args[sibling_child_number], node.parent, sibling_child_number)
+end
+
+_parameter_value_metadata(value) = Dict()
+function _parameter_value_metadata(value::TimePattern)
+    prec_by_key = Dict(:Y => Year, :M => Month, :D => Day, :WD => Day, :h => Hour, :m => Minute, :s => Second)
+    precisions = unique(
+        prec_by_key[interval.key] for union in keys(value) for intersection in union for interval in intersection
+    )
+    sort!(precisions; by=x -> Dates.toms(x(1)))
+    Dict(:precision => first(precisions))
+end
+function _parameter_value_metadata(value::TimeSeries)
+    if value.repeat
+        Dict(
+            :span => value.indexes[end] - value.indexes[1],
+            :valsum => sum(Iterators.filter(!isnan, value.values)),
+            :len => count(!isnan, value.values),
+        )
+    else
+        Dict()
+    end
 end

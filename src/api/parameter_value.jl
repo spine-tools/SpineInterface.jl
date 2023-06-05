@@ -23,31 +23,8 @@
 A `ParameterValue` from the given parsed db value.
 """
 parameter_value(value::String) = parameter_value(Symbol(value))
-parameter_value(value::Union{_Scalar,Array}) = ParameterValue(value, Dict())
-function parameter_value(value::TimePattern)
-    prec_by_key = Dict(:Y => Year, :M => Month, :D => Day, :WD => Day, :h => Hour, :m => Minute, :s => Second)
-    precisions = unique(
-        prec_by_key[interval.key] for union in keys(value) for intersection in union for interval in intersection
-    )
-    sort!(precisions; by=x -> Dates.toms(x(1)))
-    metadata = Dict(:precision => first(precisions))
-    ParameterValue(value, metadata)
-end
-function parameter_value(value::TimeSeries)
-    metadata = if value.repeat
-        Dict(
-            :span => value.indexes[end] - value.indexes[1],
-            :valsum => sum(Iterators.filter(!isnan, value.values)),
-            :len => count(!isnan, value.values),
-        )
-    else
-        Dict()
-    end
-    ParameterValue(value, metadata)
-end
-function parameter_value(value::Map)
-    ParameterValue(Map(value.indexes, parameter_value.(value.values)), Dict())
-end
+parameter_value(value::Union{_Scalar,Array,TimePattern,TimeSeries}) = ParameterValue(value)
+parameter_value(value::Map) = ParameterValue(Map(value.indexes, parameter_value.(value.values)))
 parameter_value(value::T) where {T} = error("can't parse $value of unrecognized type $T")
 parameter_value(x::T) where {T<:ParameterValue} = x
 
