@@ -71,7 +71,7 @@ indexed_values(prefix, value) = Dict((prefix..., ind) => val for (ind, val) in i
 """
     collect_indexed_values(d)
 
-A value (TimeSeries, TimePattern, Map, etc.) from a Dict mapping indexes to values.
+A parsed value (TimeSeries, TimePattern, Map, etc.) from a Dict mapping indexes to values.
 
 ## Examples
 
@@ -102,6 +102,11 @@ function collect_indexed_values(x::Dict{K,V}) where {H,K<:Tuple{H,Vararg},V}
     Map(collect(keys(d)), collect_indexed_values.(values(d)))
 end
 
+"""
+    parse_time_period(union_str)
+
+A UnionOfIntersections from the given string.
+"""
 function parse_time_period(union_str::String)
     union_op = ","
     intersection_op = ";"
@@ -136,6 +141,11 @@ function parse_time_period(union_str::String)
     union
 end
 
+"""
+    parse_db_value(value, type)
+
+A parsed value (TimeSeries, TimePattern, Map, etc.) from given DB value and type.
+"""
 parse_db_value(value_and_type::Vector{Any}) = parse_db_value(value_and_type...)
 function parse_db_value(value::Vector{UInt8}, type::Union{String,Nothing})
     isempty(value) && return nothing
@@ -143,12 +153,6 @@ function parse_db_value(value::Vector{UInt8}, type::Union{String,Nothing})
 end
 parse_db_value(::Nothing, type) = nothing
 parse_db_value(x) = _parse_db_value(x)
-
-_inner_type_str(::Type{Float64}) = "float"
-_inner_type_str(::Type{Symbol}) = "str"
-_inner_type_str(::Type{String}) = "str"
-_inner_type_str(::Type{DateTime}) = "date_time"
-_inner_type_str(::Type{T}) where {T<:Period} = "duration"
 
 _parse_db_value(value::Dict) = _parse_db_value(value, value["type"])
 _parse_db_value(value, type::String) = _parse_db_value(value, Val(Symbol(type)))
@@ -208,8 +212,11 @@ _parse_inner_value(value::T, ::Val{:float}) where {T<:Number} = _parse_float(val
 _parse_inner_value(value::String, ::Val{:duration}) = _parse_duration(value)
 _parse_inner_value(value::String, ::Val{:date_time}) = _parse_date_time(value)
 
-_resolution_iterator(resolution::String) = (_parse_duration(resolution),)
-_resolution_iterator(resolution::Array{String,1}) = (_parse_duration(r) for r in resolution)
+_inner_type_str(::Type{Float64}) = "float"
+_inner_type_str(::Type{Symbol}) = "str"
+_inner_type_str(::Type{String}) = "str"
+_inner_type_str(::Type{DateTime}) = "date_time"
+_inner_type_str(::Type{T}) where {T<:Period} = "duration"
 
 function _collect_ts_indexes(start::String, resolution::String, len::Int64)
     inds = DateTime[]
@@ -223,12 +230,21 @@ function _collect_ts_indexes(start::String, resolution::String, len::Int64)
     inds
 end
 
+_resolution_iterator(resolution::String) = (_parse_duration(resolution),)
+_resolution_iterator(resolution::Array{String,1}) = (_parse_duration(r) for r in resolution)
+
 _map_inds_and_vals(data::Matrix) = data[:,1], data[:,2]
 _map_inds_and_vals(data::Array) = (x[1] for x in data), (x[2] for x in data)
 _map_inds_and_vals(data::Dict) = keys(data), values(data)
 
-unparse_db_value(x) = Vector{UInt8}(_serialize_pv(db_value(x))), _db_type(x)
+
+"""
+    unparse_db_value(x)
+
+A tuple (DB value, type) from given parsed value.
+"""
 unparse_db_value(x::ParameterValue) = unparse_db_value(x.value)
+unparse_db_value(x) = Vector{UInt8}(_serialize_pv(db_value(x))), _db_type(x)
 
 """A custom JSONContext that serializes NaN values in complex parameter values as 'NaN'"""
 mutable struct _ParameterValueJSONContext <: JSON.Writer.JSONContext
@@ -250,6 +266,11 @@ function _serialize_pv(obj::Dict)
 end
 _serialize_pv(x) = JSON.json(x)
 
+"""
+    db_value(x)
+
+A DB value from given parsed value.
+"""
 db_value(x) = x
 db_value(x::Dict) = Dict(k => v for (k, v) in x if k != "type")
 db_value(x::DateTime) = Dict("data" => string(Dates.format(x, _db_df)))

@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-import Dates: CompoundPeriod
 
 """
     duration(t::TimeSlice)
@@ -144,7 +143,7 @@ end
 
 Roll the given `t` in time by the period specified by `forward`.
 """
-function roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod}; update::Bool=true)
+function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod}; update::Bool=true)
     t.start[] += forward
     t.end_[] += forward
     if update
@@ -171,6 +170,13 @@ Remove time slices that are contained in any other from `t_coll`, and return the
 t_lowest_resolution!(t_coll::Union{Array{TimeSlice,1},Dict{TimeSlice,T}}) where T = _deleteat!(contains, t_coll)
 
 """
+    t_lowest_resolution(t_iter)
+
+Return an `Array` containing only time slices from `t_iter` that aren't contained in any other.
+"""
+t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
+
+"""
     t_highest_resolution!(t_coll)
 
 Remove time slices that contain any other from `t_coll`, and return the modified `t_coll`.
@@ -183,13 +189,6 @@ t_highest_resolution!(t_coll::Union{Array{TimeSlice,1},Dict{TimeSlice,T}}) where
 Return an `Array` containing only time slices from `t_iter` that do not contain any other.
 """
 t_highest_resolution(t_iter) = t_highest_resolution!(collect(TimeSlice, t_iter))
-
-"""
-    t_lowest_resolution(t_iter)
-
-Return an `Array` containing only time slices from `t_iter` that aren't contained in any other.
-"""
-t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 
 """
     t_lowest_resolution_sets!(mapping)
