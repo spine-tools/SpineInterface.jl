@@ -154,12 +154,10 @@ struct _CallNode
 end
 
 _do_realize(x, callback=nothing) = x
-_do_realize(call::Call, callback=nothing) = _do_realize(call, callback, call.func)
-_do_realize(call::Call, callback, ::Nothing) = call.args[1]
-function _do_realize(call::Call, callback, pv::T) where {T<:ParameterValue}
-    pv(callback; call.kwargs...)
-end
-function _do_realize(call::Call, callback, ::Function)
+_do_realize(call::Call, callback=nothing) = _do_realize(call.func, call, callback)
+_do_realize(::Nothing, call, callback) = call.args[1]
+_do_realize(pv::T, call, callback) where T<:ParameterValue = pv(callback; call.kwargs...)
+function _do_realize(::T, call::Call, callback) where T<:Function
     current = _CallNode(call, nothing, -1)
     while true
         vals = [child.value[] for child in current.children]

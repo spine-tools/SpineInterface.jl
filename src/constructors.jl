@@ -38,24 +38,7 @@ end
 
 Map(inds::Array{String,1}, vals::Array{V,1}) where {V} = Map(Symbol.(inds), vals)
 
-Call(x) = Call(nothing, x)
-Call(call_expr::Union{_CallExpr,Nothing}, x) = Call(call_expr, nothing, [x], NamedTuple())
-Call(op::Function, args::Array) = Call(nothing, op, args, NamedTuple())
-Call(op::T, x, y) where {T<:Function} = Call(op, [x, y])
-Call(op::T, x::Call, y) where {T<:Function} = Call(_is_associative(T), op, x, y)
-Call(op::T, x, y::Call) where {T<:Function} = Call(_is_associative(T), op, x, y)
-Call(op::T, x::Call, y::Call) where {T<:Function} = Call(_is_associative(T), op, x, y)
-Call(is_associative::Val{true}, op::Function, x::Call, y) = Call(op, [x.args; y])
-Call(is_associative::Val{true}, op::Function, x, y::Call) = Call(op, [x; y.args])
-Call(is_associative::Val{true}, op::Function, x::Call, y::Call) = Call(op, [x.args; y.args])
-Call(is_associative::Val{false}, op::Function, x, y::Call) = Call(op, [x, y])
-Call(is_associative::Val{false}, op::Function, x::Call, y) = Call(op, [x, y])
-Call(is_associative::Val{false}, op::Function, x::Call, y::Call) = Call(op, [x, y])
-function Call(call_expr::_CallExpr, func::T, kwargs::NamedTuple) where {T<:ParameterValue}
-    Call(call_expr, func, [], kwargs)
-end
+Call(x, call_expr=nothing) = Call(nothing, [x], NamedTuple(), call_expr)
+Call(func::T, kwargs::NamedTuple, call_expr) where {T<:ParameterValue} = Call(func, [], kwargs, call_expr)
+Call(op::T, args::Vector) where {T<:Function} = Call(op, args, NamedTuple(), nothing)
 Call(other::Call) = copy(other)
-
-_is_associative(x) = Val(false)
-_is_associative(::typeof(+)) = Val(true)
-_is_associative(::typeof(*)) = Val(true)

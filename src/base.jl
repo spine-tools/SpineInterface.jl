@@ -78,8 +78,15 @@ Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, v::ParameterValue{T}) where {T<:_Scalar} = print(io, v.value)
 Base.show(io::IO, call::Call) = _show_call(io, call, call.call_expr, call.func)
 _show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
-_show_call(io::IO, call::Call, expr::Nothing, func::Function) = print(io, join(call.args, string(" ", func, " ")))
-function _show_call(io::IO, call::Call, expr::_CallExpr, func)
+function _show_call(io::IO, call::Call, expr::Nothing, func::Function)
+    call_str = if length(call.args) == 1
+        string(func, call.args[1])
+    else
+        join(call.args, string(" ", func, " "))
+    end
+    print(io, call_str)
+end
+function _show_call(io::IO, call::Call, expr::_CallExpr, func::ParameterValue)
     pname, kwargs = expr
     kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
     result = _do_realize(call)
@@ -114,11 +121,11 @@ function Base.show(io::IO, ts::TimeSeries)
     print(io, "TimeSeries[$body](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
 end
 
-Base.convert(::Type{Call}, x::T) where {T<:Real} = Call(x)
+Base.convert(::Type{Call}, x::T) where {T} = Call(x)
 
 Base.copy(ts::TimeSeries{T}) where {T} = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
 Base.copy(c::ParameterValue) = parameter_value(c.value)
-Base.copy(c::Call) = Call(c.call_expr, c.func, c.args, c.kwargs)
+Base.copy(c::Call) = Call(c.func, c.args, c.kwargs, c.call_expr)
 
 Base.zero(::Type{T}) where {T<:Call} = Call(zero(Float64))
 Base.zero(::Call) = Call(zero(Float64))
@@ -126,10 +133,6 @@ Base.zero(::Call) = Call(zero(Float64))
 Base.one(::Type{T}) where {T<:Call} = Call(one(Float64))
 Base.one(::Call) = Call(one(Float64))
 
-Base.:+(x::Call, y::Call) = Call(+, x, y)
-Base.:+(x::Call, y) = Call(+, x, y)
-Base.:+(x, y::Call) = Call(+, x, y)
-Base.:+(x::Call) = x
 Base.:+(ts::TimeSeries) = +(0.0, ts)
 Base.:+(ts::TimeSeries, num::Number) = timedata_operation(+, ts, num)
 Base.:+(num::Number, ts::TimeSeries) = timedata_operation(+, num, ts)
@@ -142,10 +145,32 @@ Base.:+(tp1::TimePattern, tp2::TimePattern) = timedata_operation(+, tp1, tp2)
 Base.:+(m::Map, x::Union{Number,TimeSeries,TimePattern}) = timedata_operation(+, m, x)
 Base.:+(x::Union{Number,TimeSeries,TimePattern}, m::Map) = timedata_operation(+, x, m)
 Base.:+(m1::Map, m2::Map) = timedata_operation(+, m1, m2)
-Base.:-(x::Call, y::Call) = Call(+, x, -y)
-Base.:-(x::Call, y) = Call(+, x, -y)
-Base.:-(x, y::Call) = Call(+, x, -y)
-Base.:-(x::Call) = Call(-, zero(Call), x)
+Base.:+(t::TimeSlice, p::Period) = TimeSlice(start(t) + p, start(t) + p + (end_(t) - start(t)), duration(t), blocks(t))
+Base.:+(x::Call) = x
+Base.:+(x::Call, y) = _sum_call([_args(+, x); y])
+Base.:+(x, y::Call) = _sum_call([x; _args(+, y)])
+Base.:+(x::Call, y::Call) = _sum_call([_args(+, x); _args(+, y)])
+
+function _sum_call(args)
+    numerical_args = filter(x -> x isa Number, args)
+    non_numerical_args = filter(x -> !(x isa Number), args)
+    numerical_term = sum(numerical_args; init=0.0)
+    if isempty(non_numerical_args)
+        Call(numerical_term)
+    else
+        args_count = ((a, count(isequal(a), non_numerical_args)) for a in unique(non_numerical_args))
+        final_args = [k == 1 ? a : k * a for (a, k) in args_count]
+        if !iszero(numerical_term)
+            push!(final_args, numerical_term)
+        end
+        if length(final_args) == 1
+            Call(final_args[1])
+        else
+            Call(+, final_args)
+        end
+    end
+end
+
 Base.:-(ts::TimeSeries) = -(0.0, ts)
 Base.:-(ts::TimeSeries, num::Number) = timedata_operation(-, ts, num)
 Base.:-(num::Number, ts::TimeSeries) = timedata_operation(-, num, ts)
@@ -158,9 +183,24 @@ Base.:-(tp1::TimePattern, tp2::TimePattern) = timedata_operation(-, tp1, tp2)
 Base.:-(m::Map, x::Union{Number,TimeSeries,TimePattern}) = timedata_operation(-, m, x)
 Base.:-(x::Union{Number,TimeSeries,TimePattern}, m::Map) = timedata_operation(-, x, m)
 Base.:-(m1::Map, m2::Map) = timedata_operation(-, m1, m2)
-Base.:*(x::Call, y::Call) = Call(*, x, y)
-Base.:*(x::Call, y) = Call(*, x, y)
-Base.:*(x, y::Call) = Call(*, x, y)
+Base.:-(t::TimeSlice, p::Period) = (+)(t, -p)
+Base.:-(x::Call) = Call(-, [x])
+Base.:-(x::Call, y) = _diff_call(_arg(x), y)
+Base.:-(x, y::Call) = _diff_call(x, _arg(y))
+Base.:-(x::Call, y::Call) = _diff_call(_arg(x), _arg(y))
+
+function _diff_call(x, y)
+    if iszero(y)
+        Call(x)
+    elseif iszero(x)
+        Call(-y)
+    elseif x == y
+        Call(0.0)
+    else
+        Call(-, [x, y])
+    end
+end
+
 Base.:*(ts::TimeSeries, num::Number) = timedata_operation(*, ts, num)
 Base.:*(num::Number, ts::TimeSeries) = timedata_operation(*, num, ts)
 Base.:*(tp::TimePattern, num::Number) = timedata_operation(*, tp, num)
@@ -172,9 +212,36 @@ Base.:*(tp1::TimePattern, tp2::TimePattern) = timedata_operation(*, tp1, tp2)
 Base.:*(m::Map, x::Union{Number,TimeSeries,TimePattern}) = timedata_operation(*, m, x)
 Base.:*(x::Union{Number,TimeSeries,TimePattern}, m::Map) = timedata_operation(*, x, m)
 Base.:*(m1::Map, m2::Map) = timedata_operation(*, m1, m2)
-Base.:/(x::Call, y::Call) = Call(/, x, y)
-Base.:/(x::Call, y) = Call(/, x, y)
-Base.:/(x, y::Call) = Call(/, x, y)
+Base.:*(x::Call, y) = _prod_call([_args(*, x); y])
+Base.:*(x, y::Call) = _prod_call([x; _args(*, y)])
+Base.:*(x::Call, y::Call) = _prod_call([_args(*, x); _args(*, y)])
+
+function _prod_call(args)
+    numerical_args = filter(x -> x isa Number, args)
+    non_numerical_args = filter(x -> !(x isa Number), args)
+    numerical_factor = reduce(*, numerical_args; init=1.0)
+    if isempty(non_numerical_args)
+        Call(numerical_factor)
+    elseif iszero(numerical_factor)
+        Call(0.0)
+    else
+        final_args = non_numerical_args
+        if !isone(numerical_factor) && !isone(-numerical_factor)
+            push!(final_args, numerical_factor)
+        end
+        result = if length(final_args) == 1
+            Call(final_args[1])
+        else
+            Call(*, final_args)
+        end
+        if isone(-numerical_factor)
+            -result
+        else
+            result
+        end
+    end
+end
+
 Base.:/(ts::TimeSeries, num::Number) = timedata_operation(/, ts, num)
 Base.:/(num::Number, ts::TimeSeries) = timedata_operation(/, num, ts)
 Base.:/(tp::TimePattern, num::Number) = timedata_operation(/, tp, num)
@@ -186,8 +253,20 @@ Base.:/(tp1::TimePattern, tp2::TimePattern) = timedata_operation(/, tp1, tp2)
 Base.:/(m::Map, x::Union{Number,TimeSeries,TimePattern}) = timedata_operation(/, m, x)
 Base.:/(x::Union{Number,TimeSeries,TimePattern}, m::Map) = timedata_operation(/, x, m)
 Base.:/(m1::Map, m2::Map) = timedata_operation(/, m1, m2)
-Base.:+(t::TimeSlice, p::Period) = TimeSlice(start(t) + p, start(t) + p + (end_(t) - start(t)), duration(t), blocks(t))
-Base.:-(t::TimeSlice, p::Period) = (+)(t, -p)
+Base.:/(x::Call, y) = _ratio_call(_arg(x), y)
+Base.:/(x, y::Call) = _ratio_call(x, _arg(y))
+Base.:/(x::Call, y::Call) = _ratio_call(_arg(x), _arg(y))
+
+function _ratio_call(x, y)
+    if iszero(x)
+        Call(0.0)
+    elseif x == y
+        Call(1.0)
+    else
+        Call(/, [x, y])
+    end
+end
+
 Base.:^(ts::TimeSeries, num::Number) = timedata_operation(^, ts, num)
 Base.:^(num::Number, ts::TimeSeries) = timedata_operation(^, num, ts)
 Base.:^(tp::TimePattern, num::Number) = timedata_operation(^, tp, num)
@@ -200,9 +279,18 @@ Base.:^(m::Map, x::Union{Number,TimeSeries,TimePattern}) = timedata_operation(^,
 Base.:^(x::Union{Number,TimeSeries,TimePattern}, m::Map) = timedata_operation(^, x, m)
 Base.:^(m1::Map, m2::Map) = timedata_operation(^, m1, m2)
 
-Base.:min(x::Call, y::Call) = Call(min, x, y)
-Base.:min(x::Call, y) = Call(min, x, y)
-Base.:min(x, y::Call) = Call(min, x, y)
+Base.:min(x::Call, y::Call) = Call(min, [x, y])
+Base.:min(x::Call, y) = Call(min, [x, y])
+Base.:min(x, y::Call) = Call(min, [x, y])
+
+_arg(x::Call) = _arg(x.func, x)
+_arg(::Nothing, x) = x.args[1]
+_arg(::T, x) where T = x
+
+_args(op, x::Call) = _args(op, x.func, x)
+_args(op, ::Nothing, x) = x.args[1]
+_args(op, ::T, x) where T<:Union{ParameterValue,Function} = x
+_args(op::T, ::T, x) where T<:Function = x.args
 
 Base.values(ts::TimeSeries) = ts.values
 Base.values(m::Map) = m.values
@@ -211,18 +299,6 @@ Base.values(pv::ParameterValue{T}) where {T<:_Indexed} = values(pv.value)
 Base.keys(ts::TimeSeries) = ts.indexes
 Base.keys(m::Map) = m.indexes
 Base.keys(pv::ParameterValue{T}) where {T<:_Indexed} = keys(pv.value)
-
-# Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
-Base.getindex(p::Parameter, inds::NamedTuple) = _getindex(p; inds...)
-function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
-    pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
-    if pv_new_kwargs !== nothing
-        parameter_value, new_inds = pv_new_kwargs
-        Call((p.name, (; kwargs...)), parameter_value, new_inds)
-    else
-        Call(nothing)
-    end
-end
 
 function Base.empty!(x::ObjectClass)
     empty!(x.objects)
@@ -295,6 +371,18 @@ function Base.getindex(x::Union{TimeSeries,Map}, key)
         x.values[i]
     else
         throw(BoundsError(x, key))
+    end
+end
+# Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
+Base.getindex(p::Parameter, inds::NamedTuple) = _getindex(p; inds...)
+function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
+    call_expr = (p.name, (; kwargs...))
+    pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
+    if pv_new_kwargs !== nothing
+        parameter_value, new_inds = pv_new_kwargs
+        Call(parameter_value, new_inds, call_expr)
+    else
+        Call(nothing, call_expr)
     end
 end
 
