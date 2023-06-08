@@ -56,7 +56,7 @@
     # show
     @test string(anything) === "anything"
     @test string(t1) === "0000-01-01T00:00~>0001-01-01T00:00"
-    @test string(p5) === "5"
+    @test string(p5) === "Int64ParameterValue(5)"
     duck = ObjectClass(:duck, [])
     studio_duck = RelationshipClass(:studio_duck, [:studio, :duck], [])
     @test string(duck) === "duck"
@@ -64,7 +64,7 @@
     id_call = Call(13)
     op_call = Call(+, 2, 3)
     apero_time = parameter_value("apero_time")
-    param_val_call = Call((:apero_time, (scenario=:covid,)), apero_time, (scenario=:covid,))
+    param_val_call = Call(apero_time, (scenario=:covid,), (:apero_time, (scenario=:covid,)))
     @test string(id_call) === "13"
     @test string(op_call) === "2 + 3"
     @test string(param_val_call) === "{apero_time(scenario=covid) = apero_time}"

@@ -94,14 +94,8 @@ end
 (upd::_VariableUBUpdate)(new_ub) = _set_upper_bound(upd.variable, new_ub)
 (upd::_VariableFixValueUpdate)(new_fix_value) = _fix(upd.variable, new_fix_value)
 (upd::_ObjectiveCoefficientUpdate)(new_coef) = set_objective_coefficient(upd.model, upd.variable, new_coef)
-function (upd::_ConstraintCoefficientUpdate)(new_coef)
-    @show upd.constraint[], upd.variable, new_coef
-    set_normalized_coefficient(upd.constraint[], upd.variable, new_coef)
-end
-function (upd::_RHSUpdate)(new_rhs)
-    @show upd.constraint[], new_rhs
-    set_normalized_rhs(upd.constraint[], new_rhs)
-end
+(upd::_ConstraintCoefficientUpdate)(new_coef) = set_normalized_coefficient(upd.constraint[], upd.variable, new_coef)
+(upd::_RHSUpdate)(new_rhs) = set_normalized_rhs(upd.constraint[], new_rhs)
 function (upd::_LowerBoundUpdate)(new_lower)
     constraint = upd.constraint[]
     model = owner_model(constraint)
@@ -251,9 +245,6 @@ function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,Varia
     constant = expr.constant
     expr.constant = zero(Call)
     new_set = MOIU.shift_constant(set, -constant)
-    #@show expr, realize(expr)
-    #@show MOI.constant(new_set), realize(MOI.constant(new_set))
-    #println()
     ScalarConstraint(expr, new_set)
 end
 
@@ -262,15 +253,12 @@ function JuMP.add_constraint(
     con::ScalarConstraint{GenericAffExpr{Call,VariableRef},S},
     name::String="",
 ) where {S<:_CallSet}
+    iszero(con.func) && iszero(MOI.constant(con.set)) && return nothing
     con_ref = Ref{ConstraintRef}()
     realized_func = realize(con.func, con_ref)
     realized_set = realize(con.set, con_ref)
     realized_constraint = ScalarConstraint(realized_func, realized_set)
     con_ref[] = add_constraint(model, realized_constraint, name)
-    #if iszero(realized_func) && iszero(MOI.constant(realized_set))
-    #    delete(model, con_ref[])
-    #end
-    con_ref[]
 end
 
 # @objective extension
@@ -293,7 +281,7 @@ function realize(s::_EqualToCall, con_ref)
 end
 function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
-    MOI.Interval(Float64(realize(l, _LowerBoundUpdate(con_ref))), realize(u, _UpperBoundUpdate(con_ref)))
+    MOI.Interval(Float64(realize(l, _LowerBoundUpdate(con_ref))), Float64(realize(u, _UpperBoundUpdate(con_ref))))
 end
 function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
     constant = Float64(realize(e.constant))
