@@ -253,17 +253,11 @@ function JuMP.add_constraint(
     con::ScalarConstraint{GenericAffExpr{Call,VariableRef},S},
     name::String="",
 ) where {S<:_CallSet}
+    iszero(con.func) && iszero(MOI.constant(con.set)) && return nothing
     con_ref = Ref{ConstraintRef}()
-    realized_constraint = ScalarConstraint(realize(con.func, con_ref), realize(con.set, con_ref))
-    con_ref[] = add_constraint(model, realized_constraint, name)
-end
-function JuMP.add_constraint(
-    model::Model,
-    con::ScalarConstraint{GenericAffExpr{Call,VariableRef},MOI.Interval{T}},
-    name::String="",
-) where {T}
-    con_ref = Ref{ConstraintRef}()
-    realized_constraint = ScalarConstraint(realize(con.func, con_ref), con.set)
+    realized_func = realize(con.func, con_ref)
+    realized_set = realize(con.set, con_ref)
+    realized_constraint = ScalarConstraint(realized_func, realized_set)
     con_ref[] = add_constraint(model, realized_constraint, name)
 end
 
@@ -275,24 +269,24 @@ end
 # realize
 function realize(s::_GreaterThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.GreaterThan(realize(c, _RHSUpdate(con_ref)))
+    MOI.GreaterThan(Float64(realize(c, _RHSUpdate(con_ref))))
 end
 function realize(s::_LessThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.LessThan(realize(c, _RHSUpdate(con_ref)))
+    MOI.LessThan(Float64(realize(c, _RHSUpdate(con_ref))))
 end
 function realize(s::_EqualToCall, con_ref)
     c = MOI.constant(s)
-    MOI.EqualTo(realize(c, _RHSUpdate(con_ref)))
+    MOI.EqualTo(Float64(realize(c, _RHSUpdate(con_ref))))
 end
 function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
-    MOI.Interval(realize(l, _LowerBoundUpdate(con_ref)), realize(u, _UpperBoundUpdate(con_ref)))
+    MOI.Interval(Float64(realize(l, _LowerBoundUpdate(con_ref))), Float64(realize(u, _UpperBoundUpdate(con_ref))))
 end
 function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
-    constant = realize(e.constant)
+    constant = Float64(realize(e.constant))
     terms = OrderedDict{VariableRef,typeof(constant)}(
-        var => realize(coef, _coefficient_update(model_or_con_ref, var))
+        var => Float64(realize(coef, _coefficient_update(model_or_con_ref, var)))
         for (var, coef) in e.terms
     )
     GenericAffExpr(constant, terms)

@@ -216,8 +216,8 @@ end
 _CallExpr = Tuple{Symbol,NamedTuple}
 
 struct Call
-    call_expr::Union{_CallExpr,Nothing}
-    func::Union{Nothing,Function,ParameterValue}
-    args::Array{S,1} where S
+    func::Union{Nothing,ParameterValue,Function}
+    args::Vector
     kwargs::NamedTuple
+    call_expr::Union{_CallExpr,Nothing}
 end
