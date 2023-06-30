@@ -81,6 +81,7 @@ export parameter_value
 export parameters
 export parse_db_value
 export realize
+export refresh!
 export relationship_class
 export relationship_classes
 export RelationshipClass
