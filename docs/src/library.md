@@ -19,7 +19,6 @@ Depth = 3
 ## Types
 
 ```@docs
-ObjectLike
 Object
 TimeSlice
 Anything
@@ -29,6 +28,7 @@ Anything
 
 ```@docs
 using_spinedb(::String)
+import_data(url::String, data::Union{ObjectClass,RelationshipClass}, comment::String; upgrade=false)
 ObjectClass()
 RelationshipClass()
 Parameter()
@@ -41,7 +41,7 @@ overlaps(::TimeSlice, ::TimeSlice)
 overlap_duration(::TimeSlice, ::TimeSlice)
 t_lowest_resolution(::Array{TimeSlice,1})
 t_highest_resolution(::Array{TimeSlice,1})
-write_parameters(::Any, ::String)
+write_parameters(parameters::Dict, url::String; upgrade=true, for_object=true, report="", alternative="", on_conflict="merge", comment="")
 ```
 
 ## Constants
