@@ -55,6 +55,7 @@ struct TimeSlice
     callbacks::Dict  # callbacks by timeout
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
+        blocks = Tuple(sort(collect(blocks)))
         id = objectid((start, end_, duration, blocks))
         new(Ref(start), Ref(end_), duration, blocks, id, Dict())
     end

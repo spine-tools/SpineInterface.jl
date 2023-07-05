@@ -143,10 +143,10 @@ end
 
 Roll the given `t` in time by the period specified by `forward`.
 """
-function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod}; update::Bool=true)
+function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod}; refresh::Bool=true)
     t.start[] += forward
     t.end_[] += forward
-    if update
+    if refresh
         for timeout in collect(keys(t.callbacks))
             callbacks = pop!(t.callbacks, timeout)
             timeout -= forward
@@ -160,6 +160,20 @@ function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod}; update
         end
     end
     t
+end
+
+"""
+    refresh!(t::TimeSlice)
+
+Apply callbacks registered in the given `t`.
+"""
+function refresh!(t::TimeSlice)
+    for timeout in collect(keys(t.callbacks))
+        callbacks = pop!(t.callbacks, timeout)
+        for callback in callbacks
+            callback()
+        end
+    end
 end
 
 """

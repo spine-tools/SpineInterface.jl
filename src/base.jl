@@ -40,11 +40,11 @@ Base.length(ts::Union{TimeSeries,Map}) = length(ts.indexes)
 
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
+Base.isless(t::TimeSlice, dt::DateTime) = isless(end_(t), dt)
+Base.isless(dt::DateTime, t::TimeSlice) = isless(dt, start(t))
 Base.isless(v1::ParameterValue{T}, v2::ParameterValue{T}) where {T<:_Scalar} = v1.value < v2.value
 Base.isless(scalar::Number, ts::TimeSeries) = all(isless(scalar, v) for v in ts.values)
 Base.isless(ts::TimeSeries, scalar::Number) = all(isless(v, scalar) for v in ts.values)
-Base.isless(t::TimeSlice, dt::DateTime) = isless(end_(t), dt)
-Base.isless(dt::DateTime, t::TimeSlice) = isless(dt, start(t))
 
 Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
 Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
