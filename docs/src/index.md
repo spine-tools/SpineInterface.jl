@@ -15,18 +15,48 @@ which uses the above technique to generate and run energy system integration mod
 
 ## Compatibility
 
-This package requires Julia 1.2 or later.
+This package requires Julia 1.6 or later.
 
 ## Installation
 
+You can install SpineInterface from the SpineJuliaRegistry as follows:
+
 ```julia
-julia> using Pkg
-
-julia> pkg"registry add https://github.com/Spine-project/SpineJuliaRegistry"
-
-julia> pkg"add SpineInterface"
-
+using Pkg
+pkg"registry add https://github.com/Spine-tools/SpineJuliaRegistry"
+pkg"add SpineInterface"
 ```
+
+However, for keeping up with the latest developments, it is highly recommended to install directly from the source.
+This can be done by downloading the repository on your computer, and then installing the module locally with
+
+```julia
+using Pkg
+Pkg.develop("<PATH_TO_SPINEINTERFACE>")
+```
+
+where `<PATH_TO_SPINEINTERFACE>` is the path to the root folder of the SpineInterface repository on your computer *(the one containing the `Project.toml` file)*.
+
+## Usage
+
+SpineInterface has been primarily designed to work through [Spine Toolbox](https://github.com/spine-tools/Spine-Toolbox),
+and shouldn't require specific setup when being called from Spine Toolbox workflows.
+Essentially, SpineInterface works just like any Julia module
+
+```julia
+using SpineInterface
+using_spinedb("...url of a Spine database...")
+```
+
+with `using_spinedb` being the key function that creates the interface for a Spine Datastore.
+
+When running SpineInterface outside Spine Toolbox *(e.g. from a Julia script directly)*, however,
+SpineInterface relies on the [Spine Database API](https://github.com/spine-tools/Spine-Database-API)
+Python package, which is accessed using the [PyCall.jl](https://github.com/JuliaPy/PyCall.jl) module.
+Thus, one needs to configure PyCall.jl to use a Python executable with Spine Database API installed,
+which can be done according to the PyCall readme.
+If you're using Conda environments for Python, the `.configure_pycall_in_conda.jl` script can be used to
+automatically configure PyCall to use the Python executable of that Conda environment.
 
 ## Quick start guide
 
@@ -43,7 +73,7 @@ julia> using_spinedb("...url of a Spine database...")
 ```
 
 **The recomended way of creating, populating, and maintaining Spine databases is through 
-[Spine Toolbox](https://github.com/Spine-project/Spine-Toolbox).**
+[Spine Toolbox](https://github.com/spine-tools/Spine-Toolbox).**
 However, here we present an alternative method that only requires `SpineInterface`,
 just so you get an idea of how `using_spinedb` works.
 

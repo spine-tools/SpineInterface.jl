@@ -19,8 +19,13 @@ Depth = 3
 ## Types
 
 ```@docs
+ObjectClass
 Object
+RelationshipClass
+Parameter
 TimeSlice
+TimeSeries
+Map
 Anything
 ```
 

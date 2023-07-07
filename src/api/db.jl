@@ -195,7 +195,7 @@ function _rels_and_vals(object_class_name_list, relationships, full_objs_per_id,
 end
 
 """
-A Dict mapping class names to arguments.
+A Dict mapping object class names to arguments.
 """
 function _obj_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     Dict(
@@ -207,7 +207,7 @@ function _obj_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs
 end
 
 """
-A Dict mapping class names to arguments.
+A Dict mapping relationship class names to arguments.
 """
 function _rel_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     Dict(

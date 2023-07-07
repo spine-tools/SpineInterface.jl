@@ -2,14 +2,14 @@
 
 [![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://spine-tools.github.io/SpineInterface.jl/latest/index.html)
 [![Build Status](https://travis-ci.com/Spine-project/SpineInterface.jl.svg?branch=master)](https://travis-ci.com/Spine-project/SpineInterface.jl)
-[![codecov](https://codecov.io/gh/Spine-project/SpineInterface.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Spine-project/SpineInterface.jl)
+[![codecov](https://codecov.io/gh/Spine-tools/SpineInterface.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Spine-tools/SpineInterface.jl)
 
 A package to interact with Spine databases from a Julia session.
 See [Spine](http://www.spine-model.org/) for more information.
 
 ## Compatibility
 
-This package requires Julia 1.2 or later.
+This package requires Julia 1.6 or later.
 
 
 ## Installation
@@ -18,7 +18,7 @@ You can install SpineInterface from the SpineJuliaRegistry as follows:
 
 ```julia
 using Pkg
-pkg"registry add https://github.com/Spine-project/SpineJuliaRegistry"
+pkg"registry add https://github.com/Spine-tools/SpineJuliaRegistry"
 pkg"add SpineInterface"
 ```
 
