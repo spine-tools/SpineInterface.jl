@@ -14,8 +14,6 @@ Depth = 3
 ```@index
 ```
 
-
-
 ## Types
 
 ```@docs
