@@ -3,7 +3,12 @@
 using SpineInterface
 
 # initialize database
-url = "sqlite:///quick_start.sqlite"
+folder = @__DIR__
+# either use an existing database
+url = "sqlite:///"*folder*"/quick_start_from_Spine_Toolbox.sqlite"
+# or create a new database (overwrites the previous line)
+url = "sqlite:///"*folder*"/quick_start.sqlite"
+
 commit_message="initial commit message for the new database with the objects actor and film"
 import_data(url, commit_message; object_classes=["actor", "film"])
 
