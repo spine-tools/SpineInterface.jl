@@ -15,4 +15,4 @@ makedocs(
     pages=pages,
 )
 
-deploydocs(repo="github.com/Spine-project/SpineInterface.jl.git", versions=["stable" => "v^", "v#.#"])
+deploydocs(repo="github.com/Spine-tools/SpineInterface.jl.git", versions=["stable" => "v^", "v#.#"])
