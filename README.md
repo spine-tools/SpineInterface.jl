@@ -4,7 +4,6 @@
 [![codecov](https://codecov.io/gh/Spine-tools/SpineInterface.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Spine-tools/SpineInterface.jl)
 
 A package to interact with Spine databases from a Julia session.
-See [Spine](http://www.spine-model.org/) for more information.
 
 ## Compatibility
 
