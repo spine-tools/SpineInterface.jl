@@ -50,14 +50,14 @@ That's because none of these classes has any objects yet.
 Let's see what happens if we add some.
 
 ```julia
-julia> objects = [
+julia> object_list = [
 	["actor", "Phoenix"], 
 	["actor", "Johansson"], 
 	["film", "Her"], 
 	["film", "Joker"]
 ];
 
-julia> import_data(url, "add objects"; objects=objects)
+julia> import_data(url, "add objects"; objects=object_list)
 
 julia> using_spinedb(url)
 
@@ -83,16 +83,16 @@ Things got a little bit more interesting.
 Now let's see what happens if we add some relationships to the database:
 
 ```julia
-julia> relationship_classes = [["actor__film", ["actor", "film"]]];
+julia> relationship_class_list = [["actor__film", ["actor", "film"]]];
 
-julia> relationships = [
+julia> relationship_list = [
 	["actor__film", ["Phoenix", "Joker"]], 
 	["actor__film", ["Phoenix", "Her"]], 
 	["actor__film", ["Johansson", "Her"]]
 ];
 
 julia> import_data(
-	url, "add relationships"; relationship_classes=relationship_classes, relationships=relationships
+	url, "add relationships"; relationship_classes=relationship_class_list, relationships=relationship_list
 )
 
 ```
@@ -124,16 +124,16 @@ julia> actor__film(film=film(:Her))
 Finally, let's add some parameters and some values to the database:
 
 ```julia
-julia> object_parameters = [["film", "release_year"]];
+julia> object_parameter_list = [["film", "release_year"]];
 
-julia> relationship_parameters = [["actor__film", "character_name"]];
+julia> relationship_parameter_list = [["actor__film", "character_name"]];
 
-julia> object_parameter_values = [
+julia> object_parameter_value_list = [
 	["film", "Joker", "release_year", 2019],
 	["film", "Her", "release_year", 2013],
 ];
 
-julia> relationship_parameter_values = [
+julia> relationship_parameter_value_list = [
 	["actor__film", ["Phoenix", "Joker"], "character_name", "Arthur"], 
 	["actor__film", ["Phoenix", "Her"], "character_name", "Theodore"], 
 	["actor__film", ["Johansson", "Her"], "character_name", "Samantha"]
@@ -142,10 +142,10 @@ julia> relationship_parameter_values = [
 julia> import_data(
 	url,
     "add parameters";
-	object_parameters=object_parameters, 
-	relationship_parameters=relationship_parameters, 
-	object_parameter_values=object_parameter_values,
-	relationship_parameter_values=relationship_parameter_values
+	object_parameters=object_parameter_list, 
+	relationship_parameters=relationship_parameter_list, 
+	object_parameter_values=object_parameter_value_list,
+	relationship_parameter_values=relationship_parameter_value_list
 )
 
 ```
