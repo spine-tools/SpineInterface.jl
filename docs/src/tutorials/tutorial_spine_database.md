@@ -8,8 +8,8 @@ julia> using SpineInterface
 
 We can immediately start to add objects to a non-existing database
 because the database will automatically be created.
-That does imply that it is better to use a variable than the direct url
-to avoid the creation of a new database due to a small writing mistake.
+That does imply that small writing mistakes result in new databases.
+To avoid writing mistakes it is recommended to make a variable that refers to the url.
 
 !!! note
     The recomended way of creating, populating, and maintaining Spine databases is through 
@@ -26,9 +26,14 @@ julia> import_data(url, commit_message; object_classes=["actor", "film"])
 ```
 
 The above will create a SQLite file called `quick_start.sqlite` in the present working directory,
-with the Spine database schema in it as well as the added content. The content consists of two object classes called `"actor"` and `"film"`. The changes become visible because the results are also commited (the process uses a git workflow).
+with the Spine database schema in it as well as the added content.
+The content consists of two object classes called `"actor"` and `"film"`.
+The changes become visible because the results are also commited (the process uses a git workflow).
 
 To generate convenience functions for that database, you can call `using_spinedb`.
+
+!!! note
+	Note that `using_spinedb` may require the Julia package PyCall to function properly.
 
 ```jldoctest quick_start_guide
 julia> using_spinedb(url)
@@ -143,9 +148,11 @@ julia> import_data(
 	object_parameter_values=object_parameter_values,
 	relationship_parameter_values=relationship_parameter_values
 )
+
 ```
 
 And after calling `using_spinedb`:
+
 ```
 julia> using_spinedb(url)
 
@@ -163,4 +170,7 @@ julia> character_name(actor=actor(:Johansson), film=film(:Her))
 
 julia> character_name(actor=actor(:Johansson), film=film(:Joker))
 ERROR: parameter character_name is not specified for argument(s) :actor => Johansson:film => Joker
+
 ```
+
+The full script can be found in the tutorials folder.
