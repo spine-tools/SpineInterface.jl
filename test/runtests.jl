@@ -20,7 +20,6 @@
 using SpineInterface
 import SpineInterface.parse_time_period
 using Test
-using Logging
 using PyCall
 using Dates
 using JSON
@@ -44,5 +43,6 @@ end
     include("base.jl")
     include("util.jl")
     include("update_model.jl")
-    include("tutorials.jl")
+    include("../tutorials/tutorial_spine_database/tutorial_spine_database.jl")
+    include("../tutorials/tutorial_spineopt_database/tutorial_spineopt_database.jl")
 end
