@@ -1,8 +1,7 @@
 using SpineInterface
 
 # requires PyCall
-folder=@__DIR__
-url="sqlite:///"*folder*"/example_spineopt_database.sqlite"
+url = "sqlite:///$(@__DIR__)/example_spineopt_database.sqlite"
 using_spinedb(url)
 
 node()

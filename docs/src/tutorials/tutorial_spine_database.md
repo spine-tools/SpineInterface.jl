@@ -2,7 +2,7 @@
 
 Once `SpineInterface` is installed, we can start using it in Julia scripts or consoles.
 
-```jldoctest quick_start_guide
+```julia
 julia> using SpineInterface
 ```
 
@@ -17,8 +17,8 @@ To avoid writing mistakes it is recommended to make a variable that refers to th
     As an example, the tutorial folder contains an empty spine database created with Spine Toolbox.
     That database can be used instead of creating a new database.
 
-```jldoctest quick_start_guide
-julia> url = "sqlite:///quick_start.sqlite"
+```julia
+julia> url = "sqlite:///$(@__DIR__)/quick_start.sqlite"
 
 julia> commit_message="initial commit message for the new database with the objects actor and film"
 
@@ -34,7 +34,7 @@ To generate convenience functions for that database, you can call `using_spinedb
 !!! note
 	Note that `using_spinedb` may require the Julia package PyCall to function properly.
 
-```jldoctest quick_start_guide
+```julia
 julia> using_spinedb(url)
 
 julia> actor()
@@ -49,7 +49,7 @@ As you can see, both `actor()` and `film()` return 0-element `Array`s.
 That's because none of these classes has any objects yet.
 Let's see what happens if we add some.
 
-```jldoctest quick_start_guide
+```julia
 julia> objects = [
 	["actor", "Phoenix"], 
 	["actor", "Johansson"], 
@@ -82,7 +82,7 @@ Things got a little bit more interesting.
 
 Now let's see what happens if we add some relationships to the database:
 
-```jldoctest quick_start_guide
+```julia
 julia> relationship_classes = [["actor__film", ["actor", "film"]]];
 
 julia> relationships = [
@@ -101,7 +101,7 @@ The above will add a relationship class called `"actor__film"`
 between the `"actor"` and `"film"` object classes, and a couple of relationships of that class.
 Now let's see the effect of calling `using_spinedb`:
 
-```jldoctest quick_start_guide
+```julia
 julia> using_spinedb(url)
 
 julia> actor__film()
@@ -123,7 +123,7 @@ julia> actor__film(film=film(:Her))
 
 Finally, let's add some parameters and some values to the database:
 
-```jldoctest quick_start_guide
+```julia
 julia> object_parameters = [["film", "release_year"]];
 
 julia> relationship_parameters = [["actor__film", "character_name"]];

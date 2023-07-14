@@ -7,8 +7,7 @@ For this tutorial we will be using an existing database which can be found in th
 ```julia
 using SpineInterface
 
-folder=@__DIR__ #replace with folder location of the database
-url="sqlite:///"*folder*"/example_spineopt_database.sqlite"
+url="sqlite:///$(@__DIR__)/example_spineopt_database.sqlite"
 using_spinedb(url)
 ```
 
