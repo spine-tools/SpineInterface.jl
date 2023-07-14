@@ -147,4 +147,31 @@ demand(
     220.0
 ```
 
+So far we have only taken a look at the existing data but we can also write new data to the database.
+Let's add a capacity to the pvfarm.
+
+```julia
+import_data(
+    url,
+    "load capacity value";
+    relationship_parameters=[["unit__to_node","unit_capacity"]],
+    relationship_parameter_values=[["unit__to_node", ["pvfarm", "elec_netherlands"], "unit_capacity", 40]],
+)
+```
+
+!!! note
+    Parameter values always have an alternative name.
+    Alternative names are used for building scenarios in the SpineOpt model.
+    By default any data added through a script gets a timestamp as an alternative name.
+    However, the alternative name can also be specified.
+    ```julia
+    import_data(
+        url,
+        "load capacity value";
+        relationship_parameters=[["unit__to_node","unit_capacity"]],
+        relationship_parameter_values=[["unit__to_node", ["pvfarm", "elec_netherlands"], "unit_capacity", 40, "alt"]],
+        alternatives=["alt"]	
+    )
+    ```
+
 The full script can be found in the tutorials folder. The script also includes some example code for how these convenience functions can be used in a more complex function, e.g. to find all the isolated nodes (i.e. nodes without relationships).

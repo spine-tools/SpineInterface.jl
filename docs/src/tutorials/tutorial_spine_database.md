@@ -1,6 +1,6 @@
 # Tutorial spine database
 
-Once `SpineInterface` is installed, to use it in your programs you just need to say:
+Once `SpineInterface` is installed, we can start using it in Julia scripts or consoles.
 
 ```jldoctest quick_start_guide
 julia> using SpineInterface
@@ -26,9 +26,8 @@ julia> import_data(url, commit_message; object_classes=["actor", "film"])
 ```
 
 The above will create a SQLite file called `quick_start.sqlite` in the present working directory,
-with the Spine database schema in it as well as the added content.
+with the Spine database schema and commits the specified changes to the database (the process uses a git workflow)
 The content consists of two object classes called `"actor"` and `"film"`.
-The changes become visible because the results are also commited (the process uses a git workflow).
 
 To generate convenience functions for that database, you can call `using_spinedb`.
 

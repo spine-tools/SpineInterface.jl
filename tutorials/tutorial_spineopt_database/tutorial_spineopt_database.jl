@@ -45,6 +45,23 @@ demand(
 )
 # The time seems to go backwards but that is because the time in the database has accidentally been set backwards.
 
+#= commented as to not accidentally overwrite data in the database
+import_data(
+    url,
+    "load capacity value";
+    relationship_parameters=[["unit__to_node","unit_capacity"]],
+    relationship_parameter_values=[["unit__to_node", ["pvfarm", "elec_netherlands"], "unit_capacity", 40]],
+)
+
+import_data(
+    url,
+    "load capacity value";
+    relationship_parameters=[["unit__to_node","unit_capacity"]],
+    relationship_parameter_values=[["unit__to_node", ["pvfarm", "elec_netherlands"], "unit_capacity", 40, "alt"]],
+    alternatives=["alt"]	
+)
+=#
+
 """
     generate_is_isolated()
 

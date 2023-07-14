@@ -2,11 +2,12 @@
 
 This package provides the ability to access the contents of a Spine database in a way
 that's convenient for writing algorithms.
-The function `using_spinedb` is the main star of the package:
-Given the url of a Spine database,
-it creates a series of convenience functions to retrieve the contents of that database 
+The functions `import_data` and `using_spinedb` are the main stars of the package:
+Given the url of a Spine database, `import_data` can write data to the (new) database
+and `using_spinedb` creates a series of convenience functions to retrieve the contents of that database 
 in the Julia module or session where it's called.
-In this way, you can populate a Spine database with that data for a system you want to study,
+In this way,
+with `import_data` you can populate a Spine database with that data for a system you want to study,
 call `using_spinedb` in your module to generate the convenience functions,
 and then use those functions to build, e.g., an optimisation model for that system.
 This allows you to develop fully data-driven applications.
@@ -38,28 +39,47 @@ Pkg.develop("<PATH_TO_SPINEINTERFACE>")
 where `<PATH_TO_SPINEINTERFACE>` is the path to the root folder of the SpineInterface repository on your computer *(the one containing the `Project.toml` file)*.
 
 !!! note
-	Some functions also require Python and the corresponding Julia package 'PyCall'. See below in section 'Usage'.
+	SpineInterface has been primarily designed to work through [Spine Toolbox](https://github.com/spine-tools/Spine-Toolbox),
+	and shouldn't require specific setup when being called from Spine Toolbox workflows.
+
+	When running SpineInterface outside Spine Toolbox *(e.g. from a Julia script directly)*, however,
+	SpineInterface relies on the [Spine Database API](https://github.com/spine-tools/Spine-Database-API)
+	Python package, which is accessed using the [PyCall.jl](https://github.com/JuliaPy/PyCall.jl) module.
+	Thus, one needs to configure PyCall.jl to use a Python executable with Spine Database API installed,
+	which can be done according to the PyCall readme.
+	If you're using Conda environments for Python, the `.configure_pycall_in_conda.jl` script can be used to
+	automatically configure PyCall to use the Python executable of that Conda environment.
 
 ## Usage
 
-SpineInterface has been primarily designed to work through [Spine Toolbox](https://github.com/spine-tools/Spine-Toolbox),
-and shouldn't require specific setup when being called from Spine Toolbox workflows.
 Essentially, SpineInterface works just like any Julia module
 
 ```julia
 using SpineInterface
-using_spinedb("...url of a Spine database...")
+
+url = "sqlite:///quick_start.sqlite"
+commitmessage = "initial commit"
+
+import_data(url,commitmessage;
+	object_classes=["colors", "shapes"],
+	objects = [
+		["colors", "red"], 
+		["colors", "blue"], 
+		["shapes", "square"], 
+		["shapes", "circle"]
+	]
+)
+
+using_spinedb(url)
+
+colors()#returns all colors
+shapes("square")#returns the square
 ```
 
-with `using_spinedb` being the key function that creates the interface for a Spine Datastore.
+with `import_data` and `using_spinedb` being the key functions for interfacing a Spine Datastore.
+`import_data` is used to create a new Spine Datastore or write data to an existing Spine Datastore.
+`using_spinedb` creates the convenience functions to access the data in the Spine Datastore.
 
-When running SpineInterface outside Spine Toolbox *(e.g. from a Julia script directly)*, however,
-SpineInterface relies on the [Spine Database API](https://github.com/spine-tools/Spine-Database-API)
-Python package, which is accessed using the [PyCall.jl](https://github.com/JuliaPy/PyCall.jl) module.
-Thus, one needs to configure PyCall.jl to use a Python executable with Spine Database API installed,
-which can be done according to the PyCall readme.
-If you're using Conda environments for Python, the `.configure_pycall_in_conda.jl` script can be used to
-automatically configure PyCall to use the Python executable of that Conda environment.
 
 ## Tutorials
 
