@@ -17,32 +17,17 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-using SpineInterface
-import SpineInterface.parse_time_period
-using Test
-using Logging
-using PyCall
-using Dates
-using JSON
-using JuMP
-using Cbc
-
-# Original tests used a slightly different syntax for `import_data`, so correct it here for convenience.
-SpineInterface.import_data(db_url::String; kwargs...) = SpineInterface.import_data(db_url, Dict(kwargs...), "testing")
-
-# Convenience function for overwriting in-memory Database with test data.
-function import_test_data(db_url::String; kwargs...)
-    SpineInterface.close_connection(db_url)
-    SpineInterface.open_connection(db_url)
-    import_data(db_url; kwargs...)
+function testtutorials()
+    try
+        include(dirname(@__DIR__)*"/tutorials/tutorial_spine_database/tutorial_spine_database.jl")
+    catch
+        @warn "tutorial spine database fails"
+    end
+    try
+        include(dirname(@__DIR__)*"/tutorials/tutorial_spineopt_database/tutorial_spineopt_database.jl")
+    catch
+        @warn "tutorial spineopt database fails"
+    end
 end
 
-@testset begin
-    include("using_spinedb.jl")
-    include("api.jl")
-    include("constructors.jl")
-    include("base.jl")
-    include("util.jl")
-    include("update_model.jl")
-    include("tutorials.jl")
-end
+@test_logs min_level=Logging.Warn testtutorials()
