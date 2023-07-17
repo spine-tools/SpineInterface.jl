@@ -14,8 +14,6 @@ To avoid writing mistakes it is recommended to make a variable that refers to th
 !!! note
     The recomended way of creating, populating, and maintaining Spine databases is through 
     [Spine Toolbox](https://github.com/spine-tools/Spine-Toolbox).
-    As an example, the tutorial folder contains an empty spine database created with Spine Toolbox.
-    That database can be used instead of creating a new database.
 
 ```julia
 julia> url = "sqlite:///$(@__DIR__)/quick_start.sqlite"
@@ -172,4 +170,4 @@ ERROR: parameter character_name is not specified for argument(s) :actor => Johan
 
 ```
 
-The full script can be found in the tutorials folder.
+The full script can be found in the examples folder.

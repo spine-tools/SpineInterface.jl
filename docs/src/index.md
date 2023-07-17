@@ -87,7 +87,7 @@ To get started with SpineInterface you can take a look at the tutorials:
 + 'Tutorial spine database' shows the basic functionality of SpineInterface for general spine databases
 + 'Tutorial SpineOpt database' shows the more specific functionality for [SpineOpt](https://github.com/Spine-tools/SpineOpt.jl) databases
 
-The files corresponding to these tutorials can be found in the tutorials folder of the github repository [SpineInterface](https://github.com/Spine-tools/SpineInterface.jl).
+The files corresponding to these tutorials can be found in the examples folder of the github repository [SpineInterface](https://github.com/Spine-tools/SpineInterface.jl).
 
 
 ## Library outline

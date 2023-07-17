@@ -2,7 +2,7 @@
 
 The optimization model [SpineOpt](https://github.com/Spine-tools/SpineOpt.jl) uses SpineOpt databases as its input. A SpineOpt database is a specific form of the spine database. In other words a SpineOpt database is a spine database but a spine database is not necessarily a SpineOpt database.
 
-For this tutorial we will be using an existing database which can be found in the tutorials folder.
+For this tutorial we will be using an existing database which can be found in the examples folder.
 
 ```julia
 using SpineInterface
@@ -173,4 +173,4 @@ import_data(
     )
     ```
 
-The full script can be found in the tutorials folder. The script also includes some example code for how these convenience functions can be used in a more complex function, e.g. to find all the isolated nodes (i.e. nodes without relationships).
+The full script can be found in the examples folder. The script also includes some example code for how these convenience functions can be used in a more complex function, e.g. to find all the isolated nodes (i.e. nodes without relationships).
