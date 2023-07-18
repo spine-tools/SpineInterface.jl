@@ -27,7 +27,7 @@ struct Anything end
 """
     Object
 
-A type for representing an object from a Spine db.
+A type for representing an object from a Spine db; an instance of an object class.
 """
 struct Object
     name::Symbol
@@ -76,6 +76,11 @@ struct ParameterValue{T}
     ParameterValue(value::T) where T = new{T}(value, _parameter_value_metadata(value))
 end
 
+"""
+    ObjectClass
+
+A type for representing an object class from a Spine db.
+"""
 struct ObjectClass
     name::Symbol
     objects::Array{ObjectLike,1}
@@ -84,6 +89,11 @@ struct ObjectClass
     ObjectClass(name, objects, vals=Dict(), defaults=Dict()) = new(name, objects, vals, defaults)
 end
 
+"""
+    RelationshipClass
+
+A type for representing a relationship class from a Spine db.
+"""
 struct RelationshipClass
     name::Symbol
     intact_object_class_names::Array{Symbol,1}
@@ -112,12 +122,22 @@ function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
     name_list
 end
 
+"""
+    Parameter
+
+A type for representing a parameter related to an object class or a relationship class in a Spine db.
+"""
 struct Parameter
     name::Symbol
     classes::Array{Union{ObjectClass,RelationshipClass},1}
     Parameter(name, classes=[]) = new(name, classes)
 end
 
+"""
+    TimeInterval
+
+A type for representing an interval between two integer values.
+"""
 struct TimeInterval
     key::Symbol
     lower::Int64
@@ -128,6 +148,11 @@ IntersectionOfIntervals = Vector{TimeInterval}
 UnionOfIntersections = Vector{IntersectionOfIntervals}
 TimePattern = Dict{UnionOfIntersections,T} where {T}
 
+"""
+    TimeSeries
+
+A type for representing a series of values in a Spine db. The index is a DateTime.
+"""
 struct TimeSeries{V}
     indexes::Array{DateTime,1}
     values::Array{V,1}

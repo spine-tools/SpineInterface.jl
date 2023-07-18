@@ -2,11 +2,12 @@
 
 This package provides the ability to access the contents of a Spine database in a way
 that's convenient for writing algorithms.
-The function `using_spinedb` is the main star of the package:
-Given the url of a Spine database,
-it creates a series of convenience functions to retrieve the contents of that database 
+The functions `import_data` and `using_spinedb` are the main stars of the package:
+Given the url of a Spine database, `import_data` can write data to the (new) database
+and `using_spinedb` creates a series of convenience functions to retrieve the contents of that database 
 in the Julia module or session where it's called.
-In this way, you can populate a Spine database with that data for a system you want to study,
+In this way,
+with `import_data` you can populate a Spine database with that data for a system you want to study,
 call `using_spinedb` in your module to generate the convenience functions,
 and then use those functions to build, e.g., an optimisation model for that system.
 This allows you to develop fully data-driven applications.
@@ -15,197 +16,78 @@ which uses the above technique to generate and run energy system integration mod
 
 ## Compatibility
 
-This package requires Julia 1.2 or later.
+This package requires Julia 1.6 or later.
 
 ## Installation
 
-```julia
-julia> using Pkg
-
-julia> pkg"registry add https://github.com/Spine-project/SpineJuliaRegistry"
-
-julia> pkg"add SpineInterface"
-
-```
-
-## Quick start guide
-
-Once `SpineInterface` is installed, to use it in your programs you just need to say:
-
-```jldoctest quick_start_guide
-julia> using SpineInterface
-```
-
-To generate convenience functions for a Spine database, just run:
+You can install SpineInterface from the SpineJuliaRegistry as follows:
 
 ```julia
-julia> using_spinedb("...url of a Spine database...")
+using Pkg
+pkg"registry add https://github.com/Spine-tools/SpineJuliaRegistry"
+pkg"add SpineInterface"
 ```
 
-**The recomended way of creating, populating, and maintaining Spine databases is through 
-[Spine Toolbox](https://github.com/Spine-project/Spine-Toolbox).**
-However, here we present an alternative method that only requires `SpineInterface`,
-just so you get an idea of how `using_spinedb` works.
+However, for keeping up with the latest developments, it is highly recommended to install directly from the source.
+This can be done by downloading the repository on your computer, and then installing the module locally with
 
-Create a new Spine database by running:
-
-```jldoctest quick_start_guide
-julia> url = "sqlite:///quick_start.db";
-
-julia> db_api.create_new_spine_database(url);
-
+```julia
+using Pkg
+Pkg.develop("<PATH_TO_SPINEINTERFACE>")
 ```
 
-The above will create a SQLite file called `quick_start.db` in the present working directory,
-with the Spine database schema in it.
+where `<PATH_TO_SPINEINTERFACE>` is the path to the root folder of the SpineInterface repository on your computer *(the one containing the `Project.toml` file)*.
 
-The next step is to add some content to the database. Run:
+!!! note
+	SpineInterface has been primarily designed to work through [Spine Toolbox](https://github.com/spine-tools/Spine-Toolbox),
+	and shouldn't require specific setup when being called from Spine Toolbox workflows.
 
-```jldoctest quick_start_guide
-julia> import_data(url; object_classes=["actor", "film"])
+	When running SpineInterface outside Spine Toolbox *(e.g. from a Julia script directly)*, however,
+	SpineInterface relies on the [Spine Database API](https://github.com/spine-tools/Spine-Database-API)
+	Python package, which is accessed using the [PyCall.jl](https://github.com/JuliaPy/PyCall.jl) module.
+	Thus, one needs to configure PyCall.jl to use a Python executable with Spine Database API installed,
+	which can be done according to the PyCall readme.
+	If you're using Conda environments for Python, the `.configure_pycall_in_conda.jl` script can be used to
+	automatically configure PyCall to use the Python executable of that Conda environment.
 
-```
+## Usage
 
-The above will add two object classes called `"actor"` and `"film"` to the database,
-and commit the changes so they become visible.
+Essentially, SpineInterface works just like any Julia module
 
-At this point, calling `using_spinedb` will already generate a convenience function for each of these object classes.
-Run:
+```julia
+using SpineInterface
 
-```jldoctest quick_start_guide
-julia> using_spinedb(url)
+url = "sqlite:///quick_start.sqlite"
+commitmessage = "initial commit"
 
-julia> actor()
-0-element Array{Union{Int64, T} where T<:SpineInterface.AbstractObject,1}
-
-julia> film()
-0-element Array{Union{Int64, T} where T<:SpineInterface.AbstractObject,1}
-
-```
-
-As you can see, both `actor()` and `film()` return 0-element `Array`s.
-That's because none of these classes has any objects yet.
-Let's see what happens if we add some. Run:
-
-```jldoctest quick_start_guide
-julia> objects = [
-	["actor", "Phoenix"], 
-	["actor", "Johansson"], 
-	["film", "Her"], 
-	["film", "Joker"]
-];
-
-julia> db_api.import_data_to_url(url; objects=objects)
-
-julia> using_spinedb(url)
-
-julia> actor()
-2-element Array{Union{Int64, T} where T<:SpineInterface.AbstractObject,1}:
- Phoenix
- Johansson
-
-julia> film()
-2-element Array{Union{Int64, T} where T<:SpineInterface.AbstractObject,1}:
- Her
- Joker
-
-julia> film(:Her)
-Her
-
-julia> typeof(ans)
-Object
-
-```
-Things got a little bit more interesting.
-
-Now let's see what happens if we add some relationships to the database:
-
-```jldoctest quick_start_guide
-julia> relationship_classes = [["actor__film", ["actor", "film"]]];
-
-julia> relationships = [
-	["actor__film", ["Phoenix", "Joker"]], 
-	["actor__film", ["Phoenix", "Her"]], 
-	["actor__film", ["Johansson", "Her"]]
-];
-
-julia> db_api.import_data_to_url(
-	url; relationship_classes=relationship_classes, relationships=relationships
+import_data(url,commitmessage;
+	object_classes=["colors", "shapes"],
+	objects = [
+		["colors", "red"], 
+		["colors", "blue"], 
+		["shapes", "square"], 
+		["shapes", "circle"]
+	]
 )
 
+using_spinedb(url)
+
+colors()#returns all colors
+shapes("square")#returns the square
 ```
 
-The above will add a relationship class called `"actor__film"` 
-between the `"actor"` and `"film"` object classes, and a couple of relationships of that class.
-Now let's see the effect of calling `using_spinedb`:
+with `import_data` and `using_spinedb` being the key functions for interfacing a Spine Datastore.
+`import_data` is used to create a new Spine Datastore or write data to an existing Spine Datastore.
+`using_spinedb` creates the convenience functions to access the data in the Spine Datastore.
 
-```jldoctest quick_start_guide
-julia> using_spinedb(url)
 
-julia> actor__film()
-3-element Array{NamedTuple{K,V} where V<:Tuple{Vararg{Union{Int64, T} where T<:SpineInterface.AbstractObject,N} where N} where K,1}:
- (actor = Phoenix, film = Her)
- (actor = Johansson, film = Her)
- (actor = Phoenix, film = Joker)
+## Tutorials
 
-julia> actor__film(actor=actor(:Johansson))
-1-element Array{Object,1}:
- Her
+To get started with SpineInterface you can take a look at the tutorials:
++ 'Tutorial spine database' shows the basic functionality of SpineInterface for general spine databases
++ 'Tutorial SpineOpt database' shows the more specific functionality for [SpineOpt](https://github.com/Spine-tools/SpineOpt.jl) databases
 
-julia> actor__film(film=film(:Her))
-2-element Array{Object,1}:
- Johansson
- Phoenix
-
-```
-
-Finally, let's add some parameters and some values to the database:
-
-```jldoctest quick_start_guide
-julia> object_parameters = [["film", "release_year"]];
-
-julia> relationship_parameters = [["actor__film", "character_name"]];
-
-julia> object_parameter_values = [
-	["film", "Joker", "release_year", 2019],
-	["film", "Her", "release_year", 2013],
-];
-
-julia> relationship_parameter_values = [
-	["actor__film", ["Phoenix", "Joker"], "character_name", "Arthur"], 
-	["actor__film", ["Phoenix", "Her"], "character_name", "Theodore"], 
-	["actor__film", ["Johansson", "Her"], "character_name", "Samantha"]
-];
-
-julia> db_api.import_data_to_url(
-	url;
-	object_parameters=object_parameters, 
-	relationship_parameters=relationship_parameters, 
-	object_parameter_values=object_parameter_values,
-	relationship_parameter_values=relationship_parameter_values
-)
-```
-
-And after calling `using_spinedb`:
-```
-julia> using_spinedb(url)
-
-julia> release_year(film=film(:Joker))
-2019
-
-julia> release_year(film=film(:Her))
-2013
-
-julia> character_name(film=film(:Joker), actor=actor(:Phoenix))
-:Arthur
-
-julia> character_name(actor=actor(:Johansson), film=film(:Her))
-:Samantha
-
-julia> character_name(actor=actor(:Johansson), film=film(:Joker))
-ERROR: parameter character_name is not specified for argument(s) :actor => Johansson:film => Joker
-```
-
+The files corresponding to these tutorials can be found in the examples folder of the github repository [SpineInterface](https://github.com/Spine-tools/SpineInterface.jl).
 
 
 ## Library outline

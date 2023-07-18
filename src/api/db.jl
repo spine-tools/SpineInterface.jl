@@ -195,7 +195,7 @@ function _rels_and_vals(object_class_name_list, relationships, full_objs_per_id,
 end
 
 """
-A Dict mapping class names to arguments.
+A Dict mapping object class names to arguments.
 """
 function _obj_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     Dict(
@@ -207,7 +207,7 @@ function _obj_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs
 end
 
 """
-A Dict mapping class names to arguments.
+A Dict mapping relationship class names to arguments.
 """
 function _rel_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     Dict(
@@ -432,26 +432,33 @@ Import data to a Spine db.
 
 # Arguments
 - `url::String`: the url of the target database. 
-- `data::Dict`: the data to import, in the format below:
-    Dict(
-        :object_classes => [:oc_name, ...],
-        :relationship_classes => [[:rc_name, [:oc_name1, :oc_name2, ...]], ...],
-        :objects => [[:oc_name, :obj_name], ...],
-        :relationships => [[:rc_name, [:obj_name1, :obj_name2, ...], ...],
-        :object_parameters => [[:oc_name, :param_name, default_value], ...],
-        :relationship_parameters => [[:rc_name, :param_name, default_value], ...],
-        :object_parameter_values => [[:oc_name, :obj_name, :param_name, value, :alt_name], ...],
-        :relationship_parameter_values => [[:rc_name, [:obj_name1, :obj_name2, ...], :param_name, value, :alt_name], ...],
-        :object_groups => [[:class_name, :group_name, :member_name], ...],
-        :scenarios => [(:scen_name, true), ...],  # true for the active flag, not in use at the moment
-        :alternatives => [:alt_name, ...],
-        :scenario_alternatives => [(:scen_name, :alt_name, nothing), (:scen_name, :lower_alt_name, :alt_name), ...]
-    )
+- `data::Dict`: the data to import, in the format below.
 - `comment::String`: the commit message.
+
+Format of the data Dict:
+```
+Dict(
+    :object_classes => [:oc_name, ...],
+    :relationship_classes => [[:rc_name, [:oc_name1, :oc_name2, ...]], ...],
+    :objects => [[:oc_name, :obj_name], ...],
+    :relationships => [[:rc_name, [:obj_name1, :obj_name2, ...], ...],
+    :object_parameters => [[:oc_name, :param_name, default_value], ...],
+    :relationship_parameters => [[:rc_name, :param_name, default_value], ...],
+    :object_parameter_values => [[:oc_name, :obj_name, :param_name, value, :alt_name], ...],
+    :relationship_parameter_values => [[:rc_name, [:obj_name1, :obj_name2, ...], :param_name, value, :alt_name], ...],
+    :object_groups => [[:class_name, :group_name, :member_name], ...],
+    :scenarios => [(:scen_name, true), ...],  # true for the active flag, not in use at the moment
+    :alternatives => [:alt_name, ...],
+    :scenario_alternatives => [(:scen_name, :alt_name, nothing), (:scen_name, :lower_alt_name, :alt_name), ...]
+)
+```
 
 # Example
 ```
-d = Dict(:object_classes => [:dog, :cat], :objects => [[:dog, :brian], [:dog, :spike]])
+d = Dict(
+    :object_classes => [:dog, :cat],
+    :objects => [[:dog, :brian], [:dog, :spike]]
+)
 import_data(url, d, "arf!")
 ```
 """

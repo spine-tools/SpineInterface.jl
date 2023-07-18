@@ -17,4 +17,5 @@ docs/site/
 test/Manifest.toml
 Manifest.toml
 test/test_out.sqlite
+examples/tutorial_spine_database/quick_start.sqlite
 .vscode/settings.json

@@ -43,4 +43,6 @@ end
     include("base.jl")
     include("util.jl")
     include("update_model.jl")
+    include("../examples/tutorial_spine_database/tutorial_spine_database.jl")
+    include("../examples/tutorial_spineopt_database/tutorial_spineopt_database.jl")
 end
