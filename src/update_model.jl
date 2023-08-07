@@ -351,6 +351,9 @@ function JuMP.add_to_expression!(
 )
     add_to_expression!(aff, coef * other)
 end
+function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, coef::Call, other::AffExpr)
+    add_to_expression!(aff, coef * other)
+end
 
 # operators
 # strategy: Make operators between a `Call` and a `VariableRef` return a `GenericAffExpr`,
