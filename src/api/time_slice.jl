@@ -65,7 +65,7 @@ before(a::TimeSlice, b::TimeSlice) = start(b) == end_(a)
 Determine whether `b` is contained in `a`.
 """
 iscontained(b::TimeSlice, a::TimeSlice) = start(b) >= start(a) && end_(b) <= end_(a)
-iscontained(b::DateTime, a::TimeSlice) = start(a) <= b <= end_(a)
+iscontained(b::DateTime, a::TimeSlice) = start(a) <= b < end_(a)
 
 contains(a, b) = iscontained(b, a)
 
