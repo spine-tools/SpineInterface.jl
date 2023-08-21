@@ -32,8 +32,8 @@ function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_
     TimeSlice(start, end_, dur, blocks)
 end
 
-function TimeSeries(inds=[], vals=[]; ignore_year=false, repeat=false)
-    TimeSeries(inds, vals, ignore_year, repeat)
+function TimeSeries(inds=[], vals=[]; ignore_year=false, repeat=false, merge_ok=false)
+    TimeSeries(inds, vals, ignore_year, repeat; merge_ok=merge_ok)
 end
 
 Map(inds::Array{String,1}, vals::Array{V,1}) where {V} = Map(Symbol.(inds), vals)

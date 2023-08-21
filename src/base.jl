@@ -36,7 +36,7 @@ end
 
 Base.length(t::Union{Object,TimeSlice}) = 1
 Base.length(v::ParameterValue{T}) where {T<:_Scalar} = 1
-Base.length(ts::Union{TimeSeries,Map}) = length(ts.indexes)
+Base.length(x::Union{TimeSeries,Map}) = length(x.indexes)
 
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))

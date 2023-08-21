@@ -183,53 +183,50 @@ struct Map{K,V}
 end
 
 """
-Non unique indices in a sorted Array.
-"""
-function _nonunique_inds_sorted(arr)
-    nonunique_inds = []
-    sizehint!(nonunique_inds, length(arr))
-    for (i, (x, y)) in enumerate(zip(arr[1 : end - 1], arr[2:end]))
-        isequal(x, y) && push!(nonunique_inds, i)
-    end
-    nonunique_inds
-end
-
-"""
 Modify `inds` and `vals` in place, trimmed so they are both of the same size, sorted,
 and with non unique elements of `inds` removed.
 """
 function _sort_unique!(inds, vals; merge_ok=false)
     ind_count = length(inds)
     val_count = length(vals)
-    trimmed_inds, trimmed_vals = if ind_count == val_count
-        inds, vals
-    elseif ind_count > val_count
+    if ind_count > val_count
         @warn("too many indices, taking only first $val_count")
-        deleteat!(inds, (val_count + 1):ind_count), vals
-    else
+        deleteat!(inds, val_count + 1 : ind_count)
+    elseif val_count > ind_count
         @warn("too many values, taking only first $ind_count")
-        inds, deleteat!(vals, (ind_count + 1):val_count)
+        deleteat!(vals, ind_count + 1 : val_count)
     end
-    sorted_inds, sorted_vals = if issorted(trimmed_inds)
-        trimmed_inds, trimmed_vals
-    else
-        p = sortperm(trimmed_inds)
-        trimmed_inds_copy = copy(trimmed_inds)
-        trimmed_vals_copy = copy(trimmed_vals)
+    if !issorted(inds)
+        p = sortperm(inds)
+        inds_copy = copy(inds)
+        vals_copy = copy(vals)
         for (dst, src) in enumerate(p)
-            trimmed_inds[dst] = trimmed_inds_copy[src]
-            trimmed_vals[dst] = trimmed_vals_copy[src]
+            inds[dst] = inds_copy[src]
+            vals[dst] = vals_copy[src]
         end
-        trimmed_inds, trimmed_vals
     end
-    nonunique = _nonunique_inds_sorted(sorted_inds)
+    nonunique = _nonunique_positions_sorted(inds)
     if !merge_ok && !isempty(nonunique)
         n = length(nonunique)
-        dupes = [sorted_inds[i] => sorted_vals[i] for i in nonunique[1 : min(n, 5)]]
+        dupes = [inds[i] => vals[i] for i in nonunique[1 : min(n, 5)]]
         tail = n > 5 ? "... plus $(n - 5) more" : ""
         @warn("repeated indices, taking only last one: $dupes, $tail")
     end
-    deleteat!(sorted_inds, nonunique), deleteat!(sorted_vals, nonunique)
+    deleteat!(inds, nonunique)
+    deleteat!(vals, nonunique)
+    nothing
+end
+
+"""
+Non unique positions in a sorted Array.
+"""
+function _nonunique_positions_sorted(arr)
+    nonunique = []
+    sizehint!(nonunique, length(arr))
+    for (i, (x, y)) in enumerate(zip(arr[1 : end - 1], arr[2:end]))
+        isequal(x, y) && push!(nonunique, i)
+    end
+    nonunique
 end
 
 _Scalar = Union{Nothing,Bool,Int64,Float64,Symbol,DateTime,Period}
