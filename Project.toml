@@ -1,7 +1,7 @@
 name = "SpineInterface"
 uuid = "0cda1612-498a-11e9-3c92-77fa82595a4f"
 authors = ["Spine Project consortium <spine_info@vtt.fi>"]
-version = "0.11.6"
+version = "0.11.7"
 
 [deps]
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
