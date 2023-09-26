@@ -54,6 +54,11 @@ struct _CallInterval <: _CallSet
     upper::Call
 end
 
+# Can't be in `base.jl` since `_CallInterval` is only in `update_model.jl`, which is loaded weirdly with JuMP.
+function Base.:(==)(x::_CallInterval, y::_CallInterval)
+	all(getproperty(x, p) == getproperty(y, p) for p in propertynames(x))
+end
+
 abstract type AbstractUpdate end
 
 struct _VariableLBUpdate <: AbstractUpdate
@@ -221,10 +226,10 @@ function JuMP.build_constraint(_error::Function, var::VariableRef, set::_CallSet
     build_constraint(_error, Call(1) * var, set)
 end
 function JuMP.build_constraint(_error::Function, var::VariableRef, lb::Call, ub::Real)
-    build_constraint(_error, expr, lb, Call(ub))
+    build_constraint(_error, Call(1) * var, lb, Call(ub))
 end
 function JuMP.build_constraint(_error::Function, var::VariableRef, lb::Real, ub::Call)
-    build_constraint(_error, expr, Call(lb), ub)
+    build_constraint(_error, Call(1) * var, Call(lb), ub)
 end
 function JuMP.build_constraint(_error::Function, var::VariableRef, lb::Call, ub::Call)
     build_constraint(_error, Call(1) * var, lb, ub)

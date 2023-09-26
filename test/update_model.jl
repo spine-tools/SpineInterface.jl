@@ -17,6 +17,18 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+@testset "build_constraint" begin # TODO this needs to cover more functionality.
+	m = Model()
+	x = @variable(m, x)
+	# Test that `build_constraint` returns identical output (almost) regardless of `Call` inputs.
+	cs = [
+		JuMP.build_constraint(x->nothing, x, i, j)
+		for (i, j) in [(1, Call(1)), (Call(1), 1), (Call(1), Call(1))]
+	]
+	@test all(c.func == first(cs).func for c in cs)
+	@test all(c.set == first(cs).set for c in cs)
+end
+
 @testset "update_model" begin
 	m = Model(Cbc.Optimizer)
 	@variable(m, x, lower_bound=0)
