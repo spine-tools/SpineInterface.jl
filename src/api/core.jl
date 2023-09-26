@@ -316,10 +316,12 @@ function _get_repeating_time_series_value(pv, t::TimeSlice, callback)
     end
     reps = reps_end - reps_start
     reps == 0 && return mean(Iterators.filter(!isnan, pv.value.values[a:b]))
-    asum = sum(Iterators.filter(!isnan, pv.value.values[a:end]))
-    bsum = sum(Iterators.filter(!isnan, pv.value.values[1:b]))
-    alen = count(!isnan, pv.value.values[a:end])
-    blen = count(!isnan, pv.value.values[1:b])
+    avals = pv.value.values[a:end]
+    bvals = pv.value.values[1:b]
+    asum = sum(Iterators.filter(!isnan, avals))
+    bsum = sum(Iterators.filter(!isnan, bvals))
+    alen = count(!isnan, avals)
+    blen = count(!isnan, bvals)
     (asum + bsum + (reps - 1) * pv.valsum) / (alen + blen + (reps - 1) * pv.len)
 end
 # Map

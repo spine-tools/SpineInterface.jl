@@ -114,8 +114,8 @@ end
 """
     JuMP.set_lower_bound(var, call)
 
-Set the lower bound of given variable to the result of given call and bind them together, so whenever
-the result of the call changes because time slices have rolled, the lower bound is automatically updated.
+Set the lower bound of given variable to the value of given call and bind them together, so whenever
+the value of the call changes because time slices have rolled, the lower bound is automatically updated.
 """
 function JuMP.set_lower_bound(var::VariableRef, call::Call)
     lb = realize(call, _VariableLBUpdate(var))
@@ -137,8 +137,8 @@ end
 """
     JuMP.set_upper_bound(var, call)
 
-Set the upper bound of given variable to the result of given call and bind them together, so whenever
-the result of the call changes because time slices have rolled, the upper bound is automatically updated.
+Set the upper bound of given variable to the value of given call and bind them together, so whenever
+the value of the call changes because time slices have rolled, the upper bound is automatically updated.
 """
 function JuMP.set_upper_bound(var::VariableRef, call::Call)
     ub = realize(call, _VariableUBUpdate(var))
@@ -160,10 +160,10 @@ end
 """
     JuMP.fix(var, call)
 
-Fix the value of given variable to the result of given call and bind them together, so whenever
-the result of the call changes because time slices have rolled, the variable is automatically updated.
-If the result is a number, then the variable value is fixed to that number.
-If the result is NaN, then the variable is freed.
+Fix the value of given variable to the value of given call and bind them together, so whenever
+the value of the call changes because time slices have rolled, the variable is automatically updated.
+If the value is a number, then the variable value is fixed to that number.
+If the value is NaN, then the variable is freed.
 Any bounds on the variable at the moment of fixing it are restored when freeing it.
 """
 function JuMP.fix(var::VariableRef, call::Call)
