@@ -21,12 +21,25 @@
 	m = Model()
 	x = @variable(m, x)
 	# Test that `build_constraint` returns identical output (almost) regardless of `Call` inputs.
-	cs = [
-		JuMP.build_constraint(x->nothing, x, i, j)
-		for (i, j) in [(1, Call(1)), (Call(1), 1), (Call(1), Call(1))]
+	# Don't test (Number, Number) as that's regular JuMP behaviour and the output type differs.
+	cs1 = [
+		JuMP.build_constraint(x -> false, x, i, j)
+		for (i, j) in [(0, Call(1)), (Call(0), 1), (Call(0), Call(1))]
 	]
-	@test all(c.func == first(cs).func for c in cs)
-	@test all(c.set == first(cs).set for c in cs)
+	cs2 = [
+		JuMP.build_constraint(x -> false, AffExpr(1, x => 1), i, j)
+		for (i, j) in [(0, Call(1)), (Call(0), 1), (Call(0), Call(1))]
+	]
+	cs3 = [
+		JuMP.build_constraint(x -> false, AffExpr(0, x => 0), i, j)
+		for (i, j) in [(0, Call(0)), (Call(0), 0), (Call(0), Call(0))]
+	]
+	for cs in (cs1, cs2, cs3)
+		@test all(c.func == first(cs).func for c in cs)
+		@test all(c.set == first(cs).set for c in cs)
+	end
+	@test all(iszero.(getfield.(cs3, :func)))
+	@test iszero(getfield(JuMP.build_constraint(x -> false, AffExpr(0, x => 0), 0, 0), :func))
 end
 
 @testset "update_model" begin

@@ -234,6 +234,18 @@ end
 function JuMP.build_constraint(_error::Function, var::VariableRef, lb::Call, ub::Call)
     build_constraint(_error, Call(1) * var, lb, ub)
 end
+function JuMP.build_constraint(_error::Function, expr::AffExpr, set::_CallSet)
+    build_constraint(_error, Call(1) * expr, set)
+end
+function JuMP.build_constraint(_error::Function, expr::AffExpr, lb::Real, ub::Call)
+    build_constraint(_error, Call(1) * expr, Call(lb), ub)
+end
+function JuMP.build_constraint(_error::Function, expr::AffExpr, lb::Call, ub::Real)
+    build_constraint(_error, Call(1) * expr, lb, Call(ub))
+end
+function JuMP.build_constraint(_error::Function, expr::AffExpr, lb::Call, ub::Call)
+    build_constraint(_error, Call(1) * expr, lb, ub)
+end
 function JuMP.build_constraint(_error::Function, expr::GenericAffExpr{Call,VariableRef}, lb::Real, ub::Real)
     build_constraint(_error, expr, Call(lb), Call(ub))
 end
@@ -258,7 +270,7 @@ function JuMP.add_constraint(
     con::ScalarConstraint{GenericAffExpr{Call,VariableRef},S},
     name::String="",
 ) where {S<:_CallSet}
-    iszero(con.func) && iszero(MOI.constant(con.set)) && return nothing
+    iszero(con.func) && return nothing
     con_ref = Ref{ConstraintRef}()
     realized_func = realize(con.func, con_ref)
     realized_set = realize(con.set, con_ref)
