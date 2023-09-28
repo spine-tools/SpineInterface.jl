@@ -18,7 +18,8 @@
 #############################################################################
 
 Base.intersect(::Anything, s) = s
-Base.intersect(s::T, ::Anything) where {T<:AbstractArray} = s
+Base.intersect(s, ::Anything) = s
+Base.intersect(::Anything, ::Anything) = anything
 
 Base.in(item, ::Anything) = true
 
