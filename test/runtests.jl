@@ -26,6 +26,9 @@ using JSON
 using JuMP
 using Cbc
 
+# Handle JuMP and SpineInterface `Parameter` and `parameter_value` conflicts.
+import SpineInterface: Parameter, parameter_value
+
 # Original tests used a slightly different syntax for `import_data`, so correct it here for convenience.
 SpineInterface.import_data(db_url::String; kwargs...) = SpineInterface.import_data(db_url, Dict(kwargs...), "testing")
 
