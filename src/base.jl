@@ -460,3 +460,5 @@ end
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
 Base.abs(call::Call) = Call(abs, [call])
+
+Base.isempty(x::Union{TimeSeries,Map}) = isempty(x.indexes)

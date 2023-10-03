@@ -331,6 +331,11 @@
     @test parameter_value(tp1)(asd = :asd) == tp1
     @test parameter_value(m1)() == m1
     @test parameter_value(m1)(asd = :asd) == m1
+    # isempty
+    @test !isempty(ts1)
+    @test !isempty(m)
+    @test isempty(TimeSeries([],[], false, false))
+    @test isempty(Map([],[]))
 end
 @testset "TimePattern-TimePattern arithmetic" begin
     month1to3or7to12 = SpineInterface.parse_time_period("M1-3,M7-12")
