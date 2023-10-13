@@ -17,7 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 db_url = "sqlite://"
-@testset "using_spinedb - basics" begin
+
+function _test_object_class()
     @testset "object_class" begin
         obj_classes = ["institution"]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
@@ -40,6 +41,9 @@ db_url = "sqlite://"
             @test groups(i) == [Spine]
         end
     end
+end
+
+function _test_relationship_class()
     @testset "relationship_class" begin
         obj_classes = ["institution", "country"]
         rel_classes =
@@ -93,6 +97,9 @@ db_url = "sqlite://"
         @test length(relationship_classes()) === 2
         @test all(x isa RelationshipClass for x in relationship_classes())
     end
+end
+
+function _test_parameter()
     @testset "parameter" begin
         obj_classes = ["institution", "country"]
         rel_classes = [["institution__country", ["institution", "country"]]]
@@ -130,29 +137,35 @@ db_url = "sqlite://"
         @test all(x isa Parameter for x in parameters())
     end
 end
-@testset "using_spinedb - parameter value types" begin
-    object_classes = ["country"]
-    objects = [["country", "France"]]
-    object_parameters = [["country", "apero_time"]]
-    import_test_data(db_url; object_classes=object_classes, objects=objects, object_parameters=object_parameters)
+
+function _test_true()
     @testset "true" begin
         object_parameter_values = [["country", "France", "apero_time", true]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         @test apero_time(country=country(:France))
     end
+end
+
+function _test_false()
     @testset "false" begin
         object_parameter_values = [["country", "France", "apero_time", false]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         @test !apero_time(country=country(:France))
     end
+end
+
+function _test_string()
     @testset "string" begin
         object_parameter_values = [["country", "France", "apero_time", "now!"]]
         import_data(db_url; object_parameter_values=object_parameter_values)
         using_spinedb(db_url)
         @test apero_time(country=country(:France)) == Symbol("now!")
     end
+end
+
+function _test_array()
     @testset "array" begin
         data = [4, 8, 7]
         value = Dict("type" => "array", "value_type" => "float", "data" => data)
@@ -162,6 +175,9 @@ end
         @test apero_time(country=country(:France)) == data
         @test all(apero_time(country=country(:France), i=i) == v for (i, v) in enumerate(data))
     end
+end
+
+function _test_date_time()
     @testset "date_time" begin
         data = "2000-01-01T00:00:00"
         value = Dict("type" => "date_time", "data" => data)
@@ -170,6 +186,9 @@ end
         using_spinedb(db_url)
         @test apero_time(country=country(:France)) == DateTime(data)
     end
+end
+
+function _test_duration()
     @testset "duration" begin
         @testset for (k, (t, data)) in enumerate([(Minute, "m"), (Hour, "h"), (Day, "D"), (Month, "M"), (Year, "Y")])
             value = Dict("type" => "duration", "data" => string(k, data))
@@ -179,6 +198,9 @@ end
             @test apero_time(country=country(:France)) == t(k)
         end
     end
+end
+
+function _test_time_pattern()
     @testset "time_pattern" begin
         data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
         value = Dict("type" => "time_pattern", "data" => data)
@@ -192,6 +214,9 @@ end
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 12))) == (221.5 + 300) / 2
         @test isnan(apero_time(country=France, t=TimeSlice(DateTime(0, 11), DateTime(0, 12))))
     end
+end
+
+function _test_std_time_series()
     @testset "std_time_series" begin
         data = [1.0, 4.0, 5.0, NaN, 7.0]
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
@@ -210,6 +235,9 @@ end
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 3), DateTime(0, 5, 2))) == (5.0 + 7.0) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) === 7.0
     end
+end
+
+function _test_repeating_time_series()
     @testset "repeating_time_series" begin
         data = [1, 4, 5, 3, 7]
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => true, "ignore_year" => true)
@@ -225,6 +253,9 @@ end
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) == sum(data[2:3]) / 2
         @test apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 7))) == sum([data; data[1:3]]) / 8
     end
+end
+
+function _test_map()
     @testset "map" begin
         object_classes = ["scenario"]
         objects = [["scenario", "drunk"], ["scenario", "sober"]]
@@ -289,4 +320,27 @@ end
         @test apero_time(; country=France, s=drunk, whatever=:whatever, t0=t0, t=t2_3) == 5.6
         @test apero_time(; country=France, s=drunk, t0=t0, whocares=t0, t=t2_3) == 5.6
     end
+end
+
+@testset "using_spinedb - basics" begin
+    _test_object_class()
+    _test_relationship_class()
+    _test_parameter()
+end
+
+@testset "using_spinedb - parameter value types" begin
+    object_classes = ["country"]
+    objects = [["country", "France"]]
+    object_parameters = [["country", "apero_time"]]
+    import_test_data(db_url; object_classes=object_classes, objects=objects, object_parameters=object_parameters)
+    _test_true()
+    _test_false()
+    _test_string()
+    _test_date_time()
+    _test_duration()
+    _test_array()
+    _test_time_pattern()
+    _test_std_time_series()
+    _test_repeating_time_series()
+    _test_map()
 end
