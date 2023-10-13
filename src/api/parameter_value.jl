@@ -131,10 +131,7 @@ end
 parse_db_value(::Nothing, type) = nothing
 parse_db_value(x) = _parse_db_value(x)
 
-function _parse_db_value(value::Dict)
-    type = get(value, "type", nothing)
-    isnothing(type) ? value : _parse_db_value(value, type)
-end
+_parse_db_value(value::Dict) = _parse_db_value(value, get(value, "type", nothing))
 _parse_db_value(value, type::String) = _parse_db_value(value, Val(Symbol(type)))
 _parse_db_value(value, ::Nothing) = _parse_db_value(value)
 _parse_db_value(value::Dict, ::Val{:date_time}) = _parse_date_time(value["data"])
