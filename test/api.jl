@@ -639,8 +639,6 @@ function _test_indexed_values()
 end
 
 @testset "api" begin
-    _test_import_data()
-    #=
     _test_indices()
     _test_indices_as_tuples()
     _test_object_class_relationship_class_parameter()
@@ -655,5 +653,4 @@ end
     _test_import_data()
     _test_difference()
     _test_indexed_values()
-    =#
 end
