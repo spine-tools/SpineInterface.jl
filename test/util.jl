@@ -27,7 +27,7 @@ using_spinedb("sqlite://")
     cls = ObjectClass(:cat, objects, parameter_values, parameter_defaults)
     d_obs = SpineInterface._to_dict(cls)
     d_exp = Dict(
-        :object_classes => [:cat],
+        :object_classes => [[:cat]],
         :object_parameters => [[:cat, :age, unparse_db_value(9)]],
         :objects => [[:cat, :silvester], [:cat, :tom]],
         :object_parameter_values => [
@@ -49,7 +49,7 @@ end
     cls = RelationshipClass(:cat__cat__dog, [:cat, :cat, :dog], object_tuples, parameter_values, parameter_defaults)
     d_obs = SpineInterface._to_dict(cls)
     d_exp = Dict(
-        :object_classes => [:cat, :dog],
+        :object_classes => [[:cat], [:dog]],
         :objects => [[:cat, :silvester], [:cat, :tom], [:dog, :pluto]],
         :relationship_classes => [[:cat__cat__dog, [:cat, :cat, :dog]]],
         :relationships => [[:cat__cat__dog, [:silvester, :tom, :pluto]], [:cat__cat__dog, [:tom, :silvester, :pluto]]],

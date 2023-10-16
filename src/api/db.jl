@@ -712,7 +712,7 @@ end
 
 function _to_dict(obj_cls::ObjectClass)
     Dict(
-        :object_classes => [obj_cls.name],
+        :object_classes => [[obj_cls.name]],
         :object_parameters => [
             [obj_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
             for (parameter_name, parameter_default_value) in obj_cls.parameter_defaults
@@ -727,7 +727,7 @@ function _to_dict(obj_cls::ObjectClass)
 end
 function _to_dict(rel_cls::RelationshipClass)
     Dict(
-        :object_classes => unique(rel_cls.intact_object_class_names),
+        :object_classes => [[oc] for oc in unique(rel_cls.intact_object_class_names)],
         :objects => unique(
             [obj_cls_name, obj.name]
             for relationship in rel_cls.relationships
