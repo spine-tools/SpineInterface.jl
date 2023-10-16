@@ -122,6 +122,8 @@ end
     parse_db_value(value, type)
 
 A parsed value (TimeSeries, TimePattern, Map, etc.) from given DB value and type.
+
+Note that parsing is skipped for already parsed DB values.
 """
 parse_db_value(value_and_type::Vector{Any}) = parse_db_value(value_and_type...)
 function parse_db_value(value::Vector{UInt8}, type::Union{String,Nothing})
@@ -131,7 +133,7 @@ end
 parse_db_value(::Nothing, type) = nothing
 parse_db_value(x) = _parse_db_value(x)
 
-_parse_db_value(value::Dict) = _parse_db_value(value, get(value, "type", nothing))
+_parse_db_value(value::Dict) = _parse_db_value(value, value["type"])
 _parse_db_value(value, type::String) = _parse_db_value(value, Val(Symbol(type)))
 _parse_db_value(value, ::Nothing) = _parse_db_value(value)
 _parse_db_value(value::Dict, ::Val{:date_time}) = _parse_date_time(value["data"])
@@ -164,6 +166,7 @@ function _parse_db_value(value::Dict, ::Val{:map})
     Map(inds, vals)
 end
 _parse_db_value(value::Float64) = isinteger(value) ? Int64(value) : value
+_parse_db_value(value::TimePattern) = value
 _parse_db_value(value) = value
 
 function _parse_date_time(data::String)
