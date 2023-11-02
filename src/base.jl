@@ -313,9 +313,13 @@ Base.:^(m::Map, x::Union{Number,TimeSeries,TimePattern}) = timedata_operation(^,
 Base.:^(x::Union{Number,TimeSeries,TimePattern}, m::Map) = timedata_operation(^, x, m)
 Base.:^(m1::Map, m2::Map) = timedata_operation(^, m1, m2)
 
-Base.:min(x::Call, y::Call) = Call(min, [x, y])
-Base.:min(x::Call, y) = Call(min, [x, y])
-Base.:min(x, y::Call) = Call(min, [x, y])
+Base.min(x::Call, y::Call) = Call(min, [x, y])
+Base.min(x::Call, y) = Call(min, [x, y])
+Base.min(x, y::Call) = Call(min, [x, y])
+
+Base.max(x::Call, y::Call) = Call(max, [x, y])
+Base.max(x::Call, y) = Call(max, [x, y])
+Base.max(x, y::Call) = Call(max, [x, y])
 
 _arg(x::Call) = _arg(x.func, x)
 _arg(::Nothing, x) = x.args[1]
