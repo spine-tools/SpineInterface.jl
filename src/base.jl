@@ -193,6 +193,13 @@ function _sum_call(args)
     end
 end
 
+function _split!(f, arr)
+    i = findall(f, arr)
+    result = arr[i]
+    deleteat!(arr, i)
+    result
+end
+
 function _final_sum_call(args)
     if isempty(args)
         nothing
@@ -330,13 +337,6 @@ _args(op, ::Nothing, x) = x.args[1]
 _args(op, ::T, x) where T<:Union{ParameterValue,Function} = x
 _args(op::T, ::T, x) where T<:Function = x.args
 
-function _split!(f, arr)
-    i = findall(f, arr)
-    result = arr[i]
-    deleteat!(arr, i)
-    result
-end
-
 Base.values(ts::TimeSeries) = ts.values
 Base.values(m::Map) = m.values
 Base.values(pv::ParameterValue{T}) where {T<:_Indexed} = values(pv.value)
@@ -432,11 +432,8 @@ function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
 end
 
 function Base.get!(x::Union{TimeSeries,Map}, key, default)
-    i = searchsortedfirst(x.indexes, key)
-    if get(x.indexes, i, nothing) == key
-        x.values[i]
-    else
-        x.values[i] = default
+    get!(x, key) do
+        default
     end
 end
 function Base.get!(f::Function, x::Union{TimeSeries,Map}, key)
