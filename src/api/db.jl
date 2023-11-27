@@ -696,9 +696,12 @@ function _run_server_request(dbh, request::String, args::Tuple, kwargs::Dict)
 end
 
 function _export_data(db; filters=Dict())
-    isempty(filters) || _run_server_request(db, "apply_filters", (filters,))
+    isempty(filters) && return _run_server_request(db, "export_data")
+    old_filters = _run_server_request(db, "call_method", ("get_filter_configs",))
+    _run_server_request(db, "apply_filters", (filters,))
     data = _run_server_request(db, "export_data")
-    isempty(filters) || _run_server_request(db, "clear_filters")
+    _run_server_request(db, "clear_filters")
+    isempty(old_filters) || _run_server_request(db, "apply_filters", Tuple(old_filters))
     data
 end
 
