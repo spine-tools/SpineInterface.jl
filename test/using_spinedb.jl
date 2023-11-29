@@ -138,6 +138,28 @@ function _test_parameter()
     end
 end
 
+function _test_using_spinedb_in_a_loop()
+    @testset "using_spinedb_in_a_loop" begin
+        fp = "$(@__DIR__)/deleteme.sqlite"
+        rm(fp; force=true)
+        db_url = "sqlite:///$fp"
+        color_by_alt = Dict("alt1" => "orange", "alt2" => "blue", "alt3" => "black")
+        import_test_data(
+            db_url;
+            alternatives=collect(keys(color_by_alt)),
+            object_classes=["fish"],
+            objects=[("fish", "Nemo")],
+            object_parameters=[("fish", "color")],
+            object_parameter_values=[("fish", "Nemo", "color", color, alt) for (alt, color) in color_by_alt],
+        )
+        for (alt, color) in color_by_alt
+            M = Module()
+            using_spinedb(db_url, M; filters=Dict("alternatives" => [alt]))
+            @test M.color(fish=M.fish(:Nemo)) == Symbol(color)
+        end
+    end
+end
+
 function _test_true()
     @testset "true" begin
         object_parameter_values = [["country", "France", "apero_time", true]]
@@ -326,6 +348,7 @@ end
     _test_object_class()
     _test_relationship_class()
     _test_parameter()
+    _test_using_spinedb_in_a_loop()
 end
 
 @testset "using_spinedb - parameter value types" begin
@@ -343,23 +366,4 @@ end
     _test_std_time_series()
     _test_repeating_time_series()
     _test_map()
-end
-@testset "using_spinedb_in_a_loop" begin
-    fp = "$(@__DIR__)/deleteme.sqlite"
-    rm(fp; force=true)
-    db_url = "sqlite:///$fp"
-    color_by_alt = Dict("alt1" => "orange", "alt2" => "blue", "alt3" => "black")
-    import_test_data(
-        db_url;
-        alternatives=collect(keys(color_by_alt)),
-        object_classes=["fish"],
-        objects=[("fish", "Nemo")],
-        object_parameters=[("fish", "color")],
-        object_parameter_values=[("fish", "Nemo", "color", color, alt) for (alt, color) in color_by_alt],
-    )
-    for (alt, color) in color_by_alt
-        M = Module()
-        using_spinedb(db_url, M; filters=Dict("alternatives" => [alt]))
-        @test M.color(fish=M.fish(:Nemo)) == Symbol(color)
-    end
 end
