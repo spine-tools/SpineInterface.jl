@@ -122,6 +122,8 @@ end
     parse_db_value(value, type)
 
 A parsed value (TimeSeries, TimePattern, Map, etc.) from given DB value and type.
+
+Note that parsing is skipped for already parsed DB values.
 """
 parse_db_value(value_and_type::Vector{Any}) = parse_db_value(value_and_type...)
 function parse_db_value(value::Vector{UInt8}, type::Union{String,Nothing})
@@ -131,7 +133,7 @@ end
 parse_db_value(::Nothing, type) = nothing
 parse_db_value(x) = _parse_db_value(x)
 
-_parse_db_value(value::Dict) = _parse_db_value(value, get(value, "type", nothing))
+_parse_db_value(value::Dict) = _parse_db_value(value, value["type"])
 _parse_db_value(value, type::String) = _parse_db_value(value, Val(Symbol(type)))
 _parse_db_value(value, ::Nothing) = _parse_db_value(value)
 _parse_db_value(value::Dict, ::Val{:date_time}) = _parse_date_time(value["data"])
@@ -164,6 +166,7 @@ function _parse_db_value(value::Dict, ::Val{:map})
     Map(inds, vals)
 end
 _parse_db_value(value::Float64) = isinteger(value) ? Int64(value) : value
+_parse_db_value(value::TimePattern) = value
 _parse_db_value(value) = value
 
 function _parse_date_time(data::String)
@@ -340,12 +343,12 @@ For `Map`s, perform recursion until non-map operands are found.
 
 NOTE! Currently, `Map-Map` operations require that `Map` indexes are identical!
 """
-timedata_operation(f::Function, x::TimeSeries, y::Number) = TimeSeries(
-    x.indexes, f.(x.values, y), x.ignore_year, x.repeat
-)
-timedata_operation(f::Function, y::Number, x::TimeSeries) = TimeSeries(
-    x.indexes, f.(y, x.values), x.ignore_year, x.repeat
-)
+function timedata_operation(f::Function, x::TimeSeries, y::Number)
+    TimeSeries(x.indexes, f.(x.values, y), x.ignore_year, x.repeat)
+end
+function timedata_operation(f::Function, y::Number, x::TimeSeries)
+    TimeSeries(x.indexes, f.(y, x.values), x.ignore_year, x.repeat)
+end
 timedata_operation(f::Function, x::TimePattern, y::Number) = Dict(key => f(val, y) for (key, val) in x)
 timedata_operation(f::Function, y::Number, x::TimePattern) = Dict(key => f(y, val) for (key, val) in x)
 function timedata_operation(f::Function, x::TimeSeries, y::TimeSeries)
@@ -384,11 +387,8 @@ function timedata_operation(f::Function, x::Union{Number,TimeSeries,TimePattern}
     Map(y.indexes, [timedata_operation(f, x, val) for val in values(y)])
 end
 function timedata_operation(f::Function, x::Map, y::Map)
-    x.indexes != y.indexes && error("`Map` indexes need to be indentical for `Map-Map` operations!")
-    Map(
-        x.indexes,
-        [timedata_operation(f, valx, valy) for (valx, valy) in zip(values(x), values(y))]
-    )
+    x.indexes != y.indexes && error("`Map` indexes need to be identical for `Map-Map` operations")
+    Map(x.indexes, [timedata_operation(f, val_x, val_y) for (val_x, val_y) in zip(values(x), values(y))])
 end
 
 """

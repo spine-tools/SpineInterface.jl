@@ -191,6 +191,46 @@ function _test_add_relationships()
         ])
     end
 end
+@testset "parse_db_value" begin
+    # Add parameter values of all types
+    scalar_value = 18
+    array_data = [4, 8, 7]
+    array_value = Dict("type" => "array", "value_type" => "float", "data" => array_data)
+    time_pattern_data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
+    time_pattern_value = Dict("type" => "time_pattern", "data" => time_pattern_data)
+    time_series_data = [1.0, 4.0, 5.0, -2.0, 7.0]
+    time_series_index =
+        Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
+    time_series_value =
+        Dict("type" => "time_series", "data" => time_series_data, "index" => time_series_index)
+    map_value = Dict(
+        "type" => "map",
+        "index_type" => "str",
+        "data" => Dict(
+            "drunk" => Dict(
+                "type" => "map",
+                "index_type" => "date_time",
+                "data" => Dict(
+                    "1999-12-01T00:00" => Dict(
+                        "type" => "time_series",
+                        "data" => [4.0, 5.6],
+                        "index" => Dict(
+                            "start" => "2000-01-01T00:00:00",
+                            "resolution" => "1M",
+                            "repeat" => false,
+                            "ignore_year" => true,
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+    @test parse_db_value(parse_db_value(scalar_value)) == parse_db_value(scalar_value)
+    @test parse_db_value(parse_db_value(array_value)) == parse_db_value(array_value)
+    @test parse_db_value(parse_db_value(time_pattern_value)) == parse_db_value(time_pattern_value)
+    @test parse_db_value(parse_db_value(time_series_value)) == parse_db_value(time_series_value)
+    @test parse_db_value(parse_db_value(map_value)) == parse_db_value(map_value)
+end
 
 function _test_add_object_parameter_values()
     @testset "add_object_parameter_values" begin

@@ -23,7 +23,7 @@
 using .JuMP
 import DataStructures: OrderedDict
 import LinearAlgebra: UniformScaling
-import .JuMP: MOI, MOIU
+import .JuMP: MOI, MOIU, MutableArithmetics
 
 _Constant = Union{Number,UniformScaling}
 
@@ -384,8 +384,10 @@ end
 # Call--VariableRef
 Base.:+(lhs::Call, rhs::VariableRef) = _build_aff_expr_with_calls(lhs, Call(1.0), rhs)
 Base.:+(lhs::VariableRef, rhs::Call) = (+)(rhs, lhs)
+
 Base.:-(lhs::Call, rhs::VariableRef) = _build_aff_expr_with_calls(lhs, Call(-1.0), rhs)
 Base.:-(lhs::VariableRef, rhs::Call) = (+)(lhs, - rhs)
+
 Base.:*(lhs::Call, rhs::VariableRef) = _build_aff_expr_with_calls(Call(0.0), lhs, rhs)
 Base.:*(lhs::VariableRef, rhs::Call) = (*)(rhs, lhs)
 
@@ -396,14 +398,17 @@ function Base.:+(lhs::Call, rhs::GenericAffExpr{C,VariableRef}) where {C}
     GenericAffExpr(constant, terms)
 end
 Base.:+(lhs::GenericAffExpr, rhs::Call) = (+)(rhs, lhs)
-Base.:-(lhs::Call, rhs::GenericAffExpr) = (+)(lhs, - rhs)
-Base.:-(lhs::GenericAffExpr, rhs::Call) = (+)(lhs, - rhs)
+
+Base.:-(lhs::Call, rhs::GenericAffExpr) = (+)(lhs, -rhs)
+Base.:-(lhs::GenericAffExpr, rhs::Call) = (+)(lhs, -rhs)
+
 function Base.:*(lhs::Call, rhs::GenericAffExpr{C,VariableRef}) where {C}
     constant = lhs * rhs.constant
     terms = OrderedDict{VariableRef,Call}(var => lhs * coef for (var, coef) in rhs.terms)
     GenericAffExpr(constant, terms)
 end
 Base.:*(lhs::GenericAffExpr, rhs::Call) = (*)(rhs, lhs)
+
 Base.:/(lhs::Call, rhs::GenericAffExpr) = (*)(lhs, 1.0 / rhs)
 Base.:/(lhs::GenericAffExpr, rhs::Call) = (*)(lhs, 1.0 / rhs)
 
@@ -415,6 +420,7 @@ function Base.:+(lhs::GenericAffExpr{Call,VariableRef}, rhs::GenericAffExpr{C,Va
     JuMP.add_to_expression!(copy(lhs), rhs)
 end
 Base.:+(lhs::GenericAffExpr{C,VariableRef}, rhs::GenericAffExpr{Call,VariableRef}) where {C} = (+)(rhs, lhs)
+
 Base.:-(lhs::GenericAffExpr{Call,VariableRef}, rhs::GenericAffExpr{Call,VariableRef}) = (+)(lhs, - rhs)
 Base.:-(lhs::GenericAffExpr{Call,VariableRef}, rhs::GenericAffExpr{C,VariableRef}) where {C} = (+)(lhs, - rhs)
 Base.:-(lhs::GenericAffExpr{C,VariableRef}, rhs::GenericAffExpr{Call,VariableRef}) where {C} = (+)(lhs, - rhs)
@@ -430,3 +436,5 @@ function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})
     str = string(join([string(coef, " * ", var) for (var, coef) in e.terms], " + "), " + ", e.constant)
     print(io, str)
 end
+
+MutableArithmetics.operate!(f::Function, lhs::GenericAffExpr{Call, VariableRef}, rhs::Call) = f(lhs, rhs)

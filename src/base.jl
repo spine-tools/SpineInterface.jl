@@ -193,6 +193,13 @@ function _sum_call(args)
     end
 end
 
+function _split!(f, arr)
+    i = findall(f, arr)
+    result = arr[i]
+    deleteat!(arr, i)
+    result
+end
+
 function _final_sum_call(args)
     if isempty(args)
         nothing
@@ -313,9 +320,13 @@ Base.:^(m::Map, x::Union{Number,TimeSeries,TimePattern}) = timedata_operation(^,
 Base.:^(x::Union{Number,TimeSeries,TimePattern}, m::Map) = timedata_operation(^, x, m)
 Base.:^(m1::Map, m2::Map) = timedata_operation(^, m1, m2)
 
-Base.:min(x::Call, y::Call) = Call(min, [x, y])
-Base.:min(x::Call, y) = Call(min, [x, y])
-Base.:min(x, y::Call) = Call(min, [x, y])
+Base.min(x::Call, y::Call) = Call(min, [x, y])
+Base.min(x::Call, y) = Call(min, [x, y])
+Base.min(x, y::Call) = Call(min, [x, y])
+
+Base.max(x::Call, y::Call) = Call(max, [x, y])
+Base.max(x::Call, y) = Call(max, [x, y])
+Base.max(x, y::Call) = Call(max, [x, y])
 
 _arg(x::Call) = _arg(x.func, x)
 _arg(::Nothing, x) = x.args[1]
@@ -325,13 +336,6 @@ _args(op, x::Call) = _args(op, x.func, x)
 _args(op, ::Nothing, x) = x.args[1]
 _args(op, ::T, x) where T<:Union{ParameterValue,Function} = x
 _args(op::T, ::T, x) where T<:Function = x.args
-
-function _split!(f, arr)
-    i = findall(f, arr)
-    result = arr[i]
-    deleteat!(arr, i)
-    result
-end
 
 Base.values(ts::TimeSeries) = ts.values
 Base.values(m::Map) = m.values
@@ -428,11 +432,8 @@ function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
 end
 
 function Base.get!(x::Union{TimeSeries,Map}, key, default)
-    i = searchsortedfirst(x.indexes, key)
-    if get(x.indexes, i, nothing) == key
-        x.values[i]
-    else
-        x.values[i] = default
+    get!(x, key) do
+        default
     end
 end
 function Base.get!(f::Function, x::Union{TimeSeries,Map}, key)
