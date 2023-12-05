@@ -697,11 +697,15 @@ end
 
 function _export_data(db; filters=Dict())
     isempty(filters) && return _run_server_request(db, "export_data")
-    old_filters = _run_server_request(db, "call_method", ("get_filter_configs",))
+    old_filters = Dict(
+        k => v
+        for (k, v) in merge!(_run_server_request(db, "call_method", ("get_filter_configs",))...)
+        if k in ("alternatives", "scenario", "tool")
+    )
     _run_server_request(db, "apply_filters", (filters,))
     data = _run_server_request(db, "export_data")
     _run_server_request(db, "clear_filters")
-    isempty(old_filters) || _run_server_request(db, "apply_filters", Tuple(old_filters))
+    isempty(old_filters) || _run_server_request(db, "apply_filters", (old_filters,))
     data
 end
 
