@@ -285,7 +285,7 @@ function _get_time_series_value(pv, t::TimeSlice, callback)
     t_start, t_end = start(adjusted_t), end_(adjusted_t)
     a, b = _search_overlap(pv.value, t_start, t_end)
     if callback !== nothing
-        timeout = min(_next_index(pv.value, a) - t_start, _next_index(pv.value, b) + Millisecond(1) - t_end)
+        timeout = _timeout(pv.value, t_start, t_end, a, b)
         _add_callback(t, timeout, callback)
     end
     t_end <= pv.value.indexes[1] && return NaN
@@ -311,7 +311,7 @@ function _get_repeating_time_series_value(pv, t::TimeSlice, callback)
     t_end -= reps_end * pv.span
     a, b = _search_overlap(pv.value, t_start, t_end)
     if callback !== nothing
-        timeout = min(_next_index(pv.value, a) - t_start, _next_index(pv.value, b) + Millisecond(1) - t_end)
+        timeout = _timeout(pv.value, t_start, t_end, a, b)
         _add_callback(t, timeout, callback)
     end
     reps = reps_end - reps_start
@@ -378,6 +378,10 @@ end
 _search_nearest(arr, x) = nothing
 
 _next_index(val::Union{TimeSeries,Map}, pos) = val.indexes[min(pos + 1, length(val.indexes))]
+
+function _timeout(val::TimeSeries, t_start, t_end, a, b)
+    min(_next_index(val, a) - t_start, _next_index(val, b) + Millisecond(1) - t_end)
+end
 
 function _add_callback(t::TimeSlice, timeout, callback)
     callbacks = get!(t.callbacks, timeout) do
