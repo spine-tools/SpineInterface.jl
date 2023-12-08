@@ -345,6 +345,23 @@ Base.keys(ts::TimeSeries) = ts.indexes
 Base.keys(m::Map) = m.indexes
 Base.keys(pv::ParameterValue{T}) where {T<:_Indexed} = keys(pv.value)
 
+function Base.empty!(x::ObjectClass)
+    empty!(x.objects)
+    empty!(x.parameter_values)
+    empty!(x.parameter_defaults)
+end
+function Base.empty!(x::RelationshipClass)
+    empty!(x.intact_object_class_names)
+    empty!(x.object_class_names)
+    empty!(x.relationships)
+    empty!(x.parameter_values)
+    empty!(x.parameter_defaults)
+    empty!(x.lookup_cache)
+end
+function Base.empty!(x::Parameter)
+    empty!(x.classes)
+end
+
 function Base.merge!(a::TimeSeries, b::TimeSeries)
     for (b_index, b_value) in b
         a[b_index] = b_value
@@ -398,7 +415,7 @@ function Base.getindex(x::Union{TimeSeries,Map}, key)
     if get(x.indexes, i, nothing) == key
         x.values[i]
     else
-        throw(KeyError(x, key))
+        throw(BoundsError(x, key))
     end
 end
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
