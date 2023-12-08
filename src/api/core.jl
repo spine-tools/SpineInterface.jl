@@ -618,15 +618,17 @@ parameter(name, m=@__MODULE__) = get(_getproperty(m, :_spine_parameters, Dict())
 """
     difference(left, right)
 
-A string sumarizing spine values (ObjectClass, RelationshipClass, Parameter) from module `left`
-that are absent from module `right`.
+A string summarizing the differences between the `left` and the right `Dict`s.
+Both `left` and `right` are mappings from string to an array.
 """
 function difference(left, right)
-    _name(x) = x.name
     diff = OrderedDict(
-        "object classes" => setdiff(_name.(object_classes(left)), _name.(object_classes(right))),
-        "relationship classes" => setdiff(_name.(relationship_classes(left)), _name.(relationship_classes(right))),
-        "parameters" => setdiff(_name.(parameters(left)), _name.(parameters(right))),
+        "object classes" => setdiff(first.(left["object_classes"]), first.(right["object_classes"])),
+        "relationship classes" => setdiff(first.(left["relationship_classes"]), first.(right["relationship_classes"])),
+        "parameters" => setdiff(
+            (x -> x[2]).(vcat(left["object_parameters"], left["relationship_parameters"])),
+            (x -> x[2]).(vcat(right["object_parameters"], right["relationship_parameters"])),
+        ),
     )
     header_size = maximum(length(key) for key in keys(diff))
     empty_header = repeat(" ", header_size)
