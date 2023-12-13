@@ -62,14 +62,10 @@ julia> commodity(state_of_matter=commodity(:gas))
 """
 function (oc::ObjectClass)(; kwargs...)
     isempty(kwargs) && return _ClassAccess(oc.entities[!, [oc.name]])
-    function cond(o)
-        for (p, v) in kwargs
-            value = get(oc.parameter_values[o], p, get(oc.parameter_defaults, p, nothing))
-            (value !== nothing && value() === v) || return false
-        end
-        true
-    end
-    filter(cond, oc.objects)
+    df = oc.entities
+    transforms = (p_name => ByRow(x -> _default_if_missing(x, oc, p_name)() == val) for (p_name, val) in kwargs)
+    df = subset(oc.entities, transforms...)
+    _ClassAccess(df[!, [oc.name]])
 end
 function (oc::ObjectClass)(name::Symbol)
     objects = filter(oc.name => obj -> obj.name == name, oc.entities)[!, oc.name]
@@ -142,15 +138,10 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs
     object_class_names, collect(keys(kwargs))
     _compact && setdiff!(object_class_names, keys(kwargs))
     isempty(object_class_names) && return _default
-    df = rc.entities[!, 1:dim_count]
-    fn = reduce(.&, in.(df[!, class_name], Ref(object_names)) for (class_name, object_names) in kwargs)
-    df = df[fn, :]
+    df = _subset(rc.entities[!, 1:dim_count]; kwargs...)
     isempty(df) && return _default
     _ClassAccess(df[!, object_class_names])    
 end
-
-_immutable(x) = x
-_immutable(arr::T) where {T<:AbstractArray} = (length(arr) == 1) ? first(arr) : Tuple(arr)
 
 """
     (<p>::Parameter)(;<keyword arguments>)
@@ -422,12 +413,10 @@ julia> collect(indices(demand))
 ```
 """
 function indices(p::Parameter; kwargs...)
-    (
-        ent
-        for class in p.classes
-        for ent in _entities(class; kwargs...)
-        if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
-    )
+    row_processor(oc::ObjectClass, row) = first(row)
+    row_processor(oc::RelationshipClass, row) = NamedTuple(row)
+
+    return _indices(p, row_processor; kwargs...)
 end
 
 """
@@ -436,13 +425,25 @@ end
 Like `indices` but also yields tuples for single-dimensional entities.
 """
 function indices_as_tuples(p::Parameter; kwargs...)
+    return _indices(p, (_class, row) -> NamedTuple(row); kwargs...)
+end
+
+function _indices(p::Parameter, row_processor; kwargs...)
     (
-        _entity_tuple(ent, class)
+        row_processor(class, row)
         for class in p.classes
-        for ent in _entities(class; kwargs...)
-        if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
+        for row in eachrow(
+            subset(
+                class.entities,
+                p.name => ByRow(x -> _default_if_missing(x, class, p.name)() !== nothing),
+                _transforms(kwargs)...
+            )[!, _object_class_names(class)]
+        )
     )
 end
+
+_default_if_missing(x, _oc, _p_name) = x
+_default_if_missing(::Missing, oc, p_name) = oc.default_parameter_values[p_name]
 
 """
     maximum_parameter_value(p::Parameter)
@@ -458,12 +459,6 @@ function maximum_parameter_value(p::Parameter)
     isempty(pvs_skip_nothing) && return nothing
     maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)
 end
-
-_entities(class::ObjectClass; kwargs...) = class()
-_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
-
-_entity_key(o::ObjectLike) = o
-_entity_key(r::RelationshipLike) = tuple(r...)
 
 _entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
 _entity_tuple(r::RelationshipLike, class) = r

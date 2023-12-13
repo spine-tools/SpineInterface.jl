@@ -95,9 +95,12 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     _strict &= _default === nothing
     for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
         entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
-        parameter_values = _entity_pvals(class.parameter_values, entity)
-        parameter_values === nothing && continue
-        return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
+        val = _entity_pval(class, entity, p.name)
+        val === nothing && continue
+        if val === missing
+            val = _default === nothing ? class.default_parameter_values[p.name] : parameter_value(_default)
+        end
+        return val, new_kwargs
     end
     if _strict
         error("can't find a value of $p for argument(s) $((; kwargs...))")
@@ -105,38 +108,30 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
 end
 
 _dimensionality(x::ObjectClass) = 0
-_dimensionality(x::RelationshipClass) = length(x.object_class_names)
+_dimensionality(x::RelationshipClass) = length(_object_class_names(class))
 
 function _split_entity_kwargs(class::ObjectClass; kwargs...)
     new_kwargs = OrderedDict(kwargs...)
-    pop!(new_kwargs, class.name, missing), (; new_kwargs...)
+    Dict(class.name => pop!(new_kwargs, class.name, anything)), (; new_kwargs...)
 end
 function _split_entity_kwargs(class::RelationshipClass; kwargs...)
     new_kwargs = OrderedDict(kwargs...)
-    objects = Tuple(pop!(new_kwargs, oc, missing) for oc in class.object_class_names)
-    objects, (; new_kwargs...)
+    entity = Dict(oc_name => pop!(new_kwargs, oc_name, anything) for oc_name in _object_class_names(class))
+    entity, (; new_kwargs...)
 end
 
-_entity_pvals(pvals_by_entity, ::Nothing) = nothing
-_entity_pvals(pvals_by_entity, entity) = _entity_pvals(pvals_by_entity, entity, get(pvals_by_entity, entity, nothing))
-_entity_pvals(pvals_by_entity, entity, pvals) = pvals
-_entity_pvals(pvals_by_entity, ::Missing, ::Nothing) = nothing
-_entity_pvals(pvals_by_entity, ::NTuple{N,Missing}, ::Nothing) where {N} = nothing
-function _entity_pvals(pvals_by_entity, entity::Tuple, ::Nothing)
-    any(x === missing for x in entity) || return nothing
-    matched = nothing
-    for (key, value) in pvals_by_entity
-        if _matches(key, entity)
-            matched === nothing || return nothing
-            matched = value
-        end
-    end
-    matched
+_object_class_names(oc::ObjectClass) = [oc.name]
+_object_class_names(rc::RelationshipClass) = Symbol.(names(rc.entities)[1:length(rc.intact_object_class_names)])
+
+function _entity_pval(class, entity, p_name)
+    df = _subset(class.entities; entity...)
+    nrow(df) != 1 && return nothing
+    df[1, p_name]
 end
 
-_matches(first::Tuple, second::Tuple) = all(_matches(x, y) for (x, y) in zip(first, second))
-_matches(x, ::Missing) = true
-_matches(x, y) = x == y
+_subset(df; kwargs...) = subset(df, _transforms(kwargs)...)
+
+_transforms(kwargs) = (class_name => x -> in.(x, Ref(object_names)) for (class_name, object_names) in kwargs)
 
 struct _CallNode
     call::Call

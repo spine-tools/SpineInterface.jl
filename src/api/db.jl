@@ -250,8 +250,9 @@ end
 An Array of parameter values.
 """
 function _relationship_parameter_values(class_name, object_names_tuple, param_name, param_vals_per_ent)
+    all(isempty(x) for x in object_names_tuple) && return []
     vals_by_obj_name_lst = (
-        obj_name_lst => get(param_vals_per_ent, (class_name, obj_name_lst, param_name), missing)
+        obj_name_lst => get(param_vals_per_ent, (class_name, collect(obj_name_lst), param_name), missing)
         for obj_name_lst in zip(object_names_tuple...)
     )
     [
@@ -279,7 +280,6 @@ function _try_parameter_value_from_db(db_value, err_msg)
     end
 end
 _try_parameter_value_from_db(::Missing, _err_msg) = missing
-
 
 """
 A Dict mapping parameter names to an Array of class names where the parameter is defined.
