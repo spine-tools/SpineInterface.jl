@@ -61,7 +61,7 @@ julia> commodity(state_of_matter=commodity(:gas))
 ```
 """
 function (oc::ObjectClass)(; kwargs...)
-    isempty(kwargs) && return oc.objects
+    isempty(kwargs) && return _ClassAccess(oc.entities[!, [oc.name]])
     function cond(o)
         for (p, v) in kwargs
             value = get(oc.parameter_values[o], p, get(oc.parameter_defaults, p, nothing))
@@ -72,9 +72,9 @@ function (oc::ObjectClass)(; kwargs...)
     filter(cond, oc.objects)
 end
 function (oc::ObjectClass)(name::Symbol)
-    i = findfirst(o -> o.name == name, oc.objects)
-    i != nothing && return oc.objects[i]
-    nothing
+    objects = filter(oc.name => obj -> obj.name == name, oc.entities)[!, oc.name]
+    isempty(objects) && return nothing
+    first(objects)
 end
 (oc::ObjectClass)(name::String) = oc(Symbol(name))
 
@@ -135,29 +135,18 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 ```
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
-    isempty(kwargs) && return rc.relationships
-    lookup_key = Tuple(_immutable(get(kwargs, oc, nothing)) for oc in rc.object_class_names)
-    relationships = get!(rc.lookup_cache[_compact], lookup_key) do
-        cond(rel) = all(rel[rc] in r for (rc, r) in kwargs)
-        filtered = filter(cond, rc.relationships)
-        if !_compact
-            filtered
-        else
-            object_class_names = setdiff(rc.object_class_names, keys(kwargs))
-            if isempty(object_class_names)
-                []
-            elseif length(object_class_names) == 1
-                unique(x[object_class_names[1]] for x in filtered)
-            else
-                unique(NamedTuple{Tuple(object_class_names)}([x[k] for k in object_class_names]) for x in filtered)
-            end
-        end
-    end
-    if !isempty(relationships)
-        relationships
-    else
-        _default
-    end
+    # TODO: _default
+    dim_count = length(rc.intact_object_class_names)
+    isempty(kwargs) && return _ClassAccess(rc.entities[!, 1:dim_count])
+    object_class_names = Symbol.(names(rc.entities)[1:dim_count])
+    object_class_names, collect(keys(kwargs))
+    _compact && setdiff!(object_class_names, keys(kwargs))
+    isempty(object_class_names) && return _default
+    df = rc.entities[!, 1:dim_count]
+    fn = reduce(.&, in.(df[!, class_name], Ref(object_names)) for (class_name, object_names) in kwargs)
+    df = df[fn, :]
+    isempty(df) && return _default
+    _ClassAccess(df[!, object_class_names])    
 end
 
 _immutable(x) = x
@@ -215,7 +204,6 @@ A value from `pv`.
 """
 function (pv::ParameterValue)(callback=nothing; kwargs...) end
 
-# _Scalar
 (pv::ParameterValue{T} where T<:_Scalar)(callback=nothing; kwargs...) = pv.value
 (pv::ParameterValue{T} where T<:Array)(callback=nothing; i::Union{Int64,Nothing}=nothing, kwargs...) = _get_value(pv, i)
 function (pv::ParameterValue{T} where T<:TimePattern)(

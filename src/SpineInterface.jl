@@ -21,6 +21,7 @@ module SpineInterface
 
 using DataStructures
 using Dates
+using DataFrames
 using JSON
 using Sockets
 using Statistics

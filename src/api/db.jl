@@ -75,9 +75,7 @@ end
 A Dict mapping `Int64` ids to the corresponding `Object`.
 """
 function _full_objects_per_id(objects, members_per_group, groups_per_member)
-    objects_per_id = Dict(
-        (class_name, name) => Object(name, class_name) for (class_name, name) in objects
-    )
+    objects_per_id = Dict((class_name, name) => Object(name, class_name) for (class_name, name) in objects)
     # Specify `members` for each group
     for (id, object) in objects_per_id
         member_ids = get(members_per_group, id, ())
@@ -96,10 +94,37 @@ end
 """
 A Dict mapping class ids to an Array of entities in that class.
 """
-function _entities_per_class(entities)
+function _objects_per_class(objects)
     d = Dict()
-    for ent in entities
-        push!(get!(d, ent[1], []), ent)
+    sizehint!(d, length(objects))
+    for (class_name, obj_name) in objects
+        arr = get!(d, class_name) do
+            arr = Any[]
+            sizehint!(arr, length(objects))
+            arr
+        end
+        push!(arr, obj_name)
+    end
+    d
+end
+
+"""
+A Dict mapping class ids to an Array of entities in that class.
+"""
+function _relationships_per_class(relationships)
+    d = Dict()
+    sizehint!(d, length(relationships))
+    for (class_name, obj_name_lst) in relationships
+        arr_tup = get!(d, class_name) do
+            arr_tup = Tuple(Any[] for _o in obj_name_lst)
+            for arr in arr_tup
+                sizehint!(arr, length(relationships))
+            end
+            arr_tup
+        end
+        for (arr, obj_name) in zip(arr_tup, obj_name_lst)
+            push!(arr, obj_name)
+        end
     end
     d
 end
@@ -125,14 +150,115 @@ function _parameter_values_per_entity(param_values)
     )
 end
 
-function _try_parameter_value_from_db(db_value, err_msg)
-    try
-        parameter_value(parse_db_value(db_value))
-    catch e
-        rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
-    end
+"""
+A Dict mapping object class names to arguments.
+"""
+function _obj_args_per_class(classes, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
+    Dict(
+        Symbol(class[1]) => _obj_class_args(
+            class, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
+        )
+        for class in classes
+    )
 end
 
+function _obj_class_args(class, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
+    class_name, = class
+    object_names = get(objs_per_cls, class_name, ())
+    param_defs = get(param_defs_per_cls, class_name, ())
+    (
+        _obj_and_vals(class_name, object_names, full_objs_per_id, param_defs, param_vals_per_ent),
+        _default_parameter_values(param_defs),
+    )
+end
+
+function _obj_and_vals(class_name, object_names, full_objs_per_id, param_defs, param_vals_per_ent)
+    param_vals = (
+        Symbol(param_name) => _object_parameter_values(class_name, object_names, param_name, param_vals_per_ent)
+        for (class_name, param_name) in param_defs
+    )
+    objects = Dict(Symbol(class_name) => [full_objs_per_id[class_name, obj_name] for obj_name in object_names])
+    DataFrame(; objects..., param_vals...)
+end
+
+"""
+An Array of parameter values.
+"""
+function _object_parameter_values(class_name, object_names, param_name, param_vals_per_ent)
+    vals_by_obj_name = (
+        obj_name => get(param_vals_per_ent, (class_name, obj_name, param_name), missing) for obj_name in object_names
+    )
+    [
+        _try_parameter_value_from_db(val, "unable to parse value of `$param_name` for `$entity_name`")
+        for (entity_name, val) in vals_by_obj_name
+    ]
+end
+
+"""
+A Dict mapping relationship class names to arguments.
+"""
+function _rel_args_per_class(classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
+    Dict(
+        Symbol(class[1]) => _rel_class_args(
+            class, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
+        )
+        for class in classes
+    )
+end
+
+function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
+    class_name, object_class_name_list = class
+    object_names_tuple = get(rels_per_cls, class_name, ())
+    param_defs = get(param_defs_per_cls, class_name, ())
+    (
+        Symbol.(object_class_name_list),
+        _rels_and_vals(object_class_name_list, object_names_tuple, full_objs_per_id, param_defs, param_vals_per_ent),
+        _default_parameter_values(param_defs),
+    )
+end
+
+function _rels_and_vals(object_class_name_list, object_names_tuple, full_objs_per_id, param_defs, param_vals_per_ent)
+    param_vals = (
+        Symbol(param_name) => _relationship_parameter_values(
+            class_name, object_names_tuple, param_name, param_vals_per_ent
+        )
+        for (class_name, param_name) in param_defs
+    )
+    relationships = Dict(
+        Symbol(fixed_class_name) => [full_objs_per_id[class_name, obj_name] for obj_name in object_names]
+        for (class_name, fixed_class_name, object_names) in zip(
+            object_class_name_list, _fix_name_ambiguity(object_class_name_list), object_names_tuple
+        )
+    )
+    DataFrame(; relationships..., param_vals...)
+end
+
+"""
+Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
+"""
+function _fix_name_ambiguity(intact_name_list)
+    name_list = copy(intact_name_list)
+    for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
+        for (k, index) in enumerate(findall(name_list .== ambiguous))
+            name_list[index] = Symbol(name_list[index], k)
+        end
+    end
+    name_list
+end
+
+"""
+An Array of parameter values.
+"""
+function _relationship_parameter_values(class_name, object_names_tuple, param_name, param_vals_per_ent)
+    vals_by_obj_name_lst = (
+        obj_name_lst => get(param_vals_per_ent, (class_name, obj_name_lst, param_name), missing)
+        for obj_name_lst in zip(object_names_tuple...)
+    )
+    [
+        _try_parameter_value_from_db(val, "unable to parse value of `$param_name` for `$obj_name_lst`")
+        for (obj_name_lst, val) in vals_by_obj_name_lst
+    ]
+end
 """
 A Dict mapping parameter names to their default values.
 """
@@ -145,98 +271,26 @@ function _default_parameter_values(param_defs)
     )
 end
 
-"""
-A Dict mapping parameter names to their values for a given entity.
-"""
-function _parameter_values(entity_name, param_defs, param_vals_per_ent)
-    Dict(
-        Symbol(param_name) => _try_parameter_value_from_db(
-            value, "unable to parse value of `$param_name` for `$entity_name`"
-        )
-        for (param_name, value) in (
-            (param_name, get(param_vals_per_ent, (class_name, entity_name, param_name), nothing))
-            for (class_name, param_name) in param_defs
-        )
-        if value !== nothing
-    )
+function _try_parameter_value_from_db(db_value, err_msg)
+    try
+        parameter_value(parse_db_value(db_value))
+    catch e
+        rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
+    end
 end
+_try_parameter_value_from_db(::Missing, _err_msg) = missing
 
-function _obj_class_args(class, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    class_name, = class
-    objects = get(objs_per_cls, class_name, ())
-    param_defs = get(param_defs_per_cls, class_name, ())
-    (
-        _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)...,
-        _default_parameter_values(param_defs),
-    )
-end
-
-function _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)
-    objects = [full_objs_per_id[class_name, obj_name] for (class_name, obj_name) in objects]
-    param_vals = Dict(obj => _parameter_values(string(obj.name), param_defs, param_vals_per_ent) for obj in objects)
-    objects, param_vals
-end
-
-function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    class_name, object_class_name_list = class
-    relationships = get(rels_per_cls, class_name, ())
-    param_defs = get(param_defs_per_cls, class_name, ())
-    (
-        Symbol.(object_class_name_list),
-        _rels_and_vals(object_class_name_list, relationships, full_objs_per_id, param_defs, param_vals_per_ent)...,
-        _default_parameter_values(param_defs),
-    )
-end
-
-function _rels_and_vals(object_class_name_list, relationships, full_objs_per_id, param_defs, param_vals_per_ent)
-    object_tuples = [
-        Tuple(
-            full_objs_per_id[cls_name, obj_name]
-            for (cls_name, obj_name) in zip(object_class_name_list, object_name_list)
-        )
-        for (rel_cls_name, object_name_list) in relationships
-    ]
-    param_vals = Dict(
-        object_tuple => _parameter_values(string.(obj.name for obj in object_tuple), param_defs, param_vals_per_ent)
-        for object_tuple in object_tuples
-    )
-    object_tuples, param_vals
-end
-
-"""
-A Dict mapping object class names to arguments.
-"""
-function _obj_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    Dict(
-        Symbol(class[1]) => _obj_class_args(
-            class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-        )
-        for class in classes
-    )
-end
-
-"""
-A Dict mapping relationship class names to arguments.
-"""
-function _rel_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    Dict(
-        Symbol(class[1]) => _rel_class_args(
-            class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-        )
-        for class in classes
-    )
-end
 
 """
 A Dict mapping parameter names to an Array of class names where the parameter is defined.
 The Array of class names is sorted by decreasing number of dimensions in the class.
-Note that for object classes, the number of dimensions is one.
+Note that for object classes, the number of dimensions is zero.
 """
 function _class_names_per_parameter(object_classes, relationship_classes, param_defs)
     d = Dict()
     for (class_name,) in object_classes
         class_param_defs = get(param_defs, class_name, ())
-        dim_count = 1
+        dim_count = 0
         for (class_name, parameter_name) in class_param_defs
             push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), dim_count))
         end
@@ -266,8 +320,8 @@ function _generate_convenience_functions(data, mod; filters, extend)
     members_per_group = _members_per_group(object_groups)
     groups_per_member = _groups_per_member(object_groups)
     full_objs_per_id = _full_objects_per_id(objects, members_per_group, groups_per_member)
-    objs_per_cls = _entities_per_class(objects)
-    rels_per_cls = _entities_per_class(relationships)
+    objs_per_cls = _objects_per_class(objects)
+    rels_per_cls = _relationships_per_class(relationships)
     param_defs_per_cls = _parameter_definitions_per_class(param_defs)
     param_vals_per_ent = _parameter_values_per_entity(param_vals)
     args_per_obj_cls = _obj_args_per_class(

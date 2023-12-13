@@ -83,10 +83,9 @@ A type for representing an object class from a Spine db.
 """
 struct ObjectClass
     name::Symbol
-    objects::Array{ObjectLike,1}
-    parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
-    parameter_defaults::Dict{Symbol,ParameterValue}
-    ObjectClass(name, objects, vals=Dict(), defaults=Dict()) = new(name, objects, vals, defaults)
+    entities::DataFrame
+    default_parameter_values::Dict{Symbol,Any}
+    ObjectClass(name, entities, defaults=Dict()) = new(name, entities, defaults)
 end
 
 """
@@ -97,29 +96,11 @@ A type for representing a relationship class from a Spine db.
 struct RelationshipClass
     name::Symbol
     intact_object_class_names::Array{Symbol,1}
-    object_class_names::Array{Symbol,1}
-    relationships::Array{RelationshipLike,1}
-    parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
-    parameter_defaults::Dict{Symbol,ParameterValue}
-    lookup_cache::Dict{Bool,Dict}
-    function RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
-        cls_names = _fix_name_ambiguity(intact_cls_names)
-        rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
-        new(name, intact_cls_names, cls_names, rels, vals, defaults, Dict(:true => Dict(), :false => Dict()))
+    entities::DataFrame
+    default_parameter_values::Dict{Symbol,Any}
+    function RelationshipClass(name, intact_cls_names, entities, defaults=Dict())
+        new(name, intact_cls_names, entities, defaults)
     end
-end
-
-"""
-Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
-"""
-function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
-    name_list = copy(intact_name_list)
-    for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
-        for (k, index) in enumerate(findall(name_list .== ambiguous))
-            name_list[index] = Symbol(name_list[index], k)
-        end
-    end
-    name_list
 end
 
 """
@@ -132,6 +113,34 @@ struct Parameter
     classes::Array{Union{ObjectClass,RelationshipClass},1}
     Parameter(name, classes=[]) = new(name, classes)
 end
+
+struct _ClassAccess
+    df::DataFrame
+end
+
+function Base.iterate(access::_ClassAccess, state=1)
+    if state > nrow(access.df)
+        nothing
+    else
+        if ncol(access.df) == 1
+            access.df[state, 1], state + 1
+        else
+            NamedTuple(access.df[state, :]), state + 1
+        end
+    end
+end
+
+Base.length(access::_ClassAccess) = nrow(access.df)
+
+#=
+innerjoin(
+    innerjoin(
+        node__temporal_block(node=node, temporal_block=temporal_block),
+        temporal_block_group(group=temporal_block); on=[:temporal_block => :group]
+    ),
+    temporal_block__t(temporal_block=temporal_block, t=t); on=[:member => :temporal_block]
+)
+=#
 
 """
     TimeInterval

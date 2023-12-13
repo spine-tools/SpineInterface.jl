@@ -359,7 +359,11 @@ function Base.merge!(a::Map, b::Map)
             b_value
         end
         defaultset && continue
-        merge!(a_value, b_value)
+        try
+            merge!(a_value, b_value)
+        catch
+            a[b_index] = b_value
+        end
     end
     a
 end
@@ -424,7 +428,12 @@ function Base.get!(f::Function, x::Union{TimeSeries,Map}, key)
     if get(x.indexes, i, nothing) == key
         x.values[i]
     else
-        x.values[i] = f()
+        if i == length(x.values) + 1
+            push!(x.indexes, key)
+            push!(x.values, f())
+        else
+            x.values[i] = f()
+        end
     end
 end
 
