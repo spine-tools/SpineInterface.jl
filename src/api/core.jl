@@ -132,9 +132,9 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
     # TODO: _default
-    dim_count = length(rc.intact_object_class_names)
+    dim_count = _dimensionality(rc)
     isempty(kwargs) && return _ClassAccess(rc.entities[!, 1:dim_count])
-    object_class_names = Symbol.(names(rc.entities)[1:dim_count])
+    object_class_names = _object_class_names(rc)
     object_class_names, collect(keys(kwargs))
     _compact && setdiff!(object_class_names, keys(kwargs))
     isempty(object_class_names) && return _default
@@ -490,23 +490,20 @@ Remove from `objects` everything that's already in `object_class`, and append th
 Return the modified `object_class`.
 """
 function add_objects!(object_class::ObjectClass, objects::Array)
-    setdiff!(objects, object_class.objects)
-    append!(object_class.objects, objects)
-    merge!(object_class.parameter_values, Dict(obj => Dict() for obj in objects))
+    setdiff!(objects, collect(object_class()))
+    append!(object_class.entities, DataFrame(; Dict(object_class.name => objects)...); cols=:subset)
     object_class
 end
 
 function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
     add_objects!(object_class, collect(keys(parameter_values)))
-    _merge! = merge_values ? mergewith!(merge!) : merge!
-    for (obj, vals) in parameter_values
-        _merge!(object_class.parameter_values[obj], vals)
-    end
+    _obj_from_row(row) = row[object_class.name]
+    _add_parameter_values!(_obj_from_row, object_class, parameter_values; merge_values=merge_values)
 end
 
 function add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
     _merge! = merge_values ? mergewith!(merge!) : merge!
-    _merge!(object_class.parameter_defaults, parameter_defaults)
+    _merge!(object_class.default_parameter_values, parameter_defaults)
 end
 
 function add_object!(object_class::ObjectClass, object::ObjectLike)
@@ -524,13 +521,12 @@ function add_relationships!(relationship_class::RelationshipClass, object_tuples
     add_relationships!(relationship_class, relationships)
 end
 function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
-    relationships = setdiff(relationships, relationship_class.relationships)
-    append!(relationship_class.relationships, relationships)
-    merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
-    if !isempty(relationships)
-        empty!(relationship_class.lookup_cache[:true])
-        empty!(relationship_class.lookup_cache[:false])
-    end
+    relationships = setdiff(relationships, collect(relationship_class()))
+    append!(
+        relationship_class.entities,
+        DataFrame(; (cn => getproperty.(relationships, cn) for cn in _object_class_names(relationship_class))...);
+        cols=:subset
+    )
     relationship_class
 end
 
@@ -538,23 +534,44 @@ function add_relationship_parameter_values!(
     relationship_class::RelationshipClass, parameter_values::Dict; merge_values=false
 )
     add_relationships!(relationship_class, collect(keys(parameter_values)))
-    _merge! = merge_values ? mergewith!(merge!) : merge!
-    for (rel, vals) in parameter_values
-        obj_tup = values(rel)
-        _merge!(relationship_class.parameter_values[obj_tup], vals)
-    end
+    _rel_from_row(row) = NamedTuple(n => row[n] for n in _object_class_names(relationship_class))
+    _add_parameter_values!(_rel_from_row, relationship_class, parameter_values; merge_values=merge_values)
 end
 
 function add_relationship_parameter_defaults!(
     relationship_class::RelationshipClass, parameter_defaults::Dict; merge_values=false
 )
     _merge! = merge_values ? mergewith!(merge!) : merge!
-    _merge!(relationship_class.parameter_defaults, parameter_defaults)
+    _merge!(relationship_class.default_parameter_values, parameter_defaults)
 end
 
 function add_relationship!(relationship_class::RelationshipClass, relationship::RelationshipLike)
     add_relationships!(relationship_class, [relationship])
 end
+
+function _add_parameter_values!(ent_from_row, class, parameter_values; merge_values)
+    make_pval = merge_values ? _merge_pvals : _replace_pval
+
+    function _transform(row)
+        ent = ent_from_row(row)
+        row_d = Dict(pairs(row)...)
+        for (p_name, new_pval) in get(parameter_values, ent, ())
+            row_d[p_name] = make_pval(row_d, p_name, new_pval)
+        end
+        (; row_d...)
+    end
+
+    new_param_names = unique(Iterators.flatten(keys.(values(parameter_values))))
+    setdiff!(new_param_names, propertynames(class.entities))
+    insertcols!(class.entities, (p_name => missing for p_name in new_param_names)...)
+    transform!(class.entities, AsTable(:) => ByRow(_transform) => AsTable)
+end
+
+_merge_pvals(row_d, p_name, new_pval) = _merge_pvals(row_d[p_name], new_pval)
+_merge_pvals(old_pval, new_pval) = merge!(old_pval, new_pval)
+_merge_pvals(::Missing, new_pval) = new_pval
+
+_replace_pval(_row_d, _p_name, new_pval) = new_pval
 
 """
     object_classes(m=@__MODULE__)

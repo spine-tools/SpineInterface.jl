@@ -108,7 +108,7 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
 end
 
 _dimensionality(x::ObjectClass) = 0
-_dimensionality(x::RelationshipClass) = length(_object_class_names(class))
+_dimensionality(x::RelationshipClass) = length(x.intact_object_class_names)
 
 function _split_entity_kwargs(class::ObjectClass; kwargs...)
     new_kwargs = OrderedDict(kwargs...)
@@ -121,7 +121,7 @@ function _split_entity_kwargs(class::RelationshipClass; kwargs...)
 end
 
 _object_class_names(oc::ObjectClass) = [oc.name]
-_object_class_names(rc::RelationshipClass) = Symbol.(names(rc.entities)[1:length(rc.intact_object_class_names)])
+_object_class_names(rc::RelationshipClass) = propertynames(rc.entities)[1:length(rc.intact_object_class_names)]
 
 function _entity_pval(class, entity, p_name)
     df = _subset(class.entities; entity...)

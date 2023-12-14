@@ -612,7 +612,6 @@ end
     )
     using_spinedb(db_url)
     @test indexed_values(people_count(country=country(:France))) == Dict(nothing => 18)
-    # @show collect(indexed_values(people_count(country=country(:Sweden))))
     @test indexed_values(people_count(country=country(:Finland))) == Dict(
         (:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-01-01T00:00:00"))) => 4.0,
         (:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-02-01T00:00:00"))) => 5.6

@@ -119,18 +119,18 @@ struct _ClassAccess
 end
 
 function Base.iterate(access::_ClassAccess, state=1)
-    if state > nrow(access.df)
+    if state > length(access)
         nothing
     else
-        if ncol(access.df) == 1
-            access.df[state, 1], state + 1
-        else
-            NamedTuple(access.df[state, :]), state + 1
-        end
+        access[state], state + 1
     end
 end
 
 Base.length(access::_ClassAccess) = nrow(access.df)
+
+Base.getindex(access::_ClassAccess, key) = ncol(access.df) == 1 ? access.df[key, 1] : NamedTuple(access.df[key, :])
+
+Base.lastindex(access::_ClassAccess) = length(access)
 
 #=
 innerjoin(
