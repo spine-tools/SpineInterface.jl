@@ -208,3 +208,16 @@ function _parameter_value_metadata(value::TimeSeries)
         Dict()
     end
 end
+
+"""
+Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
+"""
+function _fix_name_ambiguity(intact_name_list)
+    name_list = copy(intact_name_list)
+    for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
+        for (k, index) in enumerate(findall(name_list .== ambiguous))
+            name_list[index] = Symbol(name_list[index], k)
+        end
+    end
+    name_list
+end

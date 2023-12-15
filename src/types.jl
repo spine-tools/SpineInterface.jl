@@ -132,6 +132,8 @@ Base.getindex(access::_ClassAccess, key) = ncol(access.df) == 1 ? access.df[key,
 
 Base.lastindex(access::_ClassAccess) = length(access)
 
+Base.:(==)(access::_ClassAccess, vec::Vector) = collect(access) == vec
+
 #=
 innerjoin(
     innerjoin(

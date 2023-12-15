@@ -519,7 +519,7 @@ Remove from `relationships` everything that's already in `relationship_class`, a
 Return the modified `relationship_class`.
 """
 function add_relationships!(relationship_class::RelationshipClass, object_tuples::Vector{T}) where T<:ObjectTupleLike
-    relationships = [(; zip(relationship_class.object_class_names, obj_tup)...) for obj_tup in object_tuples]
+    relationships = [(; zip(_object_class_names(relationship_class), obj_tup)...) for obj_tup in object_tuples]
     add_relationships!(relationship_class, relationships)
 end
 function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
@@ -527,7 +527,7 @@ function add_relationships!(relationship_class::RelationshipClass, relationships
     append!(
         relationship_class.entities,
         DataFrame(; (cn => getproperty.(relationships, cn) for cn in _object_class_names(relationship_class))...);
-        cols=:subset
+        cols=:subset,
     )
     relationship_class
 end
@@ -556,8 +556,8 @@ function _add_parameter_values!(ent_from_row, class, parameter_values; merge_val
 
     function _transform(row)
         ent = ent_from_row(row)
-        row_d = Dict(pairs(row)...)
-        for (p_name, new_pval) in get(parameter_values, ent, ())
+        row_d = Dict{Symbol,Any}(pairs(row)...)
+        for (p_name, new_pval) in get(parameter_values, ent, get(parameter_values, values(ent), ()))
             row_d[p_name] = make_pval(row_d, p_name, new_pval)
         end
         (; row_d...)
@@ -567,6 +567,7 @@ function _add_parameter_values!(ent_from_row, class, parameter_values; merge_val
     setdiff!(new_param_names, propertynames(class.entities))
     insertcols!(class.entities, (p_name => missing for p_name in new_param_names)...)
     transform!(class.entities, AsTable(:) => ByRow(_transform) => AsTable)
+    class
 end
 
 _merge_pvals(row_d, p_name, new_pval) = _merge_pvals(row_d[p_name], new_pval)

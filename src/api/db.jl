@@ -224,26 +224,13 @@ function _rels_and_vals(object_class_name_list, object_names_tuple, full_objs_pe
         )
         for (class_name, param_name) in param_defs
     )
-    relationships = Dict(
+    relationships = OrderedDict(
         Symbol(fixed_class_name) => [full_objs_per_id[class_name, obj_name] for obj_name in object_names]
         for (class_name, fixed_class_name, object_names) in zip(
             object_class_name_list, _fix_name_ambiguity(object_class_name_list), object_names_tuple
         )
     )
     DataFrame(; relationships..., param_vals...)
-end
-
-"""
-Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
-"""
-function _fix_name_ambiguity(intact_name_list)
-    name_list = copy(intact_name_list)
-    for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
-        for (k, index) in enumerate(findall(name_list .== ambiguous))
-            name_list[index] = Symbol(name_list[index], k)
-        end
-    end
-    name_list
 end
 
 """
@@ -790,13 +777,14 @@ function _to_dict(obj_cls::ObjectClass)
         :object_classes => [obj_cls.name],
         :object_parameters => [
             [obj_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
-            for (parameter_name, parameter_default_value) in obj_cls.parameter_defaults
+            for (parameter_name, parameter_default_value) in obj_cls.default_parameter_values
         ],
-        :objects => [[obj_cls.name, object.name] for object in obj_cls.objects],
+        :objects => [[obj_cls.name, object.name] for object in obj_cls.entities[!, obj_cls.name]],
         :object_parameter_values => [
-            [obj_cls.name, object.name, parameter_name, unparse_db_value(parameter_value)]
-            for (object, parameter_values) in obj_cls.parameter_values
-            for (parameter_name, parameter_value) in parameter_values
+            [obj_cls.name, row[obj_cls.name].name, p_name, unparse_db_value(p_val)]
+            for row in eachrow(obj_cls.entities)
+            for (p_name, p_val) in pairs(row)
+            if p_name != obj_cls.name && p_val !== missing
         ]
     )
 end
@@ -805,21 +793,28 @@ function _to_dict(rel_cls::RelationshipClass)
         :object_classes => unique(rel_cls.intact_object_class_names),
         :objects => unique(
             [obj_cls_name, obj.name]
-            for relationship in rel_cls.relationships
-            for (obj_cls_name, obj) in zip(rel_cls.intact_object_class_names, relationship)
+            for row in eachrow(rel_cls.entities)
+            for (obj_cls_name, obj) in zip(rel_cls.intact_object_class_names, row)
         ),
         :relationship_classes => [[rel_cls.name, rel_cls.intact_object_class_names]],
         :relationship_parameters => [
             [rel_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
-            for (parameter_name, parameter_default_value) in rel_cls.parameter_defaults
+            for (parameter_name, parameter_default_value) in rel_cls.default_parameter_values
         ],
         :relationships => [
-            [rel_cls.name, [obj.name for obj in relationship]] for relationship in rel_cls.relationships
+            [rel_cls.name, [obj.name for obj in row]]
+            for row in eachrow(rel_cls.entities[!, _object_class_names(rel_cls)])
         ],
         :relationship_parameter_values => [
-            [rel_cls.name, [obj.name for obj in relationship], parameter_name, unparse_db_value(parameter_value)]
-            for (relationship, parameter_values) in rel_cls.parameter_values
-            for (parameter_name, parameter_value) in parameter_values
+            [
+                rel_cls.name,
+                [row[cls_name].name for cls_name in _object_class_names(rel_cls)],
+                p_name,
+                unparse_db_value(p_val)
+            ]
+            for row in eachrow(rel_cls.entities)
+            for (p_name, p_val) in pairs(row)
+            if !(p_name in _object_class_names(rel_cls)) && p_val !== missing
         ]
     )
 end

@@ -32,6 +32,19 @@ function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_
     TimeSlice(start, end_, dur, blocks)
 end
 
+function ObjectClass(name, objects::Vector, pvals=Dict(), defaults=Dict())
+    class = ObjectClass(name, DataFrame(Dict(name => ObjectLike[])...), defaults)
+    add_objects!(class, objects)
+    add_object_parameter_values!(class, pvals)
+end
+
+function RelationshipClass(name, object_class_names, relationships::Vector, pvals=Dict(), defaults=Dict())
+    df = DataFrame(OrderedDict(name => ObjectLike[] for name in _fix_name_ambiguity(object_class_names))...)
+    class = RelationshipClass(name, object_class_names, df, defaults)
+    add_relationships!(class, relationships)
+    add_relationship_parameter_values!(class, pvals)
+end
+
 function TimeSeries(inds=[], vals=[]; ignore_year=false, repeat=false, merge_ok=false)
     TimeSeries(inds, vals, ignore_year, repeat; merge_ok=merge_ok)
 end
