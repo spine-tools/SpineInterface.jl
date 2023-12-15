@@ -659,3 +659,13 @@ function realize(call, callback=nothing)
         rethrow(ErrorException("$err_msg$(sprint(showerror, e))"))
     end
 end
+
+function add_dimension!(cls::RelationshipClass, name::Symbol, val)
+    push!(cls.object_class_names, name)
+    push!(cls.intact_object_class_names, name)
+    map!(rel -> (; rel..., Dict(name => val)...), cls.relationships, cls.relationships)
+    key_map = Dict(rel => (rel..., val) for rel in keys(cls.parameter_values))
+    for (key, new_key) in key_map
+        cls.parameter_values[new_key] = pop!(cls.parameter_values, key)
+    end
+end
