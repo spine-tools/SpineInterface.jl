@@ -1,7 +1,7 @@
 name = "SpineInterface"
 uuid = "0cda1612-498a-11e9-3c92-77fa82595a4f"
 authors = ["Spine Project consortium <spine_info@vtt.fi>"]
-version = "0.11.14"
+version = "0.11.15"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
