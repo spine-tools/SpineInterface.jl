@@ -61,11 +61,11 @@ julia> commodity(state_of_matter=commodity(:gas))
 ```
 """
 function (oc::ObjectClass)(; kwargs...)
-    isempty(kwargs) && return _ClassAccess(oc.entities[!, [oc.name]])
-    df = oc.entities
-    transforms = (p_name => ByRow(x -> _default_if_missing(x, oc, p_name)() == val) for (p_name, val) in kwargs)
-    df = subset(oc.entities, transforms...)
-    _ClassAccess(df[!, [oc.name]])
+    cols = [oc.name]
+    isempty(kwargs) && return _ClassAccess(@view oc.entities[:, cols])
+    f = row -> all(_default_if_missing(row, oc, p_name)() == val for (p_name, val) in kwargs)
+    rows = f.(eachrow(oc.entities))
+    _ClassAccess(@view oc.entities[rows, cols])
 end
 function (oc::ObjectClass)(name::Symbol)
     objects = filter(oc.name => obj -> obj.name == name, oc.entities)[!, oc.name]
@@ -131,16 +131,14 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 ```
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
-    # TODO: _default
-    dim_count = _dimensionality(rc)
-    isempty(kwargs) && return _ClassAccess(rc.entities[!, 1:dim_count])
-    object_class_names = _object_class_names(rc)
-    object_class_names, collect(keys(kwargs))
-    _compact && setdiff!(object_class_names, keys(kwargs))
-    isempty(object_class_names) && return _default
-    df = _subset(rc.entities[!, 1:dim_count]; kwargs...)
-    isempty(df) && return _default
-    _ClassAccess(df[!, object_class_names])    
+    cols = _object_class_names(rc)
+    isempty(kwargs) && return _ClassAccess(@view rc.entities[:, cols])
+    _compact && setdiff!(cols, keys(kwargs))
+    isempty(cols) && return _default
+    f = _entity_filter(kwargs)
+    rows = f.(eachrow(rc.entities))
+    any(rows) || return _default
+    _ClassAccess(@view rc.entities[rows, cols])
 end
 
 """
@@ -429,21 +427,25 @@ function indices_as_tuples(p::Parameter; kwargs...)
 end
 
 function _indices(p::Parameter, row_processor; kwargs...)
+    f = _entity_filter(kwargs)
     (
         row_processor(class, row)
         for class in p.classes
         for row in eachrow(
-            subset(
+            view(
                 class.entities,
-                p.name => ByRow(x -> _default_if_missing(x, class, p.name)() !== nothing),
-                _transforms(kwargs)...
-            )[!, _object_class_names(class)]
+                (row -> f(row) && _default_if_missing(row, class, p.name)() !== nothing).(
+                    eachrow(class.entities)
+                ),
+                _object_class_names(class),
+            )
         )
     )
 end
 
-_default_if_missing(x, _oc, _p_name) = x
-_default_if_missing(::Missing, oc, p_name) = oc.default_parameter_values[p_name]
+_default_if_missing(row::DataFrameRow, class, p_name) = _default_if_missing(row[p_name], class, p_name)
+_default_if_missing(x, _class, _p_name) = x
+_default_if_missing(::Missing, class, p_name) = class.default_parameter_values[p_name]
 
 """
     maximum_parameter_value(p::Parameter)

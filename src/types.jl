@@ -115,7 +115,7 @@ struct Parameter
 end
 
 struct _ClassAccess
-    df::DataFrame
+    df::AbstractDataFrame
 end
 
 function Base.iterate(access::_ClassAccess, state=1)

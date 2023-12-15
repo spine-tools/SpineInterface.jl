@@ -124,14 +124,16 @@ _object_class_names(oc::ObjectClass) = [oc.name]
 _object_class_names(rc::RelationshipClass) = propertynames(rc.entities)[1:length(rc.intact_object_class_names)]
 
 function _entity_pval(class, entity, p_name)
-    df = _subset(class.entities; entity...)
-    nrow(df) != 1 && return nothing
-    df[1, p_name]
+    f = _entity_filter(entity)
+    rows = f.(eachrow(class.entities))
+    sdf = @view class.entities[rows, :]
+    nrow(sdf) != 1 && return nothing
+    sdf[1, p_name]
 end
 
-_subset(df; kwargs...) = subset(df, _transforms(kwargs)...)
-
-_transforms(kwargs) = (class_name => x -> in.(x, Ref(object_names)) for (class_name, object_names) in kwargs)
+function _entity_filter(kwargs)
+    row -> all(row[class_name] in object_names for (class_name, object_names) in kwargs)
+end
 
 struct _CallNode
     call::Call
