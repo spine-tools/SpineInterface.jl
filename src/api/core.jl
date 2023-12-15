@@ -454,12 +454,12 @@ The singe maximum value of a `Parameter` across all its `ObjectClasses` or `Rela
 for any`ParameterValue` types.
 """
 function maximum_parameter_value(p::Parameter)
-    pvs = (
-        first(_split_parameter_value_kwargs(p; ent_tup...)) for class in p.classes for ent_tup in _entity_tuples(class)
+    pv_kw_iter = (
+        _split_parameter_value_kwargs(p; ent_tup...) for class in p.classes for ent_tup in _entity_tuples(class)
     )
-    pvs_skip_nothing = (pv for pv in pvs if pv() !== nothing)
-    isempty(pvs_skip_nothing) && return nothing
-    maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)
+    not_nothing_pvs = (pv for (pv, _kw) in pv_kw_iter if pv() !== nothing)
+    isempty(not_nothing_pvs) && return nothing
+    maximum(_maximum_parameter_value(pv) for pv in not_nothing_pvs)
 end
 
 _entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
@@ -504,8 +504,7 @@ function add_object_parameter_values!(object_class::ObjectClass, parameter_value
 end
 
 function add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
-    _merge! = merge_values ? mergewith!(merge!) : merge!
-    _merge!(object_class.default_parameter_values, parameter_defaults)
+    _add_parameter_defaults!(object_class, parameter_defaults; merge_values=merge_values)
 end
 
 function add_object!(object_class::ObjectClass, object::ObjectLike)
@@ -543,8 +542,7 @@ end
 function add_relationship_parameter_defaults!(
     relationship_class::RelationshipClass, parameter_defaults::Dict; merge_values=false
 )
-    _merge! = merge_values ? mergewith!(merge!) : merge!
-    _merge!(relationship_class.default_parameter_values, parameter_defaults)
+    _add_parameter_defaults!(relationship_class, parameter_defaults; merge_values=merge_values)
 end
 
 function add_relationship!(relationship_class::RelationshipClass, relationship::RelationshipLike)
@@ -570,11 +568,24 @@ function _add_parameter_values!(ent_from_row, class, parameter_values; merge_val
     class
 end
 
+function _add_parameter_defaults!(class, parameter_defaults::Dict; merge_values=false)
+    new_param_names = collect(keys(parameter_defaults))
+    setdiff!(new_param_names, propertynames(class.entities))
+    insertcols!(class.entities, (p_name => missing for p_name in new_param_names)...)
+    _merge! = merge_values ? mergewith!(merge!) : merge!
+    _merge!(class.default_parameter_values, parameter_defaults)
+end
+
 _merge_pvals(row_d, p_name, new_pval) = _merge_pvals(row_d[p_name], new_pval)
 _merge_pvals(old_pval, new_pval) = merge!(old_pval, new_pval)
 _merge_pvals(::Missing, new_pval) = new_pval
 
 _replace_pval(_row_d, _p_name, new_pval) = new_pval
+
+function add_dimension!(cls::RelationshipClass, name::Symbol, vals)
+    insertcols!(cls.entities, _dimensionality(cls) + 1, Dict(name => vals)...)
+    push!(cls.intact_object_class_names, name)
+end
 
 """
     object_classes(m=@__MODULE__)

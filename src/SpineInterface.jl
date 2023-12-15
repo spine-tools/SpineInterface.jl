@@ -39,6 +39,7 @@ include("api/parameter_value.jl")
 include("api/time_slice.jl")
 include("api/tests.jl")
 
+export add_dimension!
 export add_object_parameter_values!
 export add_object_parameter_defaults!
 export add_object!

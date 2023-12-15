@@ -85,7 +85,7 @@ struct ObjectClass
     name::Symbol
     entities::DataFrame
     default_parameter_values::Dict{Symbol,Any}
-    ObjectClass(name, entities, defaults=Dict()) = new(name, entities, defaults)
+    ObjectClass(name, entities::DataFrame, defaults=Dict()) = new(name, entities, defaults)
 end
 
 """
@@ -98,7 +98,7 @@ struct RelationshipClass
     intact_object_class_names::Array{Symbol,1}
     entities::DataFrame
     default_parameter_values::Dict{Symbol,Any}
-    function RelationshipClass(name, intact_cls_names, entities, defaults=Dict())
+    function RelationshipClass(name, intact_cls_names, entities::DataFrame, defaults=Dict())
         new(name, intact_cls_names, entities, defaults)
     end
 end
@@ -114,25 +114,10 @@ struct Parameter
     Parameter(name, classes=[]) = new(name, classes)
 end
 
-struct _ClassAccess
+struct _ClassAccess{N,H}
     df::AbstractDataFrame
+    _ClassAccess(df) = new{ncol(df), Tuple(propertynames(df))}(df)
 end
-
-function Base.iterate(access::_ClassAccess, state=1)
-    if state > length(access)
-        nothing
-    else
-        access[state], state + 1
-    end
-end
-
-Base.length(access::_ClassAccess) = nrow(access.df)
-
-Base.getindex(access::_ClassAccess, key) = ncol(access.df) == 1 ? access.df[key, 1] : NamedTuple(access.df[key, :])
-
-Base.lastindex(access::_ClassAccess) = length(access)
-
-Base.:(==)(access::_ClassAccess, vec::Vector) = collect(access) == vec
 
 #=
 innerjoin(

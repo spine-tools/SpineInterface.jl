@@ -177,8 +177,10 @@ function _obj_and_vals(class_name, object_names, full_objs_per_id, param_defs, p
         Symbol(param_name) => _object_parameter_values(class_name, object_names, param_name, param_vals_per_ent)
         for (class_name, param_name) in param_defs
     )
-    objects = Dict(Symbol(class_name) => [full_objs_per_id[class_name, obj_name] for obj_name in object_names])
-    DataFrame(; objects..., param_vals...)
+    objects = Dict(
+        Symbol(class_name) => ObjectLike[full_objs_per_id[class_name, obj_name] for obj_name in object_names]
+    )
+    DataFrame(; objects..., param_vals..., copycols=false)
 end
 
 """
@@ -208,7 +210,7 @@ end
 
 function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
     class_name, object_class_name_list = class
-    object_names_tuple = get(rels_per_cls, class_name, ())
+    object_names_tuple = get(rels_per_cls, class_name, Tuple([] for _k in object_class_name_list))
     param_defs = get(param_defs_per_cls, class_name, ())
     (
         Symbol.(object_class_name_list),
@@ -225,12 +227,14 @@ function _rels_and_vals(object_class_name_list, object_names_tuple, full_objs_pe
         for (class_name, param_name) in param_defs
     )
     relationships = OrderedDict(
-        Symbol(fixed_class_name) => [full_objs_per_id[class_name, obj_name] for obj_name in object_names]
-        for (class_name, fixed_class_name, object_names) in zip(
-            object_class_name_list, _fix_name_ambiguity(object_class_name_list), object_names_tuple
+        Symbol(fixed_class_name) => ObjectLike[
+            full_objs_per_id[class_name, obj_name] for obj_name in object_names_tuple[k]
+        ]
+        for (k, (class_name, fixed_class_name)) in enumerate(
+            zip(object_class_name_list, _fix_name_ambiguity(object_class_name_list))
         )
     )
-    DataFrame(; relationships..., param_vals...)
+    DataFrame(; relationships..., param_vals..., copycols=false)
 end
 
 """

@@ -32,12 +32,20 @@ function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_
     TimeSlice(start, end_, dur, blocks)
 end
 
+function ObjectClass(name, objects::T, pvals=Dict(), defaults=Dict()) where T >: DataFrame
+    ObjectClass(name, collect(objects), pvals, defaults)
+end
 function ObjectClass(name, objects::Vector, pvals=Dict(), defaults=Dict())
     class = ObjectClass(name, DataFrame(Dict(name => ObjectLike[])...), defaults)
     add_objects!(class, objects)
     add_object_parameter_values!(class, pvals)
 end
 
+function RelationshipClass(
+    name, object_class_names, relationships::T, pvals=Dict(), defaults=Dict()
+) where T >: DataFrame
+    RelationshipClass(name, object_class_names, collect(relationships), pvals, defaults)
+end
 function RelationshipClass(name, object_class_names, relationships::Vector, pvals=Dict(), defaults=Dict())
     df = DataFrame(OrderedDict(name => ObjectLike[] for name in _fix_name_ambiguity(object_class_names))...)
     class = RelationshipClass(name, object_class_names, df, defaults)
@@ -50,6 +58,7 @@ function TimeSeries(inds=[], vals=[]; ignore_year=false, repeat=false, merge_ok=
 end
 
 Map(inds::Array{String,1}, vals::Array{V,1}) where {V} = Map(Symbol.(inds), vals)
+Map(inds::T, vals::Array{V,1}) where {T,V} = Map(collect(inds), vals)
 
 Call(x, call_expr=nothing) = Call(nothing, [x], NamedTuple(), call_expr)
 Call(func::T, kwargs::NamedTuple, call_expr=nothing) where {T<:ParameterValue} = Call(func, [], kwargs, call_expr)
