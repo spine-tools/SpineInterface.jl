@@ -85,7 +85,11 @@ struct ObjectClass
     name::Symbol
     entities::DataFrame
     default_parameter_values::Dict{Symbol,Any}
-    ObjectClass(name, entities::DataFrame, defaults=Dict()) = new(name, entities, defaults)
+    row_map::Dict
+    function ObjectClass(name, entities::DataFrame, defaults=Dict())
+        row_map = Dict(obj => [row] for (row, obj) in enumerate(entities[!, name]))
+        new(name, entities, defaults, row_map)
+    end
 end
 
 """
@@ -98,8 +102,15 @@ struct RelationshipClass
     intact_object_class_names::Array{Symbol,1}
     entities::DataFrame
     default_parameter_values::Dict{Symbol,Any}
+    row_map::Dict
     function RelationshipClass(name, intact_cls_names, entities::DataFrame, defaults=Dict())
-        new(name, intact_cls_names, entities, defaults)
+        row_map = Dict()
+        for dim_name in propertynames(entities)[1:length(intact_cls_names)]
+            for (row, obj) in enumerate(entities[!, dim_name])
+                push!(get!(row_map, (dim_name, obj), []), row)
+            end
+        end
+        new(name, intact_cls_names, entities, defaults, row_map)
     end
 end
 
@@ -114,20 +125,10 @@ struct Parameter
     Parameter(name, classes=[]) = new(name, classes)
 end
 
-struct _ClassAccess{N,H}
+struct EntityFrame{N,H}
     df::AbstractDataFrame
-    _ClassAccess(df) = new{ncol(df), Tuple(propertynames(df))}(df)
+    EntityFrame(df) = new{ncol(df), Tuple(propertynames(df))}(df)
 end
-
-#=
-innerjoin(
-    innerjoin(
-        node__temporal_block(node=node, temporal_block=temporal_block),
-        temporal_block_group(group=temporal_block); on=[:temporal_block => :group]
-    ),
-    temporal_block__t(temporal_block=temporal_block, t=t); on=[:member => :temporal_block]
-)
-=#
 
 """
     TimeInterval

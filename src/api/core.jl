@@ -62,10 +62,10 @@ julia> commodity(state_of_matter=commodity(:gas))
 """
 function (oc::ObjectClass)(; kwargs...)
     cols = [oc.name]
-    isempty(kwargs) && return _ClassAccess(@view oc.entities[:, cols])
+    isempty(kwargs) && return EntityFrame(@view oc.entities[:, cols])
     f = row -> all(_default_if_missing(row, oc, p_name)() == val for (p_name, val) in kwargs)
     rows = f.(eachrow(oc.entities))
-    _ClassAccess(@view oc.entities[rows, cols])
+    EntityFrame(@view oc.entities[rows, cols])
 end
 function (oc::ObjectClass)(name::Symbol)
     objects = filter(oc.name => obj -> obj.name == name, oc.entities)[!, oc.name]
@@ -132,13 +132,12 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
     cols = _object_class_names(rc)
-    isempty(kwargs) && return _ClassAccess(@view rc.entities[:, cols])
+    isempty(kwargs) && return EntityFrame(@view rc.entities[:, cols])
     _compact && setdiff!(cols, keys(kwargs))
     isempty(cols) && return _default
-    f = _entity_filter(kwargs)
-    rows = f.(eachrow(rc.entities))
-    any(rows) || return _default
-    _ClassAccess(@view rc.entities[rows, cols])
+    rows = _find_rows(rc, kwargs)
+    isempty(rows) && return _default
+    EntityFrame(@view rc.entities[rows, cols])
 end
 
 """
@@ -492,8 +491,11 @@ Remove from `objects` everything that's already in `object_class`, and append th
 Return the modified `object_class`.
 """
 function add_objects!(object_class::ObjectClass, objects::Array)
-    setdiff!(objects, collect(object_class()))
-    append!(object_class.entities, DataFrame(; Dict(object_class.name => objects)...); cols=:subset)
+    existing = collect(object_class())
+    setdiff!(objects, existing)
+    rows = length(existing) + 1 : length(existing) + length(objects)
+    df = DataFrame(; Dict(object_class.name => objects)..., copycols=false)
+    _add_entities!(object_class, df)
     object_class
 end
 
@@ -522,12 +524,12 @@ function add_relationships!(relationship_class::RelationshipClass, object_tuples
     add_relationships!(relationship_class, relationships)
 end
 function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
-    relationships = setdiff(relationships, collect(relationship_class()))
-    append!(
-        relationship_class.entities,
-        DataFrame(; (cn => getproperty.(relationships, cn) for cn in _object_class_names(relationship_class))...);
-        cols=:subset,
+    existing = collect(relationship_class())
+    setdiff!(relationships, existing)
+    df = DataFrame(;
+        (cn => getproperty.(relationships, cn) for cn in _object_class_names(relationship_class))..., copycols=false
     )
+    _add_entities!(relationship_class, df)
     relationship_class
 end
 

@@ -22,7 +22,7 @@ Base.intersect(s, ::Anything) = s
 Base.intersect(::Anything, ::Anything) = anything
 
 Base.in(item, ::Anything) = true
-Base.in(x, access::_ClassAccess) = x in collect(access)
+Base.in(x, ef::EntityFrame) = x in collect(ef)
 
 Base.iterate(o::Union{Object,TimeSlice}) = iterate((o,))
 Base.iterate(o::Union{Object,TimeSlice}, state::T) where {T} = iterate((o,), state)
@@ -35,18 +35,18 @@ function Base.iterate(x::Union{TimeSeries,Map}, state=1)
         (x.indexes[state] => x.values[state]), state + 1
     end
 end
-function Base.iterate(access::_ClassAccess, state=1)
-    if state > length(access)
+function Base.iterate(ef::EntityFrame, state=1)
+    if state > length(ef)
         nothing
     else
-        access[state], state + 1
+        ef[state], state + 1
     end
 end
 
 Base.length(t::Union{Object,TimeSlice}) = 1
 Base.length(v::ParameterValue{T}) where {T<:_Scalar} = 1
 Base.length(x::Union{TimeSeries,Map}) = length(x.indexes)
-Base.length(access::_ClassAccess) = nrow(access.df)
+Base.length(ef::EntityFrame) = nrow(ef.df)
 
 Base.isless(o1::Object, o2::Object) = o1.name < o2.name
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
@@ -68,7 +68,7 @@ Base.:(==)(m1::Map, m2::Map) = all(m1.indexes == m2.indexes) && all(m1.values ==
 function Base.:(==)(x::Call, y::Call)
     x.func == y.func && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs)
 end
-Base.:(==)(access::_ClassAccess, vec::Vector) = collect(access) == vec
+Base.:(==)(ef::EntityFrame, vec::Vector) = collect(ef) == vec
 
 _isequal(::Union{typeof(+),typeof(*)}, x, y) = length(x) == length(y) && all(z in y for z in x)
 _isequal(op, x, y) = x == y
@@ -354,7 +354,7 @@ Base.values(pv::ParameterValue{T}) where {T<:_Indexed} = values(pv.value)
 Base.keys(ts::TimeSeries) = ts.indexes
 Base.keys(m::Map) = m.indexes
 Base.keys(pv::ParameterValue{T}) where {T<:_Indexed} = keys(pv.value)
-Base.keys(access::_ClassAccess) = keys(collect(access))
+Base.keys(ef::EntityFrame) = keys(collect(ef))
 
 function Base.merge!(a::TimeSeries, b::TimeSeries)
     for (b_index, b_value) in b
@@ -428,8 +428,8 @@ function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
         Call(nothing, call_expr)
     end
 end
-Base.getindex(access::_ClassAccess{1,H}, key) where H = access.df[key, 1]
-Base.getindex(access::_ClassAccess, key) = NamedTuple(access.df[key, :])
+Base.getindex(ef::EntityFrame{1,H}, key) where H = ef.df[key, 1]
+Base.getindex(ef::EntityFrame, key) = NamedTuple(ef.df[key, :])
 
 function Base.get!(x::Union{TimeSeries,Map}, key, default)
     get!(x, key) do
@@ -464,16 +464,16 @@ function Base.getproperty(pv::ParameterValue, name::Symbol)
     end
 end
 
-Base.eltype(::Type{_ClassAccess{1,H}}) where H = ObjectLike
-Base.eltype(::Type{_ClassAccess{N,H}}) where {N,H} = NamedTuple{H,NTuple{N,ObjectLike}}
+Base.eltype(::Type{EntityFrame{1,H}}) where H = ObjectLike
+Base.eltype(::Type{EntityFrame{N,H}}) where {N,H} = NamedTuple{H,NTuple{N,ObjectLike}}
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
 Base.abs(call::Call) = Call(abs, [call])
 
 Base.isempty(x::Union{TimeSeries,Map}) = isempty(x.indexes)
 
-Base.lastindex(access::_ClassAccess) = length(access)
+Base.lastindex(ef::EntityFrame) = length(ef)
 
-Base.filter(x, access::_ClassAccess) = filter(x, collect(access))
+Base.filter(x, ef::EntityFrame) = filter(x, collect(ef))
 
-Base.vcat(accesses::_ClassAccess...) = vcat((collect(a) for a in accesses)...)
+Base.vcat(efs::EntityFrame...) = vcat((collect(ef) for ef in efs)...)

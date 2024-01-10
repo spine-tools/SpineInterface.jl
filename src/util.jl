@@ -94,13 +94,13 @@ end
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
     for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
-        entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
-        val = _entity_pval(class, entity, p.name)
+        entity_kwargs, other_kwargs = _split_entity_kwargs(class; kwargs...)
+        val = _entity_pval(class, entity_kwargs, p.name)
         val === nothing && continue
         if val === missing
             val = _default === nothing ? class.default_parameter_values[p.name] : parameter_value(_default)
         end
-        return val, new_kwargs
+        return val, other_kwargs
     end
     if _strict
         error("can't find a value of $p for argument(s) $((; kwargs...))")
@@ -111,28 +111,67 @@ _dimensionality(x::ObjectClass) = 0
 _dimensionality(x::RelationshipClass) = length(x.intact_object_class_names)
 
 function _split_entity_kwargs(class::ObjectClass; kwargs...)
-    new_kwargs = OrderedDict(kwargs...)
-    Dict(class.name => pop!(new_kwargs, class.name, anything)), (; new_kwargs...)
+    kwargs = OrderedDict(kwargs...)
+    Dict(class.name => pop!(kwargs, class.name, anything)), (; kwargs...)
 end
 function _split_entity_kwargs(class::RelationshipClass; kwargs...)
-    new_kwargs = OrderedDict(kwargs...)
-    entity = Dict(oc_name => pop!(new_kwargs, oc_name, anything) for oc_name in _object_class_names(class))
-    entity, (; new_kwargs...)
+    kwargs = OrderedDict(kwargs...)
+    entity_kwargs = Dict(oc_name => pop!(kwargs, oc_name, anything) for oc_name in _object_class_names(class))
+    entity_kwargs, (; kwargs...)
 end
 
 _object_class_names(oc::ObjectClass) = [oc.name]
-_object_class_names(rc::RelationshipClass) = propertynames(rc.entities)[1:length(rc.intact_object_class_names)]
+_object_class_names(rc::RelationshipClass) = propertynames(rc.entities)[1:_dimensionality(rc)]
 
-function _entity_pval(class, entity, p_name)
-    f = _entity_filter(entity)
-    rows = f.(eachrow(class.entities))
+function _entity_pval(class, entity_kwargs, p_name)
+    rows = _find_rows(class, entity_kwargs)
     sdf = @view class.entities[rows, :]
     nrow(sdf) != 1 && return nothing
     sdf[1, p_name]
 end
 
+function _find_rows(class, kwargs)
+    rows_per_dim = [_rows(class, dim_name, object) for (dim_name, object) in kwargs]
+    filter!(!=(anything), rows_per_dim)
+    isempty(rows_per_dim) && return (:)
+    length(rows_per_dim) == 1 && return rows_per_dim[1]
+    _intersect_sorted(rows_per_dim...)
+end
+
+function _rows(class::ObjectClass, _dim_name, object::Object)
+    get(class.row_map, object, [])
+end
+function _rows(class::RelationshipClass, dim_name, object::Object)
+    get(class.row_map, (dim_name, object), [])
+end
+function _rows(_class, _dim_name, ::Anything)
+    anything
+end
+function _rows(class, dim_name, objects)
+    rows = [_rows(class, dim_name, obj) for obj in objects]
+    sort!(rows; by=first)
+    vcat(rows...)
+end
+
+function _intersect_sorted(rows...)
+    result = []
+    inds = collect(firstindex.(rows))
+    @inbounds while all(inds .<= lastindex.(rows))
+        vals = [row[i] for (i, row) in zip(inds, rows)]
+        max_val = maximum(vals)
+        behind = vals .< max_val
+        if any(behind)
+            inds .+= behind
+        else
+            push!(result, max_val)
+            inds .+= 1
+        end
+    end
+    result
+end
+
 function _entity_filter(kwargs)
-    row -> all(row[class_name] in object_names for (class_name, object_names) in kwargs)
+    row -> all(row[class_name] in objects for (class_name, objects) in kwargs)
 end
 
 struct _CallNode
@@ -220,4 +259,22 @@ function _fix_name_ambiguity(intact_name_list)
         end
     end
     name_list
+end
+
+function _add_entities!(obj_cls::ObjectClass, entity_df)
+    offset = nrow(obj_cls.entities)
+    for (row, obj) in enumerate(entity_df[!, obj_cls.name])
+        obj_cls.row_map[obj] = [offset + row]
+    end
+    append!(obj_cls.entities, entity_df; cols=:subset)
+end
+
+function _add_entities!(rel_cls::RelationshipClass, entity_df)
+    offset = nrow(rel_cls.entities)
+    for dim_name in _object_class_names(rel_cls)
+        for (row, obj) in enumerate(entity_df[!, dim_name])
+            push!(get!(rel_cls.row_map, (dim_name, obj), []), offset + row)
+        end
+    end
+    append!(rel_cls.entities, entity_df; cols=:subset)
 end

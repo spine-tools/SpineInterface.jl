@@ -214,12 +214,16 @@ function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_c
     param_defs = get(param_defs_per_cls, class_name, ())
     (
         Symbol.(object_class_name_list),
-        _rels_and_vals(object_class_name_list, object_names_tuple, full_objs_per_id, param_defs, param_vals_per_ent),
+        _rels_and_vals(
+            class_name, object_class_name_list, object_names_tuple, full_objs_per_id, param_defs, param_vals_per_ent
+        ),
         _default_parameter_values(param_defs),
     )
 end
 
-function _rels_and_vals(object_class_name_list, object_names_tuple, full_objs_per_id, param_defs, param_vals_per_ent)
+function _rels_and_vals(
+    class_name, object_class_name_list, object_names_tuple, full_objs_per_id, param_defs, param_vals_per_ent
+)
     param_vals = (
         Symbol(param_name) => _relationship_parameter_values(
             class_name, object_names_tuple, param_name, param_vals_per_ent
@@ -227,10 +231,8 @@ function _rels_and_vals(object_class_name_list, object_names_tuple, full_objs_pe
         for (class_name, param_name) in param_defs
     )
     relationships = OrderedDict(
-        Symbol(fixed_class_name) => ObjectLike[
-            full_objs_per_id[class_name, obj_name] for obj_name in object_names_tuple[k]
-        ]
-        for (k, (class_name, fixed_class_name)) in enumerate(
+        Symbol(fixed_dim_name) => ObjectLike[full_objs_per_id[dim_name, obj_name] for obj_name in object_names_tuple[k]]
+        for (k, (dim_name, fixed_dim_name)) in enumerate(
             zip(object_class_name_list, _fix_name_ambiguity(object_class_name_list))
         )
     )
