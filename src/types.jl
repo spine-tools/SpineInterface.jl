@@ -85,10 +85,11 @@ struct ObjectClass
     name::Symbol
     entities::DataFrame
     default_parameter_values::Dict{Symbol,Any}
-    row_map::Dict
+    rows_by_entity::Dict
     function ObjectClass(name, entities::DataFrame, defaults=Dict())
-        row_map = Dict(obj => [row] for (row, obj) in enumerate(entities[!, name]))
-        new(name, entities, defaults, row_map)
+        rows_by_entity = Dict()
+        _add_object_class_rows!(rows_by_entity, entities[!, name])
+        new(name, entities, defaults, rows_by_entity)
     end
 end
 
@@ -102,15 +103,13 @@ struct RelationshipClass
     intact_object_class_names::Array{Symbol,1}
     entities::DataFrame
     default_parameter_values::Dict{Symbol,Any}
-    row_map::Dict
+    rows_by_entity::Dict
+    rows_by_element::Dict
     function RelationshipClass(name, intact_cls_names, entities::DataFrame, defaults=Dict())
-        row_map = Dict()
-        for dim_name in propertynames(entities)[1:length(intact_cls_names)]
-            for (row, obj) in enumerate(entities[!, dim_name])
-                push!(get!(row_map, (dim_name, obj), []), row)
-            end
-        end
-        new(name, intact_cls_names, entities, defaults, row_map)
+        rows_by_entity = Dict()
+        rows_by_element = Dict()
+        _add_relationship_class_rows!(rows_by_entity, rows_by_element, entities[!, 1:length(intact_cls_names)])
+        new(name, intact_cls_names, entities, defaults, rows_by_entity, rows_by_element)
     end
 end
 

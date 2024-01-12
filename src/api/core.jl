@@ -136,9 +136,12 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs
     _compact && setdiff!(cols, keys(kwargs))
     isempty(cols) && return _default
     rows = _find_rows(rc, kwargs)
-    isempty(rows) && return _default
+    _isempty(rows) && return _default
     EntityFrame(@view rc.entities[rows, cols])
 end
+
+_isempty(::Colon) = false
+_isempty(x) = isempty(x)
 
 """
     (<p>::Parameter)(;<keyword arguments>)

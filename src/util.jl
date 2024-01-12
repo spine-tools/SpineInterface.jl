@@ -112,11 +112,11 @@ _dimensionality(x::RelationshipClass) = length(x.intact_object_class_names)
 
 function _split_entity_kwargs(class::ObjectClass; kwargs...)
     kwargs = OrderedDict(kwargs...)
-    Dict(class.name => pop!(kwargs, class.name, anything)), (; kwargs...)
+    OrderedDict(class.name => pop!(kwargs, class.name, anything)), (; kwargs...)
 end
 function _split_entity_kwargs(class::RelationshipClass; kwargs...)
     kwargs = OrderedDict(kwargs...)
-    entity_kwargs = Dict(oc_name => pop!(kwargs, oc_name, anything) for oc_name in _object_class_names(class))
+    entity_kwargs = OrderedDict(oc_name => pop!(kwargs, oc_name, anything) for oc_name in _object_class_names(class))
     entity_kwargs, (; kwargs...)
 end
 
@@ -124,10 +124,20 @@ _object_class_names(oc::ObjectClass) = [oc.name]
 _object_class_names(rc::RelationshipClass) = propertynames(rc.entities)[1:_dimensionality(rc)]
 
 function _entity_pval(class, entity_kwargs, p_name)
-    rows = _find_rows(class, entity_kwargs)
-    sdf = @view class.entities[rows, :]
-    nrow(sdf) != 1 && return nothing
-    sdf[1, p_name]
+    rows = _find_pval_rows(class, entity_kwargs)
+    length(rows) != 1 && return nothing
+    class.entities[rows[1], p_name]
+end
+
+function _find_pval_rows(class::ObjectClass, entity_kwargs)
+    get(class.rows_by_entity, entity_kwargs[class.name], [])
+end
+function _find_pval_rows(class::RelationshipClass, entity_kwargs)
+    if length(entity_kwargs) == _dimensionality(class)
+        get(class.rows_by_entity, NamedTuple(entity_kwargs), [])
+    else
+        _find_rows(class, entity_kwargs)
+    end
 end
 
 function _find_rows(class, kwargs)
@@ -139,10 +149,10 @@ function _find_rows(class, kwargs)
 end
 
 function _rows(class::ObjectClass, _dim_name, object::Object)
-    get(class.row_map, object, [])
+    get(class.rows_by_entity, object, [])
 end
 function _rows(class::RelationshipClass, dim_name, object::Object)
-    get(class.row_map, (dim_name, object), [])
+    get(class.rows_by_element, (dim_name, object), [])
 end
 function _rows(_class, _dim_name, ::Anything)
     anything
@@ -262,19 +272,36 @@ function _fix_name_ambiguity(intact_name_list)
 end
 
 function _add_entities!(obj_cls::ObjectClass, entity_df)
-    offset = nrow(obj_cls.entities)
-    for (row, obj) in enumerate(entity_df[!, obj_cls.name])
-        obj_cls.row_map[obj] = [offset + row]
-    end
+    _add_object_class_rows!(obj_cls.rows_by_entity, entity_df[!, obj_cls.name], nrow(obj_cls.entities))
     append!(obj_cls.entities, entity_df; cols=:subset)
 end
 
 function _add_entities!(rel_cls::RelationshipClass, entity_df)
-    offset = nrow(rel_cls.entities)
-    for dim_name in _object_class_names(rel_cls)
-        for (row, obj) in enumerate(entity_df[!, dim_name])
-            push!(get!(rel_cls.row_map, (dim_name, obj), []), offset + row)
-        end
-    end
+    _add_relationship_class_rows!(
+        rel_cls.rows_by_entity,
+        rel_cls.rows_by_element,
+        entity_df[!, _object_class_names(rel_cls)],
+        nrow(rel_cls.entities)
+    )
     append!(rel_cls.entities, entity_df; cols=:subset)
 end
+
+function _add_object_class_rows!(rows_by_entity, entity_vector, offset=0)
+    for (k, obj) in enumerate(entity_vector)
+        rows_by_entity[obj] = [offset + k]
+    end
+end
+
+function _add_relationship_class_rows!(rows_by_entity, rows_by_element, entity_df, offset=0)
+    for (k, row) in enumerate(eachrow(entity_df))
+        ent = NamedTuple(row)
+        rows_by_entity[ent] = [offset + k]
+        for (dim_name, el) in pairs(ent)
+            push!(get!(rows_by_element, (dim_name, el), []), offset + k)
+        end
+    end
+end
+
+
+
+
