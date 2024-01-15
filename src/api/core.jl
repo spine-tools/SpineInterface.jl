@@ -137,6 +137,7 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs
     isempty(cols) && return _default
     rows = _find_rows(rc, kwargs)
     _isempty(rows) && return _default
+    rows = collect(values(Dict(NamedTuple(rc.entities[row, cols]) => row for row in rows)))
     EntityFrame(@view rc.entities[rows, cols])
 end
 
@@ -496,7 +497,6 @@ Return the modified `object_class`.
 function add_objects!(object_class::ObjectClass, objects::Array)
     existing = collect(object_class())
     setdiff!(objects, existing)
-    rows = length(existing) + 1 : length(existing) + length(objects)
     df = DataFrame(; Dict(object_class.name => objects)..., copycols=false)
     _add_entities!(object_class, df)
     object_class
@@ -588,8 +588,12 @@ _merge_pvals(::Missing, new_pval) = new_pval
 _replace_pval(_row_d, _p_name, new_pval) = new_pval
 
 function add_dimension!(cls::RelationshipClass, name::Symbol, vals)
-    insertcols!(cls.entities, _dimensionality(cls) + 1, Dict(name => vals)...)
     push!(cls.intact_object_class_names, name)
+    insertcols!(cls.entities, _dimensionality(cls), Dict(name => vals)...)
+    empty!(cls.rows_by_entity)
+    empty!(cls.rows_by_element)
+    _add_relationship_class_rows!(cls.rows_by_entity, cls.rows_by_element, cls.entities[!, _object_class_names(cls)])
+    nothing
 end
 
 """

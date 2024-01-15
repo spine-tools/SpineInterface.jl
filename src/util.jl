@@ -124,34 +124,29 @@ _object_class_names(oc::ObjectClass) = [oc.name]
 _object_class_names(rc::RelationshipClass) = propertynames(rc.entities)[1:_dimensionality(rc)]
 
 function _entity_pval(class, entity_kwargs, p_name)
-    rows = _find_pval_rows(class, entity_kwargs)
+    rows = _find_rows(class, entity_kwargs)
     length(rows) != 1 && return nothing
     class.entities[rows[1], p_name]
 end
 
-function _find_pval_rows(class::ObjectClass, entity_kwargs)
+function _find_rows(class::ObjectClass, entity_kwargs)
     get(class.rows_by_entity, entity_kwargs[class.name], [])
 end
-function _find_pval_rows(class::RelationshipClass, entity_kwargs)
-    if length(entity_kwargs) == _dimensionality(class)
-        get(class.rows_by_entity, NamedTuple(entity_kwargs), [])
-    else
-        _find_rows(class, entity_kwargs)
-    end
+function _find_rows(class::RelationshipClass, entity_kwargs)
+    rows = get(class.rows_by_entity, NamedTuple(entity_kwargs), [])
+    isempty(rows) || return rows
+    _find_rows_intersection(class, entity_kwargs)
 end
 
-function _find_rows(class, kwargs)
+function _find_rows_intersection(class, kwargs)
     rows_per_dim = [_rows(class, dim_name, object) for (dim_name, object) in kwargs]
     filter!(!=(anything), rows_per_dim)
     isempty(rows_per_dim) && return (:)
     length(rows_per_dim) == 1 && return rows_per_dim[1]
-    _intersect_sorted(rows_per_dim...)
+    intersect(rows_per_dim...)
+    # _intersect_sorted(rows_per_dim...)
 end
-
-function _rows(class::ObjectClass, _dim_name, object::Object)
-    get(class.rows_by_entity, object, [])
-end
-function _rows(class::RelationshipClass, dim_name, object::Object)
+function _rows(class, dim_name, object::ObjectLike)
     get(class.rows_by_element, (dim_name, object), [])
 end
 function _rows(_class, _dim_name, ::Anything)
@@ -159,6 +154,7 @@ function _rows(_class, _dim_name, ::Anything)
 end
 function _rows(class, dim_name, objects)
     rows = [_rows(class, dim_name, obj) for obj in objects]
+    filter!(!isempty, rows)
     sort!(rows; by=first)
     vcat(rows...)
 end
