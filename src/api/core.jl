@@ -136,13 +136,11 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs
     _compact && setdiff!(cols, keys(kwargs))
     isempty(cols) && return _default
     rows = _find_rows(rc, kwargs)
-    _isempty(rows) && return _default
-    rows = collect(values(Dict(NamedTuple(rc.entities[row, cols]) => row for row in rows)))
+    rows == (:) && return EntityFrame(@view rc.entities[:, cols])
+    isempty(rows) && return _default
+    rows = sort!(collect(values(Dict(NamedTuple(rc.entities[row, cols]) => row for row in rows))))
     EntityFrame(@view rc.entities[rows, cols])
 end
-
-_isempty(::Colon) = false
-_isempty(x) = isempty(x)
 
 """
     (<p>::Parameter)(;<keyword arguments>)
