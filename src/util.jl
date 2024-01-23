@@ -110,13 +110,9 @@ end
 _dimensionality(x::ObjectClass) = 0
 _dimensionality(x::RelationshipClass) = length(x.intact_object_class_names)
 
-function _split_entity_kwargs(class::ObjectClass; kwargs...)
+function _split_entity_kwargs(class; kwargs...)
     kwargs = OrderedDict(kwargs...)
-    OrderedDict(class.name => pop!(kwargs, class.name, anything)), (; kwargs...)
-end
-function _split_entity_kwargs(class::RelationshipClass; kwargs...)
-    kwargs = OrderedDict(kwargs...)
-    entity_kwargs = OrderedDict(oc_name => pop!(kwargs, oc_name, anything) for oc_name in _object_class_names(class))
+    entity_kwargs = Dict(oc_name => pop!(kwargs, oc_name, anything) for oc_name in _object_class_names(class))
     entity_kwargs, (; kwargs...)
 end
 
@@ -143,8 +139,7 @@ function _find_rows_intersection(class, kwargs)
     filter!(!=(anything), rows_per_dim)
     isempty(rows_per_dim) && return (:)
     length(rows_per_dim) == 1 && return rows_per_dim[1]
-    intersect(rows_per_dim...)
-    # _intersect_sorted(rows_per_dim...)
+    _intersect_sorted(rows_per_dim...)
 end
 function _rows(class, dim_name, object::ObjectLike)
     get(class.rows_by_element, (dim_name, object), [])
