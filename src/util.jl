@@ -125,7 +125,7 @@ _object_class_names(rc::RelationshipClass) = propertynames(rc.entities)[1:_dimen
 
 function _entity_pval(class, entity_kwargs, p_name)
     rows = _find_rows(class, entity_kwargs)
-    length(rows) != 1 && return nothing
+    (rows == (:) || length(rows) != 1) && return nothing
     class.entities[rows[1], p_name]
 end
 
@@ -133,7 +133,7 @@ function _find_rows(class::ObjectClass, entity_kwargs)
     get(class.rows_by_entity, entity_kwargs[class.name], [])
 end
 function _find_rows(class::RelationshipClass, entity_kwargs)
-    rows = get(class.rows_by_entity, NamedTuple(entity_kwargs), [])
+    rows = get(class.rows_by_entity, Tuple(get(entity_kwargs, n, nothing) for n in _object_class_names(class)), [])
     isempty(rows) || return rows
     _find_rows_intersection(class, entity_kwargs)
 end
@@ -290,9 +290,9 @@ end
 
 function _add_relationship_class_rows!(rows_by_entity, rows_by_element, entity_df, offset=0)
     for (k, row) in enumerate(eachrow(entity_df))
-        ent = NamedTuple(row)
+        ent = Tuple(row)
         rows_by_entity[ent] = [offset + k]
-        for (dim_name, el) in pairs(ent)
+        for (dim_name, el) in zip(keys(row), values(row))
             push!(get!(rows_by_element, (dim_name, el), []), offset + k)
         end
     end

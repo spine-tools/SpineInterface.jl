@@ -502,8 +502,7 @@ end
 
 function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
     add_objects!(object_class, collect(keys(parameter_values)))
-    _obj_from_row(row) = row[object_class.name]
-    _add_parameter_values!(_obj_from_row, object_class, parameter_values; merge_values=merge_values)
+    _add_parameter_values!(object_class, parameter_values; merge_values=merge_values)
 end
 
 function add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
@@ -538,8 +537,7 @@ function add_relationship_parameter_values!(
     relationship_class::RelationshipClass, parameter_values::Dict; merge_values=false
 )
     add_relationships!(relationship_class, collect(keys(parameter_values)))
-    _rel_from_row(row) = NamedTuple(n => row[n] for n in _object_class_names(relationship_class))
-    _add_parameter_values!(_rel_from_row, relationship_class, parameter_values; merge_values=merge_values)
+    _add_parameter_values!(relationship_class, parameter_values; merge_values=merge_values)
 end
 
 function add_relationship_parameter_defaults!(
@@ -552,38 +550,44 @@ function add_relationship!(relationship_class::RelationshipClass, relationship::
     add_relationships!(relationship_class, [relationship])
 end
 
-function _add_parameter_values!(ent_from_row, class, parameter_values; merge_values)
+function _add_parameter_values!(class, parameter_values; merge_values)
     make_pval = merge_values ? _merge_pvals : _replace_pval
-
-    function _transform(row)
-        ent = ent_from_row(row)
-        row_d = Dict{Symbol,Any}(pairs(row)...)
-        for (p_name, new_pval) in get(parameter_values, ent, get(parameter_values, values(ent), ()))
-            row_d[p_name] = make_pval(row_d, p_name, new_pval)
-        end
-        (; row_d...)
-    end
-
     new_param_names = unique(Iterators.flatten(keys.(values(parameter_values))))
     setdiff!(new_param_names, propertynames(class.entities))
-    insertcols!(class.entities, (p_name => missing for p_name in new_param_names)...)
-    transform!(class.entities, AsTable(:) => ByRow(_transform) => AsTable)
+    _insert_parameter_cols!(class, new_param_names)
+    for (ent, val_by_p_name) in parameter_values
+        rows = get(class.rows_by_entity, ent, get(class.rows_by_entity, Tuple(ent), []))
+        for row in rows
+            for (p_name, new_pval) in val_by_p_name
+                class.entities[row, p_name] = make_pval(class.entities[row, p_name], new_pval)
+            end
+        end
+    end
     class
 end
 
 function _add_parameter_defaults!(class, parameter_defaults::Dict; merge_values=false)
     new_param_names = collect(keys(parameter_defaults))
     setdiff!(new_param_names, propertynames(class.entities))
-    insertcols!(class.entities, (p_name => missing for p_name in new_param_names)...)
+    _insert_parameter_cols!(class, new_param_names)
     _merge! = merge_values ? mergewith!(merge!) : merge!
     _merge!(class.default_parameter_values, parameter_defaults)
 end
 
-_merge_pvals(row_d, p_name, new_pval) = _merge_pvals(row_d[p_name], new_pval)
+function _insert_parameter_cols!(class, parameter_names)
+    insertcols!(
+        class.entities,
+        (
+            p_name => Union{Missing,ParameterValue}[missing for i in 1:nrow(class.entities)]
+            for p_name in parameter_names
+        )...
+    )
+end
+
 _merge_pvals(old_pval, new_pval) = merge!(old_pval, new_pval)
 _merge_pvals(::Missing, new_pval) = new_pval
 
-_replace_pval(_row_d, _p_name, new_pval) = new_pval
+_replace_pval(_old_pval, new_pval) = new_pval
 
 function add_dimension!(cls::RelationshipClass, name::Symbol, vals)
     push!(cls.intact_object_class_names, name)

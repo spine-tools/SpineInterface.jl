@@ -190,7 +190,7 @@ function _object_parameter_values(class_name, object_names, param_name, param_va
     vals_by_obj_name = (
         obj_name => get(param_vals_per_ent, (class_name, obj_name, param_name), missing) for obj_name in object_names
     )
-    [
+    Union{Missing,ParameterValue}[
         _try_parameter_value_from_db(val, "unable to parse value of `$param_name` for `$entity_name`")
         for (entity_name, val) in vals_by_obj_name
     ]
@@ -248,7 +248,7 @@ function _relationship_parameter_values(class_name, object_names_tuple, param_na
         obj_name_lst => get(param_vals_per_ent, (class_name, collect(obj_name_lst), param_name), missing)
         for obj_name_lst in zip(object_names_tuple...)
     )
-    [
+    Union{Missing,ParameterValue}[
         _try_parameter_value_from_db(val, "unable to parse value of `$param_name` for `$obj_name_lst`")
         for (obj_name_lst, val) in vals_by_obj_name_lst
     ]
