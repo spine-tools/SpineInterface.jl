@@ -94,13 +94,13 @@ end
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
     for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
-        entity_kwargs, other_kwargs = _split_entity_kwargs(class; kwargs...)
-        val = _entity_pval(class, entity_kwargs, p.name)
+        entity, kwargs = _split_entity_kwargs(class; kwargs...)
+        val = _entity_pval(class, entity, p.name)
         val === nothing && continue
         if val === missing
             val = _default === nothing ? class.default_parameter_values[p.name] : parameter_value(_default)
         end
-        return val, other_kwargs
+        return val, kwargs
     end
     if _strict
         error("can't find a value of $p for argument(s) $((; kwargs...))")
@@ -112,30 +112,38 @@ _dimensionality(x::RelationshipClass) = length(x.intact_object_class_names)
 
 function _split_entity_kwargs(class; kwargs...)
     kwargs = OrderedDict(kwargs...)
-    entity_kwargs = Dict(oc_name => pop!(kwargs, oc_name, anything) for oc_name in _object_class_names(class))
-    entity_kwargs, (; kwargs...)
+    entity = _extract_entity!(class, kwargs)
+    entity, kwargs
+end
+
+function _extract_entity!(class::ObjectClass, kwargs)
+    pop!(kwargs, class.name, anything)
+end
+function _extract_entity!(class::RelationshipClass, kwargs)
+    Tuple(pop!(kwargs, n, anything) for n in _object_class_names(class))
 end
 
 _object_class_names(oc::ObjectClass) = [oc.name]
 _object_class_names(rc::RelationshipClass) = propertynames(rc.entities)[1:_dimensionality(rc)]
 
-function _entity_pval(class, entity_kwargs, p_name)
-    rows = _find_rows(class, entity_kwargs)
-    (rows == (:) || length(rows) != 1) && return nothing
+function _entity_pval(class, entity, p_name)
+    # rows = _find_rows(class, entity)
+    rows = get(class.rows_by_entity, entity, [])
+    length(rows) != 1 && return nothing
     class.entities[rows[1], p_name]
 end
 
-function _find_rows(class::ObjectClass, entity_kwargs)
-    get(class.rows_by_entity, entity_kwargs[class.name], [])
+function _find_rows(class::ObjectClass, entity)
+    get(class.rows_by_entity, entity, [])
 end
-function _find_rows(class::RelationshipClass, entity_kwargs)
-    rows = get(class.rows_by_entity, Tuple(get(entity_kwargs, n, nothing) for n in _object_class_names(class)), [])
+function _find_rows(class::RelationshipClass, entity)
+    rows = get(class.rows_by_entity, entity, [])
     isempty(rows) || return rows
-    _find_rows_intersection(class, entity_kwargs)
+    _find_rows_intersection(class, entity)
 end
 
-function _find_rows_intersection(class, kwargs)
-    rows_per_dim = [_rows(class, dim_name, object) for (dim_name, object) in kwargs]
+function _find_rows_intersection(class, entity)
+    rows_per_dim = [_rows(class, dim_name, el) for (dim_name, el) in zip(_object_class_names(class), entity)]
     filter!(!=(anything), rows_per_dim)
     isempty(rows_per_dim) && return (:)
     length(rows_per_dim) == 1 && return rows_per_dim[1]

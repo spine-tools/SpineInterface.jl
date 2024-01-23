@@ -60,8 +60,8 @@ end
 Map(inds::Array{String,1}, vals::Array{V,1}) where {V} = Map(Symbol.(inds), vals)
 Map(inds::T, vals::Array{V,1}) where {T,V} = Map(collect(inds), vals)
 
-Call(x, call_expr=nothing) = Call(nothing, [x], NamedTuple(), call_expr)
-Call(func::T, kwargs::NamedTuple, call_expr=nothing) where {T<:ParameterValue} = Call(func, [], kwargs, call_expr)
+Call(x, call_expr=nothing) = Call(nothing, [x], OrderedDict(), call_expr)
+Call(func::T, kwargs::OrderedDict, call_expr=nothing) where {T<:ParameterValue} = Call(func, [], kwargs, call_expr)
 Call(op::T, x, y) where {T<:Function} = Call(op, [x, y])
-Call(op::T, args::Vector) where {T<:Function} = Call(op, args, NamedTuple(), nothing)
+Call(op::T, args::Vector) where {T<:Function} = Call(op, args, OrderedDict(), nothing)
 Call(other::Call) = copy(other)

@@ -135,7 +135,8 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs
     isempty(kwargs) && return EntityFrame(@view rc.entities[:, cols])
     _compact && setdiff!(cols, keys(kwargs))
     isempty(cols) && return _default
-    rows = _find_rows(rc, kwargs)
+    entity = Tuple(get(kwargs, n, anything) for n in _object_class_names(rc))
+    rows = _find_rows(rc, entity)
     rows == (:) && return EntityFrame(@view rc.entities[:, cols])
     isempty(rows) && return _default
     rows = sort!(collect(values(Dict(NamedTuple(rc.entities[row, cols]) => row for row in rows))))

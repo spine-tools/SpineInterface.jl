@@ -420,10 +420,10 @@ end
 Base.getindex(p::Parameter, inds::NamedTuple) = _getindex(p; inds...)
 function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
     call_expr = (p.name, (; kwargs...))
-    pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
-    if pv_new_kwargs !== nothing
-        parameter_value, new_inds = pv_new_kwargs
-        Call(parameter_value, new_inds, call_expr)
+    pv_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
+    if pv_kwargs !== nothing
+        parameter_value, kwargs = pv_kwargs
+        Call(parameter_value, kwargs, call_expr)
     else
         Call(nothing, call_expr)
     end

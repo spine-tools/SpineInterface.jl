@@ -237,6 +237,6 @@ _CallExpr = Tuple{Symbol,NamedTuple}
 struct Call
     func::Union{Nothing,ParameterValue,Function}
     args::Vector
-    kwargs::NamedTuple
+    kwargs::OrderedDict
     call_expr::Union{_CallExpr,Nothing}
 end
