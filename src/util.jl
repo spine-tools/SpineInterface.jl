@@ -127,7 +127,7 @@ _object_class_names(oc::ObjectClass) = [oc.name]
 _object_class_names(rc::RelationshipClass) = propertynames(rc.entities)[1:_dimensionality(rc)]
 
 function _entity_pval(class, entity, p_name)
-    # rows = _find_rows(class, entity)
+    # FIXME: add a keywrod argument to use this instead rows = _find_rows(class, entity)
     rows = get(class.rows_by_entity, entity, [])
     length(rows) != 1 && return nothing
     class.entities[rows[1], p_name]
