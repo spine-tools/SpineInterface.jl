@@ -94,13 +94,13 @@ end
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
     for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
-        entity, kwargs = _split_entity_kwargs(class; kwargs...)
+        entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
         val = _entity_pval(class, entity, p.name)
         val === nothing && continue
         if val === missing
             val = _default === nothing ? class.default_parameter_values[p.name] : parameter_value(_default)
         end
-        return val, kwargs
+        return val, new_kwargs
     end
     if _strict
         error("can't find a value of $p for argument(s) $((; kwargs...))")
