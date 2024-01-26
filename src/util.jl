@@ -156,10 +156,9 @@ function _rows(_class, _dim_name, ::Anything)
     anything
 end
 function _rows(class, dim_name, objects)
-    rows = [_rows(class, dim_name, obj) for obj in objects]
-    filter!(!isempty, rows)
-    sort!(rows; by=first)
-    vcat(rows...)
+    rows = [r for obj in objects for r in _rows(class, dim_name, obj)]
+    # TODO: the rows for each object are sorted, so maybe we can sort the union faster??
+    sort!(rows)
 end
 
 function _intersect_sorted(rows...)
@@ -271,11 +270,13 @@ function _fix_name_ambiguity(intact_name_list)
 end
 
 function _add_entities!(obj_cls::ObjectClass, entity_df)
+    isempty(entity_df) && return
     _add_object_class_rows!(obj_cls.rows_by_entity, entity_df[!, obj_cls.name], nrow(obj_cls.entities))
     append!(obj_cls.entities, entity_df; cols=:subset)
 end
 
 function _add_entities!(rel_cls::RelationshipClass, entity_df)
+    isempty(entity_df) && return
     _add_relationship_class_rows!(
         rel_cls.rows_by_entity,
         rel_cls.rows_by_element,

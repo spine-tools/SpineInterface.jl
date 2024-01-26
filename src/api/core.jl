@@ -132,7 +132,9 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=nothing, kwargs...)
     cols = _object_class_names(rc)
-    _default = _default !== nothing ? _default : EntityFrame(empty(rc.entities[:, cols]))
+    if _default === nothing
+        _default = EntityFrame(empty(rc.entities[:, cols]))
+    end
     isempty(kwargs) && return EntityFrame(@view rc.entities[:, cols])
     _compact && setdiff!(cols, keys(kwargs))
     isempty(cols) && return _default

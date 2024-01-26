@@ -477,3 +477,5 @@ Base.lastindex(ef::EntityFrame) = length(ef)
 Base.filter(x, ef::EntityFrame) = filter(x, collect(ef))
 
 Base.vcat(efs::EntityFrame...) = vcat((collect(ef) for ef in efs)...)
+
+Base.sort(ef::EntityFrame) = sort(collect(ef))
