@@ -56,8 +56,7 @@ Base.isless(v1::ParameterValue{T}, v2::ParameterValue{T}) where {T<:_Scalar} = v
 Base.isless(scalar::Number, ts::TimeSeries) = all(isless(scalar, v) for v in ts.values)
 Base.isless(ts::TimeSeries, scalar::Number) = all(isless(v, scalar) for v in ts.values)
 
-Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
-Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
+Base.:(==)(x1::T, x2::T) where T<:Union{Object,TimeSlice} = x1.id == x2.id
 Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all(
     [getfield(ts1, field) == getfield(ts2, field) for field in fieldnames(TimeSeries)]
 )
@@ -79,7 +78,8 @@ Base.:(<=)(t::TimeSlice, dt::DateTime) = end_(t) <= dt
 
 Base.hash(::Anything) = zero(UInt64)
 Base.hash(o::Union{Object,TimeSlice}) = o.id
-Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
+Base.hash(t::ObjectTupleLike) = hash(Tuple(hash(o) for o in t))
+Base.hash(r::RelationshipLike{K}) where {K} = hash((K, (hash(o) for o in r)...))
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)

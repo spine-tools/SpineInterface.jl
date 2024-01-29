@@ -157,7 +157,7 @@ function _find_rows_intersection(class, entity)
     _intersect_sorted(rows_per_dim...)
 end
 function _rows(class, dim_name, object::ObjectLike)
-    get(class.rows_by_element, (dim_name, object), [])
+    get(class.rows_by_element, (; dim_name => object), [])
 end
 function _rows(_class, _dim_name, ::Anything)
     anything
@@ -300,7 +300,7 @@ function _add_relationship_class_rows!(rows_by_entity, rows_by_element, entity_d
         ent = Tuple(row)
         rows_by_entity[ent] = [offset + k]
         for (dim_name, el) in zip(keys(row), values(row))
-            push!(get!(rows_by_element, (dim_name, el), []), offset + k)
+            push!(get!(rows_by_element, (; dim_name => el), []), offset + k)
         end
     end
 end
