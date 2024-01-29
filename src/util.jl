@@ -93,14 +93,19 @@ end
 
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
-    for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
-        entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
-        val = _entity_pval(class, entity, p.name)
-        val === nothing && continue
-        if val === missing
-            val = _default === nothing ? class.default_parameter_values[p.name] : parameter_value(_default)
+    class_ent_kwargs_iter = (
+        (class, _split_entity_kwargs(class; kwargs...))
+        for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
+    )
+    for find_best_match in (false, true)
+        for (class, (entity, new_kwargs)) in class_ent_kwargs_iter
+            val = _entity_pval(class, entity, p.name; find_best_match=find_best_match)
+            val === nothing && continue
+            if val === missing
+                val = _default === nothing ? class.default_parameter_values[p.name] : parameter_value(_default)
+            end
+            return val, new_kwargs
         end
-        return val, new_kwargs
     end
     if _strict
         error("can't find a value of $p for argument(s) $((; kwargs...))")
@@ -126,10 +131,12 @@ end
 _object_class_names(oc::ObjectClass) = [oc.name]
 _object_class_names(rc::RelationshipClass) = propertynames(rc.entities)[1:_dimensionality(rc)]
 
-function _entity_pval(class, entity, p_name)
-    # FIXME: add a keywrod argument to use this instead rows = _find_rows(class, entity)
+function _entity_pval(class, entity, p_name; find_best_match=false)
     rows = get(class.rows_by_entity, entity, [])
-    length(rows) != 1 && return nothing
+    length(rows) == 1 && return class.entities[rows[1], p_name]
+    find_best_match || return nothing
+    rows = _find_rows(class, entity)
+    (rows == (:) || length(rows) != 1) && return nothing
     class.entities[rows[1], p_name]
 end
 
@@ -176,10 +183,6 @@ function _intersect_sorted(rows...)
         end
     end
     result
-end
-
-function _entity_filter(kwargs)
-    row -> all(row[class_name] in objects for (class_name, objects) in kwargs)
 end
 
 struct _CallNode

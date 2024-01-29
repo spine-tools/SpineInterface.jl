@@ -476,6 +476,10 @@ Base.lastindex(ef::EntityFrame) = length(ef)
 
 Base.filter(x, ef::EntityFrame) = filter(x, collect(ef))
 
-Base.vcat(efs::EntityFrame...) = vcat((collect(ef) for ef in efs)...)
+function Base.vcat(efs::EntityFrame...; cols=:intersect, kwargs...)
+    EntityFrame(vcat((ef.df for ef in efs)...; cols=cols, kwargs...))
+end
 
 Base.sort(ef::EntityFrame) = sort(collect(ef))
+
+Base.reverse(ef::EntityFrame, args...) = EntityFrame(reverse(ef.df, args...))

@@ -19,8 +19,8 @@
 
 import .DataFrames: innerjoin, select
 
-function innerjoin(ef1::EntityFrame, ef2::EntityFrame; kwargs...)
-	EntityFrame(innerjoin(ef1.df, ef2.df; kwargs...))
+function innerjoin(efs::EntityFrame...; kwargs...)
+	EntityFrame(innerjoin((ef.df for ef in efs)...; kwargs...))
 end
 
 function select(ef::EntityFrame, cols; kwargs...)

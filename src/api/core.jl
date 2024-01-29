@@ -448,6 +448,10 @@ function _indices(p::Parameter, row_processor; kwargs...)
     )
 end
 
+function _entity_filter(kwargs)
+    row -> all(row[class_name] in objects for (class_name, objects) in kwargs)
+end
+
 _default_if_missing(row::DataFrameRow, class, p_name) = _default_if_missing(row[p_name], class, p_name)
 _default_if_missing(x, _class, _p_name) = x
 _default_if_missing(::Missing, class, p_name) = class.default_parameter_values[p_name]
