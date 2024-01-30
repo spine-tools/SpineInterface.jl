@@ -436,6 +436,16 @@ function _indices(p::Parameter, row_processor; kwargs...)
     (
         row_processor(class, row)
         for class in p.classes
+        #=
+        TODO: Try something like the below but without the if
+        for row in eachrow(
+            view(
+                class.entities,
+                _find_rows(class, _extract_entity(class, kwargs)),
+                _object_class_names(class),
+            )
+        if _default_if_missing(row, class, p.name)() !== nothing
+        =#
         for row in eachrow(
             view(
                 class.entities,

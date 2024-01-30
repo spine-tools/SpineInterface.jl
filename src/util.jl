@@ -144,17 +144,22 @@ function _find_rows(class::ObjectClass, entity)
     get(class.rows_by_entity, entity, [])
 end
 function _find_rows(class::RelationshipClass, entity)
-    rows = get(class.rows_by_entity, entity, [])
-    isempty(rows) || return rows
-    _find_rows_intersection(class, entity)
+    entity = Tuple(_immutable(o) for o in entity)
+    get!(class.rows_by_entity, entity) do
+        _find_rows_intersection(class, entity)
+    end
 end
+
+_immutable(x) = Tuple(x)
+_immutable(::Anything) = anything
 
 function _find_rows_intersection(class, entity)
     rows_per_dim = [_rows(class, dim_name, el) for (dim_name, el) in zip(_object_class_names(class), entity)]
     filter!(!=(anything), rows_per_dim)
     isempty(rows_per_dim) && return (:)
     length(rows_per_dim) == 1 && return rows_per_dim[1]
-    _intersect_sorted(rows_per_dim...)
+    intersect(rows_per_dim...)
+    # _intersect_sorted(rows_per_dim...)
 end
 function _rows(class, dim_name, object::ObjectLike)
     get(class.rows_by_element, (; dim_name => object), [])

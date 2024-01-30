@@ -85,7 +85,7 @@ struct ObjectClass
     name::Symbol
     entities::DataFrame
     default_parameter_values::Dict{Symbol,Any}
-    rows_by_entity::Dict{ObjectLike,Vector{Int64}}
+    rows_by_entity::Dict
     function ObjectClass(name, entities::DataFrame, defaults=Dict())
         rows_by_entity = Dict()
         _add_object_class_rows!(rows_by_entity, entities[!, name])
@@ -103,8 +103,8 @@ struct RelationshipClass
     intact_object_class_names::Array{Symbol,1}
     entities::DataFrame
     default_parameter_values::Dict{Symbol,Any}
-    rows_by_entity::Dict{ObjectTupleLike,Vector{Int64}}
-    rows_by_element::Dict{RelationshipLike,Vector{Int64}}
+    rows_by_entity::Dict
+    rows_by_element::Dict
     function RelationshipClass(name, intact_cls_names, entities::DataFrame, defaults=Dict())
         rows_by_entity = Dict()
         rows_by_element = Dict()

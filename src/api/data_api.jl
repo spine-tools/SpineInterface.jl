@@ -17,12 +17,24 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-import .DataFrames: innerjoin, select
+import .DataFrames: innerjoin, leftjoin, flatten, select, select!
 
 function innerjoin(efs::EntityFrame...; kwargs...)
 	EntityFrame(innerjoin((ef.df for ef in efs)...; kwargs...))
 end
 
-function select(ef::EntityFrame, cols; kwargs...)
-	EntityFrame(select(ef.df, cols; kwargs...))
+function leftjoin(ef1::EntityFrame, ef2::EntityFrame; kwargs...)
+	EntityFrame(leftjoin(ef1.df, ef2.df; kwargs...))
+end
+
+function flatten(ef::EntityFrame, cols; kwargs...)
+	EntityFrame(flatten(ef.df, cols; kwargs...))
+end
+
+function select(ef::EntityFrame, args...; kwargs...)
+	EntityFrame(select(ef.df, args...; kwargs...))
+end
+
+function select!(ef::EntityFrame, args...; kwargs...)
+	EntityFrame(select!(ef.df, args...; kwargs...))
 end
