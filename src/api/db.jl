@@ -251,7 +251,7 @@ function _class_names_per_parameter(object_classes, relationship_classes, param_
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
 end
 
-function _generate_convenience_functions(data, mod; filters=Dict())
+function _generate_convenience_functions(data, mod; filters=Dict(), extend=false)
     object_classes = [x for x in get(data, "entity_classes", []) if isempty(x[2])]
     relationship_classes = [x for x in get(data, "entity_classes", []) if !isempty(x[2])]
     objects = [x for x in get(data, "entities", []) if x[2] isa String]
