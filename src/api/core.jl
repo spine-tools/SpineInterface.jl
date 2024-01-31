@@ -285,7 +285,7 @@ function _get_time_series_value(pv, t::TimeSlice, callback)
     t_start, t_end = start(adjusted_t), end_(adjusted_t)
     a, b = _search_overlap(pv.value, t_start, t_end)
     if callback !== nothing
-        timeout = min(_next_index(pv.value, a) - t_start, _next_index(pv.value, b) + Millisecond(1) - t_end)
+        timeout = _timeout(pv.value, t_start, t_end, a, b)
         _add_callback(t, timeout, callback)
     end
     t_end <= pv.value.indexes[1] && return NaN
@@ -311,7 +311,7 @@ function _get_repeating_time_series_value(pv, t::TimeSlice, callback)
     t_end -= reps_end * pv.span
     a, b = _search_overlap(pv.value, t_start, t_end)
     if callback !== nothing
-        timeout = min(_next_index(pv.value, a) - t_start, _next_index(pv.value, b) + Millisecond(1) - t_end)
+        timeout = _timeout(pv.value, t_start, t_end, a, b)
         _add_callback(t, timeout, callback)
     end
     reps = reps_end - reps_start
@@ -378,6 +378,10 @@ end
 _search_nearest(arr, x) = nothing
 
 _next_index(val::Union{TimeSeries,Map}, pos) = val.indexes[min(pos + 1, length(val.indexes))]
+
+function _timeout(val::TimeSeries, t_start, t_end, a, b)
+    min(_next_index(val, a) - t_start, _next_index(val, b) + Millisecond(1) - t_end)
+end
 
 function _add_callback(t::TimeSlice, timeout, callback)
     callbacks = get!(t.callbacks, timeout) do
@@ -614,15 +618,17 @@ parameter(name, m=@__MODULE__) = get(_getproperty(m, :_spine_parameters, Dict())
 """
     difference(left, right)
 
-A string sumarizing spine values (ObjectClass, RelationshipClass, Parameter) from module `left`
-that are absent from module `right`.
+A string summarizing the differences between the `left` and the right `Dict`s.
+Both `left` and `right` are mappings from string to an array.
 """
 function difference(left, right)
-    _name(x) = x.name
     diff = OrderedDict(
-        "object classes" => setdiff(_name.(object_classes(left)), _name.(object_classes(right))),
-        "relationship classes" => setdiff(_name.(relationship_classes(left)), _name.(relationship_classes(right))),
-        "parameters" => setdiff(_name.(parameters(left)), _name.(parameters(right))),
+        "object classes" => setdiff(first.(left["object_classes"]), first.(right["object_classes"])),
+        "relationship classes" => setdiff(first.(left["relationship_classes"]), first.(right["relationship_classes"])),
+        "parameters" => setdiff(
+            (x -> x[2]).(vcat(left["object_parameters"], left["relationship_parameters"])),
+            (x -> x[2]).(vcat(right["object_parameters"], right["relationship_parameters"])),
+        ),
     )
     header_size = maximum(length(key) for key in keys(diff))
     empty_header = repeat(" ", header_size)
@@ -651,5 +657,15 @@ function realize(call, callback=nothing)
     catch e
         err_msg = "unable to evaluate expression:\n\t$call\n"
         rethrow(ErrorException("$err_msg$(sprint(showerror, e))"))
+    end
+end
+
+function add_dimension!(cls::RelationshipClass, name::Symbol, val)
+    push!(cls.object_class_names, name)
+    push!(cls.intact_object_class_names, name)
+    map!(rel -> (; rel..., Dict(name => val)...), cls.relationships, cls.relationships)
+    key_map = Dict(rel => (rel..., val) for rel in keys(cls.parameter_values))
+    for (key, new_key) in key_map
+        cls.parameter_values[new_key] = pop!(cls.parameter_values, key)
     end
 end

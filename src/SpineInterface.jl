@@ -38,6 +38,7 @@ include("api/parameter_value.jl")
 include("api/time_slice.jl")
 include("api/tests.jl")
 
+export add_dimension!
 export add_object_parameter_values!
 export add_object_parameter_defaults!
 export add_object!
@@ -57,6 +58,7 @@ export db_value
 export difference
 export duration
 export end_
+export export_data
 export groups
 export import_data
 export indexed_values

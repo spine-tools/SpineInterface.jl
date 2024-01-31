@@ -18,26 +18,35 @@
 #############################################################################
 
 """
-    using_spinedb(url::String, mod=@__MODULE__; upgrade=false)
+    using_spinedb(url::String, mod=@__MODULE__; upgrade=false, filters=Dict(), extend=false)
 
 Extend module `mod` with convenience functions to access the contents of a Spine DB.
 The argument `url` is either the url of the DB, or of an HTTP Spine DB server associated with it.
-If `upgrade` is `true`, then the database is upgraded to the latest revision.
+
+# Keyword arguments
+  - `upgrade`: if `true`, then the database is upgraded to the latest revision.
+  - `filters`: a `Dict` specifying filters.
+  - `extend`: if `false`, then any convenience functions already created in the given module are 
+    overwritten. Otherwise they are extended.
 
 See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details on
 how to call the convenience functors.
 """
-function using_spinedb(url::String, mod=@__MODULE__; upgrade=false, filters=Dict())
-    data = _db(url; upgrade=upgrade) do db
+function using_spinedb(url::String, mod=@__MODULE__; upgrade=false, filters=Dict(), extend=false)
+    data = export_data(url; upgrade=upgrade, filters=filters)
+    _generate_convenience_functions(data, mod; filters=filters, extend=extend)
+end
+function using_spinedb(template::Dict{Symbol,T}, mod=@__MODULE__; filters=nothing, extend=false) where T
+    using_spinedb(Dict(string(key) => value for (key, value) in template), mod; filters=filters, extend=extend)
+end
+function using_spinedb(template::Dict{String,T}, mod=@__MODULE__; filters=nothing, extend=false) where T
+    _generate_convenience_functions(template, mod; filters=filters, extend=extend)
+end
+
+function export_data(url; upgrade=false, filters=Dict())
+    _db(url; upgrade=upgrade) do db
         _export_data(db; filters=filters)
     end
-    _generate_convenience_functions(data, mod; filters=filters)
-end
-function using_spinedb(template::Dict{Symbol,T}, mod=@__MODULE__; filters=nothing) where T
-    using_spinedb(Dict(string(key) => value for (key, value) in template), mod; filters=filters)
-end
-function using_spinedb(template::Dict{String,T}, mod=@__MODULE__; filters=nothing) where T
-    _generate_convenience_functions(template, mod)
 end
 
 """
@@ -265,29 +274,34 @@ function _generate_convenience_functions(data, mod; filters=Dict())
     )
     class_names_per_param = _class_names_per_parameter(object_classes, relationship_classes, param_defs_per_cls)
     # Get or create containers
-    _spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
-    _spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
-    _spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
-    # Remove current classes and parameters that are not in the new dataset
-    for key in setdiff(keys(_spine_object_classes), keys(args_per_obj_cls))
-        empty!(pop!(_spine_object_classes, key))
-    end
-    for key in setdiff(keys(_spine_relationship_classes), keys(args_per_rel_cls))
-        empty!(pop!(_spine_relationship_classes, key))
-    end
-    for key in setdiff(keys(_spine_parameters), keys(class_names_per_param))
-        empty!(pop!(_spine_parameters, key))
+    spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
+    spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
+    spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
+    if !extend
+        # Remove current classes and parameters that are not in the new dataset
+        for name in setdiff(keys(spine_object_classes), keys(args_per_obj_cls))
+            pop!(spine_object_classes, name)
+            @eval mod $name = nothing
+        end
+        for name in setdiff(keys(spine_relationship_classes), keys(args_per_rel_cls))
+            pop!(spine_relationship_classes, name)
+            @eval mod $name = nothing
+        end
+        for name in setdiff(keys(spine_parameters), keys(class_names_per_param))
+            pop!(spine_parameters, name)
+            @eval mod $name = nothing
+        end
     end
     # Create new
     for (name, args) in args_per_obj_cls
-        _spine_object_classes[name] = new = ObjectClass(name, args...)
+        spine_object_classes[name] = new = ObjectClass(name, args...)
         @eval mod begin
             $name = $new
             export $name
         end
     end
     for (name, args) in args_per_rel_cls
-        _spine_relationship_classes[name] = new = RelationshipClass(name, args...)
+        spine_relationship_classes[name] = new = RelationshipClass(name, args...)
         @eval mod begin
             $name = $new
             export $name
@@ -295,7 +309,7 @@ function _generate_convenience_functions(data, mod; filters=Dict())
     end
     for (name, class_names) in class_names_per_param
         classes = [getfield(mod, x) for x in class_names]
-        _spine_parameters[name] = new = Parameter(name, classes)
+        spine_parameters[name] = new = Parameter(name, classes)
         @eval mod begin
             $name = $new
             export $name
@@ -693,11 +707,15 @@ end
 
 function _export_data(db; filters=Dict())
     isempty(filters) && return _run_server_request(db, "export_data")
-    old_filters = _run_server_request(db, "call_method", ("get_filter_configs",))
+    old_filters = Dict(
+        k => v
+        for (k, v) in merge!(Dict(), _run_server_request(db, "call_method", ("get_filter_configs",))...)
+        if k in ("alternatives", "scenario", "tool")
+    )
     _run_server_request(db, "apply_filters", (filters,))
     data = _run_server_request(db, "export_data")
     _run_server_request(db, "clear_filters")
-    isempty(old_filters) || _run_server_request(db, "apply_filters", Tuple(old_filters))
+    isempty(old_filters) || _run_server_request(db, "apply_filters", (old_filters,))
     data
 end
 

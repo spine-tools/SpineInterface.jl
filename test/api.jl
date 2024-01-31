@@ -573,8 +573,6 @@ end
 
 function _test_difference()
     @testset "difference" begin
-        Left = Module()
-        Right = Module()
         import_test_data(
             db_url;
             object_classes=["institution", "country"],
@@ -582,7 +580,7 @@ function _test_difference()
             object_parameters=[["institution", "since_year"]],
             relationship_parameters=[["institution__country", "people_count"]],
         )
-        using_spinedb(db_url, Left)
+        left = export_data(db_url)
         import_test_data(
             db_url;
             object_classes=["institution", "idea"],
@@ -590,16 +588,14 @@ function _test_difference()
             object_parameters=[["institution", "since_year"]],
             relationship_parameters=[["institution__idea", "creator"]],
         )
-        using_spinedb(db_url, Right)
-        left_diff = difference(Left, Right)
+        right = export_data(db_url)
+        left_diff = difference(left, right)
         left_parts = [split(strip(x), "  ") for x in split(left_diff, '\n') if !isempty(x)]
         left_expected = [
-            ["object classes", "country"],
-            ["relationship classes", "institution__country"],
-            ["parameters", "people_count"]
+            ["object classes", "country"], ["relationship classes", "institution__country"], ["parameters", "people_count"]
         ]
         @test left_parts == left_expected
-        right_diff = difference(Right, Left)
+        right_diff = difference(right, left)
         right_parts = [split(strip(x), "  ") for x in split(right_diff, '\n') if !isempty(x)]
         right_expected = [
             ["object classes", "idea"], ["relationship classes", "institution__idea"], ["parameters", "creator"]
