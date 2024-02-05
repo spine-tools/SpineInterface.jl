@@ -107,6 +107,7 @@ export TimeSeries
 export TimeSlice
 export unparse_db_value
 export using_spinedb
+export without_filters
 export write_parameters
 
 function __init__()

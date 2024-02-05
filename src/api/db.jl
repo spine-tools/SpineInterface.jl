@@ -476,19 +476,19 @@ d = Dict(
 import_data(url, d, "arf!")
 ```
 """
-function import_data(url::String, data::Union{ObjectClass,RelationshipClass}, comment::String; upgrade=false)
+function import_data(url, data::Union{ObjectClass,RelationshipClass}, comment::String; upgrade=false)
     import_data(url, _to_dict(data), comment; upgrade=upgrade)
 end
-function import_data(url::String, data::Vector, comment::String; upgrade=false)
+function import_data(url, data::Vector, comment::String; upgrade=false)
     import_data(url, merge(append!, _to_dict.(data)...), comment; upgrade=upgrade)
 end
-function import_data(url::String, data::Dict{String,T}, comment::String; upgrade=false) where {T}
+function import_data(url, data::Dict{String,T}, comment::String; upgrade=false) where {T}
     import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment; upgrade=upgrade)
 end
-function import_data(url::String, comment::String; upgrade=false, kwargs...)
+function import_data(url, comment::String; upgrade=false, kwargs...)
     import_data(url, Dict(Symbol(k) => v for (k, v) in pairs(kwargs)), comment; upgrade=upgrade)
 end
-function import_data(url::String, data::Dict{Symbol,T}, comment::String; upgrade=false) where {T}
+function import_data(url, data::Dict{Symbol,T}, comment::String; upgrade=false) where {T}
     _db(url; upgrade=upgrade) do db
         _import_data(db, data, comment)
     end
@@ -499,16 +499,16 @@ end
 
 Run the given request on the given url, using the given args.
 """
-function run_request(url::String, request::String; upgrade=false)
+function run_request(url, request::String; upgrade=false)
     run_request(url, request, (), Dict(); upgrade=upgrade)
 end
-function run_request(url::String, request::String, args::Tuple; upgrade=false)
+function run_request(url, request::String, args::Tuple; upgrade=false)
     run_request(url, request, args, Dict(); upgrade=upgrade)
 end
-function run_request(url::String, request::String, kwargs::Dict; upgrade=false)
+function run_request(url, request::String, kwargs::Dict; upgrade=false)
     run_request(url, request, (), kwargs; upgrade=upgrade)
 end
-function run_request(url::String, request::String, args::Tuple, kwargs::Dict; upgrade=false)
+function run_request(url, request::String, args::Tuple, kwargs::Dict; upgrade=false)
     _db(url; upgrade=upgrade) do db
         _run_request(db, request, args, kwargs)
     end
@@ -521,6 +521,25 @@ end
 function close_connection(db_url)
     handler = pop!(_handlers, db_url, nothing)
     handler === nothing || _close_db_handler(handler)
+end
+
+"""
+    without_filters(f, url)
+
+Run function f on given url without filters.
+In other words: clear all filters, run function f, then restablish the previous filters.
+"""
+function without_filters(f, url)
+    _db(url) do db
+        old_filters = _current_filters(db)
+        isempty(old_filters) && return f()
+        _run_server_request(db, "clear_filters")
+        try
+            f(db)
+        finally
+            _run_server_request(db, "apply_filters", (old_filters,))
+        end
+    end
 end
 
 function _parse_spinedb_api_version(version)
@@ -564,7 +583,7 @@ end
 
 _close_db_handler(handler) = Base.invokelatest(_do_close_db_handler, handler)
 
-function _db(f, url; upgrade=false)
+function _db(f, url::String; upgrade=false)
     uri = URI(url)
     if uri.scheme == "http"
         f(uri)
@@ -580,6 +599,7 @@ function _db(f, url; upgrade=false)
         end
     end
 end
+_db(f, db; kwargs...) = f(db)
 
 function _process_db_answer(answer::Dict)
     result = get(answer, "result", nothing)
@@ -711,16 +731,20 @@ end
 
 function _export_data(db; filters=Dict())
     isempty(filters) && return _run_server_request(db, "export_data")
-    old_filters = Dict(
-        k => v
-        for (k, v) in merge!(Dict(), _run_server_request(db, "call_method", ("get_filter_configs",))...)
-        if k in ("alternatives", "scenario", "tool")
-    )
+    old_filters = _current_filters(db)
     _run_server_request(db, "apply_filters", (filters,))
     data = _run_server_request(db, "export_data")
     _run_server_request(db, "clear_filters")
     isempty(old_filters) || _run_server_request(db, "apply_filters", (old_filters,))
     data
+end
+
+function _current_filters(db)
+    Dict(
+        k => v
+        for (k, v) in merge!(Dict(), _run_server_request(db, "call_method", ("get_filter_configs",))...)
+        if k in ("alternatives", "scenario", "tool")
+    )
 end
 
 function _import_data(db, data::Dict{Symbol,T}, comment::String) where {T}
