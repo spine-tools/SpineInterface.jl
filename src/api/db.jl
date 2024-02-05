@@ -532,7 +532,7 @@ In other words: clear all filters, run function f, then restablish the previous 
 function without_filters(f, url)
     _db(url) do db
         old_filters = _current_filters(db)
-        isempty(old_filters) && return f()
+        isempty(old_filters) && return f(db)
         _run_server_request(db, "clear_filters")
         try
             f(db)
