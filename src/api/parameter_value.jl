@@ -270,7 +270,7 @@ end
 function db_value(x::Map{K,V}) where {K,V}
     Dict{String,Any}(
         "index_type" => _inner_type_str(K),
-        "data" => [(i, _unparse_map_value(v)) for (i, v) in zip(x.indexes, x.values)],
+        "data" => [(i, db_value_and_type(v)) for (i, v) in zip(x.indexes, x.values)],
     )
 end
 
@@ -300,8 +300,8 @@ function _unparse_time_pattern(union::UnionOfIntersections)
     join(union_arr, union_op)
 end
 
-_unparse_map_value(x::ParameterValue) = _unparse_map_value(x.value)
-_unparse_map_value(x) = _add_db_type!(db_value(x), x)
+db_value_and_type(x::ParameterValue) = db_value_and_type(x.value)
+db_value_and_type(x) = _add_db_type!(db_value(x), x)
 
 function _add_db_type!(db_val::Dict, x)
     db_val["type"] = _db_type(x)
