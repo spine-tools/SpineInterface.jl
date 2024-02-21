@@ -388,13 +388,16 @@ function Base.setindex!(x::Union{TimeSeries,Map}, value, key...)
     value
 end
 
+_searchsortedfirst(indexes::Vector{T}, key::T) where T = searchsortedfirst(indexes, key)
+_searchsortedfirst(indexes, key) = 0
+
 function Base.get(x::Union{TimeSeries,Map}, key, default)
-    i = searchsortedfirst(x.indexes, key)
+    i = _searchsortedfirst(x.indexes, key)
     get(x.indexes, i, nothing) == key ? x.values[i] : default
 end
 
 function Base.getindex(x::Union{TimeSeries,Map}, key)
-    i = searchsortedfirst(x.indexes, key)
+    i = _searchsortedfirst(x.indexes, key)
     if get(x.indexes, i, nothing) == key
         x.values[i]
     else
