@@ -384,10 +384,7 @@ function _timeout(val::TimeSeries, t_start, t_end, a, b)
 end
 
 function _add_callback(t::TimeSlice, timeout, callback)
-    callbacks = get!(t.callbacks, timeout) do
-        Set()
-    end
-    push!(callbacks, callback)
+    push!(t.callbacks, _TimedCallback(timeout, callback))
 end
 
 members(::Anything) = anything

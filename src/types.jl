@@ -41,6 +41,14 @@ struct Object
     end
 end
 
+struct _TimedCallback
+    timeout::Ref{Any}
+    callback
+    function _TimedCallback(timeout, callback)
+        new(timeout, callback)
+    end
+end
+
 """
     TimeSlice
 
@@ -52,12 +60,12 @@ struct TimeSlice
     duration::Float64
     blocks::NTuple{N,Object} where {N}
     id::UInt64
-    callbacks::Dict  # callbacks by timeout
+    callbacks::Vector{_TimedCallback}
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
         blocks = isempty(blocks) ? () : Tuple(sort(collect(blocks)))
         id = objectid((start, end_, duration, blocks))
-        new(Ref(start), Ref(end_), duration, blocks, id, Dict())
+        new(Ref(start), Ref(end_), duration, blocks, id, [])
     end
 end
 
@@ -230,7 +238,7 @@ function _nonunique_positions_sorted(arr)
 end
 
 _Scalar = Union{Nothing,Bool,Int64,Float64,Symbol,DateTime,Period}
-_Indexed = Union{TimePattern,TimeSeries,Map}
+_Indexed = Union{Array,TimePattern,TimeSeries,Map}
 
 struct _StartRef
     time_slice::TimeSlice

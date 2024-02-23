@@ -56,7 +56,7 @@
     # show
     @test string(anything) === "anything"
     @test string(t1) === "0000-01-01T00:00~>0001-01-01T00:00"
-    @test string(p5) === "Int64ParameterValue(5)"
+    @test string(p5) === "ParameterValue(5)"
     duck = ObjectClass(:duck, [])
     studio_duck = RelationshipClass(:studio_duck, [:studio, :duck], [])
     @test string(duck) === "duck"

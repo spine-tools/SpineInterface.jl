@@ -110,6 +110,7 @@ end
 	roll!(t, Hour(1))
 	@test upd.values == [4.0, -1.0]
 end
+
 @testset "time pattern upd" begin
 	parse_tp = SpineInterface.parse_time_period
 	tp = Dict(parse_tp("M1-6;WD1-5") => 1.0, parse_tp("M1-6;WD6-7") => 20, parse_tp("M7-12") => -4.0)
@@ -137,6 +138,7 @@ end
 	roll!(t, Month(6))
 	@test upd.values == [1.0, 20.0, 1.0, 20.0, -4.0, 1.0]
 end
+
 @testset "map upd" begin
 	db_map = Dict(
         "type" => "map",
@@ -237,6 +239,7 @@ end
 	@test last(scen2_upd.values) == 9
 	@test isempty(scen3_upd.values)
 end
+
 @testset "update_range_constraint" begin
 	m = Model(Cbc.Optimizer)
 	@variable(m, x)
