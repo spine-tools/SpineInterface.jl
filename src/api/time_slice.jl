@@ -147,17 +147,17 @@ function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod}; refres
     t.start[] += forward
     t.end_[] += forward
     if refresh
-        for timeout in collect(keys(t.callbacks))
-            callbacks = pop!(t.callbacks, timeout)
-            timeout -= forward
-            if Dates.toms(forward) < 0 || Dates.toms(timeout) <= 0
-                for callback in callbacks
-                    callback()
-                end
-            else
-                t.callbacks[timeout] = callbacks
+        to_call = []
+        for (k, tc) in enumerate(t.callbacks)
+            tc.timeout[] = tc.timeout[] - forward
+            if Dates.toms(forward) < 0 || Dates.toms(tc.timeout[]) <= 0
+                push!(to_call, k)
             end
         end
+        for i in to_call
+            t.callbacks[i].callback()
+        end
+        deleteat!(t.callbacks, to_call)
     end
     t
 end
@@ -168,12 +168,10 @@ end
 Apply callbacks registered in the given `t`.
 """
 function refresh!(t::TimeSlice)
-    for timeout in collect(keys(t.callbacks))
-        callbacks = pop!(t.callbacks, timeout)
-        for callback in callbacks
-            callback()
-        end
+    for tc in t.callbacks
+        tc.callback()
     end
+    empty!(t.callbacks)
 end
 
 """

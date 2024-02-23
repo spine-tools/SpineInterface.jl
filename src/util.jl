@@ -211,3 +211,8 @@ function _parameter_value_metadata(value::TimeSeries)
         Dict()
     end
 end
+
+function _refresh_metadata!(pval::ParameterValue)
+    empty!(pval.metadata)
+    merge!(pval.metadata, _parameter_value_metadata(pval.value))
+end

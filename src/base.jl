@@ -78,7 +78,7 @@ Base.show(io::IO, s::_StartRef) = print(io, string(Dates.format(start(s.time_sli
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
-Base.show(io::IO, v::ParameterValue{T}) where T = print(io, string(T, "ParameterValue(", v.value, ")"))
+Base.show(io::IO, v::ParameterValue{T}) where T = print(io, string("ParameterValue(", v.value, ")"))
 Base.show(io::IO, call::Call) = _show_call(io, call, call.call_expr, call.func)
 _show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
 function _show_call(io::IO, call::Call, expr::Nothing, func::Function)
@@ -365,8 +365,7 @@ function Base.merge!(a::Map, b::Map)
 end
 function Base.merge!(a::ParameterValue, b::ParameterValue)
     merge!(a.value, b.value)
-    empty!(a.metadata)
-    merge!(a.metadata, _parameter_value_metadata(a.value))
+    _refresh_metadata!(a)
     a
 end
 
@@ -388,13 +387,16 @@ function Base.setindex!(x::Union{TimeSeries,Map}, value, key...)
     value
 end
 
+_searchsortedfirst(indexes::Vector{T}, key::T) where T = searchsortedfirst(indexes, key)
+_searchsortedfirst(indexes, key) = 0
+
 function Base.get(x::Union{TimeSeries,Map}, key, default)
-    i = searchsortedfirst(x.indexes, key)
+    i = _searchsortedfirst(x.indexes, key)
     get(x.indexes, i, nothing) == key ? x.values[i] : default
 end
 
 function Base.getindex(x::Union{TimeSeries,Map}, key)
-    i = searchsortedfirst(x.indexes, key)
+    i = _searchsortedfirst(x.indexes, key)
     if get(x.indexes, i, nothing) == key
         x.values[i]
     else
@@ -423,6 +425,11 @@ function Base.get!(f::Function, x::Union{TimeSeries,Map}, key)
     i = searchsortedfirst(x.indexes, key)
     if get(x.indexes, i, nothing) == key
         x.values[i]
+    elseif i > lastindex(x.indexes)
+        val = f()
+        push!(x.indexes, key)
+        push!(x.values, val)
+        val
     else
         x.values[i] = f()
     end
@@ -446,3 +453,12 @@ end
 Base.abs(call::Call) = Call(abs, [call])
 
 Base.isempty(x::Union{TimeSeries,Map}) = isempty(x.indexes)
+
+function Base.empty!(x::ParameterValue{T}) where {T<:_Indexed}
+    empty!(x.value)
+    empty!(x.metadata)
+end
+function Base.empty!(x::Union{TimeSeries,Map})
+    empty!(x.indexes)
+    empty!(x.values)
+end

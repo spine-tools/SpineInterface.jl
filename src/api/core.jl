@@ -335,8 +335,8 @@ function _get_value(pv::ParameterValue{T}, o::ObjectLike, callback; kwargs...) w
     i === nothing && return pv(callback; kwargs...)
     pv.value.values[i](callback; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, d::DateTime, callback; kwargs...) where {V,T<:Map{DateTime,V}}
-    i = _search_nearest(pv.value.indexes, d)
+function _get_value(pv::ParameterValue{T}, x::K, callback; kwargs...) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
+    i = _search_nearest(pv.value.indexes, x)
     i === nothing && return pv(callback; kwargs...)
     pv.value.values[i](callback; kwargs...)
 end
@@ -373,7 +373,7 @@ _search_equal(arr, x) = nothing
 function _search_nearest(arr::AbstractArray{T,1}, x::T) where {T}
     i = searchsortedlast(arr, x)  # index of the last value in arr less than or equal to x, 0 if none
     i > 0 && return i
-    nothing
+    1
 end
 _search_nearest(arr, x) = nothing
 
@@ -384,10 +384,7 @@ function _timeout(val::TimeSeries, t_start, t_end, a, b)
 end
 
 function _add_callback(t::TimeSlice, timeout, callback)
-    callbacks = get!(t.callbacks, timeout) do
-        Set()
-    end
-    push!(callbacks, callback)
+    push!(t.callbacks, _TimedCallback(timeout, callback))
 end
 
 members(::Anything) = anything

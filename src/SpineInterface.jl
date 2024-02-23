@@ -55,6 +55,7 @@ export Call
 export contains
 export db_api
 export db_value
+export db_value_and_type
 export difference
 export duration
 export end_

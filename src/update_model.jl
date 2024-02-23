@@ -30,7 +30,8 @@ _Constant = Union{Number,UniformScaling}
 struct SpineInterfaceExt
     lower_bound::Dict{VariableRef,Any}
     upper_bound::Dict{VariableRef,Any}
-    SpineInterfaceExt() = new(Dict(), Dict())
+    fixer::Dict{VariableRef,Any}
+    SpineInterfaceExt() = new(Dict(), Dict(), Dict())
 end
 
 JuMP.copy_extension_data(data::SpineInterfaceExt, new_model::AbstractModel, model::AbstractModel) = nothing
@@ -97,7 +98,7 @@ end
 
 (upd::_VariableLBUpdate)(new_lb) = _set_lower_bound(upd.variable, new_lb)
 (upd::_VariableUBUpdate)(new_ub) = _set_upper_bound(upd.variable, new_ub)
-(upd::_VariableFixValueUpdate)(new_fix_value) = _fix(upd.variable, new_fix_value)
+(upd::_VariableFixValueUpdate)(new_fix_value) = _fix(upd, new_fix_value)
 (upd::_ObjectiveCoefficientUpdate)(new_coef) = set_objective_coefficient(upd.model, upd.variable, new_coef)
 (upd::_ConstraintCoefficientUpdate)(new_coef) = set_normalized_coefficient(upd.constraint[], upd.variable, new_coef)
 (upd::_RHSUpdate)(new_rhs) = set_normalized_rhs(upd.constraint[], new_rhs)
@@ -156,7 +157,7 @@ function _set_upper_bound(var, ub)
         # Save bound
         m = owner_model(var)
         ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
-        ext.upper_bound[var] = lb
+        ext.upper_bound[var] = ub
     else
         set_upper_bound(var, ub)
     end
@@ -172,15 +173,17 @@ If the value is NaN, then the variable is freed.
 Any bounds on the variable at the moment of fixing it are restored when freeing it.
 """
 function JuMP.fix(var::VariableRef, call::Call)
-    fix_value = realize(call, _VariableFixValueUpdate(var))
-    _fix(var, fix_value)
+    upd = _VariableFixValueUpdate(var)
+    fix_value = realize(call, upd)
+    _fix(upd, fix_value)
 end
 
-_fix(var, ::Nothing) = nothing
-function _fix(var, fix_value)
+_fix(_upd, ::Nothing) = nothing
+function _fix(upd, fix_value)
+    var = upd.variable
+    m = owner_model(var)
+    ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
     if !isnan(fix_value)
-        m = owner_model(var)
-        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
         # Save bounds, remove them and then fix the value
         if has_lower_bound(var)
             ext.lower_bound[var] = lower_bound(var)
@@ -191,10 +194,9 @@ function _fix(var, fix_value)
             delete_upper_bound(var)
         end
         fix(var, fix_value)
-    elseif is_fixed(var)
+        ext.fixer[var] = upd
+    elseif is_fixed(var) && get(ext.fixer, var, nothing) === upd
         # Unfix the variable and restore saved bounds
-        m = owner_model(var)
-        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
         unfix(var)
         lb = pop!(ext.lower_bound, var, nothing)
         ub = pop!(ext.upper_bound, var, nothing)
@@ -204,6 +206,7 @@ function _fix(var, fix_value)
         if ub !== nothing
             set_upper_bound(var, ub)
         end
+        ext.fixer[var] = nothing
     end
 end
 
