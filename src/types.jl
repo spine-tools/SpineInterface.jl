@@ -25,6 +25,28 @@ A type with no fields that is the type of [`anything`](@ref).
 struct Anything end
 
 """
+    ParameterValue
+
+A type for representing a parameter value from a Spine db.
+"""
+struct ParameterValue{T}
+    value::T
+    metadata::Dict
+    ParameterValue(value::T) where T = new{T}(value, _parameter_value_metadata(value))
+end
+
+_CallExpr = Tuple{Symbol,NamedTuple}
+
+struct Call
+    func::Union{Nothing,ParameterValue,Function}
+    args::Vector
+    kwargs::NamedTuple
+    call_expr::Union{_CallExpr,Nothing}
+    updates::Vector{Any}
+    Call(func, args, kwargs, call_expr) = new(func, args, kwargs, call_expr, [])
+end
+
+"""
     Object
 
 A type for representing an object from a Spine db; an instance of an object class.
@@ -41,14 +63,6 @@ struct Object
     end
 end
 
-struct _TimedCallback
-    timeout::Ref{Any}
-    callback
-    function _TimedCallback(timeout, callback)
-        new(timeout, callback)
-    end
-end
-
 """
     TimeSlice
 
@@ -60,29 +74,18 @@ struct TimeSlice
     duration::Float64
     blocks::NTuple{N,Object} where {N}
     id::UInt64
-    callbacks::Vector{_TimedCallback}
+    calls::OrderedDict{Call,Any}
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
         blocks = isempty(blocks) ? () : Tuple(sort(collect(blocks)))
         id = objectid((start, end_, duration, blocks))
-        new(Ref(start), Ref(end_), duration, blocks, id, [])
+        new(Ref(start), Ref(end_), duration, blocks, id, OrderedDict())
     end
 end
 
 ObjectLike = Union{Object,TimeSlice,Int64}
 ObjectTupleLike = Tuple{Vararg{ObjectLike}}
 RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
-
-"""
-    ParameterValue
-
-A type for representing a parameter value from a Spine db.
-"""
-struct ParameterValue{T}
-    value::T
-    metadata::Dict
-    ParameterValue(value::T) where T = new{T}(value, _parameter_value_metadata(value))
-end
 
 """
     ObjectClass
@@ -242,13 +245,4 @@ _Indexed = Union{Array,TimePattern,TimeSeries,Map}
 
 struct _StartRef
     time_slice::TimeSlice
-end
-
-_CallExpr = Tuple{Symbol,NamedTuple}
-
-struct Call
-    func::Union{Nothing,ParameterValue,Function}
-    args::Vector
-    kwargs::NamedTuple
-    call_expr::Union{_CallExpr,Nothing}
 end

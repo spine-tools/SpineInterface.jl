@@ -124,8 +124,9 @@ Set the lower bound of given variable to the value of given call and bind them t
 the value of the call changes because time slices have rolled, the lower bound is automatically updated.
 """
 function JuMP.set_lower_bound(var::VariableRef, call::Call)
-    lb = realize(call, _VariableLBUpdate(var))
-    _set_lower_bound(var, lb)
+    upd = _VariableLBUpdate(var)
+    push!(call.updates, upd)
+    upd(realize(call))
 end
 
 _set_lower_bound(var, ::Nothing) = nothing
@@ -147,8 +148,9 @@ Set the upper bound of given variable to the value of given call and bind them t
 the value of the call changes because time slices have rolled, the upper bound is automatically updated.
 """
 function JuMP.set_upper_bound(var::VariableRef, call::Call)
-    ub = realize(call, _VariableUBUpdate(var))
-    _set_upper_bound(var, ub)
+    upd = _VariableUBUpdate(var)
+    push!(call.updates, upd)
+    upd(realize(call))
 end
 
 _set_upper_bound(var, ::Nothing) = nothing
@@ -174,13 +176,14 @@ Any bounds on the variable at the moment of fixing it are restored when freeing 
 """
 function JuMP.fix(var::VariableRef, call::Call)
     upd = _VariableFixValueUpdate(var)
-    fix_value = realize(call, upd)
-    _fix(upd, fix_value)
+    push!(call.updates, upd)
+    upd(realize(call))
 end
 
 _fix(_upd, ::Nothing) = nothing
 function _fix(upd, fix_value)
     var = upd.variable
+    name_ind = var.model.ext[:ind_by_var][var]
     m = owner_model(var)
     ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
     if !isnan(fix_value)
@@ -289,25 +292,34 @@ end
 # realize
 function realize(s::_GreaterThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.GreaterThan(Float64(realize(c, _RHSUpdate(con_ref))))
+    push!(c.updates, _RHSUpdate(con_ref))
+    MOI.GreaterThan(Float64(realize(c)))
 end
 function realize(s::_LessThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.LessThan(Float64(realize(c, _RHSUpdate(con_ref))))
+    push!(c.updates, _RHSUpdate(con_ref))
+    MOI.LessThan(Float64(realize(c)))
 end
 function realize(s::_EqualToCall, con_ref)
     c = MOI.constant(s)
-    MOI.EqualTo(Float64(realize(c, _RHSUpdate(con_ref))))
+    push!(c.updates, _RHSUpdate(con_ref))
+    MOI.EqualTo(Float64(realize(c)))
 end
 function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
-    MOI.Interval(Float64(realize(l, _LowerBoundUpdate(con_ref))), Float64(realize(u, _UpperBoundUpdate(con_ref))))
+    push!(l.updates, _LowerBoundUpdate(con_ref))
+    push!(u.updates, _UpperBoundUpdate(con_ref))
+    MOI.Interval(Float64(realize(l)), Float64(realize(u)))
+end
+realize(call::Call, ::Nothing) = realize(call)
+function realize(call::Call, upd::AbstractUpdate)
+    push!(call.updates, upd)
+    realize(call)
 end
 function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
     constant = Float64(realize(e.constant))
-    terms = OrderedDict{VariableRef,typeof(constant)}(
-        var => Float64(realize(coef, _coefficient_update(model_or_con_ref, var)))
-        for (var, coef) in e.terms
+    terms = OrderedDict{VariableRef,Float64}(
+        var => realize(coef, _coefficient_update(model_or_con_ref, var)) for (var, coef) in e.terms
     )
     GenericAffExpr(constant, terms)
 end
@@ -433,6 +445,7 @@ function Base.convert(::Type{GenericAffExpr{Call,VariableRef}}, expr::GenericAff
     terms = OrderedDict{VariableRef,Call}(var => Call(coef) for (var, coef) in expr.terms)
     GenericAffExpr{Call,VariableRef}(constant, terms)
 end
+Base.convert(::Type{GenericAffExpr{Call,VariableRef}}, expr::GenericAffExpr{Call,VariableRef}) = expr
 
 # TODO: try to get rid of this in favor of JuMP's generic implementation
 function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})
