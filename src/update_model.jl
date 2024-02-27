@@ -183,7 +183,6 @@ end
 _fix(_upd, ::Nothing) = nothing
 function _fix(upd, fix_value)
     var = upd.variable
-    name_ind = var.model.ext[:ind_by_var][var]
     m = owner_model(var)
     ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
     if !isnan(fix_value)
