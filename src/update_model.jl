@@ -96,6 +96,8 @@ struct _UpperBoundUpdate <: AbstractUpdate
     constraint::Ref{ConstraintRef}
 end
 
+Base.show(io::IO, upd::_ObjectiveCoefficientUpdate) = print(io, string(typeof(upd), "(", upd.variable, ")"))
+
 (upd::_VariableLBUpdate)(new_lb) = _set_lower_bound(upd.variable, new_lb)
 (upd::_VariableUBUpdate)(new_ub) = _set_upper_bound(upd.variable, new_ub)
 (upd::_VariableFixValueUpdate)(new_fix_value) = _fix(upd, new_fix_value)
@@ -124,8 +126,8 @@ Set the lower bound of given variable to the value of given call and bind them t
 the value of the call changes because time slices have rolled, the lower bound is automatically updated.
 """
 function JuMP.set_lower_bound(var::VariableRef, call::Call)
-    lb = realize(call, _VariableLBUpdate(var))
-    _set_lower_bound(var, lb)
+    upd = _VariableLBUpdate(var)
+    upd(realize(call, upd))
 end
 
 _set_lower_bound(var, ::Nothing) = nothing
@@ -147,8 +149,8 @@ Set the upper bound of given variable to the value of given call and bind them t
 the value of the call changes because time slices have rolled, the upper bound is automatically updated.
 """
 function JuMP.set_upper_bound(var::VariableRef, call::Call)
-    ub = realize(call, _VariableUBUpdate(var))
-    _set_upper_bound(var, ub)
+    upd = _VariableUBUpdate(var)
+    upd(realize(call, upd))
 end
 
 _set_upper_bound(var, ::Nothing) = nothing
@@ -174,8 +176,7 @@ Any bounds on the variable at the moment of fixing it are restored when freeing 
 """
 function JuMP.fix(var::VariableRef, call::Call)
     upd = _VariableFixValueUpdate(var)
-    fix_value = realize(call, upd)
-    _fix(upd, fix_value)
+    upd(realize(call, upd))
 end
 
 _fix(_upd, ::Nothing) = nothing
@@ -305,12 +306,17 @@ function realize(s::_CallInterval, con_ref)
 end
 function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
     constant = Float64(realize(e.constant))
-    terms = OrderedDict{VariableRef,typeof(constant)}(
-        var => Float64(realize(coef, _coefficient_update(model_or_con_ref, var)))
-        for (var, coef) in e.terms
+    terms = OrderedDict{VariableRef,Float64}(
+        var => realize(coef, _coefficient_update(model_or_con_ref, var)) for (var, coef) in e.terms
     )
     GenericAffExpr(constant, terms)
 end
+function realize(call::Call, upd::AbstractUpdate)
+    push!(call.updates, upd)
+    realize(call)
+end
+realize(x::Call, ::Nothing) = realize(x)
+realize(x, _upd) = realize(x)
 
 _coefficient_update(m::Model, v) = _ObjectiveCoefficientUpdate(m, v)
 _coefficient_update(cr::Ref{ConstraintRef}, v) = _ConstraintCoefficientUpdate(cr, v)
@@ -433,6 +439,7 @@ function Base.convert(::Type{GenericAffExpr{Call,VariableRef}}, expr::GenericAff
     terms = OrderedDict{VariableRef,Call}(var => Call(coef) for (var, coef) in expr.terms)
     GenericAffExpr{Call,VariableRef}(constant, terms)
 end
+Base.convert(::Type{GenericAffExpr{Call,VariableRef}}, expr::GenericAffExpr{Call,VariableRef}) = expr
 
 # TODO: try to get rid of this in favor of JuMP's generic implementation
 function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})

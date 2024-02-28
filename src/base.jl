@@ -39,7 +39,7 @@ Base.length(t::Union{Object,TimeSlice}) = 1
 Base.length(v::ParameterValue{T}) where {T<:_Scalar} = 1
 Base.length(x::Union{TimeSeries,Map}) = length(x.indexes)
 
-Base.isless(o1::Object, o2::Object) = o1.name < o2.name
+Base.isless(x::Object, y::Object) = x.name < y.name
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
 Base.isless(t::TimeSlice, dt::DateTime) = isless(end_(t), dt)
 Base.isless(dt::DateTime, t::TimeSlice) = isless(dt, start(t))
@@ -47,17 +47,26 @@ Base.isless(v1::ParameterValue{T}, v2::ParameterValue{T}) where {T<:_Scalar} = v
 Base.isless(scalar::Number, ts::TimeSeries) = all(isless(scalar, v) for v in ts.values)
 Base.isless(ts::TimeSeries, scalar::Number) = all(isless(v, scalar) for v in ts.values)
 
-Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
-Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
-Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all(
-    [getfield(ts1, field) == getfield(ts2, field) for field in fieldnames(TimeSeries)]
+Base.:(==)(x::T, y::T) where T<:Union{Object,TimeSlice} = x.id == y.id
+Base.:(==)(x::TimeSeries, y::TimeSeries) = all(
+    [getfield(x, field) == getfield(y, field) for field in fieldnames(TimeSeries)]
 )
-Base.:(==)(pv1::ParameterValue, pv2::ParameterValue) = pv1.value == pv2.value
+Base.:(==)(x::Map, y::Map) = all(
+    [getfield(x, field) == getfield(y, field) for field in fieldnames(Map)]
+)
+Base.:(==)(x::ParameterValue, y::ParameterValue) = x.value == y.value
 Base.:(==)(scalar::Number, ts::TimeSeries) = all(scalar == v for v in ts.values)
-Base.:(==)(ts::TimeSeries, scalar::Number) = all(v == scalar for v in ts.values)
-Base.:(==)(m1::Map, m2::Map) = all(m1.indexes == m2.indexes) && all(m1.values == m2.values)
+Base.:(==)(ts::TimeSeries, scalar::Number) = scalar == ts
 function Base.:(==)(x::Call, y::Call)
-    x.func == y.func && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs)
+    x.func == y.func && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs) && x.updates == y.updates
+end
+
+Base.isequal(x::ParameterValue, y::ParameterValue) = isequal(x.value, y.value)
+Base.isequal(x::T, y::T) where T<:Union{TimeSeries,Map} = all(
+    [isequal(getfield(x, field), getfield(y, field)) for field in fieldnames(T)]
+)
+function Base.isequal(x::Call, y::Call)
+    isequal(x.func, y.func) && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs) && isequal(x.updates, y.updates)
 end
 
 _isequal(::Union{typeof(+),typeof(*)}, x, y) = length(x) == length(y) && all(z in y for z in x)
@@ -80,21 +89,6 @@ Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, v::ParameterValue{T}) where T = print(io, string("ParameterValue(", v.value, ")"))
 Base.show(io::IO, call::Call) = _show_call(io, call, call.call_expr, call.func)
-_show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
-function _show_call(io::IO, call::Call, expr::Nothing, func::Function)
-    call_str = if length(call.args) == 1
-        string(func, "(", call.args[1], ")")
-    else
-        join(call.args, string(" ", func, " "))
-    end
-    print(io, call_str)
-end
-function _show_call(io::IO, call::Call, expr::_CallExpr, func::ParameterValue)
-    pname, kwargs = expr
-    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
-    result = _do_realize(call)
-    print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
-end
 function Base.show(io::IO, union::UnionOfIntersections)
     d = Dict{Symbol,String}(
         :Y => "year",
@@ -124,7 +118,24 @@ function Base.show(io::IO, ts::TimeSeries)
     print(io, "TimeSeries[$body](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
 end
 
+_show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
+function _show_call(io::IO, call::Call, expr::Nothing, func::Function)
+    call_str = if length(call.args) == 1
+        string(func, "(", call.args[1], ")")
+    else
+        join(call.args, string(" ", func, " "))
+    end
+    print(io, call_str)
+end
+function _show_call(io::IO, call::Call, expr::_CallExpr, func::ParameterValue)
+    pname, kwargs = expr
+    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
+    result = _do_realize(call)
+    print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
+end
+
 Base.convert(::Type{Call}, x::T) where {T} = Call(x)
+Base.convert(::Type{Call}, x::Call) = x
 
 Base.copy(ts::TimeSeries{T}) where {T} = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
 Base.copy(c::ParameterValue) = parameter_value(c.value)
@@ -143,7 +154,7 @@ _iszero(::T, x) where T = false
 Base.one(::Type{T}) where {T<:Call} = Call(one(Float64))
 Base.one(::Call) = Call(one(Float64))
 
-Base.:+(ts::TimeSeries) = +(0.0, ts)
+Base.:+(ts::TimeSeries{V}) where V = +(zero(V), ts)
 Base.:+(ts::TimeSeries, num::Number) = timedata_operation(+, ts, num)
 Base.:+(num::Number, ts::TimeSeries) = timedata_operation(+, num, ts)
 Base.:+(tp::TimePattern, num::Number) = timedata_operation(+, tp, num)
@@ -210,7 +221,7 @@ function _final_sum_call(args)
     end
 end
 
-Base.:-(ts::TimeSeries) = -(0.0, ts)
+Base.:-(ts::TimeSeries{V}) where V = -(zero(V), ts)
 Base.:-(ts::TimeSeries, num::Number) = timedata_operation(-, ts, num)
 Base.:-(num::Number, ts::TimeSeries) = timedata_operation(-, num, ts)
 Base.:-(tp::TimePattern, num::Number) = timedata_operation(-, tp, num)
