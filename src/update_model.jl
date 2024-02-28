@@ -96,6 +96,8 @@ struct _UpperBoundUpdate <: AbstractUpdate
     constraint::Ref{ConstraintRef}
 end
 
+Base.show(io::IO, upd::_ObjectiveCoefficientUpdate) = print(io, string(typeof(upd), "(", upd.variable, ")"))
+
 (upd::_VariableLBUpdate)(new_lb) = _set_lower_bound(upd.variable, new_lb)
 (upd::_VariableUBUpdate)(new_ub) = _set_upper_bound(upd.variable, new_ub)
 (upd::_VariableFixValueUpdate)(new_fix_value) = _fix(upd, new_fix_value)
@@ -302,7 +304,7 @@ function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
     MOI.Interval(Float64(realize(l, _LowerBoundUpdate(con_ref))), Float64(realize(u, _UpperBoundUpdate(con_ref))))
 end
-function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref) where {C}
+function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
     constant = Float64(realize(e.constant))
     terms = OrderedDict{VariableRef,Float64}(
         var => realize(coef, _coefficient_update(model_or_con_ref, var)) for (var, coef) in e.terms
@@ -313,10 +315,12 @@ function realize(call::Call, upd::AbstractUpdate)
     push!(call.updates, upd)
     realize(call)
 end
+realize(x::Call, ::Nothing) = realize(x)
 realize(x, _upd) = realize(x)
 
 _coefficient_update(m::Model, v) = _ObjectiveCoefficientUpdate(m, v)
 _coefficient_update(cr::Ref{ConstraintRef}, v) = _ConstraintCoefficientUpdate(cr, v)
+_coefficient_update(::Nothing, _v) = nothing
 
 # add_to_expression!
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, call::Call)

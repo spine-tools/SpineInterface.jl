@@ -372,8 +372,7 @@ _search_equal(arr, x) = nothing
 
 function _search_nearest(arr::AbstractArray{T,1}, x::T) where {T}
     i = searchsortedlast(arr, x)  # index of the last value in arr less than or equal to x, 0 if none
-    i > 0 && return i
-    1
+    max(i, 1)
 end
 _search_nearest(arr, x) = nothing
 
