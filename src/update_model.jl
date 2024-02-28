@@ -125,8 +125,7 @@ the value of the call changes because time slices have rolled, the lower bound i
 """
 function JuMP.set_lower_bound(var::VariableRef, call::Call)
     upd = _VariableLBUpdate(var)
-    push!(call.updates, upd)
-    upd(realize(call))
+    upd(realize(call, upd))
 end
 
 _set_lower_bound(var, ::Nothing) = nothing
@@ -149,8 +148,7 @@ the value of the call changes because time slices have rolled, the upper bound i
 """
 function JuMP.set_upper_bound(var::VariableRef, call::Call)
     upd = _VariableUBUpdate(var)
-    push!(call.updates, upd)
-    upd(realize(call))
+    upd(realize(call, upd))
 end
 
 _set_upper_bound(var, ::Nothing) = nothing
@@ -176,8 +174,7 @@ Any bounds on the variable at the moment of fixing it are restored when freeing 
 """
 function JuMP.fix(var::VariableRef, call::Call)
     upd = _VariableFixValueUpdate(var)
-    push!(call.updates, upd)
-    upd(realize(call))
+    upd(realize(call, upd))
 end
 
 _fix(_upd, ::Nothing) = nothing
@@ -277,57 +274,49 @@ function JuMP.add_constraint(
 ) where {S<:_CallSet}
     iszero(con.func) && return nothing
     con_ref = Ref{ConstraintRef}()
-    realized_func = _realize_func(con.func, con_ref)
-    realized_set = _realize_set(con.set, con_ref)
+    realized_func = realize(con.func, con_ref)
+    realized_set = realize(con.set, con_ref)
     realized_constraint = ScalarConstraint(realized_func, realized_set)
     con_ref[] = add_constraint(model, realized_constraint, name)
 end
 
 # @objective extension
 function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
-    set_objective_function(model, _realize_func(func, model))
+    set_objective_function(model, realize(func, model))
 end
 
 # realize
-function _realize_set(s::_GreaterThanCall, con_ref)
+function realize(s::_GreaterThanCall, con_ref)
     c = MOI.constant(s)
-    push!(c.updates, _RHSUpdate(con_ref))
-    MOI.GreaterThan(Float64(realize(c)))
+    MOI.GreaterThan(Float64(realize(c, _RHSUpdate(con_ref))))
 end
-function _realize_set(s::_LessThanCall, con_ref)
+function realize(s::_LessThanCall, con_ref)
     c = MOI.constant(s)
-    push!(c.updates, _RHSUpdate(con_ref))
-    MOI.LessThan(Float64(realize(c)))
+    MOI.LessThan(Float64(realize(c, _RHSUpdate(con_ref))))
 end
-function _realize_set(s::_EqualToCall, con_ref)
+function realize(s::_EqualToCall, con_ref)
     c = MOI.constant(s)
-    push!(c.updates, _RHSUpdate(con_ref))
-    MOI.EqualTo(Float64(realize(c)))
+    MOI.EqualTo(Float64(realize(c, _RHSUpdate(con_ref))))
 end
-function _realize_set(s::_CallInterval, con_ref)
+function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
-    push!(l.updates, _LowerBoundUpdate(con_ref))
-    push!(u.updates, _UpperBoundUpdate(con_ref))
-    MOI.Interval(Float64(realize(l)), Float64(realize(u)))
+    MOI.Interval(Float64(realize(l, _LowerBoundUpdate(con_ref))), Float64(realize(u, _UpperBoundUpdate(con_ref))))
 end
-
-function _realize_func(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
+function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref) where {C}
     constant = Float64(realize(e.constant))
     terms = OrderedDict{VariableRef,Float64}(
-        var => _realize_coef(coef, _coefficient_update(model_or_con_ref, var)) for (var, coef) in e.terms
+        var => realize(coef, _coefficient_update(model_or_con_ref, var)) for (var, coef) in e.terms
     )
     GenericAffExpr(constant, terms)
 end
-
-_realize_coef(coef, ::Nothing) = realize(coef)
-function _realize_coef(coef::Call, upd::AbstractUpdate)
-    push!(coef.updates, upd)
-    realize(coef)
+function realize(call::Call, upd::AbstractUpdate)
+    push!(call.updates, upd)
+    realize(call)
 end
+realize(x, _upd) = realize(x)
 
 _coefficient_update(m::Model, v) = _ObjectiveCoefficientUpdate(m, v)
 _coefficient_update(cr::Ref{ConstraintRef}, v) = _ConstraintCoefficientUpdate(cr, v)
-_coefficient_update(::Nothing, _v) = nothing
 
 # add_to_expression!
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, call::Call)
