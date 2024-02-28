@@ -48,8 +48,11 @@ Base.isless(scalar::Number, ts::TimeSeries) = all(isless(scalar, v) for v in ts.
 Base.isless(ts::TimeSeries, scalar::Number) = all(isless(v, scalar) for v in ts.values)
 
 Base.:(==)(x::T, y::T) where T<:Union{Object,TimeSlice} = x.id == y.id
-Base.:(==)(x::T, y::T) where T<:Union{TimeSeries,Map} = all(
-    [getfield(x, field) == getfield(y, field) for field in fieldnames(T)]
+Base.:(==)(x::TimeSeries, y::TimeSeries) = all(
+    [getfield(x, field) == getfield(y, field) for field in fieldnames(TimeSeries)]
+)
+Base.:(==)(x::Map, y::Map) = all(
+    [getfield(x, field) == getfield(y, field) for field in fieldnames(Map)]
 )
 Base.:(==)(x::ParameterValue, y::ParameterValue) = x.value == y.value
 Base.:(==)(scalar::Number, ts::TimeSeries) = all(scalar == v for v in ts.values)
@@ -151,7 +154,7 @@ _iszero(::T, x) where T = false
 Base.one(::Type{T}) where {T<:Call} = Call(one(Float64))
 Base.one(::Call) = Call(one(Float64))
 
-Base.:+(ts::TimeSeries) = +(0.0, ts)
+Base.:+(ts::TimeSeries{V}) where V = +(zero(V), ts)
 Base.:+(ts::TimeSeries, num::Number) = timedata_operation(+, ts, num)
 Base.:+(num::Number, ts::TimeSeries) = timedata_operation(+, num, ts)
 Base.:+(tp::TimePattern, num::Number) = timedata_operation(+, tp, num)
@@ -218,7 +221,7 @@ function _final_sum_call(args)
     end
 end
 
-Base.:-(ts::TimeSeries) = -(0.0, ts)
+Base.:-(ts::TimeSeries{V}) where V = -(zero(V), ts)
 Base.:-(ts::TimeSeries, num::Number) = timedata_operation(-, ts, num)
 Base.:-(num::Number, ts::TimeSeries) = timedata_operation(-, num, ts)
 Base.:-(tp::TimePattern, num::Number) = timedata_operation(-, tp, num)
