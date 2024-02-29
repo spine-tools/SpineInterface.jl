@@ -167,7 +167,7 @@ end
 Apply calls registered in the given `t`.
 """
 function refresh!(t::TimeSlice)
-    _do_refresh.(t.calls)
+    _do_refresh.(keys(t.calls))
 end
 
 function _do_refresh(call)
