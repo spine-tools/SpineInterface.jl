@@ -41,6 +41,10 @@ which can be done according to the PyCall readme.
 If you're using Conda environments for Python, the `.configure_pycall_in_conda.jl` script can be used to
 automatically configure PyCall to use the Python executable of that Conda environment.
 
+## Trouble shooting
+When the `Julia` runs under an active `Conda` environment, updating the `Julia` environment raises an error. 
+Make sure to deactivate the `Conda` environment before updating the `Julia` environment.
+The error is subject to be fixed.
 
 ## Upgrading
 
