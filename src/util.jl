@@ -93,6 +93,9 @@ end
 
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
+    # The search stops when a parameter value found in a class 
+    # with the longest possible name among the classes defining the parameter.
+    # TODO: when the entity contains missing components, multiple parameter values (incl. nothing) may appear
     for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
         entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
         parameter_values = _entity_pvals(class.parameter_values, entity)
@@ -126,6 +129,7 @@ function _entity_pvals(pvals_by_entity, entity::Tuple, ::Nothing)
     any(x === missing for x in entity) || return nothing
     matched = nothing
     for (key, value) in pvals_by_entity
+        # the missing elements of entity are ignored, enabled by _matches(x, ::Missing) = true
         if _matches(key, entity)
             matched === nothing || return nothing
             matched = value
