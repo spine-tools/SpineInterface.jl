@@ -103,7 +103,8 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
         return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
     end
     if _strict
-        error("can't find a value of $p for argument(s) $((; kwargs...))")
+        @warn("can't find a value of $p for argument(s) $((; kwargs...))")
+        return nothing
     end
 end
 

@@ -200,7 +200,7 @@ julia> demand(node=node(:Sthlm), i=1)
 """
 function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
     pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
-    if pv_new_kwargs !== nothing
+    if !isnothing(pv_new_kwargs)
         pv, new_kwargs = pv_new_kwargs
         pv(; new_kwargs...)
     else
