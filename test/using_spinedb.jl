@@ -124,7 +124,7 @@ db_url = "sqlite://"
         @test people_count(institution=institution(:KTH), country=country(:Sweden)) == 3
         @test since_year(institution=institution(:KTH)) === 1827
         @test since_year(institution=institution(:VTT), _strict=false) === nothing
-        @test_throws ErrorException people_count(institution=institution(:VTT), country=country(:France))
+        @test people_count(institution=institution(:VTT), country=country(:France)) === nothing
         @test [x.name for x in institution(since_year=1827)] == [:KTH]
         @test length(parameters()) === 2
         @test all(x isa Parameter for x in parameters())
