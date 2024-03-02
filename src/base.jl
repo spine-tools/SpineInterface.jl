@@ -82,7 +82,9 @@ Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
-Base.show(io::IO, t::TimeSlice) = print(io, string(Dates.format(start(t), _df)), "~>", Dates.format(end_(t), _df))
+function Base.show(io::IO, t::TimeSlice)
+    print(io, string(Dates.format(start(t), _df)), "~(", t.period_duration, ")~>", Dates.format(end_(t), _df))
+end
 Base.show(io::IO, s::_StartRef) = print(io, string(Dates.format(start(s.time_slice), _df)))
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)

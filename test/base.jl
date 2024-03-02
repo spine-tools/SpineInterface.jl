@@ -55,7 +55,7 @@
     @test d[anything] === nothing
     # show
     @test string(anything) === "anything"
-    @test string(t1) === "0000-01-01T00:00~>0001-01-01T00:00"
+    @test string(t1) === "0000-01-01T00:00~(52 weeks, 2 days)~>0001-01-01T00:00"
     @test string(p5) === "ParameterValue(5)"
     duck = ObjectClass(:duck, [])
     studio_duck = RelationshipClass(:studio_duck, [:studio, :duck], [])

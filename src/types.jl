@@ -74,12 +74,14 @@ struct TimeSlice
     duration::Float64
     blocks::NTuple{N,Object} where {N}
     id::UInt64
+    period_duration::Union{Dates.CompoundPeriod,Period}
     calls::OrderedDict{Call,Any}
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
         blocks = isempty(blocks) ? () : Tuple(sort(collect(blocks)))
         id = objectid((start, end_, duration, blocks))
-        new(Ref(start), Ref(end_), duration, blocks, id, OrderedDict())
+        period_duration = canonicalize(end_ - start)
+        new(Ref(start), Ref(end_), duration, blocks, id, period_duration, OrderedDict())
     end
 end
 
