@@ -366,13 +366,12 @@ function Base.merge!(a::TimeSeries, b::TimeSeries)
 end
 function Base.merge!(a::Map, b::Map)
     for (b_index, b_value) in b
-        defaultset = false
-        a_value = get!(a, b_index) do
-            defaultset = true
-            b_value
+        a_value = get(a, b_index, nothing)
+        if _can_merge(a_value, b_value)
+            merge!(a_value, b_value)
+        else
+            a[b_index] = b_value
         end
-        defaultset && continue
-        merge!(a_value, b_value)
     end
     a
 end
@@ -381,6 +380,12 @@ function Base.merge!(a::ParameterValue, b::ParameterValue)
     _refresh_metadata!(a)
     a
 end
+
+_can_merge(a::TimePattern, b::TimePattern) = true
+_can_merge(a::TimeSeries, b::TimeSeries) = true
+_can_merge(a::Map, b::Map) = true
+_can_merge(a, b) = false
+_can_merge(a::ParameterValue, b::ParameterValue) = _can_merge(a.value, b.value)
 
 function Base.push!(x::Union{TimeSeries,Map}, pair)
     index, value = pair
