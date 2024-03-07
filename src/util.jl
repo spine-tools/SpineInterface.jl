@@ -158,14 +158,13 @@ struct _CallNode
     end
 end
 
-_do_realize(x) = x
-_do_realize(call::Call) = _do_realize(call, call)
-_do_realize(call::Call, parent_call::Call) = _do_realize(call.func, call, parent_call)
-_do_realize(::Nothing, call, _parent_call) = call.args[1]
-function _do_realize(pv::T, call, parent_call) where T<:ParameterValue
-    pv(parent_call; call.kwargs...)
+_do_realize(x, _upd) = x
+_do_realize(call::Call, upd) = _do_realize(call.func, call, upd)
+_do_realize(::Nothing, call, _upd) = call.args[1]
+function _do_realize(pv::T, call, upd) where T<:ParameterValue
+    pv(upd; call.kwargs...)
 end
-function _do_realize(::T, call, parent_call) where T<:Function
+function _do_realize(::T, call, upd) where T<:Function
     current = _CallNode(call, nothing, -1)
     while true
         vals = [child.value[] for child in current.children]
@@ -178,7 +177,7 @@ function _do_realize(::T, call, parent_call) where T<:Function
             continue
         else
             # no children, realize value
-            current.value[] = _do_realize(current.call, parent_call)
+            current.value[] = _do_realize(current.call, upd)
         end
         current.parent === nothing && break
         if current.child_number < length(current.parent.call.args)
@@ -223,4 +222,8 @@ end
 function _refresh_metadata!(pval::ParameterValue)
     empty!(pval.metadata)
     merge!(pval.metadata, _parameter_value_metadata(pval.value))
+end
+
+function _add_update(t::TimeSlice, timeout, upd)
+    t.updates[upd] = timeout
 end

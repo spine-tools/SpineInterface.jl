@@ -110,6 +110,7 @@ export unparse_db_value
 export using_spinedb
 export without_filters
 export write_parameters
+export add_roll_hook!
 
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin

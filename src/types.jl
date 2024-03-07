@@ -42,8 +42,7 @@ struct Call
     args::Vector
     kwargs::NamedTuple
     call_expr::Union{_CallExpr,Nothing}
-    updates::Vector{Any}
-    Call(func, args, kwargs, call_expr) = new(func, args, kwargs, call_expr, [])
+    Call(func, args, kwargs, call_expr) = new(func, args, kwargs, call_expr)
 end
 
 """
@@ -75,7 +74,7 @@ struct TimeSlice
     blocks::NTuple{N,Object} where {N}
     id::UInt64
     period_duration::Union{Dates.CompoundPeriod,Period}
-    calls::OrderedDict{Call,Any}
+    updates::OrderedDict
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
         blocks = isempty(blocks) ? () : Tuple(sort(collect(blocks)))
@@ -248,3 +247,5 @@ _Indexed = Union{Array,TimePattern,TimeSeries,Map}
 struct _StartRef
     time_slice::TimeSlice
 end
+
+abstract type AbstractUpdate end

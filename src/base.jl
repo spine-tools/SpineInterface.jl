@@ -58,7 +58,7 @@ Base.:(==)(x::ParameterValue, y::ParameterValue) = x.value == y.value
 Base.:(==)(scalar::Number, ts::TimeSeries) = all(scalar == v for v in ts.values)
 Base.:(==)(ts::TimeSeries, scalar::Number) = scalar == ts
 function Base.:(==)(x::Call, y::Call)
-    x.func == y.func && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs) && x.updates == y.updates
+    x.func == y.func && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs)
 end
 
 Base.isequal(x::ParameterValue, y::ParameterValue) = isequal(x.value, y.value)
@@ -66,7 +66,7 @@ Base.isequal(x::T, y::T) where T<:Union{TimeSeries,Map} = all(
     [isequal(getfield(x, field), getfield(y, field)) for field in fieldnames(T)]
 )
 function Base.isequal(x::Call, y::Call)
-    isequal(x.func, y.func) && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs) && isequal(x.updates, y.updates)
+    isequal(x.func, y.func) && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs)
 end
 
 _isequal(::Union{typeof(+),typeof(*)}, x, y) = length(x) == length(y) && all(z in y for z in x)
@@ -120,7 +120,7 @@ function Base.show(io::IO, ts::TimeSeries)
     print(io, "TimeSeries[$body](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
 end
 
-_show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
+_show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call, nothing))
 function _show_call(io::IO, call::Call, expr::Nothing, func::Function)
     call_str = if length(call.args) == 1
         string(func, "(", call.args[1], ")")
@@ -132,7 +132,7 @@ end
 function _show_call(io::IO, call::Call, expr::_CallExpr, func::ParameterValue)
     pname, kwargs = expr
     kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
-    result = _do_realize(call)
+    result = _do_realize(call, nothing)
     print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
 end
 

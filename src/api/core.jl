@@ -209,30 +209,30 @@ function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
 end
 
 """
-    (<pv>::ParameterValue)(call; <keyword arguments>)
+    (<pv>::ParameterValue)(upd; <keyword arguments>)
 
 A value from `pv`.
 """
-function (pv::ParameterValue)(call=nothing; kwargs...) end
+function (pv::ParameterValue)(upd=nothing; kwargs...) end
 
 # _Scalar
-(pv::ParameterValue{T} where T<:_Scalar)(call=nothing; kwargs...) = pv.value
-(pv::ParameterValue{T} where T<:Array)(call=nothing; i::Union{Int64,Nothing}=nothing, kwargs...) = _get_value(pv, i)
+(pv::ParameterValue{T} where T<:_Scalar)(upd=nothing; kwargs...) = pv.value
+(pv::ParameterValue{T} where T<:Array)(upd=nothing; i::Union{Int64,Nothing}=nothing, kwargs...) = _get_value(pv, i)
 function (pv::ParameterValue{T} where T<:TimePattern)(
-    call=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+    upd=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
-    _get_value(pv, t, call)
+    _get_value(pv, t, upd)
 end
 function (pv::ParameterValue{T} where T<:TimeSeries)(
-    call=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+    upd=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
-    _get_value(pv, t, call)
+    _get_value(pv, t, upd)
 end
-function (pv::ParameterValue{T} where {T<:Map})(call=nothing; t=nothing, i=nothing, kwargs...)
+function (pv::ParameterValue{T} where {T<:Map})(upd=nothing; t=nothing, i=nothing, kwargs...)
     isempty(kwargs) && return _recursive_inner_value(pv.value)
     arg = first(values(kwargs))
     new_kwargs = Base.tail((; kwargs...))
-    _recursive_inner_value(_get_value(pv, arg, call; t=t, i=i, new_kwargs...))
+    _recursive_inner_value(_get_value(pv, arg, upd; t=t, i=i, new_kwargs...))
 end
 
 _recursive_inner_value(x) = x
@@ -245,13 +245,13 @@ end
 _get_value(pv::ParameterValue{T}, ::Nothing) where T<:Array = pv.value
 _get_value(pv::ParameterValue{T}, i::Int64) where T<:Array = get(pv.value, i, nothing)
 # TimePattern
-_get_value(pv::ParameterValue{T}, ::Nothing, call) where T<:TimePattern = pv.value
-function _get_value(pv::ParameterValue{T}, t::DateTime, call) where T<:TimePattern
-    _get_value(pv, TimeSlice(t, t), call)
+_get_value(pv::ParameterValue{T}, ::Nothing, upd) where T<:TimePattern = pv.value
+function _get_value(pv::ParameterValue{T}, t::DateTime, upd) where T<:TimePattern
+    _get_value(pv, TimeSlice(t, t), upd)
 end
-function _get_value(pv::ParameterValue{T}, t::TimeSlice, call) where T<:TimePattern
+function _get_value(pv::ParameterValue{T}, t::TimeSlice, upd) where T<:TimePattern
     vals = [val for (tp, val) in pv.value if overlaps(t, tp)]
-    if call !== nothing
+    if upd !== nothing
         timeout = if isempty(vals)
             Second(0)
         else
@@ -260,46 +260,46 @@ function _get_value(pv::ParameterValue{T}, t::TimeSlice, call) where T<:TimePatt
                 ceil(end_(t), pv.precision) + Millisecond(1) - end_(t)
             )
         end
-        _add_call(t, timeout, call)
+        _add_update(t, timeout, upd)
     end
     isempty(vals) && return NaN
     mean(vals)
 end
 # TimeSeries
-_get_value(pv::ParameterValue{T}, ::Nothing, call) where T<:TimeSeries = pv.value
-function _get_value(pv::ParameterValue{T}, t, call) where T<:TimeSeries
+_get_value(pv::ParameterValue{T}, ::Nothing, upd) where T<:TimeSeries = pv.value
+function _get_value(pv::ParameterValue{T}, t, upd) where T<:TimeSeries
     if pv.value.repeat
-        _get_repeating_time_series_value(pv, t, call)
+        _get_repeating_time_series_value(pv, t, upd)
     else
-        _get_time_series_value(pv, t, call)
+        _get_time_series_value(pv, t, upd)
     end
 end
-function _get_time_series_value(pv, t::DateTime, call)
+function _get_time_series_value(pv, t::DateTime, upd)
     pv.value.ignore_year && (t -= Year(t))
     t < pv.value.indexes[1] && return NaN
     t > pv.value.indexes[end] && !pv.value.ignore_year && return NaN
     pv.value.values[max(1, searchsortedlast(pv.value.indexes, t))]
 end
-function _get_time_series_value(pv, t::TimeSlice, call)
+function _get_time_series_value(pv, t::TimeSlice, upd)
     adjusted_t = pv.value.ignore_year ? t - Year(start(t)) : t
     t_start, t_end = start(adjusted_t), end_(adjusted_t)
     a, b = _search_overlap(pv.value, t_start, t_end)
-    if call !== nothing
+    if upd !== nothing
         timeout = _timeout(pv.value, t_start, t_end, a, b)
-        _add_call(t, timeout, call)
+        _add_update(t, timeout, upd)
     end
     t_end <= pv.value.indexes[1] && return NaN
     t_start > pv.value.indexes[end] && !pv.value.ignore_year && return NaN
     mean(Iterators.filter(!isnan, pv.value.values[a:b]))
 end
-function _get_repeating_time_series_value(pv, t::DateTime, call)
+function _get_repeating_time_series_value(pv, t::DateTime, upd)
     pv.value.ignore_year && (t -= Year(t))
     mismatch = t - pv.value.indexes[1]
     reps = fld(mismatch, pv.span)
     t -= reps * pv.span
     pv.value.values[max(1, searchsortedlast(pv.value.indexes, t))]
 end
-function _get_repeating_time_series_value(pv, t::TimeSlice, call)
+function _get_repeating_time_series_value(pv, t::TimeSlice, upd)
     adjusted_t = pv.value.ignore_year ? t - Year(start(t)) : t
     t_start = start(adjusted_t)
     t_end = end_(adjusted_t)
@@ -310,9 +310,9 @@ function _get_repeating_time_series_value(pv, t::TimeSlice, call)
     t_start -= reps_start * pv.span
     t_end -= reps_end * pv.span
     a, b = _search_overlap(pv.value, t_start, t_end)
-    if call !== nothing
+    if upd !== nothing
         timeout = _timeout(pv.value, t_start, t_end, a, b)
-        _add_call(t, timeout, call)
+        _add_update(t, timeout, upd)
     end
     reps = reps_end - reps_start
     reps == 0 && return mean(Iterators.filter(!isnan, pv.value.values[a:b]))
@@ -325,30 +325,30 @@ function _get_repeating_time_series_value(pv, t::TimeSlice, call)
     (asum + bsum + (reps - 1) * pv.valsum) / (alen + blen + (reps - 1) * pv.len)
 end
 # Map
-function _get_value(pv::ParameterValue{T}, k, call; kwargs...) where {T<:Map}
+function _get_value(pv::ParameterValue{T}, k, upd; kwargs...) where {T<:Map}
     i = _search_equal(pv.value.indexes, k)
-    i === nothing && return pv(call; kwargs...)
-    pv.value.values[i](call; kwargs...)
+    i === nothing && return pv(upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, o::ObjectLike, call; kwargs...) where {V,T<:Map{Symbol,V}}
+function _get_value(pv::ParameterValue{T}, o::ObjectLike, upd; kwargs...) where {V,T<:Map{Symbol,V}}
     i = _search_equal(pv.value.indexes, o.name)
-    i === nothing && return pv(call; kwargs...)
-    pv.value.values[i](call; kwargs...)
+    i === nothing && return pv(upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, x::K, call; kwargs...) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
+function _get_value(pv::ParameterValue{T}, x::K, upd; kwargs...) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
     i = _search_nearest(pv.value.indexes, x)
-    i === nothing && return pv(call; kwargs...)
-    pv.value.values[i](call; kwargs...)
+    i === nothing && return pv(upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, s::_StartRef, call; kwargs...) where {V,T<:Map{DateTime,V}}
+function _get_value(pv::ParameterValue{T}, s::_StartRef, upd; kwargs...) where {V,T<:Map{DateTime,V}}
     t = s.time_slice
     i = _search_nearest(pv.value.indexes, start(t))
-    if call !== nothing
+    if upd !== nothing
         timeout = i === nothing ? Second(0) : _next_index(pv.value, i) - start(t)
-        _add_call(s.time_slice, timeout, call)
+        _add_update(s.time_slice, timeout, upd)
     end
-    i === nothing && return pv(call; kwargs...)
-    pv.value.values[i](call; kwargs...)
+    i === nothing && return pv(upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
 end
 
 function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
@@ -380,10 +380,6 @@ _next_index(val::Union{TimeSeries,Map}, pos) = val.indexes[min(pos + 1, length(v
 
 function _timeout(val::TimeSeries, t_start, t_end, a, b)
     min(_next_index(val, a) - t_start, _next_index(val, b) + Millisecond(1) - t_end)
-end
-
-function _add_call(t::TimeSlice, timeout, call)
-    t.calls[call] = timeout
 end
 
 members(::Anything) = anything
@@ -644,9 +640,9 @@ end
 
 Perform the given call and return the result.
 """
-function realize(call)
+function realize(call, upd=nothing)
     try
-        _do_realize(call)
+        _do_realize(call, upd)
     catch e
         err_msg = "unable to evaluate expression:\n\t$call\n"
         rethrow(ErrorException("$err_msg$(sprint(showerror, e))"))
