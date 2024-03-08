@@ -507,15 +507,15 @@ end
 
 function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
     add_objects!(object_class, collect(keys(parameter_values)))
-    _merge! = merge_values ? mergewith!(merge!) : merge!
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
     for (obj, vals) in parameter_values
-        _merge!(object_class.parameter_values[obj], vals)
+        do_merge!(object_class.parameter_values[obj], vals)
     end
 end
 
 function add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
-    _merge! = merge_values ? mergewith!(merge!) : merge!
-    _merge!(object_class.parameter_defaults, parameter_defaults)
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
+    do_merge!(object_class.parameter_defaults, parameter_defaults)
 end
 
 function add_object!(object_class::ObjectClass, object::ObjectLike)
@@ -547,18 +547,18 @@ function add_relationship_parameter_values!(
     relationship_class::RelationshipClass, parameter_values::Dict; merge_values=false
 )
     add_relationships!(relationship_class, collect(keys(parameter_values)))
-    _merge! = merge_values ? mergewith!(merge!) : merge!
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
     for (rel, vals) in parameter_values
         obj_tup = values(rel)
-        _merge!(relationship_class.parameter_values[obj_tup], vals)
+        do_merge!(relationship_class.parameter_values[obj_tup], vals)
     end
 end
 
 function add_relationship_parameter_defaults!(
     relationship_class::RelationshipClass, parameter_defaults::Dict; merge_values=false
 )
-    _merge! = merge_values ? mergewith!(merge!) : merge!
-    _merge!(relationship_class.parameter_defaults, parameter_defaults)
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
+    do_merge!(relationship_class.parameter_defaults, parameter_defaults)
 end
 
 function add_relationship!(relationship_class::RelationshipClass, relationship::RelationshipLike)
