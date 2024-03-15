@@ -93,10 +93,14 @@ end
 
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
-    # The search stops when a parameter value found in a class 
-    # with the longest possible name among the classes defining the parameter.
-    # TODO: when the entity contains missing components, multiple parameter values (incl. nothing) may appear
-    for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
+    classes_by_ent_kwarg_count = Dict()
+    for class in p.classes
+        ent_kwarg_count = length(intersect(_object_class_names(class), keys(kwargs)))
+        push!(get!(classes_by_ent_kwarg_count, ent_kwarg_count, []), class)
+    end
+    max_ent_kwarg_count = maximum(keys(classes_by_ent_kwarg_count))
+    # The search stops when a parameter value is found in a class
+    for class in sort(classes_by_ent_kwarg_count[max_ent_kwarg_count]; by=class -> _dimensionality(class))
         entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
         parameter_values = _entity_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
@@ -107,6 +111,9 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
         return nothing
     end
 end
+
+_object_class_names(x::ObjectClass) = (x.name,)
+_object_class_names(x::RelationshipClass) = x.object_class_names
 
 _dimensionality(x::ObjectClass) = 0
 _dimensionality(x::RelationshipClass) = length(x.object_class_names)
@@ -129,19 +136,18 @@ _entity_pvals(pvals_by_entity, ::NTuple{N,Missing}, ::Nothing) where {N} = nothi
 function _entity_pvals(pvals_by_entity, entity::Tuple, ::Nothing)
     any(x === missing for x in entity) || return nothing
     matched = nothing
-    for (key, value) in pvals_by_entity
-        # the missing elements of entity are ignored, enabled by _matches(x, ::Missing) = true
+    for (key, pvals) in pvals_by_entity
         if _matches(key, entity)
-            matched === nothing || return nothing
-            matched = value
+            matched === nothing || return nothing  # If we find a second match, return nothing - we want a unique match
+            matched = pvals
         end
     end
     matched
 end
 
-_matches(first::Tuple, second::Tuple) = all(_matches(x, y) for (x, y) in zip(first, second))
-_matches(x, ::Missing) = true
-_matches(x, y) = x == y
+_matches(key::Tuple, entity::Tuple) = all(_matches(k, obj) for (k, obj) in zip(key, entity))
+_matches(k, ::Missing) = true
+_matches(k, obj) = k == obj
 
 struct _CallNode
     call::Call
