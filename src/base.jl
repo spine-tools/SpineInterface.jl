@@ -78,7 +78,9 @@ Base.:(<=)(t::TimeSlice, dt::DateTime) = end_(t) <= dt
 
 Base.hash(::Anything) = zero(UInt64)
 Base.hash(o::Union{Object,TimeSlice}) = o.id
-Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
+Base.hash(ot::ObjectTupleLike) = hash(Tuple(hash(o) for o in ot))
+Base.hash(r::RelationshipLike) = hash(Tuple(hash(o) for o in values(r)))
+# FIXME: Implement :== and isqual for the types that implement hash. Also, use the two argument form
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
@@ -358,6 +360,24 @@ Base.keys(ts::TimeSeries) = ts.indexes
 Base.keys(m::Map) = m.indexes
 Base.keys(pv::ParameterValue{T}) where {T<:_Indexed} = keys(pv.value)
 
+function Base.merge!(a::ObjectClass, b::ObjectClass)
+    unique!(append!(a.objects, b.objects))
+    merge!(a.parameter_values, b.parameter_values)
+    merge!(a.parameter_defaults, b.parameter_defaults)
+    a
+end
+function Base.merge!(a::RelationshipClass, b::RelationshipClass)
+    unique!(append!(a.relationships, b.relationships))
+    merge!(a.parameter_values, b.parameter_values)
+    merge!(a.parameter_defaults, b.parameter_defaults)
+    empty!(a.lookup_cache[:true])
+    empty!(a.lookup_cache[:false])
+    a
+end
+function Base.merge!(a::Parameter, b::Parameter)
+    unique!(append!(a.classes, b.classes))
+    a
+end
 function Base.merge!(a::TimeSeries, b::TimeSeries)
     for (b_index, b_value) in b
         a[b_index] = b_value

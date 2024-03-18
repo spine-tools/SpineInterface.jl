@@ -23,7 +23,7 @@
 A `ParameterValue` from the given parsed db value.
 """
 parameter_value(value::String) = parameter_value(Symbol(value))
-parameter_value(value::Union{_Scalar,Array,TimePattern,TimeSeries}) = ParameterValue(value)
+parameter_value(value::Union{T,Array,TimePattern,TimeSeries}) where T<:_Scalar = ParameterValue(value)
 parameter_value(value::Map) = ParameterValue(Map(value.indexes, parameter_value.(value.values)))
 parameter_value(value::T) where {T} = error("can't parse $value of unrecognized type $T")
 parameter_value(x::T) where {T<:ParameterValue} = x

@@ -282,41 +282,59 @@ function _generate_convenience_functions(data, mod; filters, extend)
     spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
     spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
     if !extend
-        # Remove current classes and parameters that are not in the new dataset
-        for name in setdiff(keys(spine_object_classes), keys(args_per_obj_cls))
+        # Remove current classes and parameters
+        for name in keys(spine_object_classes)
             pop!(spine_object_classes, name)
             @eval mod $name = nothing
         end
-        for name in setdiff(keys(spine_relationship_classes), keys(args_per_rel_cls))
+        for name in keys(spine_relationship_classes)
             pop!(spine_relationship_classes, name)
             @eval mod $name = nothing
         end
-        for name in setdiff(keys(spine_parameters), keys(class_names_per_param))
+        for name in keys(spine_parameters)
             pop!(spine_parameters, name)
             @eval mod $name = nothing
         end
     end
     # Create new
     for (name, args) in args_per_obj_cls
-        spine_object_classes[name] = new = ObjectClass(name, args...)
-        @eval mod begin
-            $name = $new
-            export $name
+        new = ObjectClass(name, args...)
+        current = get(spine_object_classes, name, nothing)
+        if current === nothing
+            @eval mod begin
+                $name = $new
+                export $name
+            end
+            spine_object_classes[name] = new
+        else
+            merge!(current, new)
         end
     end
     for (name, args) in args_per_rel_cls
-        spine_relationship_classes[name] = new = RelationshipClass(name, args...)
-        @eval mod begin
-            $name = $new
-            export $name
+        new = RelationshipClass(name, args...)
+        current = get(spine_relationship_classes, name, nothing)
+        if current === nothing
+            @eval mod begin
+                $name = $new
+                export $name
+            end
+            spine_relationship_classes[name] = new
+        else
+            merge!(current, new)
         end
     end
     for (name, class_names) in class_names_per_param
         classes = [getfield(mod, x) for x in class_names]
-        spine_parameters[name] = new = Parameter(name, classes)
-        @eval mod begin
-            $name = $new
-            export $name
+        new = Parameter(name, classes)
+        current = get(spine_parameters, name, nothing)
+        if current === nothing
+            @eval mod begin
+                $name = $new
+                export $name
+            end
+            spine_parameters[name] = new
+        else
+            merge!(current, new)
         end
     end
 end

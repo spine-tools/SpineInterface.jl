@@ -241,7 +241,7 @@ function _nonunique_positions_sorted(arr)
     nonunique
 end
 
-_Scalar = Union{Nothing,Bool,Int64,Float64,Symbol,DateTime,Period}
+_Scalar = Union{Nothing,Missing,Bool,Int64,Float64,Symbol,DateTime,Period}
 _Indexed = Union{Array,TimePattern,TimeSeries,Map}
 
 struct _StartRef
