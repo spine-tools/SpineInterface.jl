@@ -99,12 +99,13 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
         push!(get!(classes_by_ent_kwarg_count, ent_kwarg_count, []), class)
     end
     max_ent_kwarg_count = maximum(keys(classes_by_ent_kwarg_count))
+    classes = classes_by_ent_kwarg_count[max_ent_kwarg_count]
     # The search stops when a parameter value is found in a class
-    for class in sort(classes_by_ent_kwarg_count[max_ent_kwarg_count]; by=class -> _dimensionality(class))
+    for class in sort(classes; by=_dimensionality)
         entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
-        parameter_values = _entity_pvals(class.parameter_values, entity)
+        parameter_values = _get_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
-        return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
+        return _get(parameter_values, p.name, class.parameter_defaults, _default), (; new_kwargs...)
     end
     if _strict
         @warn("can't find a value of $p for argument(s) $((; kwargs...))")
@@ -120,24 +121,35 @@ _dimensionality(x::RelationshipClass) = length(x.object_class_names)
 
 function _split_entity_kwargs(class::ObjectClass; kwargs...)
     new_kwargs = OrderedDict(kwargs...)
-    pop!(new_kwargs, class.name, missing), (; new_kwargs...)
+    object = pop!(new_kwargs, class.name, missing)
+    object, new_kwargs
 end
 function _split_entity_kwargs(class::RelationshipClass; kwargs...)
     new_kwargs = OrderedDict(kwargs...)
     objects = Tuple(pop!(new_kwargs, oc, missing) for oc in class.object_class_names)
-    objects, (; new_kwargs...)
+    objects, new_kwargs
 end
 
-_entity_pvals(pvals_by_entity, ::Nothing) = nothing
-_entity_pvals(pvals_by_entity, entity) = _entity_pvals(pvals_by_entity, entity, get(pvals_by_entity, entity, nothing))
-_entity_pvals(pvals_by_entity, entity, pvals) = pvals
-_entity_pvals(pvals_by_entity, ::Missing, ::Nothing) = nothing
-_entity_pvals(pvals_by_entity, ::NTuple{N,Missing}, ::Nothing) where {N} = nothing
-function _entity_pvals(pvals_by_entity, entity::Tuple, ::Nothing)
-    any(x === missing for x in entity) || return nothing
+_get_pvals(pvals_by_entity, ::Nothing) = nothing
+_get_pvals(pvals_by_entity, object) = _do_get_pvals(pvals_by_entity, object)
+function _get_pvals(pvals_by_entity, objects::Tuple)
+    any(x === nothing for x in objects) && return nothing
+    _do_get_pvals(pvals_by_entity, objects)
+end
+
+function _do_get_pvals(pvals_by_entity, entity)
+    get(pvals_by_entity, entity) do
+        _find_match(pvals_by_entity, entity)
+    end
+end
+
+_find_match(pvals_by_entity, ::Missing) = nothing
+_find_match(pvals_by_entity, ::NTuple{N,Missing}) where {N} = nothing
+function _find_match(pvals_by_entity, objects::Tuple)
+    any(x === missing for x in objects) || return nothing
     matched = nothing
     for (key, pvals) in pvals_by_entity
-        if _matches(key, entity)
+        if _matches(key, objects)
             matched === nothing || return nothing  # If we find a second match, return nothing - we want a unique match
             matched = pvals
         end
@@ -145,7 +157,7 @@ function _entity_pvals(pvals_by_entity, entity::Tuple, ::Nothing)
     matched
 end
 
-_matches(key::Tuple, entity::Tuple) = all(_matches(k, obj) for (k, obj) in zip(key, entity))
+_matches(key::Tuple, objects::Tuple) = all(_matches(k, obj) for (k, obj) in zip(key, objects))
 _matches(k, ::Missing) = true
 _matches(k, obj) = k == obj
 

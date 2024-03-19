@@ -80,6 +80,7 @@ export overlap_duration
 export overlaps
 export Parameter
 export parameter
+export ParameterValue
 export parameter_value
 export parameters
 export parse_db_value
