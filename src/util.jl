@@ -94,8 +94,9 @@ end
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
     classes_by_ent_kwarg_count = Dict()
+    valid_keys = (k for (k, v) in kwargs if v !== nothing)
     for class in p.classes
-        ent_kwarg_count = length(intersect(_object_class_names(class), keys(kwargs)))
+        ent_kwarg_count = length(intersect(_object_class_names(class), valid_keys))
         push!(get!(classes_by_ent_kwarg_count, ent_kwarg_count, []), class)
     end
     max_ent_kwarg_count = maximum(keys(classes_by_ent_kwarg_count))
