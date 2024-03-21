@@ -224,17 +224,17 @@ so that if key `t1` contains key `t2`, then the former is removed and its value 
 """
 t_highest_resolution_sets!(mapping) = _t_extreme_resolution_sets!(mapping, :highest)
 
-function _t_extreme!(t_arr::Vector{TimeSlice}, extreme) where V
+function _t_extreme_resolution!(t_arr::Vector{TimeSlice}, extreme) where V
     deleteat!(t_arr, first.(_k_extreme_resolution_k(t_arr, extreme)))
 end
-function _t_extreme!(t_dict::Dict{TimeSlice,V}, extreme) where V
+function _t_extreme_resolution!(t_dict::Dict{TimeSlice,V}, extreme) where V
     for (k, _x_res_k) in _k_extreme_resolution_k(t_dict, extreme)
         delete!(t_dict, k)
     end
     t_dict
 end
 
-function _t_extreme_sets!(mapping, extreme)
+function _t_extreme_resolution_sets!(mapping, extreme)
     for (k, x_res_k) in _k_extreme_resolution_k(mapping, extreme)
         union!(mapping[x_res_k], pop!(mapping, k))
     end
