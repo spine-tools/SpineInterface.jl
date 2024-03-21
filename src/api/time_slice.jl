@@ -185,7 +185,7 @@ _TimeSliceColl = Union{Vector{TimeSlice},Dict{TimeSlice,V} where V}
 
 Remove time slices that are contained in any other from `t_coll`, and return the modified `t_coll`.
 """
-t_lowest_resolution!(t_coll::_TimeSliceColl) = _t_extreme!(t_coll, :lowest_res)
+t_lowest_resolution!(t_coll::_TimeSliceColl) = _t_extreme_resolution!(t_coll, :lowest)
 
 """
     t_lowest_resolution(t_iter)
@@ -199,7 +199,7 @@ t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 
 Remove time slices that contain any other from `t_coll`, and return the modified `t_coll`.
 """
-t_highest_resolution!(t_coll::_TimeSliceColl) = _t_extreme!(t_coll, :highest_res)
+t_highest_resolution!(t_coll::_TimeSliceColl) = _t_extreme_resolution!(t_coll, :highest)
 
 """
     t_highest_resolution(t_iter)
@@ -214,7 +214,7 @@ t_highest_resolution(t_iter) = t_highest_resolution!(collect(TimeSlice, t_iter))
 Modify the given `Dict` (which must be a mapping from `TimeSlice` to `Set`) in place,
 so that if key `t1` is contained in key `t2`, then the former is removed and its value is merged into the latter's.
 """
-t_lowest_resolution_sets!(mapping) = _t_extreme_sets!(mapping, :lowest_res)
+t_lowest_resolution_sets!(mapping) = _t_extreme_resolution_sets!(mapping, :lowest)
 
 """
     t_highest_resolution_sets!(mapping)
@@ -222,65 +222,65 @@ t_lowest_resolution_sets!(mapping) = _t_extreme_sets!(mapping, :lowest_res)
 Modify the given `Dict` (which must be a mapping from `TimeSlice` to `Set`) in place,
 so that if key `t1` contains key `t2`, then the former is removed and its value is merged into the latter's.
 """
-t_highest_resolution_sets!(mapping) = _t_extreme_sets!(mapping, :highest_res)
+t_highest_resolution_sets!(mapping) = _t_extreme_resolution_sets!(mapping, :highest)
 
 function _t_extreme!(t_arr::Vector{TimeSlice}, extreme) where V
-    deleteat!(t_arr, first.(_k_dominant_k(t_arr, extreme)))
+    deleteat!(t_arr, first.(_k_extreme_resolution_k(t_arr, extreme)))
 end
 function _t_extreme!(t_dict::Dict{TimeSlice,V}, extreme) where V
-    for (k, _dom_k) in _k_dominant_k(t_dict, extreme)
+    for (k, _x_res_k) in _k_extreme_resolution_k(t_dict, extreme)
         delete!(t_dict, k)
     end
     t_dict
 end
 
 function _t_extreme_sets!(mapping, extreme)
-    for (k, dom_k) in _k_dominant_k(mapping, extreme)
-        union!(mapping[dom_k], pop!(mapping, k))
+    for (k, x_res_k) in _k_extreme_resolution_k(mapping, extreme)
+        union!(mapping[x_res_k], pop!(mapping, k))
     end
     mapping
 end
 
 """
-    _k_dominant_k(t_coll, extreme)
+    _k_extreme_resolution_k(t_coll, extreme)
 
 An array where each element is a tuple of two keys in `t_coll`,
 the first 'dominated' by the second according to `extreme`.
-Extreme can either be `:highest_res` or `:lowest_res`.
-If `extreme` is `:highest_res`, then the first element in each returned tuple
+Extreme can either be `:highest` or `:lowest`.
+If `extreme` is `:highest`, then the first element in each returned tuple
 contains the second and the second doesn't contain any other.
-Conversely, if `extreme` is `:lowest_res`, then the first element in each returned tuple
+Conversely, if `extreme` is `:lowest`, then the first element in each returned tuple
 is contained in the second and the second is not contained in any other.
 """
-function _k_dominant_k(t_coll::_TimeSliceColl, extreme::Symbol)
+function _k_extreme_resolution_k(t_coll::_TimeSliceColl, extreme::Symbol)
     isempty(t_coll) && return ()
     k_t_by_dur = Dict()
     for (k, t) in _k_t_iter(t_coll)
         push!(get!(k_t_by_dur, t.actual_duration, []), (k, t))
     end
     length(k_t_by_dur) == 1 && return ()
-    rev = Dict(:lowest_res => true, :highest_res => false)[extreme]
-    fn = Dict(:lowest_res => contains, :highest_res => iscontained)[extreme]
+    rev = Dict(:lowest => true, :highest => false)[extreme]
+    fn = Dict(:lowest => contains, :highest => iscontained)[extreme]
     sorted_durations = sort(collect(keys(k_t_by_dur)); rev=rev)
-    dominant_k_t = pop!(k_t_by_dur, popfirst!(sorted_durations))
-    k_dominant_k = []
+    extreme_resolution_k_t = pop!(k_t_by_dur, popfirst!(sorted_durations))
+    k_extreme_resolution_k = []
     while !isempty(k_t_by_dur)
-        more_dominant_k_t = []
+        more_extreme_resolution_k_t = []
         for (k, t) in pop!(k_t_by_dur, popfirst!(sorted_durations))
             found = false
-            for (dom_k, dom_t) in dominant_k_t
+            for (dom_k, dom_t) in extreme_resolution_k_t
                 if fn(dom_t, t)
-                    push!(k_dominant_k, (k, dom_k))
+                    push!(k_extreme_resolution_k, (k, dom_k))
                     found = true
                     break
                 end
             end
             found && continue
-            push!(more_dominant_k_t, (k, t))
+            push!(more_extreme_resolution_k_t, (k, t))
         end
-        append!(dominant_k_t, more_dominant_k_t)
+        append!(extreme_resolution_k_t, more_extreme_resolution_k_t)
     end
-    k_dominant_k
+    k_extreme_resolution_k
 end
 
 _k_t_iter(t_arr::Vector{TimeSlice}) = enumerate(t_arr)
