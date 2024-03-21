@@ -113,11 +113,15 @@ struct RelationshipClass
     relationships::Array{RelationshipLike,1}
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    lookup_cache::Dict{Bool,Dict}
+    row_map::Dict
     function RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
         cls_names = _fix_name_ambiguity(intact_cls_names)
+        row_map = Dict(cls_name => Dict() for cls_name in cls_names)
+        rc = new(name, intact_cls_names, cls_names, [], vals, defaults, row_map)
         rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
-        new(name, intact_cls_names, cls_names, rels, vals, defaults, Dict(:true => Dict(), :false => Dict()))
+        _update_row_map!(rc, rels)
+        append!(rc.relationships, rels)
+        rc
     end
 end
 

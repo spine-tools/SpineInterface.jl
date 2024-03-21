@@ -224,7 +224,7 @@ so that if key `t1` contains key `t2`, then the former is removed and its value 
 """
 t_highest_resolution_sets!(mapping) = _t_extreme_resolution_sets!(mapping, :highest)
 
-function _t_extreme_resolution!(t_arr::Vector{TimeSlice}, extreme) where V
+function _t_extreme_resolution!(t_arr::Vector{TimeSlice}, extreme)
     deleteat!(t_arr, first.(_k_extreme_resolution_k(t_arr, extreme)))
 end
 function _t_extreme_resolution!(t_dict::Dict{TimeSlice,V}, extreme) where V

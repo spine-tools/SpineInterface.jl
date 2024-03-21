@@ -246,3 +246,13 @@ end
 function _add_update(t::TimeSlice, timeout, upd)
     t.updates[upd] = timeout
 end
+
+function _update_row_map!(rc, rels)
+    offset = length(rc.relationships)
+    for (cls_name, oc_row_map) in rc.row_map
+        for (row, rel) in enumerate(rels)
+            obj = getproperty(rel, cls_name)
+            push!(get!(oc_row_map, obj, []), offset + row)
+        end
+    end
+end

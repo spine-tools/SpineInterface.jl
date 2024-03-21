@@ -361,17 +361,15 @@ Base.keys(m::Map) = m.indexes
 Base.keys(pv::ParameterValue{T}) where {T<:_Indexed} = keys(pv.value)
 
 function Base.merge!(a::ObjectClass, b::ObjectClass)
-    unique!(append!(a.objects, b.objects))
-    merge!(a.parameter_values, b.parameter_values)
-    merge!(a.parameter_defaults, b.parameter_defaults)
+    add_objects!(a, b.objects)
+    add_object_parameter_values!(a, b.parameter_values)
+    add_object_parameter_defaults!(a, b.parameter_defaults)
     a
 end
 function Base.merge!(a::RelationshipClass, b::RelationshipClass)
-    unique!(append!(a.relationships, b.relationships))
-    merge!(a.parameter_values, b.parameter_values)
-    merge!(a.parameter_defaults, b.parameter_defaults)
-    empty!(a.lookup_cache[:true])
-    empty!(a.lookup_cache[:false])
+    add_relationships!(a, b.relationships)
+    add_relationship_parameter_values!(a, b.parameter_values)
+    add_relationship_parameter_defaults!(a, b.parameter_defaults)
     a
 end
 function Base.merge!(a::Parameter, b::Parameter)

@@ -136,21 +136,19 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
-    lookup_key = Tuple(_immutable(get(kwargs, oc, nothing)) for oc in rc.object_class_names)
-    relationships = get!(rc.lookup_cache[_compact], lookup_key) do
-        cond(rel) = all(_in(rel[rc], r) for (rc, r) in kwargs)
-        filtered = filter(cond, rc.relationships)
-        if !_compact
-            filtered
+    relationships = if !_compact
+        [rc.relationships[row] for row in _find_rows(rc; kwargs...)]
+    else
+        object_class_names = setdiff(rc.object_class_names, keys(kwargs))
+        if isempty(object_class_names)
+            []
+        elseif length(object_class_names) == 1
+            unique(rc.relationships[row][object_class_names[1]] for row in _find_rows(rc; kwargs...))
         else
-            object_class_names = setdiff(rc.object_class_names, keys(kwargs))
-            if isempty(object_class_names)
-                []
-            elseif length(object_class_names) == 1
-                unique(x[object_class_names[1]] for x in filtered)
-            else
-                unique(NamedTuple{Tuple(object_class_names)}([x[k] for k in object_class_names]) for x in filtered)
-            end
+            unique(
+                (; zip(object_class_names, (rc.relationships[row][k] for k in object_class_names))...)
+                for row in _find_rows(rc; kwargs...)
+            )
         end
     end
     if !isempty(relationships)
@@ -160,16 +158,28 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs
     end
 end
 
-function _in(x, y)
-    try
-        x in y
-    catch
-        false
+function _find_rows(rc; kwargs...)
+    rows = anything
+    for (oc_name, objs) in kwargs
+        oc_row_map = get(rc.row_map, oc_name, nothing)
+        oc_row_map === nothing && return []
+        oc_rows = _oc_rows(rc, oc_row_map, objs)
+        oc_rows === anything && continue
+        if rows === anything
+            rows = collect(oc_rows)
+        else
+            intersect!(rows, oc_rows)
+        end
+        isempty(rows) && return []
     end
+    rows === anything && return keys(rc.relationships)
+    rows
 end
 
-_immutable(x) = x
-_immutable(arr::T) where {T<:AbstractArray} = (length(arr) == 1) ? first(arr) : Tuple(arr)
+_oc_rows(_rc, oc_row_map, objs) = (row for obj in objs for row in get(oc_row_map, obj, ()))
+_oc_rows(rc, _oc_row_map, ::Anything) = anything
+_oc_rows(rc, _oc_row_map, ::Nothing) = []
+
 
 """
     (<p>::Parameter)(;<keyword arguments>)
@@ -542,12 +552,9 @@ function add_relationships!(relationship_class::RelationshipClass, object_tuples
 end
 function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
     relationships = setdiff(relationships, relationship_class.relationships)
+    _update_row_map!(relationship_class, relationships)
     append!(relationship_class.relationships, relationships)
     merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
-    if !isempty(relationships)
-        empty!(relationship_class.lookup_cache[:true])
-        empty!(relationship_class.lookup_cache[:false])
-    end
     relationship_class
 end
 
@@ -657,12 +664,13 @@ function realize(call, upd=nothing)
     end
 end
 
-function add_dimension!(cls::RelationshipClass, name::Symbol, val)
+function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
     push!(cls.object_class_names, name)
     push!(cls.intact_object_class_names, name)
-    map!(rel -> (; rel..., Dict(name => val)...), cls.relationships, cls.relationships)
-    key_map = Dict(rel => (rel..., val) for rel in keys(cls.parameter_values))
-    for (key, new_key) in key_map
-        cls.parameter_values[new_key] = pop!(cls.parameter_values, key)
+    map!(rel -> (; rel..., Dict(name => obj)...), cls.relationships, cls.relationships)
+    for rel in collect(keys(cls.parameter_values))
+        new_rel = (rel..., obj)
+        cls.parameter_values[new_rel] = pop!(cls.parameter_values, rel)
     end
+    cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
 end
