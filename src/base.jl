@@ -475,6 +475,13 @@ Base.iszero(x::Union{TimeSeries,TimePattern}) = iszero(values(x))
 Base.isapprox(x::Union{TimeSeries,TimePattern}, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in values(x))
 Base.isapprox(x::ParameterValue, y; kwargs...) = isapprox(x(), y; kwargs...)
 
+function Base.getproperty(x::Union{ObjectClass,RelationshipClass,Parameter}, name::Symbol)
+    name in (:name, :env_dict) && return getfield(x, name)
+    env = _active_env()
+    real_x = get(getfield(x, :env_dict), env, nothing)
+    real_x === nothing && error("`$(getfield(x, :name))` is not defined in environment `$env`")
+    getproperty(real_x, name)
+end
 function Base.getproperty(pv::ParameterValue, name::Symbol)
     if name === :value
         getfield(pv, name)

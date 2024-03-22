@@ -109,6 +109,7 @@ export TimeSeries
 export TimeSlice
 export unparse_db_value
 export using_spinedb
+export with_env
 export without_filters
 export write_parameters
 export add_roll_hook!

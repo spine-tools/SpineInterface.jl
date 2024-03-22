@@ -249,7 +249,8 @@ end
 
 function _update_row_map!(rc, rels)
     offset = length(rc.relationships)
-    for (cls_name, oc_row_map) in rc.row_map
+    for cls_name in rc.object_class_names
+        oc_row_map = get!(rc.row_map, cls_name, Dict())
         for (row, rel) in enumerate(rels)
             obj = getproperty(rel, cls_name)
             push!(get!(oc_row_map, obj, []), offset + row)
