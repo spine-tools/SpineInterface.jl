@@ -674,3 +674,21 @@ function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
     end
     cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
 end
+
+const __active_env = Ref(:base)
+
+function _activate_env(env::Symbol)
+    __active_env[] = env
+end
+
+_active_env() = __active_env[]
+
+function with_env(f::Function, env::Symbol)
+    prev_env = _active_env()
+    _activate_env(env)
+    try
+        f()
+    finally
+        _activate_env(prev_env)
+    end
+end

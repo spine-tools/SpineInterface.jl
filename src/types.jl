@@ -88,6 +88,16 @@ ObjectLike = Union{Object,TimeSlice,Int64}
 ObjectTupleLike = Tuple{Vararg{ObjectLike}}
 RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
 
+struct _ObjectClass
+    name::Symbol
+    objects::Vector{ObjectLike}
+    parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
+    parameter_defaults::Dict{Symbol,ParameterValue}
+    function _ObjectClass(name, objects, vals=Dict(), defaults=Dict())
+        new(name, objects, vals, defaults)
+    end
+end
+
 """
     ObjectClass
 
@@ -95,10 +105,31 @@ A type for representing an object class from a Spine db.
 """
 struct ObjectClass
     name::Symbol
-    objects::Array{ObjectLike,1}
-    parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
+    env_dict::Dict{Symbol,_ObjectClass}
+    function ObjectClass(name, args...; mod=@__MODULE__, extend=false)
+        new_ = new(name, Dict(_active_env() => _ObjectClass(name, args...)))
+        spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
+        _resolve!(spine_object_classes, name, new_, extend)
+    end
+end
+
+struct _RelationshipClass
+    name::Symbol
+    intact_object_class_names::Vector{Symbol}
+    object_class_names::Vector{Symbol}
+    relationships::Vector{RelationshipLike}
+    parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    ObjectClass(name, objects, vals=Dict(), defaults=Dict()) = new(name, objects, vals, defaults)
+    row_map::Dict
+    function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
+        cls_names = _fix_name_ambiguity(intact_cls_names)
+        row_map = Dict()
+        rc = new(name, intact_cls_names, cls_names, [], vals, defaults, row_map)
+        rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
+        _update_row_map!(rc, rels)
+        append!(rc.relationships, rels)
+        rc
+    end
 end
 
 """
@@ -108,20 +139,11 @@ A type for representing a relationship class from a Spine db.
 """
 struct RelationshipClass
     name::Symbol
-    intact_object_class_names::Array{Symbol,1}
-    object_class_names::Array{Symbol,1}
-    relationships::Array{RelationshipLike,1}
-    parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
-    parameter_defaults::Dict{Symbol,ParameterValue}
-    row_map::Dict
-    function RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
-        cls_names = _fix_name_ambiguity(intact_cls_names)
-        row_map = Dict(cls_name => Dict() for cls_name in cls_names)
-        rc = new(name, intact_cls_names, cls_names, [], vals, defaults, row_map)
-        rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
-        _update_row_map!(rc, rels)
-        append!(rc.relationships, rels)
-        rc
+    env_dict::Dict{Symbol,_RelationshipClass}
+    function RelationshipClass(name, args...; mod=@__MODULE__, extend=false)
+        new_ = new(name, Dict(_active_env() => _RelationshipClass(name, args...)))
+        spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
+        _resolve!(spine_relationship_classes, name, new_, extend)
     end
 end
 
@@ -138,6 +160,12 @@ function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
     name_list
 end
 
+struct _Parameter
+    name::Symbol
+    classes::Vector{Union{ObjectClass,RelationshipClass}}
+    _Parameter(name, classes=[]) = new(name, classes)
+end
+
 """
     Parameter
 
@@ -145,8 +173,31 @@ A type for representing a parameter related to an object class or a relationship
 """
 struct Parameter
     name::Symbol
-    classes::Array{Union{ObjectClass,RelationshipClass},1}
-    Parameter(name, classes=[]) = new(name, classes)
+    env_dict::Dict{Symbol,_Parameter}
+    function Parameter(name, args...; mod=@__MODULE__, extend=false)
+        new_ = new(name, Dict(_active_env() => _Parameter(name, args...)))
+        spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
+        _resolve!(spine_parameters, name, new_, extend)
+    end
+end
+
+function _resolve!(elements, name, new_, extend)
+    current = get(elements, name, nothing)
+    if current === nothing
+        elements[name] = new_
+    else
+        _env_merge!(current, new_, extend)
+    end
+end
+
+function _env_merge!(current, new, extend)
+    env = _active_env()
+    if haskey(current.env_dict, env) && extend
+        merge!(current, new)
+    else
+        current.env_dict[env] = new.env_dict[env]
+    end
+    current
 end
 
 """
