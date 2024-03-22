@@ -375,8 +375,35 @@ function _test_using_spinedb_extend()
         Extend = Module()
         using_spinedb(template, Extend)
         using_spinedb(user_data, Extend; extend=true)
-        # Test aht default values of missing parameters are found in the template
+        # Test that default values of missing parameters are found in the template
         @test Extend.color(fish=Extend.fish("nemo")) == :red
+    end
+end
+
+function _test_using_spinedb_with_env()
+    @testset "using_spinedb_with_env" begin
+        base_data = Dict(
+            :object_classes => [["fish"], ["dog"]],
+            :objects => [["fish", "Nemo"], ["dog", "Scooby"]],
+            :relationship_classes => [["fish__dog", ["fish", "dog"]]],
+            :relationships => [["fish__dog", ("Nemo", "Scooby")]],
+        )
+        env_data = Dict(
+            :object_classes => [["fish"], ["dog"]],
+            :objects => [["fish", "Dory"], ["dog", "Brian"]],
+            :relationship_classes => [["fish__dog", ["fish", "dog"]]],
+            :relationships => [["fish__dog", ("Dory", "Brian")]],
+        )
+        using_spinedb(base_data)
+        with_env(:env) do
+            using_spinedb(env_data)
+        end
+        with_env(:env) do
+            @test fish() == [fish(:Dory)]
+            @test fish__dog() == [(fish=fish(:Dory), dog=dog(:Brian))]
+        end
+        @test fish() == [fish(:Nemo)]
+        @test fish__dog() == [(fish=fish(:Nemo), dog=dog(:Scooby))]
     end
 end
 
@@ -402,4 +429,5 @@ end
 @testset "using_spinedb - advanced" begin
     _test_using_spinedb_in_a_loop()
     _test_using_spinedb_extend()
+    _test_using_spinedb_with_env()
 end
