@@ -3,6 +3,3 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 SpineInterface = "0cda1612-498a-11e9-3c92-77fa82595a4f"
-
-[compat]
-Documenter = "~0.22"
