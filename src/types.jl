@@ -85,7 +85,7 @@ struct TimeSlice
 end
 
 ObjectLike = Union{Object,TimeSlice,Int64}
-ObjectTupleLike = Tuple{Vararg{ObjectLike}}
+ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
 RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
 
 struct _ObjectClass
