@@ -125,8 +125,6 @@ function (upd::_UpperBoundUpdate)()
     MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, realize(upd.call, upd)))
 end
 
-# @variable macro extension
-
 """
     JuMP.set_lower_bound(var, call)
 

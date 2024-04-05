@@ -126,8 +126,7 @@ struct _RelationshipClass
         row_map = Dict()
         rc = new(name, intact_cls_names, cls_names, [], vals, defaults, row_map)
         rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
-        _update_row_map!(rc, rels)
-        append!(rc.relationships, rels)
+        _append_relationships!(rc, rels)
         rc
     end
 end

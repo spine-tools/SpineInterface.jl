@@ -137,17 +137,17 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
     relationships = if !_compact
-        [rc.relationships[row] for row in _find_rows(rc; kwargs...)]
+        _find_rels(rc; kwargs...)
     else
         object_class_names = setdiff(rc.object_class_names, keys(kwargs))
         if isempty(object_class_names)
             []
         elseif length(object_class_names) == 1
-            unique(rc.relationships[row][object_class_names[1]] for row in _find_rows(rc; kwargs...))
+            unique(rel[object_class_names[1]] for rel in _find_rels(rc; kwargs...))
         else
             unique(
-                (; zip(object_class_names, (rc.relationships[row][k] for k in object_class_names))...)
-                for row in _find_rows(rc; kwargs...)
+                (; zip(object_class_names, (rel[k] for k in object_class_names))...)
+                for rel in _find_rels(rc; kwargs...)
             )
         end
     end
@@ -158,7 +158,18 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs
     end
 end
 
+_find_rels(rc; kwargs...) = _find_rels(rc, _find_rows(rc; kwargs...))
+_find_rels(rc, rows) = (rc.relationships[row] for row in rows)
+_find_rels(rc, ::Anything) = rc.relationships
+
 function _find_rows(rc; kwargs...)
+    memoized_rows = get!(rc.row_map, rc.name, Dict())
+    get!(memoized_rows, kwargs) do
+        _do_find_rows(rc; kwargs...)
+    end
+end
+
+function _do_find_rows(rc; kwargs...)
     rows = anything
     for (oc_name, objs) in kwargs
         oc_row_map = get(rc.row_map, oc_name, nothing)
@@ -172,14 +183,12 @@ function _find_rows(rc; kwargs...)
         end
         isempty(rows) && return []
     end
-    rows === anything && return keys(rc.relationships)
     rows
 end
 
 _oc_rows(_rc, oc_row_map, objs) = (row for obj in objs for row in get(oc_row_map, obj, ()))
 _oc_rows(rc, _oc_row_map, ::Anything) = anything
 _oc_rows(rc, _oc_row_map, ::Nothing) = []
-
 
 """
     (<p>::Parameter)(;<keyword arguments>)
@@ -552,8 +561,7 @@ function add_relationships!(relationship_class::RelationshipClass, object_tuples
 end
 function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
     relationships = setdiff(relationships, relationship_class.relationships)
-    _update_row_map!(relationship_class, relationships)
-    append!(relationship_class.relationships, relationships)
+    _append_relationships!(relationship_class, relationships)
     merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
     relationship_class
 end
@@ -683,6 +691,8 @@ function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
         cls.parameter_values[new_rel] = pop!(cls.parameter_values, rel)
     end
     cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
+    delete!(cls.row_map, cls.name)  # delete memoized rows
+    nothing
 end
 
 const __active_env = Ref(:base)

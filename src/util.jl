@@ -247,7 +247,9 @@ function _add_update(t::TimeSlice, timeout, upd)
     t.updates[upd] = timeout
 end
 
-function _update_row_map!(rc, rels)
+function _append_relationships!(rc, rels)
+    isempty(rels) && return
+    delete!(rc.row_map, rc.name)  # delete memoized rows
     offset = length(rc.relationships)
     for cls_name in rc.object_class_names
         oc_row_map = get!(rc.row_map, cls_name, Dict())
@@ -256,4 +258,6 @@ function _update_row_map!(rc, rels)
             push!(get!(oc_row_map, obj, []), offset + row)
         end
     end
+    append!(rc.relationships, rels)
+    nothing
 end
