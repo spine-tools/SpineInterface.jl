@@ -93,8 +93,9 @@ struct _ObjectClass
     objects::Vector{ObjectLike}
     parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
+    _split_kwargs::Ref{Any}
     function _ObjectClass(name, objects, vals=Dict(), defaults=Dict())
-        new(name, objects, vals, defaults)
+        new(name, objects, vals, defaults, _make_split_kwargs(name))
     end
 end
 
@@ -121,10 +122,11 @@ struct _RelationshipClass
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
     row_map::Dict
+    _split_kwargs::Ref{Any}
     function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
         cls_names = _fix_name_ambiguity(intact_cls_names)
         row_map = Dict()
-        rc = new(name, intact_cls_names, cls_names, [], vals, defaults, row_map)
+        rc = new(name, intact_cls_names, cls_names, [], vals, defaults, row_map, _make_split_kwargs(cls_names))
         rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
         _append_relationships!(rc, rels)
         rc

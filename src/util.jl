@@ -93,17 +93,9 @@ end
 
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
-    classes_by_ent_kwarg_count = Dict()
-    valid_keys = (k for (k, v) in kwargs if v !== nothing)
-    for class in p.classes
-        ent_kwarg_count = length(intersect(_object_class_names(class), valid_keys))
-        push!(get!(classes_by_ent_kwarg_count, ent_kwarg_count, []), class)
-    end
-    max_ent_kwarg_count = maximum(keys(classes_by_ent_kwarg_count))
-    classes = classes_by_ent_kwarg_count[max_ent_kwarg_count]
     # The search stops when a parameter value is found in a class
-    for class in sort(classes; by=_dimensionality)
-        entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
+    for class in sort(p.classes; by=_dimensionality, rev=true)
+        entity, new_kwargs = Base.invokelatest(class._split_kwargs[]; kwargs...)
         parameter_values = _get_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults, _default), (; new_kwargs...)
@@ -119,17 +111,6 @@ _object_class_names(x::RelationshipClass) = x.object_class_names
 
 _dimensionality(x::ObjectClass) = 0
 _dimensionality(x::RelationshipClass) = length(x.object_class_names)
-
-function _split_entity_kwargs(class::ObjectClass; kwargs...)
-    new_kwargs = OrderedDict(kwargs...)
-    object = pop!(new_kwargs, class.name, missing)
-    object, new_kwargs
-end
-function _split_entity_kwargs(class::RelationshipClass; kwargs...)
-    new_kwargs = OrderedDict(kwargs...)
-    objects = Tuple(pop!(new_kwargs, oc, missing) for oc in class.object_class_names)
-    objects, new_kwargs
-end
 
 _get_pvals(pvals_by_entity, ::Nothing) = nothing
 _get_pvals(pvals_by_entity, object) = _do_get_pvals(pvals_by_entity, object)
@@ -260,4 +241,23 @@ function _append_relationships!(rc, rels)
     end
     append!(rc.relationships, rels)
     nothing
+end
+
+function _make_split_kwargs(name::Symbol)
+    eval(
+        Expr(
+            :->,
+            Expr(:tuple, Expr(:parameters, Expr(:kw, name, :missing), :(kwargs...))),
+            Expr(:block, Expr(:tuple, name, :kwargs)),
+        )
+    )
+end
+function _make_split_kwargs(names::Vector{Symbol})
+    eval(
+        Expr(
+            :->,
+            Expr(:tuple, Expr(:parameters, (Expr(:kw, n, :missing) for n in names)..., :(kwargs...))),
+            Expr(:block, Expr(:tuple, Expr(:tuple, names...), :kwargs)),
+        )
+    )
 end
