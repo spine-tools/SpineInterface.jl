@@ -453,9 +453,11 @@ julia> collect(indices(demand))
 ```
 """
 function indices(p::Parameter; kwargs...)
+    (ent for class in p.classes for ent in indices(p, class; kwargs...))
+end
+function indices(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
     (
         ent
-        for class in p.classes
         for ent in _entities(class; kwargs...)
         if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
@@ -474,6 +476,10 @@ function indices_as_tuples(p::Parameter; kwargs...)
         if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
 end
+
+classes(p::Parameter) = p.classes
+
+push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
 
 """
     maximum_parameter_value(p::Parameter)

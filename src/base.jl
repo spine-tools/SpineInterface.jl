@@ -92,7 +92,7 @@ Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, v::ParameterValue{T}) where T = print(io, string("ParameterValue(", v.value, ")"))
-Base.show(io::IO, call::Call) = _show_call(io, call, call.call_expr, call.func)
+Base.show(io::IO, call::Call) = _show_call(io, call, call.caller, call.func)
 function Base.show(io::IO, union::UnionOfIntersections)
     d = Dict{Symbol,String}(
         :Y => "year",
@@ -122,8 +122,8 @@ function Base.show(io::IO, ts::TimeSeries)
     print(io, "TimeSeries[$body](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
 end
 
-_show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call, nothing))
-function _show_call(io::IO, call::Call, expr::Nothing, func::Function)
+_show_call(io::IO, call::Call, _caller::Nothing, func::Nothing) = print(io, _do_realize(call, nothing))
+function _show_call(io::IO, call::Call, _caller::Nothing, func::Function)
     call_str = if length(call.args) == 1
         string(func, "(", call.args[1], ")")
     else
@@ -131,11 +131,10 @@ function _show_call(io::IO, call::Call, expr::Nothing, func::Function)
     end
     print(io, call_str)
 end
-function _show_call(io::IO, call::Call, expr::_CallExpr, func::ParameterValue)
-    pname, kwargs = expr
-    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
+function _show_call(io::IO, call::Call, caller, func::ParameterValue)
+    kwargs_str = join((join(kw, "=") for kw in pairs(call.kwargs)), ", ")
     result = _do_realize(call, nothing)
-    print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
+    print(io, string("{", caller, "(", kwargs_str, ") = ", result, "}"))
 end
 
 Base.convert(::Type{Call}, x::T) where {T} = Call(x)
@@ -143,7 +142,7 @@ Base.convert(::Type{Call}, x::Call) = x
 
 Base.copy(ts::TimeSeries{T}) where {T} = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
 Base.copy(c::ParameterValue) = parameter_value(c.value)
-Base.copy(c::Call) = Call(c.func, c.args, c.kwargs, c.call_expr)
+Base.copy(c::Call) = Call(c.func, c.args, c.kwargs, c.caller)
 
 Base.zero(::Type{T}) where {T<:Call} = Call(zero(Float64))
 Base.zero(::Call) = Call(zero(Float64))
@@ -442,13 +441,12 @@ end
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 Base.getindex(p::Parameter, inds::NamedTuple) = _getindex(p; inds...)
 function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
-    call_expr = (p.name, (; kwargs...))
     pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
     if pv_new_kwargs !== nothing
         parameter_value, new_inds = pv_new_kwargs
-        Call(parameter_value, new_inds, call_expr)
+        Call(parameter_value, new_inds, p)
     else
-        Call(nothing, call_expr)
+        Call(nothing, p)
     end
 end
 

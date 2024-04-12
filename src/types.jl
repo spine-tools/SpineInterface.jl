@@ -35,14 +35,12 @@ struct ParameterValue{T}
     ParameterValue(value::T) where T = new{T}(value, _parameter_value_metadata(value))
 end
 
-_CallExpr = Tuple{Symbol,NamedTuple}
-
 struct Call
     func::Union{Nothing,ParameterValue,Function}
     args::Vector
     kwargs::NamedTuple
-    call_expr::Union{_CallExpr,Nothing}
-    Call(func, args, kwargs, call_expr) = new(func, args, kwargs, call_expr)
+    caller
+    Call(func, args, kwargs, caller) = new(func, args, kwargs, caller)
 end
 
 """

@@ -98,7 +98,7 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
         entity, new_kwargs = Base.invokelatest(class._split_kwargs[]; kwargs...)
         parameter_values = _get_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
-        return _get(parameter_values, p.name, class.parameter_defaults, _default), (; new_kwargs...)
+        return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
     end
     if _strict
         @warn("can't find a value of $p for argument(s) $((; kwargs...))")

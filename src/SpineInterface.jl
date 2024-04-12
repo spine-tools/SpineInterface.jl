@@ -63,6 +63,7 @@ export export_data
 export groups
 export import_data
 export indexed_values
+export classes
 export collect_indexed_values
 export indices
 export indices_as_tuples
@@ -84,6 +85,7 @@ export ParameterValue
 export parameter_value
 export parameters
 export parse_db_value
+export push_class!
 export realize
 export refresh!
 export relationship_class
