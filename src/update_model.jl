@@ -143,7 +143,7 @@ function _set_lower_bound(var, lb)
         m = owner_model(var)
         ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
         ext.lower_bound[var] = lb
-    else
+    elseif !isnan(lb)
         set_lower_bound(var, lb)
     end
 end
@@ -166,7 +166,7 @@ function _set_upper_bound(var, ub)
         m = owner_model(var)
         ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
         ext.upper_bound[var] = ub
-    else
+    elseif !isnan(ub)
         set_upper_bound(var, ub)
     end
 end
@@ -289,7 +289,7 @@ function JuMP.add_constraint(
 end
 
 # @objective extension
-function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
+function JuMP.set_objective_function(model::Model, func::Union{Call,GenericAffExpr{Call,VariableRef}})
     set_objective_function(model, realize(func, model))
 end
 
