@@ -38,7 +38,7 @@ end
 struct Call
     func::Union{Nothing,ParameterValue,Function}
     args::Vector
-    kwargs::Union{Base.Pairs,NamedTuple}
+    kwargs::Union{Iterators.Pairs,NamedTuple}
     caller
 end
 

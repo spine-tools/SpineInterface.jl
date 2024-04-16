@@ -439,7 +439,7 @@ function Base.getindex(x::Union{TimeSeries,Map}, key)
     end
 end
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
-Base.getindex(p::Parameter, inds::Union{Base.Pairs,NamedTuple}) = _getindex(p; inds...)
+Base.getindex(p::Parameter, inds::Union{Iterators.Pairs,NamedTuple}) = _getindex(p; inds...)
 function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
     pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
     if pv_new_kwargs !== nothing
