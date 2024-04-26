@@ -163,9 +163,11 @@ _find_rels(rc, rows) = (rc.relationships[row] for row in rows)
 _find_rels(rc, ::Anything) = rc.relationships
 
 function _find_rows(rc; kwargs...)
-    memoized_rows = get!(rc.row_map, rc.name, Dict())
-    get!(memoized_rows, kwargs) do
-        _do_find_rows(rc; kwargs...)
+    lock(rc.row_map_lock) do
+        memoized_rows = get!(rc.row_map, rc.name, Dict())
+        get!(memoized_rows, kwargs) do
+            _do_find_rows(rc; kwargs...)
+        end
     end
 end
 
@@ -714,7 +716,7 @@ function with_env(f::Function, env::Symbol)
     prev_env = _active_env()
     _activate_env(env)
     try
-        f()
+        return f()
     finally
         _activate_env(prev_env)
     end

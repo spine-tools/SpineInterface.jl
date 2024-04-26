@@ -225,7 +225,9 @@ function _refresh_metadata!(pval::ParameterValue)
 end
 
 function _add_update(t::TimeSlice, timeout, upd)
-    t.updates[upd] = timeout
+    lock(t.updates_lock) do
+        t.updates[upd] = timeout
+    end
 end
 
 function _append_relationships!(rc, rels)

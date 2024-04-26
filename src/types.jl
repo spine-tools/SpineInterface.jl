@@ -72,12 +72,13 @@ struct TimeSlice
     id::UInt64
     actual_duration::Union{Dates.CompoundPeriod,Period}
     updates::OrderedDict
+    updates_lock::ReentrantLock
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
         blocks = isempty(blocks) ? () : Tuple(sort(collect(blocks)))
         id = objectid((start, end_, duration, blocks))
         actual_duration = canonicalize(end_ - start)
-        new(Ref(start), Ref(end_), duration, blocks, id, actual_duration, OrderedDict())
+        new(Ref(start), Ref(end_), duration, blocks, id, actual_duration, OrderedDict(), ReentrantLock())
     end
 end
 
@@ -119,11 +120,21 @@ struct _RelationshipClass
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
     row_map::Dict
+    row_map_lock::ReentrantLock
     _split_kwargs::Ref{Any}
     function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
         cls_names = _fix_name_ambiguity(intact_cls_names)
-        row_map = Dict()
-        rc = new(name, intact_cls_names, cls_names, [], vals, defaults, row_map, _make_split_kwargs(cls_names))
+        rc = new(
+            name,
+            intact_cls_names,
+            cls_names,
+            [],
+            vals,
+            defaults,
+            Dict(),
+            ReentrantLock(),
+            _make_split_kwargs(cls_names),
+        )
         rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
         _append_relationships!(rc, rels)
         rc

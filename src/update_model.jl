@@ -27,11 +27,21 @@ import .JuMP: MOI, MOIU, MutableArithmetics
 
 _Constant = Union{Number,UniformScaling}
 
+const _si_ext_lock = ReentrantLock()
+
 struct SpineInterfaceExt
     lower_bound::Dict{VariableRef,Any}
     upper_bound::Dict{VariableRef,Any}
     fixer::Dict{VariableRef,Any}
     SpineInterfaceExt() = new(Dict(), Dict(), Dict())
+end
+
+function _get_si_ext!(m)
+    lock(_si_ext_lock) do
+        get!(m.ext, :spineinterface) do
+            SpineInterfaceExt()
+        end
+    end
 end
 
 JuMP.copy_extension_data(data::SpineInterfaceExt, new_model::AbstractModel, model::AbstractModel) = nothing
@@ -141,7 +151,7 @@ function _set_lower_bound(var, lb)
     if is_fixed(var)
         # Save bound
         m = owner_model(var)
-        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        ext = _get_si_ext!(m)
         ext.lower_bound[var] = lb
     elseif !isnan(lb)
         set_lower_bound(var, lb)
@@ -164,7 +174,7 @@ function _set_upper_bound(var, ub)
     if is_fixed(var)
         # Save bound
         m = owner_model(var)
-        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        ext = _get_si_ext!(m)
         ext.upper_bound[var] = ub
     elseif !isnan(ub)
         set_upper_bound(var, ub)
@@ -189,7 +199,7 @@ _fix(_upd, ::Nothing) = nothing
 function _fix(upd, fix_value)
     var = upd.variable
     m = owner_model(var)
-    ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+    ext = _get_si_ext!(m)
     if !isnan(fix_value)
         # Save bounds, remove them and then fix the value
         if has_lower_bound(var)
