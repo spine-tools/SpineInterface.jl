@@ -25,6 +25,24 @@ A type with no fields that is the type of [`anything`](@ref).
 struct Anything end
 
 """
+    ParameterValue
+
+A type for representing a parameter value from a Spine db.
+"""
+struct ParameterValue{T}
+    value::T
+    metadata::Dict
+    ParameterValue(value::T) where T = new{T}(value, _parameter_value_metadata(value))
+end
+
+struct Call
+    func::Union{Nothing,ParameterValue,Function}
+    args::Vector
+    kwargs::Union{Iterators.Pairs,NamedTuple}
+    caller
+end
+
+"""
     Object
 
 A type for representing an object from a Spine db; an instance of an object class.
@@ -41,14 +59,6 @@ struct Object
     end
 end
 
-struct _TimedCallback
-    timeout::Ref{Any}
-    callback
-    function _TimedCallback(timeout, callback)
-        new(timeout, callback)
-    end
-end
-
 """
     TimeSlice
 
@@ -60,28 +70,31 @@ struct TimeSlice
     duration::Float64
     blocks::NTuple{N,Object} where {N}
     id::UInt64
-    callbacks::Vector{_TimedCallback}
+    actual_duration::Union{Dates.CompoundPeriod,Period}
+    updates::OrderedDict
+    updates_lock::ReentrantLock
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
         blocks = isempty(blocks) ? () : Tuple(sort(collect(blocks)))
         id = objectid((start, end_, duration, blocks))
-        new(Ref(start), Ref(end_), duration, blocks, id, [])
+        actual_duration = canonicalize(end_ - start)
+        new(Ref(start), Ref(end_), duration, blocks, id, actual_duration, OrderedDict(), ReentrantLock())
     end
 end
 
 ObjectLike = Union{Object,TimeSlice,Int64}
-ObjectTupleLike = Tuple{Vararg{ObjectLike}}
+ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
 RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
 
-"""
-    ParameterValue
-
-A type for representing a parameter value from a Spine db.
-"""
-struct ParameterValue{T}
-    value::T
-    metadata::Dict
-    ParameterValue(value::T) where T = new{T}(value, _parameter_value_metadata(value))
+struct _ObjectClass
+    name::Symbol
+    objects::Vector{ObjectLike}
+    parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
+    parameter_defaults::Dict{Symbol,ParameterValue}
+    _split_kwargs::Ref{Any}
+    function _ObjectClass(name, objects, vals=Dict(), defaults=Dict())
+        new(name, objects, vals, defaults, _make_split_kwargs(name))
+    end
 end
 
 """
@@ -91,10 +104,41 @@ A type for representing an object class from a Spine db.
 """
 struct ObjectClass
     name::Symbol
-    objects::Array{ObjectLike,1}
-    parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
+    env_dict::Dict{Symbol,_ObjectClass}
+    function ObjectClass(name, args...; mod=@__MODULE__, extend=false)
+        new_ = new(name, Dict(_active_env() => _ObjectClass(name, args...)))
+        spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
+        _resolve!(spine_object_classes, name, new_, extend)
+    end
+end
+
+struct _RelationshipClass
+    name::Symbol
+    intact_object_class_names::Vector{Symbol}
+    object_class_names::Vector{Symbol}
+    relationships::Vector{RelationshipLike}
+    parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    ObjectClass(name, objects, vals=Dict(), defaults=Dict()) = new(name, objects, vals, defaults)
+    row_map::Dict
+    row_map_lock::ReentrantLock
+    _split_kwargs::Ref{Any}
+    function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
+        cls_names = _fix_name_ambiguity(intact_cls_names)
+        rc = new(
+            name,
+            intact_cls_names,
+            cls_names,
+            [],
+            vals,
+            defaults,
+            Dict(),
+            ReentrantLock(),
+            _make_split_kwargs(cls_names),
+        )
+        rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
+        _append_relationships!(rc, rels)
+        rc
+    end
 end
 
 """
@@ -104,16 +148,11 @@ A type for representing a relationship class from a Spine db.
 """
 struct RelationshipClass
     name::Symbol
-    intact_object_class_names::Array{Symbol,1}
-    object_class_names::Array{Symbol,1}
-    relationships::Array{RelationshipLike,1}
-    parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
-    parameter_defaults::Dict{Symbol,ParameterValue}
-    lookup_cache::Dict{Bool,Dict}
-    function RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
-        cls_names = _fix_name_ambiguity(intact_cls_names)
-        rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
-        new(name, intact_cls_names, cls_names, rels, vals, defaults, Dict(:true => Dict(), :false => Dict()))
+    env_dict::Dict{Symbol,_RelationshipClass}
+    function RelationshipClass(name, args...; mod=@__MODULE__, extend=false)
+        new_ = new(name, Dict(_active_env() => _RelationshipClass(name, args...)))
+        spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
+        _resolve!(spine_relationship_classes, name, new_, extend)
     end
 end
 
@@ -130,6 +169,12 @@ function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
     name_list
 end
 
+struct _Parameter
+    name::Symbol
+    classes::Vector{Union{ObjectClass,RelationshipClass}}
+    _Parameter(name, classes=[]) = new(name, classes)
+end
+
 """
     Parameter
 
@@ -137,8 +182,31 @@ A type for representing a parameter related to an object class or a relationship
 """
 struct Parameter
     name::Symbol
-    classes::Array{Union{ObjectClass,RelationshipClass},1}
-    Parameter(name, classes=[]) = new(name, classes)
+    env_dict::Dict{Symbol,_Parameter}
+    function Parameter(name, args...; mod=@__MODULE__, extend=false)
+        new_ = new(name, Dict(_active_env() => _Parameter(name, args...)))
+        spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
+        _resolve!(spine_parameters, name, new_, extend)
+    end
+end
+
+function _resolve!(elements, name, new_, extend)
+    current = get(elements, name, nothing)
+    if current === nothing
+        elements[name] = new_
+    else
+        _env_merge!(current, new_, extend)
+    end
+end
+
+function _env_merge!(current, new, extend)
+    env = _active_env()
+    if haskey(current.env_dict, env) && extend
+        merge!(current, new)
+    else
+        current.env_dict[env] = new.env_dict[env]
+    end
+    current
 end
 
 """
@@ -237,18 +305,11 @@ function _nonunique_positions_sorted(arr)
     nonunique
 end
 
-_Scalar = Union{Nothing,Bool,Int64,Float64,Symbol,DateTime,Period}
+_Scalar = Union{Nothing,Missing,Bool,Int64,Float64,Symbol,DateTime,Period}
 _Indexed = Union{Array,TimePattern,TimeSeries,Map}
 
 struct _StartRef
     time_slice::TimeSlice
 end
 
-_CallExpr = Tuple{Symbol,NamedTuple}
-
-struct Call
-    func::Union{Nothing,ParameterValue,Function}
-    args::Vector
-    kwargs::NamedTuple
-    call_expr::Union{_CallExpr,Nothing}
-end
+abstract type AbstractUpdate end

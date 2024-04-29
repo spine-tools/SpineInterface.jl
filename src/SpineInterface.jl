@@ -63,6 +63,7 @@ export export_data
 export groups
 export import_data
 export indexed_values
+export classes
 export collect_indexed_values
 export indices
 export indices_as_tuples
@@ -80,9 +81,11 @@ export overlap_duration
 export overlaps
 export Parameter
 export parameter
+export ParameterValue
 export parameter_value
 export parameters
 export parse_db_value
+export push_class!
 export realize
 export refresh!
 export relationship_class
@@ -108,8 +111,10 @@ export TimeSeries
 export TimeSlice
 export unparse_db_value
 export using_spinedb
+export with_env
 export without_filters
 export write_parameters
+export add_roll_hook!
 
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin

@@ -27,11 +27,21 @@ import .JuMP: MOI, MOIU, MutableArithmetics
 
 _Constant = Union{Number,UniformScaling}
 
+const _si_ext_lock = ReentrantLock()
+
 struct SpineInterfaceExt
     lower_bound::Dict{VariableRef,Any}
     upper_bound::Dict{VariableRef,Any}
     fixer::Dict{VariableRef,Any}
     SpineInterfaceExt() = new(Dict(), Dict(), Dict())
+end
+
+function _get_si_ext!(m)
+    lock(_si_ext_lock) do
+        get!(m.ext, :spineinterface) do
+            SpineInterfaceExt()
+        end
+    end
 end
 
 JuMP.copy_extension_data(data::SpineInterfaceExt, new_model::AbstractModel, model::AbstractModel) = nothing
@@ -60,62 +70,70 @@ function Base.:(==)(x::_CallInterval, y::_CallInterval)
 	all(getproperty(x, p) == getproperty(y, p) for p in propertynames(x))
 end
 
-abstract type AbstractUpdate end
-
 struct _VariableLBUpdate <: AbstractUpdate
     variable::VariableRef
+    call
 end
 
 struct _VariableUBUpdate <: AbstractUpdate
     variable::VariableRef
+    call
 end
 
 struct _VariableFixValueUpdate <: AbstractUpdate
     variable::VariableRef
+    call
 end
 
 struct _ObjectiveCoefficientUpdate <: AbstractUpdate
     model::Model
     variable::VariableRef
+    call
 end
 
 struct _ConstraintCoefficientUpdate <: AbstractUpdate
     constraint::Ref{ConstraintRef}
     variable::VariableRef
+    call
 end
 
 struct _RHSUpdate <: AbstractUpdate
     constraint::Ref{ConstraintRef}
+    call
 end
 
 struct _LowerBoundUpdate <: AbstractUpdate
     constraint::Ref{ConstraintRef}
+    call
 end
 
 struct _UpperBoundUpdate <: AbstractUpdate
     constraint::Ref{ConstraintRef}
+    call
 end
 
-(upd::_VariableLBUpdate)(new_lb) = _set_lower_bound(upd.variable, new_lb)
-(upd::_VariableUBUpdate)(new_ub) = _set_upper_bound(upd.variable, new_ub)
-(upd::_VariableFixValueUpdate)(new_fix_value) = _fix(upd, new_fix_value)
-(upd::_ObjectiveCoefficientUpdate)(new_coef) = set_objective_coefficient(upd.model, upd.variable, new_coef)
-(upd::_ConstraintCoefficientUpdate)(new_coef) = set_normalized_coefficient(upd.constraint[], upd.variable, new_coef)
-(upd::_RHSUpdate)(new_rhs) = set_normalized_rhs(upd.constraint[], new_rhs)
-function (upd::_LowerBoundUpdate)(new_lower)
+Base.show(io::IO, upd::_ObjectiveCoefficientUpdate) = print(
+    io, string(typeof(upd), "(", upd.variable, ", ", upd.call, ")")
+)
+
+(upd::_VariableLBUpdate)() = _set_lower_bound(upd.variable, realize(upd.call, upd))
+(upd::_VariableUBUpdate)() = _set_upper_bound(upd.variable, realize(upd.call, upd))
+(upd::_VariableFixValueUpdate)() = _fix(upd, realize(upd.call, upd))
+(upd::_ObjectiveCoefficientUpdate)() = set_objective_coefficient(upd.model, upd.variable, realize(upd.call, upd))
+(upd::_ConstraintCoefficientUpdate)() = set_normalized_coefficient(upd.constraint[], upd.variable, realize(upd.call, upd))
+(upd::_RHSUpdate)() = set_normalized_rhs(upd.constraint[], realize(upd.call, upd))
+function (upd::_LowerBoundUpdate)()
     constraint = upd.constraint[]
     model = owner_model(constraint)
     upper = MOI.get(model, MOI.ConstraintSet(), constraint).upper
-    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(new_lower, upper))
+    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(realize(upd.call, upd), upper))
 end
-function (upd::_UpperBoundUpdate)(new_upper)
+function (upd::_UpperBoundUpdate)()
     constraint = upd.constraint[]
     model = owner_model(constraint)
     lower = MOI.get(model, MOI.ConstraintSet(), constraint).lower
-    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, new_upper))
+    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, realize(upd.call, upd)))
 end
-
-# @variable macro extension
 
 """
     JuMP.set_lower_bound(var, call)
@@ -124,8 +142,8 @@ Set the lower bound of given variable to the value of given call and bind them t
 the value of the call changes because time slices have rolled, the lower bound is automatically updated.
 """
 function JuMP.set_lower_bound(var::VariableRef, call::Call)
-    lb = realize(call, _VariableLBUpdate(var))
-    _set_lower_bound(var, lb)
+    upd = _VariableLBUpdate(var, call)
+    upd()
 end
 
 _set_lower_bound(var, ::Nothing) = nothing
@@ -133,9 +151,9 @@ function _set_lower_bound(var, lb)
     if is_fixed(var)
         # Save bound
         m = owner_model(var)
-        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        ext = _get_si_ext!(m)
         ext.lower_bound[var] = lb
-    else
+    elseif !isnan(lb)
         set_lower_bound(var, lb)
     end
 end
@@ -147,8 +165,8 @@ Set the upper bound of given variable to the value of given call and bind them t
 the value of the call changes because time slices have rolled, the upper bound is automatically updated.
 """
 function JuMP.set_upper_bound(var::VariableRef, call::Call)
-    ub = realize(call, _VariableUBUpdate(var))
-    _set_upper_bound(var, ub)
+    upd = _VariableUBUpdate(var, call)
+    upd()
 end
 
 _set_upper_bound(var, ::Nothing) = nothing
@@ -156,9 +174,9 @@ function _set_upper_bound(var, ub)
     if is_fixed(var)
         # Save bound
         m = owner_model(var)
-        ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+        ext = _get_si_ext!(m)
         ext.upper_bound[var] = ub
-    else
+    elseif !isnan(ub)
         set_upper_bound(var, ub)
     end
 end
@@ -173,16 +191,15 @@ If the value is NaN, then the variable is freed.
 Any bounds on the variable at the moment of fixing it are restored when freeing it.
 """
 function JuMP.fix(var::VariableRef, call::Call)
-    upd = _VariableFixValueUpdate(var)
-    fix_value = realize(call, upd)
-    _fix(upd, fix_value)
+    upd = _VariableFixValueUpdate(var, call)
+    upd()
 end
 
 _fix(_upd, ::Nothing) = nothing
 function _fix(upd, fix_value)
     var = upd.variable
     m = owner_model(var)
-    ext = get!(m.ext, :spineinterface, SpineInterfaceExt())
+    ext = _get_si_ext!(m)
     if !isnan(fix_value)
         # Save bounds, remove them and then fix the value
         if has_lower_bound(var)
@@ -282,39 +299,38 @@ function JuMP.add_constraint(
 end
 
 # @objective extension
-function JuMP.set_objective_function(model::Model, func::GenericAffExpr{Call,VariableRef})
+function JuMP.set_objective_function(model::Model, func::Union{Call,GenericAffExpr{Call,VariableRef}})
     set_objective_function(model, realize(func, model))
 end
 
 # realize
 function realize(s::_GreaterThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.GreaterThan(Float64(realize(c, _RHSUpdate(con_ref))))
+    MOI.GreaterThan(Float64(realize(c, _RHSUpdate(con_ref, c))))
 end
 function realize(s::_LessThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.LessThan(Float64(realize(c, _RHSUpdate(con_ref))))
+    MOI.LessThan(Float64(realize(c, _RHSUpdate(con_ref, c))))
 end
 function realize(s::_EqualToCall, con_ref)
     c = MOI.constant(s)
-    MOI.EqualTo(Float64(realize(c, _RHSUpdate(con_ref))))
+    MOI.EqualTo(Float64(realize(c, _RHSUpdate(con_ref, c))))
 end
 function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
-    MOI.Interval(Float64(realize(l, _LowerBoundUpdate(con_ref))), Float64(realize(u, _UpperBoundUpdate(con_ref))))
+    MOI.Interval(Float64(realize(l, _LowerBoundUpdate(con_ref, l))), Float64(realize(u, _UpperBoundUpdate(con_ref, u))))
 end
 function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
     constant = Float64(realize(e.constant))
-    terms = OrderedDict{VariableRef,typeof(constant)}(
-        var => Float64(realize(coef, _coefficient_update(model_or_con_ref, var)))
-        for (var, coef) in e.terms
+    terms = OrderedDict{VariableRef,Float64}(
+        var => realize(coef, _coefficient_update(model_or_con_ref, var, coef)) for (var, coef) in e.terms
     )
     GenericAffExpr(constant, terms)
 end
 
-_coefficient_update(m::Model, v) = _ObjectiveCoefficientUpdate(m, v)
-_coefficient_update(cr::Ref{ConstraintRef}, v) = _ConstraintCoefficientUpdate(cr, v)
-_coefficient_update(::Nothing, _v) = nothing
+_coefficient_update(m::Model, v, coef) = _ObjectiveCoefficientUpdate(m, v, coef)
+_coefficient_update(cr::Ref{ConstraintRef}, v, coef) = _ConstraintCoefficientUpdate(cr, v, coef)
+_coefficient_update(::Nothing, _v, _coef) = nothing
 
 # add_to_expression!
 function JuMP.add_to_expression!(aff::GenericAffExpr{Call,VariableRef}, call::Call)
@@ -433,6 +449,7 @@ function Base.convert(::Type{GenericAffExpr{Call,VariableRef}}, expr::GenericAff
     terms = OrderedDict{VariableRef,Call}(var => Call(coef) for (var, coef) in expr.terms)
     GenericAffExpr{Call,VariableRef}(constant, terms)
 end
+Base.convert(::Type{GenericAffExpr{Call,VariableRef}}, expr::GenericAffExpr{Call,VariableRef}) = expr
 
 # TODO: try to get rid of this in favor of JuMP's generic implementation
 function Base.show(io::IO, e::GenericAffExpr{Call,VariableRef})

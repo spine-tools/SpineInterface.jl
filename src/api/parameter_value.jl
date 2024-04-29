@@ -23,7 +23,7 @@
 A `ParameterValue` from the given parsed db value.
 """
 parameter_value(value::String) = parameter_value(Symbol(value))
-parameter_value(value::Union{_Scalar,Array,TimePattern,TimeSeries}) = ParameterValue(value)
+parameter_value(value::Union{T,Array,TimePattern,TimeSeries}) where T<:_Scalar = ParameterValue(value)
 parameter_value(value::Map) = ParameterValue(Map(value.indexes, parameter_value.(value.values)))
 parameter_value(value::T) where {T} = error("can't parse $value of unrecognized type $T")
 parameter_value(x::T) where {T<:ParameterValue} = x
@@ -460,11 +460,11 @@ function _timedata_operation(f, x, y)
     indexes = _common_indexes(x, y)
     param_val_x = parameter_value(x)
     param_val_y = parameter_value(y)
-    values = Any[(param_val_x(; t=t), param_val_y(; t=t)) for t in indexes]
-    to_remove = findall(x -> isnan(x[1]) || isnan(x[2]), values)
+    value_iter = ((param_val_x(; t=t), param_val_y(; t=t)) for t in indexes)
+    values = [(isnan(val_x) || isnan(val_y)) ? NaN : f(val_x, val_y) for (val_x, val_y) in value_iter]
+    to_remove = findall(isnan, values)
     deleteat!(indexes, to_remove)
     deleteat!(values, to_remove)
-    map!(x -> f(x...), values, values)
     indexes, values
 end
 

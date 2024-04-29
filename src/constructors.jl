@@ -38,8 +38,10 @@ end
 
 Map(inds::Array{String,1}, vals::Array{V,1}) where {V} = Map(Symbol.(inds), vals)
 
-Call(x, call_expr=nothing) = Call(nothing, [x], NamedTuple(), call_expr)
-Call(func::T, kwargs::NamedTuple, call_expr=nothing) where {T<:ParameterValue} = Call(func, [], kwargs, call_expr)
+Call(x, caller=nothing) = Call(nothing, [x], NamedTuple(), caller)
+function Call(func::T, kwargs::Union{Iterators.Pairs,NamedTuple}, caller=nothing) where {T<:ParameterValue}
+    Call(func, [], kwargs, caller)
+end
 Call(op::T, x, y) where {T<:Function} = Call(op, [x, y])
 Call(op::T, args::Vector) where {T<:Function} = Call(op, args, NamedTuple(), nothing)
-Call(other::Call) = copy(other)
+Call(other::Call) = other

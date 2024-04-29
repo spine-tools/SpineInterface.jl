@@ -44,7 +44,7 @@ using_spinedb("sqlite://")
     @test !uses_pants(studio=studio(:WB), duck=duck(:Daffy), t=t)
     @test uses_pants(studio=studio(:Disney), duck=duck(:Donald), t=t) == 1.0
     @test uses_pants(studio=studio(:WB), duck=duck(:Donald), t=t, _strict=false) === nothing
-    @test_throws ErrorException uses_pants(studio=studio(:Disney), duck=duck(:Daffy))
+    @test uses_pants(studio=studio(:Disney), duck=duck(:Daffy)) === nothing
     @test color(studio=studio(:WB), duck=duck(:Daffy)) === :black
     @test color(studio=studio(:Disney), duck=duck(:Donald)) === :white
     dummy = Parameter(:dummy)

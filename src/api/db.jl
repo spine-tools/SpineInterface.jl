@@ -278,30 +278,26 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
     spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
     spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
     if !extend
-        # Remove current classes and parameters that are not in the new dataset
-        for name in setdiff(keys(spine_object_classes), keys(args_per_obj_cls))
-            pop!(spine_object_classes, name)
-            @eval mod $name = nothing
-        end
-        for name in setdiff(keys(spine_relationship_classes), keys(args_per_rel_cls))
-            pop!(spine_relationship_classes, name)
-            @eval mod $name = nothing
-        end
-        for name in setdiff(keys(spine_parameters), keys(class_names_per_param))
-            pop!(spine_parameters, name)
-            @eval mod $name = nothing
+        env = _active_env()
+        for elements in (spine_object_classes, spine_relationship_classes, spine_parameters)
+            for (name, x) in collect(elements)
+                if isempty(delete!(x.env_dict, env))
+                    pop!(elements, name)
+                    @eval mod $name = nothing
+                end
+            end
         end
     end
     # Create new
     for (name, args) in args_per_obj_cls
-        spine_object_classes[name] = new = ObjectClass(name, args...)
+        new = ObjectClass(name, args...; mod=mod, extend=extend)
         @eval mod begin
             $name = $new
             export $name
         end
     end
     for (name, args) in args_per_rel_cls
-        spine_relationship_classes[name] = new = RelationshipClass(name, args...)
+        new = RelationshipClass(name, args...; mod=mod, extend=extend)
         @eval mod begin
             $name = $new
             export $name
@@ -309,7 +305,7 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
     end
     for (name, class_names) in class_names_per_param
         classes = [getfield(mod, x) for x in class_names]
-        spine_parameters[name] = new = Parameter(name, classes)
+        new = Parameter(name, classes; mod=mod, extend=extend)
         @eval mod begin
             $name = $new
             export $name

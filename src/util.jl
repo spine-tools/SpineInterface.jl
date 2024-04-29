@@ -93,50 +93,55 @@ end
 
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
-    for class in sort(p.classes; by=class -> _dimensionality(class), rev=true)
-        entity, new_kwargs = _split_entity_kwargs(class; kwargs...)
-        parameter_values = _entity_pvals(class.parameter_values, entity)
+    # The search stops when a parameter value is found in a class
+    for class in sort(p.classes; by=_dimensionality, rev=true)
+        entity, new_kwargs = Base.invokelatest(class._split_kwargs[]; kwargs...)
+        parameter_values = _get_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
     end
     if _strict
-        error("can't find a value of $p for argument(s) $((; kwargs...))")
+        @warn("can't find a value of $p for argument(s) $((; kwargs...))")
+        return nothing
     end
 end
+
+_object_class_names(x::ObjectClass) = (x.name,)
+_object_class_names(x::RelationshipClass) = x.object_class_names
 
 _dimensionality(x::ObjectClass) = 0
 _dimensionality(x::RelationshipClass) = length(x.object_class_names)
 
-function _split_entity_kwargs(class::ObjectClass; kwargs...)
-    new_kwargs = OrderedDict(kwargs...)
-    pop!(new_kwargs, class.name, missing), (; new_kwargs...)
-end
-function _split_entity_kwargs(class::RelationshipClass; kwargs...)
-    new_kwargs = OrderedDict(kwargs...)
-    objects = Tuple(pop!(new_kwargs, oc, missing) for oc in class.object_class_names)
-    objects, (; new_kwargs...)
+_get_pvals(pvals_by_entity, ::Nothing) = nothing
+_get_pvals(pvals_by_entity, object) = _do_get_pvals(pvals_by_entity, object)
+function _get_pvals(pvals_by_entity, objects::Tuple)
+    any(x === nothing for x in objects) && return nothing
+    _do_get_pvals(pvals_by_entity, objects)
 end
 
-_entity_pvals(pvals_by_entity, ::Nothing) = nothing
-_entity_pvals(pvals_by_entity, entity) = _entity_pvals(pvals_by_entity, entity, get(pvals_by_entity, entity, nothing))
-_entity_pvals(pvals_by_entity, entity, pvals) = pvals
-_entity_pvals(pvals_by_entity, ::Missing, ::Nothing) = nothing
-_entity_pvals(pvals_by_entity, ::NTuple{N,Missing}, ::Nothing) where {N} = nothing
-function _entity_pvals(pvals_by_entity, entity::Tuple, ::Nothing)
-    any(x === missing for x in entity) || return nothing
+function _do_get_pvals(pvals_by_entity, entity)
+    get(pvals_by_entity, entity) do
+        _find_match(pvals_by_entity, entity)
+    end
+end
+
+_find_match(pvals_by_entity, ::Missing) = nothing
+_find_match(pvals_by_entity, ::NTuple{N,Missing}) where N = nothing
+function _find_match(pvals_by_entity, objects::Tuple)
+    any(x === missing for x in objects) || return nothing
     matched = nothing
-    for (key, value) in pvals_by_entity
-        if _matches(key, entity)
-            matched === nothing || return nothing
-            matched = value
+    for (key, pvals) in pvals_by_entity
+        if _matches(key, objects)
+            matched === nothing || return nothing  # If we find a second match, return nothing - we want a unique match
+            matched = pvals
         end
     end
     matched
 end
 
-_matches(first::Tuple, second::Tuple) = all(_matches(x, y) for (x, y) in zip(first, second))
-_matches(x, ::Missing) = true
-_matches(x, y) = x == y
+_matches(key::Tuple, objects::Tuple) = all(_matches(k, obj) for (k, obj) in zip(key, objects))
+_matches(k, ::Missing) = true
+_matches(k, obj) = k == obj
 
 struct _CallNode
     call::Call
@@ -153,11 +158,13 @@ struct _CallNode
     end
 end
 
-_do_realize(x, callback=nothing) = x
-_do_realize(call::Call, callback=nothing) = _do_realize(call.func, call, callback)
-_do_realize(::Nothing, call, callback) = call.args[1]
-_do_realize(pv::T, call, callback) where T<:ParameterValue = pv(callback; call.kwargs...)
-function _do_realize(::T, call::Call, callback) where T<:Function
+_do_realize(x, _upd) = x
+_do_realize(call::Call, upd) = _do_realize(call.func, call, upd)
+_do_realize(::Nothing, call, _upd) = call.args[1]
+function _do_realize(pv::T, call, upd) where T<:ParameterValue
+    pv(upd; call.kwargs...)
+end
+function _do_realize(::T, call, upd) where T<:Function
     current = _CallNode(call, nothing, -1)
     while true
         vals = [child.value[] for child in current.children]
@@ -170,7 +177,7 @@ function _do_realize(::T, call::Call, callback) where T<:Function
             continue
         else
             # no children, realize value
-            current.value[] = _do_realize(current.call, callback)
+            current.value[] = _do_realize(current.call, upd)
         end
         current.parent === nothing && break
         if current.child_number < length(current.parent.call.args)
@@ -215,4 +222,44 @@ end
 function _refresh_metadata!(pval::ParameterValue)
     empty!(pval.metadata)
     merge!(pval.metadata, _parameter_value_metadata(pval.value))
+end
+
+function _add_update(t::TimeSlice, timeout, upd)
+    lock(t.updates_lock) do
+        t.updates[upd] = timeout
+    end
+end
+
+function _append_relationships!(rc, rels)
+    isempty(rels) && return
+    delete!(rc.row_map, rc.name)  # delete memoized rows
+    offset = length(rc.relationships)
+    for cls_name in rc.object_class_names
+        oc_row_map = get!(rc.row_map, cls_name, Dict())
+        for (row, rel) in enumerate(rels)
+            obj = getproperty(rel, cls_name)
+            push!(get!(oc_row_map, obj, []), offset + row)
+        end
+    end
+    append!(rc.relationships, rels)
+    nothing
+end
+
+function _make_split_kwargs(name::Symbol)
+    eval(
+        Expr(
+            :->,
+            Expr(:tuple, Expr(:parameters, Expr(:kw, name, :missing), :(kwargs...))),
+            Expr(:block, Expr(:tuple, name, :kwargs)),
+        )
+    )
+end
+function _make_split_kwargs(names::Vector{Symbol})
+    eval(
+        Expr(
+            :->,
+            Expr(:tuple, Expr(:parameters, (Expr(:kw, n, :missing) for n in names)..., :(kwargs...))),
+            Expr(:block, Expr(:tuple, Expr(:tuple, names...), :kwargs)),
+        )
+    )
 end

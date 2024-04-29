@@ -131,36 +131,22 @@ function _test_parameter()
         @test people_count(institution=institution(:KTH), country=country(:Sweden)) == 3
         @test since_year(institution=institution(:KTH)) === 1827
         @test since_year(institution=institution(:VTT), _strict=false) === nothing
-        @test_throws ErrorException people_count(institution=institution(:VTT), country=country(:France))
+        @test people_count(institution=institution(:VTT), country=country(:France)) === nothing
         @test [x.name for x in institution(since_year=1827)] == [:KTH]
         @test length(parameters()) === 2
         @test all(x isa Parameter for x in parameters())
     end
 end
 
-function _test_using_spinedb_in_a_loop()
-    @testset "using_spinedb_in_a_loop" begin
-        fp = "$(@__DIR__)/deleteme.sqlite"
-        rm(fp; force=true)
-        db_url = "sqlite:///$fp"
-        color_by_alt = Dict("alt1" => "orange", "alt2" => "blue", "alt3" => "black")
-        import_test_data(
-            db_url;
-            alternatives=collect(keys(color_by_alt)),
-            object_classes=["fish"],
-            objects=[("fish", "Nemo")],
-            object_parameters=[("fish", "color")],
-            object_parameter_values=[("fish", "Nemo", "color", color, alt) for (alt, color) in color_by_alt],
-        )
-        for (alt, color) in color_by_alt
-            M = Module()
-            using_spinedb(db_url, M; filters=Dict("alternatives" => [alt]))
-            @test M.color(fish=M.fish(:Nemo)) == Symbol(color)
-        end
-    end
+function _test_pv_type_setup()
+    object_classes = ["country"]
+    objects = [["country", "France"]]
+    object_parameters = [["country", "apero_time"]]
+    import_test_data(db_url; object_classes=object_classes, objects=objects, object_parameters=object_parameters)
 end
 
-function _test_true()
+function _test_pv_type_true()
+    _test_pv_type_setup()
     @testset "true" begin
         object_parameter_values = [["country", "France", "apero_time", true]]
         import_data(db_url; object_parameter_values=object_parameter_values)
@@ -169,7 +155,8 @@ function _test_true()
     end
 end
 
-function _test_false()
+function _test_pv_type_false()
+    _test_pv_type_setup()
     @testset "false" begin
         object_parameter_values = [["country", "France", "apero_time", false]]
         import_data(db_url; object_parameter_values=object_parameter_values)
@@ -178,7 +165,8 @@ function _test_false()
     end
 end
 
-function _test_string()
+function _test_pv_type_string()
+    _test_pv_type_setup()
     @testset "string" begin
         object_parameter_values = [["country", "France", "apero_time", "now!"]]
         import_data(db_url; object_parameter_values=object_parameter_values)
@@ -187,7 +175,8 @@ function _test_string()
     end
 end
 
-function _test_array()
+function _test_pv_type_array()
+    _test_pv_type_setup()
     @testset "array" begin
         data = [4, 8, 7]
         value = Dict("type" => "array", "value_type" => "float", "data" => data)
@@ -199,7 +188,8 @@ function _test_array()
     end
 end
 
-function _test_date_time()
+function _test_pv_type_date_time()
+    _test_pv_type_setup()
     @testset "date_time" begin
         data = "2000-01-01T00:00:00"
         value = Dict("type" => "date_time", "data" => data)
@@ -210,7 +200,8 @@ function _test_date_time()
     end
 end
 
-function _test_duration()
+function _test_pv_type_duration()
+    _test_pv_type_setup()
     @testset "duration" begin
         @testset for (k, (t, data)) in enumerate([(Minute, "m"), (Hour, "h"), (Day, "D"), (Month, "M"), (Year, "Y")])
             value = Dict("type" => "duration", "data" => string(k, data))
@@ -222,7 +213,8 @@ function _test_duration()
     end
 end
 
-function _test_time_pattern()
+function _test_pv_type_time_pattern()
+    _test_pv_type_setup()
     @testset "time_pattern" begin
         data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
         value = Dict("type" => "time_pattern", "data" => data)
@@ -238,7 +230,8 @@ function _test_time_pattern()
     end
 end
 
-function _test_std_time_series()
+function _test_pv_type_std_time_series()
+    _test_pv_type_setup()
     @testset "std_time_series" begin
         data = [1.0, 4.0, 5.0, NaN, 7.0]
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
@@ -259,7 +252,8 @@ function _test_std_time_series()
     end
 end
 
-function _test_repeating_time_series()
+function _test_pv_type_repeating_time_series()
+    _test_pv_type_setup()
     @testset "repeating_time_series" begin
         data = [1, 4, 5, 3, 7]
         index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => true, "ignore_year" => true)
@@ -277,7 +271,8 @@ function _test_repeating_time_series()
     end
 end
 
-function _test_map()
+function _test_pv_type_map()
+    _test_pv_type_setup()
     @testset "map" begin
         object_classes = ["scenario"]
         objects = [["scenario", "drunk"], ["scenario", "sober"]]
@@ -344,26 +339,95 @@ function _test_map()
     end
 end
 
+function _test_using_spinedb_in_a_loop()
+    @testset "using_spinedb_in_a_loop" begin
+        fp = "$(@__DIR__)/deleteme.sqlite"
+        rm(fp; force=true)
+        db_url = "sqlite:///$fp"
+        color_by_alt = Dict("alt1" => "orange", "alt2" => "blue", "alt3" => "black")
+        import_test_data(
+            db_url;
+            alternatives=collect(keys(color_by_alt)),
+            object_classes=["fish"],
+            objects=[("fish", "Nemo")],
+            object_parameters=[("fish", "color")],
+            object_parameter_values=[("fish", "Nemo", "color", color, alt) for (alt, color) in color_by_alt],
+        )
+        for (alt, color) in color_by_alt
+            M = Module()
+            using_spinedb(db_url, M; filters=Dict("alternatives" => [alt]))
+            @test M.color(fish=M.fish(:Nemo)) == Symbol(color)
+        end
+    end
+end
+
+function _test_using_spinedb_extend()
+    @testset "using_spinedb_extend" begin
+        template = Dict(
+            :object_classes => [["fish"], ["dog"]],
+            :relationship_classes => [["fish__dog", ["fish", "dog"]]],
+            :object_parameters => [["fish", "color", "red"]],
+        )
+        user_data = Dict(
+            :object_classes => [["fish"]],
+            :objects => [["fish", "nemo"]],
+        )
+        Extend = Module()
+        using_spinedb(template, Extend)
+        using_spinedb(user_data, Extend; extend=true)
+        # Test that default values of missing parameters are found in the template
+        @test Extend.color(fish=Extend.fish("nemo")) == :red
+    end
+end
+
+function _test_using_spinedb_with_env()
+    @testset "using_spinedb_with_env" begin
+        base_data = Dict(
+            :object_classes => [["fish"], ["dog"]],
+            :objects => [["fish", "Nemo"], ["dog", "Scooby"]],
+            :relationship_classes => [["fish__dog", ["fish", "dog"]]],
+            :relationships => [["fish__dog", ("Nemo", "Scooby")]],
+        )
+        env_data = Dict(
+            :object_classes => [["fish"], ["dog"]],
+            :objects => [["fish", "Dory"], ["dog", "Brian"]],
+            :relationship_classes => [["fish__dog", ["fish", "dog"]]],
+            :relationships => [["fish__dog", ("Dory", "Brian")]],
+        )
+        using_spinedb(base_data)
+        with_env(:env) do
+            using_spinedb(env_data)
+        end
+        with_env(:env) do
+            @test fish() == [fish(:Dory)]
+            @test fish__dog() == [(fish=fish(:Dory), dog=dog(:Brian))]
+        end
+        @test fish() == [fish(:Nemo)]
+        @test fish__dog() == [(fish=fish(:Nemo), dog=dog(:Scooby))]
+    end
+end
+
 @testset "using_spinedb - basics" begin
     _test_object_class()
     _test_relationship_class()
     _test_parameter()
-    _test_using_spinedb_in_a_loop()
 end
 
 @testset "using_spinedb - parameter value types" begin
-    object_classes = ["country"]
-    objects = [["country", "France"]]
-    object_parameters = [["country", "apero_time"]]
-    import_test_data(db_url; object_classes=object_classes, objects=objects, object_parameters=object_parameters)
-    _test_true()
-    _test_false()
-    _test_string()
-    _test_date_time()
-    _test_duration()
-    _test_array()
-    _test_time_pattern()
-    _test_std_time_series()
-    _test_repeating_time_series()
-    _test_map()
+    _test_pv_type_true()
+    _test_pv_type_false()
+    _test_pv_type_string()
+    _test_pv_type_array()
+    _test_pv_type_date_time()
+    _test_pv_type_duration()
+    _test_pv_type_time_pattern()
+    _test_pv_type_std_time_series()
+    _test_pv_type_repeating_time_series()
+    _test_pv_type_map()
+end
+
+@testset "using_spinedb - advanced" begin
+    _test_using_spinedb_in_a_loop()
+    _test_using_spinedb_extend()
+    _test_using_spinedb_with_env()
 end

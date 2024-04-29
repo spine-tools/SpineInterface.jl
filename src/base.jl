@@ -39,7 +39,7 @@ Base.length(t::Union{Object,TimeSlice}) = 1
 Base.length(v::ParameterValue{T}) where {T<:_Scalar} = 1
 Base.length(x::Union{TimeSeries,Map}) = length(x.indexes)
 
-Base.isless(o1::Object, o2::Object) = o1.name < o2.name
+Base.isless(x::Object, y::Object) = x.name < y.name
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
 Base.isless(t::TimeSlice, dt::DateTime) = isless(end_(t), dt)
 Base.isless(dt::DateTime, t::TimeSlice) = isless(dt, start(t))
@@ -47,17 +47,26 @@ Base.isless(v1::ParameterValue{T}, v2::ParameterValue{T}) where {T<:_Scalar} = v
 Base.isless(scalar::Number, ts::TimeSeries) = all(isless(scalar, v) for v in ts.values)
 Base.isless(ts::TimeSeries, scalar::Number) = all(isless(v, scalar) for v in ts.values)
 
-Base.:(==)(o1::Object, o2::Object) = o1.id == o2.id
-Base.:(==)(a::TimeSlice, b::TimeSlice) = a.id == b.id
-Base.:(==)(ts1::TimeSeries, ts2::TimeSeries) = all(
-    [getfield(ts1, field) == getfield(ts2, field) for field in fieldnames(TimeSeries)]
+Base.:(==)(x::T, y::T) where T<:Union{Object,TimeSlice} = x.id == y.id
+Base.:(==)(x::TimeSeries, y::TimeSeries) = all(
+    [getfield(x, field) == getfield(y, field) for field in fieldnames(TimeSeries)]
 )
-Base.:(==)(pv1::ParameterValue, pv2::ParameterValue) = pv1.value == pv2.value
+Base.:(==)(x::Map, y::Map) = all(
+    [getfield(x, field) == getfield(y, field) for field in fieldnames(Map)]
+)
+Base.:(==)(x::ParameterValue, y::ParameterValue) = x.value == y.value
 Base.:(==)(scalar::Number, ts::TimeSeries) = all(scalar == v for v in ts.values)
-Base.:(==)(ts::TimeSeries, scalar::Number) = all(v == scalar for v in ts.values)
-Base.:(==)(m1::Map, m2::Map) = all(m1.indexes == m2.indexes) && all(m1.values == m2.values)
+Base.:(==)(ts::TimeSeries, scalar::Number) = scalar == ts
 function Base.:(==)(x::Call, y::Call)
     x.func == y.func && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs)
+end
+
+Base.isequal(x::ParameterValue, y::ParameterValue) = isequal(x.value, y.value)
+Base.isequal(x::T, y::T) where T<:Union{TimeSeries,Map} = all(
+    [isequal(getfield(x, field), getfield(y, field)) for field in fieldnames(T)]
+)
+function Base.isequal(x::Call, y::Call)
+    isequal(x.func, y.func) && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs)
 end
 
 _isequal(::Union{typeof(+),typeof(*)}, x, y) = length(x) == length(y) && all(z in y for z in x)
@@ -69,32 +78,21 @@ Base.:(<=)(t::TimeSlice, dt::DateTime) = end_(t) <= dt
 
 Base.hash(::Anything) = zero(UInt64)
 Base.hash(o::Union{Object,TimeSlice}) = o.id
-Base.hash(r::RelationshipLike{K}) where {K} = hash(values(r))
+Base.hash(ot::ObjectTupleLike) = hash(Tuple(hash(o) for o in ot))
+Base.hash(r::RelationshipLike) = hash(Tuple(hash(o) for o in values(r)))
+# FIXME: Implement :== and isqual for the types that implement hash. Also, use the two argument form
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
-Base.show(io::IO, t::TimeSlice) = print(io, string(Dates.format(start(t), _df)), "~>", Dates.format(end_(t), _df))
+function Base.show(io::IO, t::TimeSlice)
+    print(io, string(Dates.format(start(t), _df)), "~(", t.actual_duration, ")~>", Dates.format(end_(t), _df))
+end
 Base.show(io::IO, s::_StartRef) = print(io, string(Dates.format(start(s.time_slice), _df)))
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, v::ParameterValue{T}) where T = print(io, string("ParameterValue(", v.value, ")"))
-Base.show(io::IO, call::Call) = _show_call(io, call, call.call_expr, call.func)
-_show_call(io::IO, call::Call, expr::Nothing, func::Nothing) = print(io, _do_realize(call))
-function _show_call(io::IO, call::Call, expr::Nothing, func::Function)
-    call_str = if length(call.args) == 1
-        string(func, "(", call.args[1], ")")
-    else
-        join(call.args, string(" ", func, " "))
-    end
-    print(io, call_str)
-end
-function _show_call(io::IO, call::Call, expr::_CallExpr, func::ParameterValue)
-    pname, kwargs = expr
-    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
-    result = _do_realize(call)
-    print(io, string("{", pname, "(", kwargs_str, ") = ", result, "}"))
-end
+Base.show(io::IO, call::Call) = _show_call(io, call, call.caller, call.func)
 function Base.show(io::IO, union::UnionOfIntersections)
     d = Dict{Symbol,String}(
         :Y => "year",
@@ -124,11 +122,27 @@ function Base.show(io::IO, ts::TimeSeries)
     print(io, "TimeSeries[$body](ignore_year=$(ts.ignore_year), repeat=$(ts.repeat))")
 end
 
+_show_call(io::IO, call::Call, _caller::Nothing, func::Nothing) = print(io, _do_realize(call, nothing))
+function _show_call(io::IO, call::Call, _caller::Nothing, func::Function)
+    call_str = if length(call.args) == 1
+        string(func, "(", call.args[1], ")")
+    else
+        join(call.args, string(" ", func, " "))
+    end
+    print(io, call_str)
+end
+function _show_call(io::IO, call::Call, caller, func::ParameterValue)
+    kwargs_str = join((join(kw, "=") for kw in pairs(call.kwargs)), ", ")
+    result = _do_realize(call, nothing)
+    print(io, string("{", caller, "(", kwargs_str, ") = ", result, "}"))
+end
+
 Base.convert(::Type{Call}, x::T) where {T} = Call(x)
+Base.convert(::Type{Call}, x::Call) = x
 
 Base.copy(ts::TimeSeries{T}) where {T} = TimeSeries(copy(ts.indexes), copy(ts.values), ts.ignore_year, ts.repeat)
 Base.copy(c::ParameterValue) = parameter_value(c.value)
-Base.copy(c::Call) = Call(c.func, c.args, c.kwargs, c.call_expr)
+Base.copy(c::Call) = Call(c.func, c.args, c.kwargs, c.caller)
 
 Base.zero(::Type{T}) where {T<:Call} = Call(zero(Float64))
 Base.zero(::Call) = Call(zero(Float64))
@@ -143,7 +157,7 @@ _iszero(::T, x) where T = false
 Base.one(::Type{T}) where {T<:Call} = Call(one(Float64))
 Base.one(::Call) = Call(one(Float64))
 
-Base.:+(ts::TimeSeries) = +(0.0, ts)
+Base.:+(ts::TimeSeries{V}) where V = +(zero(V), ts)
 Base.:+(ts::TimeSeries, num::Number) = timedata_operation(+, ts, num)
 Base.:+(num::Number, ts::TimeSeries) = timedata_operation(+, num, ts)
 Base.:+(tp::TimePattern, num::Number) = timedata_operation(+, tp, num)
@@ -210,7 +224,7 @@ function _final_sum_call(args)
     end
 end
 
-Base.:-(ts::TimeSeries) = -(0.0, ts)
+Base.:-(ts::TimeSeries{V}) where V = -(zero(V), ts)
 Base.:-(ts::TimeSeries, num::Number) = timedata_operation(-, ts, num)
 Base.:-(num::Number, ts::TimeSeries) = timedata_operation(-, num, ts)
 Base.:-(tp::TimePattern, num::Number) = timedata_operation(-, tp, num)
@@ -345,6 +359,22 @@ Base.keys(ts::TimeSeries) = ts.indexes
 Base.keys(m::Map) = m.indexes
 Base.keys(pv::ParameterValue{T}) where {T<:_Indexed} = keys(pv.value)
 
+function Base.merge!(a::ObjectClass, b::ObjectClass)
+    add_objects!(a, b.objects)
+    add_object_parameter_values!(a, b.parameter_values)
+    add_object_parameter_defaults!(a, b.parameter_defaults)
+    a
+end
+function Base.merge!(a::RelationshipClass, b::RelationshipClass)
+    add_relationships!(a, b.relationships)
+    add_relationship_parameter_values!(a, b.parameter_values)
+    add_relationship_parameter_defaults!(a, b.parameter_defaults)
+    a
+end
+function Base.merge!(a::Parameter, b::Parameter)
+    unique!(append!(a.classes, b.classes))
+    a
+end
 function Base.merge!(a::TimeSeries, b::TimeSeries)
     for (b_index, b_value) in b
         a[b_index] = b_value
@@ -353,13 +383,12 @@ function Base.merge!(a::TimeSeries, b::TimeSeries)
 end
 function Base.merge!(a::Map, b::Map)
     for (b_index, b_value) in b
-        defaultset = false
-        a_value = get!(a, b_index) do
-            defaultset = true
-            b_value
+        a_value = get(a, b_index, nothing)
+        if _can_merge(a_value, b_value)
+            merge!(a_value, b_value)
+        else
+            a[b_index] = b_value
         end
-        defaultset && continue
-        merge!(a_value, b_value)
     end
     a
 end
@@ -368,6 +397,12 @@ function Base.merge!(a::ParameterValue, b::ParameterValue)
     _refresh_metadata!(a)
     a
 end
+
+_can_merge(a::TimePattern, b::TimePattern) = true
+_can_merge(a::TimeSeries, b::TimeSeries) = true
+_can_merge(a::Map, b::Map) = true
+_can_merge(a, b) = false
+_can_merge(a::ParameterValue, b::ParameterValue) = _can_merge(a.value, b.value)
 
 function Base.push!(x::Union{TimeSeries,Map}, pair)
     index, value = pair
@@ -404,15 +439,14 @@ function Base.getindex(x::Union{TimeSeries,Map}, key)
     end
 end
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
-Base.getindex(p::Parameter, inds::NamedTuple) = _getindex(p; inds...)
+Base.getindex(p::Parameter, inds::Union{Iterators.Pairs,NamedTuple}) = _getindex(p; inds...)
 function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
-    call_expr = (p.name, (; kwargs...))
     pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
     if pv_new_kwargs !== nothing
         parameter_value, new_inds = pv_new_kwargs
-        Call(parameter_value, new_inds, call_expr)
+        Call(parameter_value, new_inds, p)
     else
-        Call(nothing, call_expr)
+        Call(nothing, p)
     end
 end
 
@@ -439,6 +473,13 @@ Base.iszero(x::Union{TimeSeries,TimePattern}) = iszero(values(x))
 Base.isapprox(x::Union{TimeSeries,TimePattern}, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in values(x))
 Base.isapprox(x::ParameterValue, y; kwargs...) = isapprox(x(), y; kwargs...)
 
+function Base.getproperty(x::Union{ObjectClass,RelationshipClass,Parameter}, name::Symbol)
+    name in (:name, :env_dict) && return getfield(x, name)
+    env = _active_env()
+    real_x = get(getfield(x, :env_dict), env, nothing)
+    real_x === nothing && error("`$(getfield(x, :name))` is not defined in environment `$env`")
+    getproperty(real_x, name)
+end
 function Base.getproperty(pv::ParameterValue, name::Symbol)
     if name === :value
         getfield(pv, name)

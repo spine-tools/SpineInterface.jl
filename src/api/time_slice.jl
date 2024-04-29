@@ -148,16 +148,15 @@ function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod}; refres
     t.end_[] += forward
     if refresh
         to_call = []
-        for (k, tc) in enumerate(t.callbacks)
-            tc.timeout[] = tc.timeout[] - forward
-            if Dates.toms(forward) < 0 || Dates.toms(tc.timeout[]) <= 0
-                push!(to_call, k)
+        for (upd, timeout) in t.updates
+            timeout -= forward
+            if Dates.toms(forward) < 0 || Dates.toms(timeout) <= 0
+                push!(to_call, upd)
+            else
+                t.updates[upd] = timeout
             end
         end
-        for i in to_call
-            t.callbacks[i].callback()
-        end
-        deleteat!(t.callbacks, to_call)
+        _do_call.(to_call)
     end
     t
 end
@@ -165,21 +164,28 @@ end
 """
     refresh!(t::TimeSlice)
 
-Apply callbacks registered in the given `t`.
+Call updates registered in the given `t`.
 """
 function refresh!(t::TimeSlice)
-    for tc in t.callbacks
-        tc.callback()
-    end
-    empty!(t.callbacks)
+    _do_call.(keys(t.updates))
 end
+
+function _do_call(upd)
+    upd()
+end
+
+function add_roll_hook!(t, fn)
+    _add_update(t, Minute(-1), fn)
+end
+
+_TimeSliceColl = Union{Vector{TimeSlice},Dict{TimeSlice,V} where V}
 
 """
     t_lowest_resolution!(t_coll)
 
 Remove time slices that are contained in any other from `t_coll`, and return the modified `t_coll`.
 """
-t_lowest_resolution!(t_coll::Union{Array{TimeSlice,1},Dict{TimeSlice,T}}) where T = _deleteat!(contains, t_coll)
+t_lowest_resolution!(t_coll::_TimeSliceColl) = _t_extreme_resolution!(t_coll, :lowest)
 
 """
     t_lowest_resolution(t_iter)
@@ -193,7 +199,7 @@ t_lowest_resolution(t_iter) = t_lowest_resolution!(collect(TimeSlice, t_iter))
 
 Remove time slices that contain any other from `t_coll`, and return the modified `t_coll`.
 """
-t_highest_resolution!(t_coll::Union{Array{TimeSlice,1},Dict{TimeSlice,T}}) where T = _deleteat!(iscontained, t_coll)
+t_highest_resolution!(t_coll::_TimeSliceColl) = _t_extreme_resolution!(t_coll, :highest)
 
 """
     t_highest_resolution(t_iter)
@@ -208,7 +214,7 @@ t_highest_resolution(t_iter) = t_highest_resolution!(collect(TimeSlice, t_iter))
 Modify the given `Dict` (which must be a mapping from `TimeSlice` to `Set`) in place,
 so that if key `t1` is contained in key `t2`, then the former is removed and its value is merged into the latter's.
 """
-t_lowest_resolution_sets!(mapping) = _compress!(contains, mapping)
+t_lowest_resolution_sets!(mapping) = _t_extreme_resolution_sets!(mapping, :lowest)
 
 """
     t_highest_resolution_sets!(mapping)
@@ -216,65 +222,66 @@ t_lowest_resolution_sets!(mapping) = _compress!(contains, mapping)
 Modify the given `Dict` (which must be a mapping from `TimeSlice` to `Set`) in place,
 so that if key `t1` contains key `t2`, then the former is removed and its value is merged into the latter's.
 """
-t_highest_resolution_sets!(mapping) = _compress!(iscontained, mapping)
+t_highest_resolution_sets!(mapping) = _t_extreme_resolution_sets!(mapping, :highest)
 
-"""
-    _deleteat!(t_coll, func)
-
-Remove key `k` in given collection if `func(t_coll[k], t_coll[l])` is `true` for any `l` other than `k`.
-Used by `t_lowest_resolution` and `t_highest_resolution`.
-"""
-function _deleteat!(func, t_coll::Union{Array{K,1},Dict{K,T}}) where {K,T}
-    n = length(t_coll)
-    n <= 1 && return t_coll
-    _do_deleteat!(func, t_coll)
+function _t_extreme_resolution!(t_arr::Vector{TimeSlice}, extreme)
+    deleteat!(t_arr, first.(_k_extreme_resolution_k(t_arr, extreme)))
 end
-
-function _do_deleteat!(func, t_arr::Array{K,1}) where K
-    remove = _any_other(func, t_arr)
-    deleteat!(t_arr, remove)
-end
-function _do_deleteat!(func, t_dict::Dict{K,T}) where {K,T}
-    keys_ = collect(keys(t_dict))
-    remove = _any_other(func, keys_)
-    keep = .!remove
-    keys_to_remove = deleteat!(keys_, keep)
-    for k in keys_to_remove
+function _t_extreme_resolution!(t_dict::Dict{TimeSlice,V}, extreme) where V
+    for (k, _x_res_k) in _k_extreme_resolution_k(t_dict, extreme)
         delete!(t_dict, k)
     end
     t_dict
 end
 
-"""
-    _any_other(func, t_arr)
-
-An `Array` of `Bool` values, where position `i` is `true` if `func(t_arr[i], t_arr[j])` is `true` for any `j` other
-than `i`.
-"""
-function _any_other(func, t_arr::Array{T,1}) where T
-    n = length(t_arr)
-    result = [false for i in 1:n]
-    for i in 1:n
-        result[i] && continue
-        t_i = t_arr[i]
-        for j in Iterators.flatten((1:(i - 1),  (i + 1):n))
-            result[j] && continue
-            t_j = t_arr[j]
-            if func(t_i, t_j)
-                result[j] = true
-            end
-        end
+function _t_extreme_resolution_sets!(mapping, extreme)
+    for (k, x_res_k) in _k_extreme_resolution_k(mapping, extreme)
+        union!(mapping[x_res_k], pop!(mapping, k))
     end
-    result
+    mapping
 end
 
-function _compress!(func, d::Dict{K,V}) where {K,V}
-    for (key, value) in d
-        for other_key in setdiff(keys(d), key)
-            if func(key, other_key)
-                union!(value, pop!(d, other_key))
-            end
-        end
+"""
+    _k_extreme_resolution_k(t_coll, extreme)
+
+An array where each element is a tuple of two keys in `t_coll`,
+the first 'dominated' by the second according to `extreme`.
+Extreme can either be `:highest` or `:lowest`.
+If `extreme` is `:highest`, then the first element in each returned tuple
+contains the second and the second doesn't contain any other.
+Conversely, if `extreme` is `:lowest`, then the first element in each returned tuple
+is contained in the second and the second is not contained in any other.
+"""
+function _k_extreme_resolution_k(t_coll::_TimeSliceColl, extreme::Symbol)
+    isempty(t_coll) && return ()
+    k_t_by_dur = Dict()
+    for (k, t) in _k_t_iter(t_coll)
+        push!(get!(k_t_by_dur, t.actual_duration, []), (k, t))
     end
-    d
+    length(k_t_by_dur) == 1 && return ()
+    rev = Dict(:lowest => true, :highest => false)[extreme]
+    fn = Dict(:lowest => contains, :highest => iscontained)[extreme]
+    sorted_durations = sort(collect(keys(k_t_by_dur)); rev=rev)
+    extreme_resolution_k_t = pop!(k_t_by_dur, popfirst!(sorted_durations))
+    k_extreme_resolution_k = []
+    while !isempty(k_t_by_dur)
+        more_extreme_resolution_k_t = []
+        for (k, t) in pop!(k_t_by_dur, popfirst!(sorted_durations))
+            found = false
+            for (dom_k, dom_t) in extreme_resolution_k_t
+                if fn(dom_t, t)
+                    push!(k_extreme_resolution_k, (k, dom_k))
+                    found = true
+                    break
+                end
+            end
+            found && continue
+            push!(more_extreme_resolution_k_t, (k, t))
+        end
+        append!(extreme_resolution_k_t, more_extreme_resolution_k_t)
+    end
+    k_extreme_resolution_k
 end
+
+_k_t_iter(t_arr::Vector{TimeSlice}) = enumerate(t_arr)
+_k_t_iter(t_dict::Dict{TimeSlice,V}) where V = ((t, t) for t in keys(t_dict))

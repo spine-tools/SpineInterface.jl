@@ -54,10 +54,10 @@ end
 	pval3 = parameter_value(TimeSeries([DateTime(1), DateTime(2)], [30, 5], false, false))
 	pval4 = parameter_value(TimeSeries([DateTime(1), DateTime(2)], [10, 1], false, false))
 	t = TimeSlice(DateTime(1), DateTime(2))
-	p1 = Call(pval1, (t=t,), (:p1, (a=1,)))
-	p2 = Call(pval2, (t=t,), (:p2, (a=1,)))
-	p3 = Call(pval3, (t=t,), (:p3, (a=1,)))
-	p4 = Call(pval4, (t=t,), (:p4, (a=1,)))
+	p1 = Call(pval1, (t=t,), (:p1, (t=t,)))
+	p2 = Call(pval2, (t=t,), (:p2, (t=t,)))
+	p3 = Call(pval3, (t=t,), (:p3, (t=t,)))
+	p4 = Call(pval4, (t=t,), (:p4, (t=t,)))
 	@objective(m, Min, x + y + z + p4 * w + v)
 	@constraint(m, 0 <= p1 * x <= Call(100))
 	@constraint(m, Call(0) <= p1 * x <= Call(100))
@@ -83,18 +83,19 @@ end
 end
 
 struct _TestUpdate <: SpineInterface.AbstractUpdate
+	call
 	values::Vector{Any}
-	_TestUpdate() = new([])
+	_TestUpdate(call) = new(call, [])
 end
 
-(upd::_TestUpdate)(new_value) = push!(upd.values, new_value)
+(upd::_TestUpdate)() = push!(upd.values, realize(upd.call, upd))
 
 @testset "time series upd" begin
 	t1, t2, t3 = DateTime(0, 1, 1), DateTime(0, 1, 8), DateTime(0, 2, 1)
 	ts_pval = parameter_value(TimeSeries([t1, t2, t3], [20, 4, -1], false, false))
 	t = TimeSlice(DateTime(0, 1, 1, 0), DateTime(0, 1, 1, 1))
 	call = Call(ts_pval, (; t=t))
-	upd = _TestUpdate()
+	upd = _TestUpdate(call)
 	@test realize(call, upd) == 20
 	roll!(t, Hour(1))
 	@test isempty(upd.values)
@@ -119,7 +120,7 @@ end
 	@test dayofweek(t_start) == 1
 	t = TimeSlice(t_start, t_end)
 	call = Call(tp_pval, (; t=t))
-	upd = _TestUpdate()
+	upd = _TestUpdate(call)
 	@test realize(call, upd) == 1.0
 	roll!(t, Hour(1))
 	@test isempty(upd.values)
@@ -192,9 +193,9 @@ end
 	scen1_call = Call(map_pval, (; stochastic_scenario=:scen1, analysis_time=at, t=t))
 	scen2_call = Call(map_pval, (; stochastic_scenario=:scen2, analysis_time=at, t=t))
 	scen3_call = Call(map_pval, (; stochastic_scenario=:scen3, analysis_time=at, t=t))
-	scen1_upd = _TestUpdate()
-	scen2_upd = _TestUpdate()
-	scen3_upd = _TestUpdate()
+	scen1_upd = _TestUpdate(scen1_call)
+	scen2_upd = _TestUpdate(scen2_call)
+	scen3_upd = _TestUpdate(scen3_call)
 	@test realize(scen1_call, scen1_upd) == 1
 	@test realize(scen2_call, scen2_upd) == 1
 	@test realize(scen3_call, scen3_upd) == 1

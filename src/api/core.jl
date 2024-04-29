@@ -136,21 +136,19 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
-    lookup_key = Tuple(_immutable(get(kwargs, oc, nothing)) for oc in rc.object_class_names)
-    relationships = get!(rc.lookup_cache[_compact], lookup_key) do
-        cond(rel) = all(rel[rc] in r for (rc, r) in kwargs)
-        filtered = filter(cond, rc.relationships)
-        if !_compact
-            filtered
+    relationships = if !_compact
+        _find_rels(rc; kwargs...)
+    else
+        object_class_names = setdiff(rc.object_class_names, keys(kwargs))
+        if isempty(object_class_names)
+            []
+        elseif length(object_class_names) == 1
+            unique(rel[object_class_names[1]] for rel in _find_rels(rc; kwargs...))
         else
-            object_class_names = setdiff(rc.object_class_names, keys(kwargs))
-            if isempty(object_class_names)
-                []
-            elseif length(object_class_names) == 1
-                unique(x[object_class_names[1]] for x in filtered)
-            else
-                unique(NamedTuple{Tuple(object_class_names)}([x[k] for k in object_class_names]) for x in filtered)
-            end
+            unique(
+                (; zip(object_class_names, (rel[k] for k in object_class_names))...)
+                for rel in _find_rels(rc; kwargs...)
+            )
         end
     end
     if !isempty(relationships)
@@ -160,8 +158,39 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs
     end
 end
 
-_immutable(x) = x
-_immutable(arr::T) where {T<:AbstractArray} = (length(arr) == 1) ? first(arr) : Tuple(arr)
+_find_rels(rc; kwargs...) = _find_rels(rc, _find_rows(rc; kwargs...))
+_find_rels(rc, rows) = (rc.relationships[row] for row in rows)
+_find_rels(rc, ::Anything) = rc.relationships
+
+function _find_rows(rc; kwargs...)
+    lock(rc.row_map_lock) do
+        memoized_rows = get!(rc.row_map, rc.name, Dict())
+        get!(memoized_rows, kwargs) do
+            _do_find_rows(rc; kwargs...)
+        end
+    end
+end
+
+function _do_find_rows(rc; kwargs...)
+    rows = anything
+    for (oc_name, objs) in kwargs
+        oc_row_map = get(rc.row_map, oc_name, nothing)
+        oc_row_map === nothing && return []
+        oc_rows = _oc_rows(rc, oc_row_map, objs)
+        oc_rows === anything && continue
+        if rows === anything
+            rows = collect(oc_rows)
+        else
+            intersect!(rows, oc_rows)
+        end
+        isempty(rows) && return []
+    end
+    rows
+end
+
+_oc_rows(_rc, oc_row_map, objs) = (row for obj in objs for row in get(oc_row_map, obj, ()))
+_oc_rows(rc, _oc_row_map, ::Anything) = anything
+_oc_rows(rc, _oc_row_map, ::Nothing) = []
 
 """
     (<p>::Parameter)(;<keyword arguments>)
@@ -200,7 +229,7 @@ julia> demand(node=node(:Sthlm), i=1)
 """
 function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
     pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
-    if pv_new_kwargs !== nothing
+    if !isnothing(pv_new_kwargs)
         pv, new_kwargs = pv_new_kwargs
         pv(; new_kwargs...)
     else
@@ -209,30 +238,30 @@ function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
 end
 
 """
-    (<pv>::ParameterValue)(callback; <keyword arguments>)
+    (<pv>::ParameterValue)(upd; <keyword arguments>)
 
 A value from `pv`.
 """
-function (pv::ParameterValue)(callback=nothing; kwargs...) end
+function (pv::ParameterValue)(upd=nothing; kwargs...) end
 
 # _Scalar
-(pv::ParameterValue{T} where T<:_Scalar)(callback=nothing; kwargs...) = pv.value
-(pv::ParameterValue{T} where T<:Array)(callback=nothing; i::Union{Int64,Nothing}=nothing, kwargs...) = _get_value(pv, i)
+(pv::ParameterValue{T} where T<:_Scalar)(upd=nothing; kwargs...) = pv.value
+(pv::ParameterValue{T} where T<:Array)(upd=nothing; i::Union{Int64,Nothing}=nothing, kwargs...) = _get_value(pv, i)
 function (pv::ParameterValue{T} where T<:TimePattern)(
-    callback=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+    upd=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
-    _get_value(pv, t, callback)
+    _get_value(pv, t, upd)
 end
 function (pv::ParameterValue{T} where T<:TimeSeries)(
-    callback=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
+    upd=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
-    _get_value(pv, t, callback)
+    _get_value(pv, t, upd)
 end
-function (pv::ParameterValue{T} where {T<:Map})(callback=nothing; t=nothing, i=nothing, kwargs...)
+function (pv::ParameterValue{T} where {T<:Map})(upd=nothing; t=nothing, i=nothing, kwargs...)
     isempty(kwargs) && return _recursive_inner_value(pv.value)
     arg = first(values(kwargs))
     new_kwargs = Base.tail((; kwargs...))
-    _recursive_inner_value(_get_value(pv, arg, callback; t=t, i=i, new_kwargs...))
+    _recursive_inner_value(_get_value(pv, arg, upd; t=t, i=i, new_kwargs...))
 end
 
 _recursive_inner_value(x) = x
@@ -245,13 +274,13 @@ end
 _get_value(pv::ParameterValue{T}, ::Nothing) where T<:Array = pv.value
 _get_value(pv::ParameterValue{T}, i::Int64) where T<:Array = get(pv.value, i, nothing)
 # TimePattern
-_get_value(pv::ParameterValue{T}, ::Nothing, callback) where T<:TimePattern = pv.value
-function _get_value(pv::ParameterValue{T}, t::DateTime, callback) where T<:TimePattern
-    _get_value(pv, TimeSlice(t, t), callback)
+_get_value(pv::ParameterValue{T}, ::Nothing, upd) where T<:TimePattern = pv.value
+function _get_value(pv::ParameterValue{T}, t::DateTime, upd) where T<:TimePattern
+    _get_value(pv, TimeSlice(t, t), upd)
 end
-function _get_value(pv::ParameterValue{T}, t::TimeSlice, callback) where T<:TimePattern
+function _get_value(pv::ParameterValue{T}, t::TimeSlice, upd) where T<:TimePattern
     vals = [val for (tp, val) in pv.value if overlaps(t, tp)]
-    if callback !== nothing
+    if upd !== nothing
         timeout = if isempty(vals)
             Second(0)
         else
@@ -260,46 +289,46 @@ function _get_value(pv::ParameterValue{T}, t::TimeSlice, callback) where T<:Time
                 ceil(end_(t), pv.precision) + Millisecond(1) - end_(t)
             )
         end
-        _add_callback(t, timeout, callback)
+        _add_update(t, timeout, upd)
     end
     isempty(vals) && return NaN
     mean(vals)
 end
 # TimeSeries
-_get_value(pv::ParameterValue{T}, ::Nothing, callback) where T<:TimeSeries = pv.value
-function _get_value(pv::ParameterValue{T}, t, callback) where T<:TimeSeries
+_get_value(pv::ParameterValue{T}, ::Nothing, upd) where T<:TimeSeries = pv.value
+function _get_value(pv::ParameterValue{T}, t, upd) where T<:TimeSeries
     if pv.value.repeat
-        _get_repeating_time_series_value(pv, t, callback)
+        _get_repeating_time_series_value(pv, t, upd)
     else
-        _get_time_series_value(pv, t, callback)
+        _get_time_series_value(pv, t, upd)
     end
 end
-function _get_time_series_value(pv, t::DateTime, callback)
+function _get_time_series_value(pv, t::DateTime, upd)
     pv.value.ignore_year && (t -= Year(t))
     t < pv.value.indexes[1] && return NaN
     t > pv.value.indexes[end] && !pv.value.ignore_year && return NaN
     pv.value.values[max(1, searchsortedlast(pv.value.indexes, t))]
 end
-function _get_time_series_value(pv, t::TimeSlice, callback)
+function _get_time_series_value(pv, t::TimeSlice, upd)
     adjusted_t = pv.value.ignore_year ? t - Year(start(t)) : t
     t_start, t_end = start(adjusted_t), end_(adjusted_t)
     a, b = _search_overlap(pv.value, t_start, t_end)
-    if callback !== nothing
+    if upd !== nothing
         timeout = _timeout(pv.value, t_start, t_end, a, b)
-        _add_callback(t, timeout, callback)
+        _add_update(t, timeout, upd)
     end
     t_end <= pv.value.indexes[1] && return NaN
     t_start > pv.value.indexes[end] && !pv.value.ignore_year && return NaN
     mean(Iterators.filter(!isnan, pv.value.values[a:b]))
 end
-function _get_repeating_time_series_value(pv, t::DateTime, callback)
+function _get_repeating_time_series_value(pv, t::DateTime, upd)
     pv.value.ignore_year && (t -= Year(t))
     mismatch = t - pv.value.indexes[1]
     reps = fld(mismatch, pv.span)
     t -= reps * pv.span
     pv.value.values[max(1, searchsortedlast(pv.value.indexes, t))]
 end
-function _get_repeating_time_series_value(pv, t::TimeSlice, callback)
+function _get_repeating_time_series_value(pv, t::TimeSlice, upd)
     adjusted_t = pv.value.ignore_year ? t - Year(start(t)) : t
     t_start = start(adjusted_t)
     t_end = end_(adjusted_t)
@@ -310,9 +339,9 @@ function _get_repeating_time_series_value(pv, t::TimeSlice, callback)
     t_start -= reps_start * pv.span
     t_end -= reps_end * pv.span
     a, b = _search_overlap(pv.value, t_start, t_end)
-    if callback !== nothing
+    if upd !== nothing
         timeout = _timeout(pv.value, t_start, t_end, a, b)
-        _add_callback(t, timeout, callback)
+        _add_update(t, timeout, upd)
     end
     reps = reps_end - reps_start
     reps == 0 && return mean(Iterators.filter(!isnan, pv.value.values[a:b]))
@@ -325,30 +354,30 @@ function _get_repeating_time_series_value(pv, t::TimeSlice, callback)
     (asum + bsum + (reps - 1) * pv.valsum) / (alen + blen + (reps - 1) * pv.len)
 end
 # Map
-function _get_value(pv::ParameterValue{T}, k, callback; kwargs...) where {T<:Map}
+function _get_value(pv::ParameterValue{T}, k, upd; kwargs...) where {T<:Map}
     i = _search_equal(pv.value.indexes, k)
-    i === nothing && return pv(callback; kwargs...)
-    pv.value.values[i](callback; kwargs...)
+    i === nothing && return pv(upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, o::ObjectLike, callback; kwargs...) where {V,T<:Map{Symbol,V}}
+function _get_value(pv::ParameterValue{T}, o::ObjectLike, upd; kwargs...) where {V,T<:Map{Symbol,V}}
     i = _search_equal(pv.value.indexes, o.name)
-    i === nothing && return pv(callback; kwargs...)
-    pv.value.values[i](callback; kwargs...)
+    i === nothing && return pv(upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, x::K, callback; kwargs...) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
+function _get_value(pv::ParameterValue{T}, x::K, upd; kwargs...) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
     i = _search_nearest(pv.value.indexes, x)
-    i === nothing && return pv(callback; kwargs...)
-    pv.value.values[i](callback; kwargs...)
+    i === nothing && return pv(upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, s::_StartRef, callback; kwargs...) where {V,T<:Map{DateTime,V}}
+function _get_value(pv::ParameterValue{T}, s::_StartRef, upd; kwargs...) where {V,T<:Map{DateTime,V}}
     t = s.time_slice
     i = _search_nearest(pv.value.indexes, start(t))
-    if callback !== nothing
+    if upd !== nothing
         timeout = i === nothing ? Second(0) : _next_index(pv.value, i) - start(t)
-        _add_callback(s.time_slice, timeout, callback)
+        _add_update(s.time_slice, timeout, upd)
     end
-    i === nothing && return pv(callback; kwargs...)
-    pv.value.values[i](callback; kwargs...)
+    i === nothing && return pv(upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
 end
 
 function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
@@ -372,8 +401,7 @@ _search_equal(arr, x) = nothing
 
 function _search_nearest(arr::AbstractArray{T,1}, x::T) where {T}
     i = searchsortedlast(arr, x)  # index of the last value in arr less than or equal to x, 0 if none
-    i > 0 && return i
-    1
+    max(i, 1)
 end
 _search_nearest(arr, x) = nothing
 
@@ -381,10 +409,6 @@ _next_index(val::Union{TimeSeries,Map}, pos) = val.indexes[min(pos + 1, length(v
 
 function _timeout(val::TimeSeries, t_start, t_end, a, b)
     min(_next_index(val, a) - t_start, _next_index(val, b) + Millisecond(1) - t_end)
-end
-
-function _add_callback(t::TimeSlice, timeout, callback)
-    push!(t.callbacks, _TimedCallback(timeout, callback))
 end
 
 members(::Anything) = anything
@@ -431,9 +455,11 @@ julia> collect(indices(demand))
 ```
 """
 function indices(p::Parameter; kwargs...)
+    (ent for class in p.classes for ent in indices(p, class; kwargs...))
+end
+function indices(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
     (
         ent
-        for class in p.classes
         for ent in _entities(class; kwargs...)
         if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
@@ -452,6 +478,10 @@ function indices_as_tuples(p::Parameter; kwargs...)
         if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
 end
+
+classes(p::Parameter) = p.classes
+
+push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
 
 """
     maximum_parameter_value(p::Parameter)
@@ -512,15 +542,15 @@ end
 
 function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
     add_objects!(object_class, collect(keys(parameter_values)))
-    _merge! = merge_values ? mergewith!(merge!) : merge!
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
     for (obj, vals) in parameter_values
-        _merge!(object_class.parameter_values[obj], vals)
+        do_merge!(object_class.parameter_values[obj], vals)
     end
 end
 
 function add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
-    _merge! = merge_values ? mergewith!(merge!) : merge!
-    _merge!(object_class.parameter_defaults, parameter_defaults)
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
+    do_merge!(object_class.parameter_defaults, parameter_defaults)
 end
 
 function add_object!(object_class::ObjectClass, object::ObjectLike)
@@ -539,12 +569,8 @@ function add_relationships!(relationship_class::RelationshipClass, object_tuples
 end
 function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
     relationships = setdiff(relationships, relationship_class.relationships)
-    append!(relationship_class.relationships, relationships)
+    _append_relationships!(relationship_class, relationships)
     merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
-    if !isempty(relationships)
-        empty!(relationship_class.lookup_cache[:true])
-        empty!(relationship_class.lookup_cache[:false])
-    end
     relationship_class
 end
 
@@ -552,18 +578,18 @@ function add_relationship_parameter_values!(
     relationship_class::RelationshipClass, parameter_values::Dict; merge_values=false
 )
     add_relationships!(relationship_class, collect(keys(parameter_values)))
-    _merge! = merge_values ? mergewith!(merge!) : merge!
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
     for (rel, vals) in parameter_values
         obj_tup = values(rel)
-        _merge!(relationship_class.parameter_values[obj_tup], vals)
+        do_merge!(relationship_class.parameter_values[obj_tup], vals)
     end
 end
 
 function add_relationship_parameter_defaults!(
     relationship_class::RelationshipClass, parameter_defaults::Dict; merge_values=false
 )
-    _merge! = merge_values ? mergewith!(merge!) : merge!
-    _merge!(relationship_class.parameter_defaults, parameter_defaults)
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
+    do_merge!(relationship_class.parameter_defaults, parameter_defaults)
 end
 
 function add_relationship!(relationship_class::RelationshipClass, relationship::RelationshipLike)
@@ -575,42 +601,52 @@ end
 
 A sequence of `ObjectClass`es generated by `using_spinedb` in the given module.
 """
-object_classes(m=@__MODULE__) = values(_getproperty(m, :_spine_object_classes, Dict()))
+object_classes(m=@__MODULE__) = _active_values(m, :_spine_object_classes)
 
 """
     relationship_classes(m=@__MODULE__)
 
 A sequence of `RelationshipClass`es generated by `using_spinedb` in the given module.
 """
-relationship_classes(m=@__MODULE__) = values(_getproperty(m, :_spine_relationship_classes, Dict()))
+relationship_classes(m=@__MODULE__) = _active_values(m, :_spine_relationship_classes)
 
 """
     parameters(m=@__MODULE__)
 
 A sequence of `Parameter`s generated by `using_spinedb` in the given module.
 """
-parameters(m=@__MODULE__) = values(_getproperty(m, :_spine_parameters, Dict()))
+parameters(m=@__MODULE__) = _active_values(m, :_spine_parameters)
 
 """
     object_class(name, m=@__MODULE__)
 
 The `ObjectClass` of given name, generated by `using_spinedb` in the given module.
 """
-object_class(name, m=@__MODULE__) = get(_getproperty(m, :_spine_object_classes, Dict()), name, nothing)
+object_class(name, m=@__MODULE__) = _active_value(m, :_spine_object_classes, name)
 
 """
     relationship_class(name, m=@__MODULE__)
 
 The `RelationshipClass` of given name, generated by `using_spinedb` in the given module.
 """
-relationship_class(name, m=@__MODULE__) = get(_getproperty(m, :_spine_relationship_classes, Dict()), name, nothing)
+relationship_class(name, m=@__MODULE__) = _active_value(m, :_spine_relationship_classes, name)
 
 """
     parameter(name, m=@__MODULE__)
 
 The `Parameter` of given name, generated by `using_spinedb` in the given module.
 """
-parameter(name, m=@__MODULE__) = get(_getproperty(m, :_spine_parameters, Dict()), name, nothing)
+parameter(name, m=@__MODULE__) = _active_value(m, :_spine_parameters, name)
+
+_active_values(m, set_name) = [x for x in values(_getproperty(m, set_name, Dict())) if _is_active(x)]
+
+function _active_value(m, set_name, name)
+    val = get(_getproperty(m, set_name, Dict()), name, nothing)
+    _is_active(val) ? val : nothing
+end
+
+_is_active(x) = haskey(x.env_dict, _active_env())
+_is_active(::Nothing) = false
 
 """
     difference(left, right)
@@ -655,28 +691,47 @@ function difference(left, right)
 end
 
 """
-    realize(call, callback=nothing)
+    realize(call)
 
 Perform the given call and return the result.
-
-Call the given `callback` with the new result of `call` every time it would change due to `TimeSlice`s being `roll!`ed.
 """
-function realize(call, callback=nothing)
-    next_callback = callback !== nothing ? () -> callback(realize(call, callback)) : nothing
+function realize(call, upd=nothing)
     try
-        _do_realize(call, next_callback)
+        _do_realize(call, upd)
     catch e
         err_msg = "unable to evaluate expression:\n\t$call\n"
         rethrow(ErrorException("$err_msg$(sprint(showerror, e))"))
     end
 end
 
-function add_dimension!(cls::RelationshipClass, name::Symbol, val)
+function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
     push!(cls.object_class_names, name)
     push!(cls.intact_object_class_names, name)
-    map!(rel -> (; rel..., Dict(name => val)...), cls.relationships, cls.relationships)
-    key_map = Dict(rel => (rel..., val) for rel in keys(cls.parameter_values))
-    for (key, new_key) in key_map
-        cls.parameter_values[new_key] = pop!(cls.parameter_values, key)
+    map!(rel -> (; rel..., Dict(name => obj)...), cls.relationships, cls.relationships)
+    for rel in collect(keys(cls.parameter_values))
+        new_rel = (rel..., obj)
+        cls.parameter_values[new_rel] = pop!(cls.parameter_values, rel)
+    end
+    cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
+    delete!(cls.row_map, cls.name)  # delete memoized rows
+    cls._split_kwargs[] = _make_split_kwargs(cls.object_class_names)
+    nothing
+end
+
+const __active_env = Ref(:base)
+
+function _activate_env(env::Symbol)
+    __active_env[] = env
+end
+
+_active_env() = __active_env[]
+
+function with_env(f::Function, env::Symbol)
+    prev_env = _active_env()
+    _activate_env(env)
+    try
+        return f()
+    finally
+        _activate_env(prev_env)
     end
 end
