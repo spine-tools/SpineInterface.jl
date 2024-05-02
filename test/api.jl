@@ -592,13 +592,13 @@ function _test_difference()
         left_diff = difference(left, right)
         left_parts = [split(strip(x), "  ") for x in split(left_diff, '\n') if !isempty(x)]
         left_expected = [
-            ["object classes", "country"], ["relationship classes", "institution__country"], ["parameters", "people_count"]
+            ["entity classes", "country"], ["institution__country"], ["parameters", "people_count"]
         ]
         @test left_parts == left_expected
         right_diff = difference(right, left)
         right_parts = [split(strip(x), "  ") for x in split(right_diff, '\n') if !isempty(x)]
         right_expected = [
-            ["object classes", "idea"], ["relationship classes", "institution__idea"], ["parameters", "creator"]
+            ["entity classes", "idea"], ["institution__idea"], ["parameters", "creator"]
         ]
         @test right_parts == right_expected
     end
