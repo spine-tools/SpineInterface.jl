@@ -361,10 +361,14 @@ function _test_using_spinedb_in_a_loop()
     end
 end
 
+function _temp_db_url()
+    fp = tempname()
+    "sqlite:///$fp"
+end
+
 function _test_using_spinedb_extend()
     @testset "using_spinedb_extend" begin
-        fp = "$(@__DIR__)/deleteme.sqlite"
-        db_url = "sqlite:///$fp"
+        db_url = _temp_db_url()
         template = Dict(
             :object_classes => [["fish"], ["dog"]],
             :relationship_classes => [["fish__dog", ["fish", "dog"]]],
@@ -375,10 +379,8 @@ function _test_using_spinedb_extend()
             :objects => [["fish", "nemo"]],
         )
         Extend = Module()
-        rm(fp; force=true)
         import_test_data(db_url; template...)
         using_spinedb(db_url, Extend)
-        rm(fp; force=true)
         import_test_data(db_url; user_data...)
         using_spinedb(db_url, Extend; extend=true)
         # Test that default values of missing parameters are found in the template
@@ -388,8 +390,7 @@ end
 
 function _test_using_spinedb_with_env()
     @testset "using_spinedb_with_env" begin
-        fp = "$(@__DIR__)/deleteme.sqlite"
-        db_url = "sqlite:///$fp"
+        db_url = _temp_db_url()
         base_data = Dict(
             :object_classes => [["fish"], ["dog"]],
             :objects => [["fish", "Nemo"], ["dog", "Scooby"]],
@@ -402,13 +403,12 @@ function _test_using_spinedb_with_env()
             :relationship_classes => [["fish__dog", ["fish", "dog"]]],
             :relationships => [["fish__dog", ("Dory", "Brian")]],
         )
-        rm(fp; force=true)
         import_test_data(db_url; base_data...)
         using_spinedb(db_url)
+        env_db_url = _temp_db_url()
         with_env(:env) do
-            rm(fp; force=true)
-            import_test_data(db_url; env_data...)
-            using_spinedb(db_url)
+            import_test_data(env_db_url; env_data...)
+            using_spinedb(env_db_url)
         end
         with_env(:env) do
             @test fish() == [fish(:Dory)]
