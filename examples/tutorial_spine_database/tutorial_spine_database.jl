@@ -5,8 +5,10 @@ using SpineInterface
 # initialize database
 # either use an existing database
 url = "sqlite:///$(@__DIR__)/quick_start_from_Spine_Toolbox.sqlite"
-# or create a new database (overwrites the previous line)
-url = "sqlite:///$(@__DIR__)/quick_start.sqlite"
+# or create a new database (predates the previous line)
+path = joinpath(@__DIR__, "quick_start.sqlite")
+rm(path; force=true)
+url = "sqlite:///$path"
 
 commit_message = "initial commit message for the new database with the objects actor and film"
 import_data(url, commit_message; object_classes=["actor", "film"])
