@@ -21,10 +21,10 @@
 # (Everything that is used in only one file, we put it in the same file.)
 
 const _df = DateFormat("yyyy-mm-ddTHH:MM")
-const _db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
-const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
-const _required_spinedb_api_version = v"0.23.2"
-const _client_version = 6
+const _db_df = dateformat"yyyy-mm-ddTHH:MM:SS"
+const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS"
+const _required_spinedb_api_version = v"0.31.0"
+const _client_version = 7
 const _EOT = '\u04'  # End of transmission
 const _START_OF_TAIL = '\u1f'  # Unit separator
 const _START_OF_ADDRESS = '\u91'  # Private Use 1

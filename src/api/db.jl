@@ -251,18 +251,14 @@ function _class_names_per_parameter(object_classes, relationship_classes, param_
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
 end
 
-function _generate_convenience_functions(data, mod; filters, extend)
-    object_classes = get(data, "object_classes", [])
-    relationship_classes = get(data, "relationship_classes", [])
-    objects = get(data, "objects", [])
-    object_groups = get(data, "object_groups", [])
-    relationships = get(data, "relationships", [])
-    obj_param_defs = get(data, "object_parameters", [])
-    rel_param_defs = get(data, "relationship_parameters", [])
-    obj_param_vals = get(data, "object_parameter_values", [])
-    rel_param_vals = get(data, "relationship_parameter_values", [])
-    param_defs = [obj_param_defs; rel_param_defs]
-    param_vals = [obj_param_vals; rel_param_vals]
+function _generate_convenience_functions(data, mod; filters=Dict(), extend=false)
+    object_classes = [x for x in get(data, "entity_classes", []) if isempty(x[2])]
+    relationship_classes = [x for x in get(data, "entity_classes", []) if !isempty(x[2])]
+    objects = [x for x in get(data, "entities", []) if x[2] isa String]
+    relationships = [x for x in get(data, "entities", []) if !(x[2] isa String)]
+    object_groups = get(data, "entity_groups", [])
+    param_defs = get(data, "parameter_definitions", [])
+    param_vals = get(data, "parameter_values", [])
     members_per_group = _members_per_group(object_groups)
     groups_per_member = _groups_per_member(object_groups)
     full_objs_per_id = _full_objects_per_id(objects, members_per_group, groups_per_member)

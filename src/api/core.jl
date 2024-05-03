@@ -655,13 +655,27 @@ A string summarizing the differences between the `left` and the right `Dict`s.
 Both `left` and `right` are mappings from string to an array.
 """
 function difference(left, right)
+    function _entity_class_names(d)
+        entity_classes = try
+            d["entity_classes"]
+        catch KeyError
+            vcat(d["object_classes"], d["relationship_classes"])
+        end
+        first.(entity_classes)
+    end
+
+    function _parameter_names(d)
+        parameter_definitions = try
+            d["parameter_definitions"]
+        catch KeyError
+            vcat(d["object_parameters"], d["relationship_parameters"])
+        end
+        (x -> x[2]).(parameter_definitions)
+    end
+
     diff = OrderedDict(
-        "object classes" => setdiff(first.(left["object_classes"]), first.(right["object_classes"])),
-        "relationship classes" => setdiff(first.(left["relationship_classes"]), first.(right["relationship_classes"])),
-        "parameters" => setdiff(
-            (x -> x[2]).(vcat(left["object_parameters"], left["relationship_parameters"])),
-            (x -> x[2]).(vcat(right["object_parameters"], right["relationship_parameters"])),
-        ),
+        "entity classes" => setdiff(_entity_class_names(left), _entity_class_names(right)),
+        "parameters" => setdiff(_parameter_names(left), _parameter_names(right)),
     )
     header_size = maximum(length(key) for key in keys(diff))
     empty_header = repeat(" ", header_size)
