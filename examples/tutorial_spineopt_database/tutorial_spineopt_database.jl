@@ -1,7 +1,12 @@
 using SpineInterface
 
 # requires PyCall
-url = "sqlite:///$(@__DIR__)/example_spineopt_database.sqlite"
+input_file_path = joinpath(@__DIR__, "example_spineopt_database.json")
+input_data = JSON.parsefile(input_file_path, use_mmap=false) 
+url_path = joinpath(@__DIR__, "example_spineopt_database.sqlite")
+rm(url_path; force=true)
+url = "sqlite:///$url_path"
+import_data(url, input_data, "Import data from $input_file_path")
 using_spinedb(url)
 
 node()
