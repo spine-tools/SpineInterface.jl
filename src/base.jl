@@ -132,9 +132,10 @@ function _show_call(io::IO, call::Call, _caller::Nothing, func::Function)
     print(io, call_str)
 end
 function _show_call(io::IO, call::Call, caller, func::ParameterValue)
-    kwargs_str = join((join(kw, "=") for kw in pairs(call.kwargs)), ", ")
     result = _do_realize(call, nothing)
-    print(io, string("{", caller, "(", kwargs_str, ") = ", result, "}"))
+    p, kwargs = caller
+    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
+    print(io, string("{", p, "(", kwargs_str, ") = ", result, "}"))
 end
 
 Base.convert(::Type{Call}, x::T) where {T} = Call(x)
@@ -444,7 +445,8 @@ function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
     pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
     if pv_new_kwargs !== nothing
         parameter_value, new_inds = pv_new_kwargs
-        Call(parameter_value, new_inds, p)
+        caller = (p, kwargs)
+        Call(parameter_value, new_inds, caller)
     else
         Call(nothing, p)
     end
