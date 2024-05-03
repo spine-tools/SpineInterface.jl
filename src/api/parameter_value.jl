@@ -170,7 +170,6 @@ _parse_db_value(value::TimePattern) = value
 _parse_db_value(value) = value
 
 function _parse_date_time(data::String)
-    data = split(data, ".")[1]
     try
         DateTime(data, _db_df)
     catch err
