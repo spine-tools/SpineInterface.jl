@@ -36,11 +36,12 @@ struct SpineInterfaceExt
     SpineInterfaceExt() = new(Dict(), Dict(), Dict())
 end
 
-function _get_si_ext!(m)
+function _get_si_ext!(f, m)
     lock(_si_ext_lock) do
-        get!(m.ext, :spineinterface) do
+        ext = get!(m.ext, :spineinterface) do
             SpineInterfaceExt()
         end
+        f(ext)
     end
 end
 
@@ -151,8 +152,9 @@ function _set_lower_bound(var, lb)
     if is_fixed(var)
         # Save bound
         m = owner_model(var)
-        ext = _get_si_ext!(m)
-        ext.lower_bound[var] = lb
+        _get_si_ext!(m) do ext
+            ext.lower_bound[var] = lb
+        end
     elseif !isnan(lb)
         set_lower_bound(var, lb)
     end
@@ -174,8 +176,9 @@ function _set_upper_bound(var, ub)
     if is_fixed(var)
         # Save bound
         m = owner_model(var)
-        ext = _get_si_ext!(m)
-        ext.upper_bound[var] = ub
+        _get_si_ext!(m) do ext
+            ext.upper_bound[var] = ub
+        end
     elseif !isnan(ub)
         set_upper_bound(var, ub)
     end
@@ -199,31 +202,32 @@ _fix(_upd, ::Nothing) = nothing
 function _fix(upd, fix_value)
     var = upd.variable
     m = owner_model(var)
-    ext = _get_si_ext!(m)
-    if !isnan(fix_value)
-        # Save bounds, remove them and then fix the value
-        if has_lower_bound(var)
-            ext.lower_bound[var] = lower_bound(var)
-            delete_lower_bound(var)
+    _get_si_ext!(m) do ext
+        if !isnan(fix_value)
+            # Save bounds, remove them and then fix the value
+            if has_lower_bound(var)
+                ext.lower_bound[var] = lower_bound(var)
+                delete_lower_bound(var)
+            end
+            if has_upper_bound(var)
+                ext.upper_bound[var] = upper_bound(var)
+                delete_upper_bound(var)
+            end
+            fix(var, fix_value)
+            ext.fixer[var] = upd
+        elseif is_fixed(var) && get(ext.fixer, var, nothing) === upd
+            # Unfix the variable and restore saved bounds
+            unfix(var)
+            lb = pop!(ext.lower_bound, var, nothing)
+            ub = pop!(ext.upper_bound, var, nothing)
+            if lb !== nothing
+                set_lower_bound(var, lb)
+            end
+            if ub !== nothing
+                set_upper_bound(var, ub)
+            end
+            ext.fixer[var] = nothing
         end
-        if has_upper_bound(var)
-            ext.upper_bound[var] = upper_bound(var)
-            delete_upper_bound(var)
-        end
-        fix(var, fix_value)
-        ext.fixer[var] = upd
-    elseif is_fixed(var) && get(ext.fixer, var, nothing) === upd
-        # Unfix the variable and restore saved bounds
-        unfix(var)
-        lb = pop!(ext.lower_bound, var, nothing)
-        ub = pop!(ext.upper_bound, var, nothing)
-        if lb !== nothing
-            set_lower_bound(var, lb)
-        end
-        if ub !== nothing
-            set_upper_bound(var, ub)
-        end
-        ext.fixer[var] = nothing
     end
 end
 
