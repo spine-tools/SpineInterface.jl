@@ -100,10 +100,8 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
     end
-    if _strict
-        @warn("can't find a value of $p for argument(s) $((; kwargs...))")
-        return nothing
-    end
+    _strict && @warn("can't find a value of $p for argument(s) $((; kwargs...))")
+    nothing
 end
 
 _object_class_names(x::ObjectClass) = (x.name,)
@@ -170,7 +168,7 @@ function _do_realize(::T, call, upd) where T<:Function
         vals = [child.value[] for child in current.children]
         if !isempty(vals)
             # children already visited, compute value
-            current.value[] = length(vals) == 1 ? current.call.func(vals[1]) : reduce(current.call.func, vals)
+            current.value[] = current.call.func(vals...)
         elseif current.call.func isa Function
             # visit children
             current = _first_child(current)
