@@ -677,7 +677,7 @@ function _run_server_request(server_uri::URI, request::String, args::Tuple, kwar
     spinedb_api_version = _do_run_server_request(server_uri, ["get_api_version", ()]; timeout=10 * elapsed)
     if _parse_spinedb_api_version(spinedb_api_version) < _required_spinedb_api_version
         error(
-            "The required version $_required_spinedb_api_version of `spinedb_api` could not be found.",
+            "The required version $_required_spinedb_api_version of `spinedb_api` could not be found. ",
             "Please update Spine Toolbox by following the instructions at\n\n",
             "\thttps://github.com/Spine-project/Spine-Toolbox#installation\n\n",
         )
