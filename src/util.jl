@@ -17,12 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-# Constants, and utility functions that are used in more than one file.
+# Utility functions that are used in more than one file.
 # (Everything that is used in only one file, we put it in the same file.)
-
-const _df = DateFormat("yyyy-mm-ddTHH:MM")
-const _db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
-const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
 
 function _getproperty(m::Module, name::Symbol, default)
     isdefined(m, name) ? getproperty(m, name) : default

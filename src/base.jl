@@ -82,6 +82,8 @@ Base.hash(ot::ObjectTupleLike) = hash(Tuple(hash(o) for o in ot))
 Base.hash(r::RelationshipLike) = hash(Tuple(hash(o) for o in values(r)))
 # FIXME: Implement :== and isqual for the types that implement hash. Also, use the two argument form
 
+const _df = DateFormat("yyyy-mm-ddTHH:MM")
+
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
 function Base.show(io::IO, t::TimeSlice)

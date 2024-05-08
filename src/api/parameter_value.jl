@@ -79,44 +79,8 @@ function collect_indexed_values(x::Dict{K,V}) where {H,K<:Tuple{H,Vararg},V}
     Map(collect(keys(d)), collect_indexed_values.(values(d)))
 end
 
-"""
-    parse_time_period(union_str)
-
-A UnionOfIntersections from the given string.
-"""
-function parse_time_period(union_str::String)
-    union_op = ","
-    intersection_op = ";"
-    range_op = "-"
-    union = UnionOfIntersections()
-    regexp = r"(Y|M|D|WD|h|m|s)"
-    for intersection_str in split(union_str, union_op)
-        intersection = IntersectionOfIntervals()
-        for interval in split(intersection_str, intersection_op)
-            m = Base.match(regexp, interval)
-            m === nothing && error("invalid interval specification $interval.")
-            key = m.match
-            lower_upper = interval[(length(key) + 1):end]
-            lower_upper = split(lower_upper, range_op)
-            length(lower_upper) != 2 && error("invalid interval specification $interval.")
-            lower_str, upper_str = lower_upper
-            lower = try
-                parse(Int64, lower_str)
-            catch ArgumentError
-                error("invalid lower bound $lower_str.")
-            end
-            upper = try
-                parse(Int64, upper_str)
-            catch ArgumentError
-                error("invalid upper bound $upper_str.")
-            end
-            lower > upper && error("lower bound can't be higher than upper bound.")
-            push!(intersection, TimeInterval(Symbol(key), lower, upper))
-        end
-        push!(union, intersection)
-    end
-    union
-end
+const _db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
+const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
 
 """
     parse_db_value(value, type)
@@ -138,7 +102,9 @@ _parse_db_value(value, type::String) = _parse_db_value(value, Val(Symbol(type)))
 _parse_db_value(value, ::Nothing) = _parse_db_value(value)
 _parse_db_value(value::Dict, ::Val{:date_time}) = _parse_date_time(value["data"])
 _parse_db_value(value::Dict, ::Val{:duration}) = _parse_duration(value["data"])
-_parse_db_value(value::Dict, ::Val{:time_pattern}) = Dict(parse_time_period(ind) => val for (ind, val) in value["data"])
+_parse_db_value(value::Dict, ::Val{:time_pattern}) = Dict(
+    _parse_time_period(ind) => val for (ind, val) in value["data"]
+)
 function _parse_db_value(value::Dict, type::Val{:time_series})
     _parse_db_value(get(value, "index", Dict()), value["data"], type)
 end
@@ -182,6 +148,40 @@ function _parse_duration(data::String)
     quantity, unit = parse(Int64, data[1 : o - 1]), strip(data[o:end])
     key = (startswith(lowercase(unit), "month") || unit == "M") ? 'M' : lowercase(unit[1])
     Dict('s' => Second, 'm' => Minute, 'h' => Hour, 'd' => Day, 'M' => Month, 'y' => Year)[key](quantity)
+end
+
+function _parse_time_period(union_str::String)
+    union_op = ","
+    intersection_op = ";"
+    range_op = "-"
+    union = UnionOfIntersections()
+    regexp = r"(Y|M|D|WD|h|m|s)"
+    for intersection_str in split(union_str, union_op)
+        intersection = IntersectionOfIntervals()
+        for interval in split(intersection_str, intersection_op)
+            m = Base.match(regexp, interval)
+            m === nothing && error("invalid interval specification $interval.")
+            key = m.match
+            lower_upper = interval[(length(key) + 1):end]
+            lower_upper = split(lower_upper, range_op)
+            length(lower_upper) != 2 && error("invalid interval specification $interval.")
+            lower_str, upper_str = lower_upper
+            lower = try
+                parse(Int64, lower_str)
+            catch ArgumentError
+                error("invalid lower bound $lower_str.")
+            end
+            upper = try
+                parse(Int64, upper_str)
+            catch ArgumentError
+                error("invalid upper bound $upper_str.")
+            end
+            lower > upper && error("lower bound can't be higher than upper bound.")
+            push!(intersection, TimeInterval(Symbol(key), lower, upper))
+        end
+        push!(union, intersection)
+    end
+    union
 end
 
 _parse_float(x) = Float64(x)
