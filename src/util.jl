@@ -23,56 +23,6 @@
 const _df = DateFormat("yyyy-mm-ddTHH:MM")
 const _db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
 const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
-const _required_spinedb_api_version = v"0.23.2"
-const _client_version = 6
-const _EOT = '\u04'  # End of transmission
-const _START_OF_TAIL = '\u1f'  # Unit separator
-const _START_OF_ADDRESS = '\u91'  # Private Use 1
-const _ADDRESS_SEP = ':'
-
-const _spinedb_api_not_found(pyprogramname) = """
-The required Python package `spinedb_api` could not be found in the current Python environment
-    $pyprogramname
-
-You can fix this in two different ways:
-
-    A. Install `spinedb_api` in the current Python environment; open a terminal (command prompt on Windows) and run
-
-        $pyprogramname -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
-
-    B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run
-
-        ENV["PYTHON"] = "... path of the python executable ..."
-        Pkg.build("PyCall")
-
-    And restart Julia.
-"""
-
-const _required_spinedb_api_version_not_found_py_call(pyprogramname) = """
-The required version $_required_spinedb_api_version of `spinedb_api` could not be found in the current Python environment
-
-    $pyprogramname
-
-You can fix this in two different ways:
-
-    A. Upgrade `spinedb_api` to its latest version in the current Python environment; open a terminal (command prompt on Windows) and run
-
-        $pyprogramname -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'
-
-    B. Switch to another Python environment that has `spinedb_api` version $_required_spinedb_api_version installed; from Julia, run
-
-        ENV["PYTHON"] = "... path of the python executable ..."
-        Pkg.build("PyCall")
-
-    And restart Julia.
-"""
-
-const _required_spinedb_api_version_not_found_server = """
-The required version $_required_spinedb_api_version of `spinedb_api` could not be found.
-Please update Spine Toolbox by following the instructions at
-
-    https://github.com/Spine-project/Spine-Toolbox#installation
-"""
 
 function _getproperty(m::Module, name::Symbol, default)
     isdefined(m, name) ? getproperty(m, name) : default
