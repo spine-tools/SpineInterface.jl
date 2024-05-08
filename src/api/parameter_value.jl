@@ -459,7 +459,7 @@ function _timedata_operation(f, x, y)
     param_val_x = parameter_value(x)
     param_val_y = parameter_value(y)
     value_iter = ((param_val_x(; t=t), param_val_y(; t=t)) for t in indexes)
-    values = [(isnan(val_x) || isnan(val_y)) ? NaN : f(val_x, val_y) for (val_x, val_y) in value_iter]
+    values = [f(val_x, val_y) for (val_x, val_y) in value_iter]
     to_remove = findall(isnan, values)
     deleteat!(indexes, to_remove)
     deleteat!(values, to_remove)
