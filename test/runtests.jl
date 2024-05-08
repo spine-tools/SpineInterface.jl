@@ -18,7 +18,7 @@
 #############################################################################
 
 using SpineInterface
-import SpineInterface.parse_time_period
+import SpineInterface._parse_time_period
 using Test
 using PyCall
 using Dates
