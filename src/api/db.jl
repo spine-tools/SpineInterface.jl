@@ -530,7 +530,7 @@ function run_request(url, request::String, kwargs::Dict; upgrade=false)
 end
 function run_request(url, request::String, args::Tuple, kwargs::Dict; upgrade=false)
     _db(url; upgrade=upgrade) do db
-        _run_sever_request(db, request, args, kwargs)
+        _run_server_request(db, request, args, kwargs)
     end
 end
 
