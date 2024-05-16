@@ -76,11 +76,11 @@ Base.:(<=)(scalar::Number, ts::TimeSeries) = all(scalar <= v for v in ts.values)
 Base.:(<=)(ts::TimeSeries, scalar::Number) = all(v <= scalar for v in ts.values)
 Base.:(<=)(t::TimeSlice, dt::DateTime) = end_(t) <= dt
 
-Base.hash(::Anything) = zero(UInt64)
-Base.hash(o::Union{Object,TimeSlice}) = o.id
-Base.hash(ot::ObjectTupleLike) = hash(Tuple(hash(o) for o in ot))
-Base.hash(r::RelationshipLike) = hash(Tuple(hash(o) for o in values(r)))
-# FIXME: Implement :== and isqual for the types that implement hash. Also, use the two argument form
+Base.hash(::Anything, h::UInt64) = hash(objectid(anything), h)
+Base.hash(o::Union{Object,TimeSlice}, h::UInt64) = hash(o.id, h)
+Base.hash(ot::ObjectTupleLike, h::UInt64) = hash(hash(ot[2:end], hash(ot[1])), h)
+Base.hash(r::RelationshipLike, h::UInt64) = hash(Tuple(r), h)
+# FIXME: Implement :== and isequal for the types that implement hash
 
 const _df = DateFormat("yyyy-mm-ddTHH:MM")
 
