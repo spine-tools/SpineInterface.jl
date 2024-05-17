@@ -17,8 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-Base.intersect(::Anything, s) = s
-Base.intersect(s, ::Anything) = s
+Base.intersect(::Anything, s) = collect(s)
+Base.intersect(s, ::Anything) = collect(s)
 Base.intersect(::Anything, ::Anything) = anything
 
 Base.in(item, ::Anything) = true
