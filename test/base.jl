@@ -19,8 +19,8 @@
 
 @testset "base" begin
     # intersect
-    @test intersect(anything, 1) === 1
-    @test intersect(anything, :Spine) === :Spine
+    @test intersect(anything, [1]) == [1]
+    @test intersect(anything, [:Spine]) == [:Spine]
     @test intersect([1, 2, 3], anything) == [1, 2, 3]
     # in, iterate, length, isless
     @test "Spine" in anything
