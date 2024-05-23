@@ -534,7 +534,7 @@ _upper_bound(p::Month) = p.value * Day(31)
 _upper_bound(p::Year) = p.value * Day(366)
 
 # FIXME: We need to handle empty collections here
-_maximum_skipnan(itr) = maximum(x -> isnan(x) ? -Inf : _upper_bound(x), itr)
+_maximum_skipnan(itr) = maximum(x -> x isa Float64 && isnan(x) ? -Inf : _upper_bound(x), itr)
 
 _maximum_parameter_value(pv::ParameterValue{T}) where T<:Array = _maximum_skipnan(pv.value)
 function _maximum_parameter_value(pv::ParameterValue{T}) where T<:Union{TimePattern,TimeSeries}

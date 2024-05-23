@@ -285,7 +285,7 @@ function _unparse_duration(x::T) where {T<:Period}
     end
 end
 
-_unparse_element(x::Union{Float64,String}) = x
+_unparse_element(x::Union{Number,String}) = x
 _unparse_element(x::DateTime) = _unparse_date_time(x)
 _unparse_element(x::T) where {T<:Period} = _unparse_duration(x)
 
