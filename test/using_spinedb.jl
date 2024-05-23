@@ -330,12 +330,36 @@ function _test_pv_type_map()
         t1_2 = TimeSlice(DateTime(2000, 1), DateTime(2000, 2))
         t1_3 = TimeSlice(DateTime(2000, 1), DateTime(2000, 3))
         t2_3 = TimeSlice(DateTime(2000, 2), DateTime(2000, 3))
-        @test apero_time(; country=France, s=drunk, t0=t0, t=t2_3) == 5.6
         @test apero_time(; country=France, s=drunk, t0=t0, t=t1_3) == (4.0 + 5.6) / 2
         @test apero_time(; country=France, s=sober, t0=t0, t=t1_2) == 2.1
         @test apero_time(; country=France, s=sober, t0=t0, t=t1_3) == (2.1 + 1.8) / 2
         @test apero_time(; country=France, s=drunk, whatever=:whatever, t0=t0, t=t2_3) == 5.6
         @test apero_time(; country=France, s=drunk, t0=t0, whocares=t0, t=t2_3) == 5.6
+        # All permutations
+        @test apero_time(; country=France, s=drunk, t0=t0, t=t2_3) == 5.6
+        @test apero_time(; country=France, s=drunk, t=t2_3, t0=t0) == 5.6
+        @test apero_time(; country=France, t0=t0, s=drunk, t=t2_3) == 5.6
+        @test apero_time(; country=France, t0=t0, t=t2_3, s=drunk) == 5.6
+        @test apero_time(; country=France, t=t2_3, s=drunk, t0=t0) == 5.6
+        @test apero_time(; country=France, t=t2_3, t0=t0, s=drunk) == 5.6
+        @test apero_time(; s=drunk, country=France, t0=t0, t=t2_3) == 5.6
+        @test apero_time(; s=drunk, country=France, t=t2_3, t0=t0) == 5.6
+        @test apero_time(; s=drunk, t0=t0, country=France, t=t2_3) == 5.6
+        @test apero_time(; s=drunk, t0=t0, t=t2_3, country=France) == 5.6
+        @test apero_time(; s=drunk, t=t2_3, country=France, t0=t0) == 5.6
+        @test apero_time(; s=drunk, t=t2_3, t0=t0, country=France) == 5.6
+        @test apero_time(; t0=t0, country=France, s=drunk, t=t2_3) == 5.6
+        @test apero_time(; t0=t0, country=France, t=t2_3, s=drunk) == 5.6
+        @test apero_time(; t0=t0, s=drunk, country=France, t=t2_3) == 5.6
+        @test apero_time(; t0=t0, s=drunk, t=t2_3, country=France) == 5.6
+        @test apero_time(; t0=t0, t=t2_3, country=France, s=drunk) == 5.6
+        @test apero_time(; t0=t0, t=t2_3, s=drunk, country=France) == 5.6
+        @test apero_time(; t=t2_3, country=France, s=drunk, t0=t0) == 5.6
+        @test apero_time(; t=t2_3, country=France, t0=t0, s=drunk) == 5.6
+        @test apero_time(; t=t2_3, s=drunk, country=France, t0=t0) == 5.6
+        @test apero_time(; t=t2_3, s=drunk, t0=t0, country=France) == 5.6
+        @test apero_time(; t=t2_3, t0=t0, country=France, s=drunk) == 5.6
+        @test apero_time(; t=t2_3, t0=t0, s=drunk, country=France) == 5.6
     end
 end
 

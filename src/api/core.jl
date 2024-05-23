@@ -257,11 +257,10 @@ function (pv::ParameterValue{T} where T<:TimeSeries)(
 )
     _get_value(pv, t, upd)
 end
-function (pv::ParameterValue{T} where {T<:Map})(upd=nothing; t=nothing, i=nothing, kwargs...)
+function (pv::ParameterValue{T} where {T<:Map})(upd=nothing; kwargs...)
     isempty(kwargs) && return _recursive_inner_value(pv.value)
-    arg = first(values(kwargs))
-    new_kwargs = Base.tail((; kwargs...))
-    _recursive_inner_value(_get_value(pv, arg, upd; t=t, i=i, new_kwargs...))
+    (kw, arg), new_kwargs = Iterators.peel(kwargs)
+    _recursive_inner_value(_get_value(pv, kw, arg, upd; new_kwargs...))
 end
 
 _recursive_inner_value(x) = x
@@ -303,6 +302,43 @@ function _get_value(pv::ParameterValue{T}, t, upd) where T<:TimeSeries
         _get_time_series_value(pv, t, upd)
     end
 end
+# Map
+function _get_value(pv::ParameterValue{T}, kw, arg, upd; kwargs...) where {T<:Map}
+    i = _search_equal(pv.value.indexes, arg)
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
+end
+function _get_value(pv::ParameterValue{T}, kw, arg::Object, upd; kwargs...) where {V,T<:Map{Symbol,V}}
+    i = _search_equal(pv.value.indexes, arg.name)
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
+end
+function _get_value(pv::ParameterValue{T}, kw, arg::K, upd; kwargs...) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
+    i = _search_nearest(pv.value.indexes, arg)
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
+end
+function _get_value(pv::ParameterValue{T}, kw, arg::_StartRef, upd; kwargs...) where {V,T<:Map{DateTime,V}}
+    t = arg.time_slice
+    i = _search_nearest(pv.value.indexes, start(t))
+    if upd !== nothing
+        timeout = i === nothing ? Second(0) : _next_index(pv.value, i) - start(t)
+        _add_update(arg.time_slice, timeout, upd)
+    end
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd; kwargs...)
+    pv.value.values[i](upd; kwargs...)
+end
+
+"""
+Called when `arg` is not found at the current level of `pv`.
+Push the `kw => arg` to the tail of the `kwargs` and start over.
+With this, the order of the `kwargs` doesn't necessarily need to match the order of the `pv` keys.
+"""
+function _get_value_cyclic(pv::ParameterValue{T}, kw, arg, upd; kwargs...) where {T<:Map}
+    isempty(kwargs) && return pv
+    pv(upd; kwargs..., zip((kw,), (arg,))...)
+end
+
 function _get_time_series_value(pv, t::DateTime, upd)
     pv.value.ignore_year && (t -= Year(t))
     t < pv.value.indexes[1] && return NaN
@@ -321,6 +357,7 @@ function _get_time_series_value(pv, t::TimeSlice, upd)
     t_start > pv.value.indexes[end] && !pv.value.ignore_year && return NaN
     mean(Iterators.filter(!isnan, pv.value.values[a:b]))
 end
+
 function _get_repeating_time_series_value(pv, t::DateTime, upd)
     pv.value.ignore_year && (t -= Year(t))
     mismatch = t - pv.value.indexes[1]
@@ -352,32 +389,6 @@ function _get_repeating_time_series_value(pv, t::TimeSlice, upd)
     alen = count(!isnan, avals)
     blen = count(!isnan, bvals)
     (asum + bsum + (reps - 1) * pv.valsum) / (alen + blen + (reps - 1) * pv.len)
-end
-# Map
-function _get_value(pv::ParameterValue{T}, k, upd; kwargs...) where {T<:Map}
-    i = _search_equal(pv.value.indexes, k)
-    i === nothing && return pv(upd; kwargs...)
-    pv.value.values[i](upd; kwargs...)
-end
-function _get_value(pv::ParameterValue{T}, o::ObjectLike, upd; kwargs...) where {V,T<:Map{Symbol,V}}
-    i = _search_equal(pv.value.indexes, o.name)
-    i === nothing && return pv(upd; kwargs...)
-    pv.value.values[i](upd; kwargs...)
-end
-function _get_value(pv::ParameterValue{T}, x::K, upd; kwargs...) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
-    i = _search_nearest(pv.value.indexes, x)
-    i === nothing && return pv(upd; kwargs...)
-    pv.value.values[i](upd; kwargs...)
-end
-function _get_value(pv::ParameterValue{T}, s::_StartRef, upd; kwargs...) where {V,T<:Map{DateTime,V}}
-    t = s.time_slice
-    i = _search_nearest(pv.value.indexes, start(t))
-    if upd !== nothing
-        timeout = i === nothing ? Second(0) : _next_index(pv.value, i) - start(t)
-        _add_update(s.time_slice, timeout, upd)
-    end
-    i === nothing && return pv(upd; kwargs...)
-    pv.value.values[i](upd; kwargs...)
 end
 
 function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
