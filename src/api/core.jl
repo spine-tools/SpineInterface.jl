@@ -257,10 +257,10 @@ function (pv::ParameterValue{T} where T<:TimeSeries)(
 )
     _get_value(pv, t, upd)
 end
-function (pv::ParameterValue{T} where {T<:Map})(upd=nothing; kwargs...)
+function (pv::ParameterValue{T} where {T<:Map})(upd=nothing, cycles=0; kwargs...)
     isempty(kwargs) && return _recursive_inner_value(pv.value)
     (kw, arg), new_kwargs = Iterators.peel(kwargs)
-    _recursive_inner_value(_get_value(pv, kw, arg, upd; new_kwargs...))
+    _recursive_inner_value(_get_value(pv, kw, arg, upd, cycles; new_kwargs...))
 end
 
 _recursive_inner_value(x) = x
@@ -303,30 +303,35 @@ function _get_value(pv::ParameterValue{T}, t, upd) where T<:TimeSeries
     end
 end
 # Map
-function _get_value(pv::ParameterValue{T}, kw, arg, upd; kwargs...) where {T<:Map}
+function _get_value(pv::ParameterValue{T}, kw, arg, upd, cycles; kwargs...) where {T<:Map}
     i = _search_equal(pv.value.indexes, arg)
-    i === nothing && return _get_value_cyclic(pv, kw, arg, upd; kwargs...)
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
     pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, kw, arg::Object, upd; kwargs...) where {V,T<:Map{Symbol,V}}
+function _get_value(pv::ParameterValue{T}, kw, arg::Object, upd, cycles; kwargs...) where {V,T<:Map{Symbol,V}}
     i = _search_equal(pv.value.indexes, arg.name)
-    i === nothing && return _get_value_cyclic(pv, kw, arg, upd; kwargs...)
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
     pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, kw, arg::K, upd; kwargs...) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
+function _get_value(
+    pv::ParameterValue{T}, kw, arg::K, upd, cycles; kwargs...
+) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
     i = _search_nearest(pv.value.indexes, arg)
-    i === nothing && return _get_value_cyclic(pv, kw, arg, upd; kwargs...)
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
     pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, kw, arg::_StartRef, upd; kwargs...) where {V,T<:Map{DateTime,V}}
+function _get_value(pv::ParameterValue{T}, kw, arg::_StartRef, upd, cycles; kwargs...) where {V,T<:Map{DateTime,V}}
     t = arg.time_slice
     i = _search_nearest(pv.value.indexes, start(t))
     if upd !== nothing
         timeout = i === nothing ? Second(0) : _next_index(pv.value, i) - start(t)
         _add_update(arg.time_slice, timeout, upd)
     end
-    i === nothing && return _get_value_cyclic(pv, kw, arg, upd; kwargs...)
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
     pv.value.values[i](upd; kwargs...)
+end
+function _get_value(pv::ParameterValue{T}, kw, arg::Base.RefValue, upd, cycles; kwargs...) where {T<:Map}
+    _get_value(pv, kw, arg[], upd, cycles; kwargs...)
 end
 
 """
@@ -334,9 +339,9 @@ Called when `arg` is not found at the current level of `pv`.
 Push the `kw => arg` to the tail of the `kwargs` and start over.
 With this, the order of the `kwargs` doesn't necessarily need to match the order of the `pv` keys.
 """
-function _get_value_cyclic(pv::ParameterValue{T}, kw, arg, upd; kwargs...) where {T<:Map}
-    isempty(kwargs) && return pv
-    pv(upd; kwargs..., zip((kw,), (arg,))...)
+function _get_value_cyclic(pv::ParameterValue{T}, kw, arg, upd, cycles; kwargs...) where {T<:Map}
+    cycles >= length(kwargs) && return pv
+    pv(upd, cycles + 1; kwargs..., zip((kw,), (arg,))...)
 end
 
 function _get_time_series_value(pv, t::DateTime, upd)
