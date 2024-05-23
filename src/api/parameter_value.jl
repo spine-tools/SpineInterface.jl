@@ -192,7 +192,7 @@ _parse_inner_value(value::T, ::Val{:float}) where {T<:Number} = _parse_float(val
 _parse_inner_value(value::String, ::Val{:duration}) = _parse_duration(value)
 _parse_inner_value(value::String, ::Val{:date_time}) = _parse_date_time(value)
 
-_inner_type_str(::Type{Float64}) = "float"
+_inner_type_str(::Type{T}) where T<:Number = "float"
 _inner_type_str(::Type{Symbol}) = "str"
 _inner_type_str(::Type{String}) = "str"
 _inner_type_str(::Type{DateTime}) = "date_time"

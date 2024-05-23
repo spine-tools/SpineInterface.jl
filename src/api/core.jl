@@ -417,7 +417,7 @@ members(x) = unique(member for obj in x for member in obj.members)
 groups(x) = unique(group for obj in x for group in obj.groups)
 
 """
-    indices(p::Parameter; kwargs...)
+    indices(p::Parameter, [c::Union{ObjectClass,RelationshipClass}]; kwargs...)
 
 An iterator over all objects and relationships where the value of `p` is different than `nothing`.
 
@@ -466,14 +466,16 @@ function indices(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwar
 end
 
 """
-    indices_as_tuples(p::Parameter; kwargs...)
+    indices_as_tuples(p::Parameter, [c::Union{ObjectClass,RelationshipClass}]; kwargs...)
 
 Like `indices` but also yields tuples for single-dimensional entities.
 """
 function indices_as_tuples(p::Parameter; kwargs...)
+    (ent for class in p.classes for ent in indices_as_tuples(p, class; kwargs...))
+end
+function indices_as_tuples(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
     (
         _entity_tuple(ent, class)
-        for class in p.classes
         for ent in _entities(class; kwargs...)
         if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
