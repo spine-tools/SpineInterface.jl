@@ -320,16 +320,6 @@ function _get_value(
     i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
     pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, kw, arg::_StartRef, upd, cycles; kwargs...) where {V,T<:Map{DateTime,V}}
-    t = arg.time_slice
-    i = _search_nearest(pv.value.indexes, start(t))
-    if upd !== nothing
-        timeout = i === nothing ? Second(0) : _next_index(pv.value, i) - start(t)
-        _add_update(arg.time_slice, timeout, upd)
-    end
-    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
-    pv.value.values[i](upd; kwargs...)
-end
 function _get_value(pv::ParameterValue{T}, kw, arg::Base.RefValue, upd, cycles; kwargs...) where {T<:Map}
     _get_value(pv, kw, arg[], upd, cycles; kwargs...)
 end

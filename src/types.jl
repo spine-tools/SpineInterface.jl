@@ -308,8 +308,4 @@ end
 _Scalar = Union{Nothing,Missing,Bool,Int64,Float64,Symbol,DateTime,Period}
 _Indexed = Union{Array,TimePattern,TimeSeries,Map}
 
-struct _StartRef
-    time_slice::TimeSlice
-end
-
 abstract type AbstractUpdate end
