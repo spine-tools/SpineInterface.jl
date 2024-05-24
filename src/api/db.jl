@@ -325,7 +325,7 @@ mapping object or relationship (`NamedTuple`) to values.
   - `for_object::Bool=true`: whether to write an object parameter or a 1D relationship parameter in case the number of
     dimensions is 1.
   - `report::String=""`: the name of a report object that will be added as an extra dimension to the written parameters.
-  - `alternative::String`: an alternative to pass to `SpineInterface.write_parameters`.
+  - `alternative::String`: an alternative where to write the parameter values.
   - `comment::String=""`: a comment explaining the nature of the writing operation.
 """
 function write_parameters(
@@ -418,15 +418,8 @@ end
 
 """An `Array` with the object class names of an entity."""
 _object_class_names(entity::NamedTuple) = [_object_class_name(key, val) for (key, val) in pairs(entity)]
-function _object_class_name(key, val::ObjectLike)
-    try
-        _object_class_name(key, val, val.class_name)
-    catch
-        _object_class_name(key, val, Symbol(val))
-    end
-end
-_object_class_name(key, val::ObjectLike, class_name::Symbol) = string(class_name)
-_object_class_name(key, val::ObjectLike, ::Nothing) = string(key)
+
+_object_class_name(key, val::Object) = string(val.class_name !== nothing ? val.class_name : key)
 _object_class_name(key, val) = string(key)
 
 """
