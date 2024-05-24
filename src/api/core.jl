@@ -320,6 +320,13 @@ function _get_value(
     i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
     pv.value.values[i](upd; kwargs...)
 end
+function _get_value(pv::ParameterValue{T}, kw, arg::Pair{TimeSlice,V}, upd, cycles; kwargs...) where {T<:Map,V}
+    t, arg = arg
+    if upd !== nothing
+        _add_update(t, Minute(-1), upd)
+    end
+    _get_value(pv, kw, arg, upd, cycles; kwargs...)
+end
 function _get_value(pv::ParameterValue{T}, kw, arg::Base.RefValue, upd, cycles; kwargs...) where {T<:Map}
     _get_value(pv, kw, arg[], upd, cycles; kwargs...)
 end
