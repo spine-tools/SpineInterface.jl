@@ -24,7 +24,7 @@ Base.intersect(::Anything, ::Anything) = anything
 Base.in(item, ::Anything) = true
 
 Base.iterate(o::Union{Object,TimeSlice,Anything,ParameterValue{T}}) where T<:_Scalar = iterate((o,))
-Base.iterate(o::Union{Object,TimeSlice,Anything,ParameterValue{T}}, state=1) where T<:_Scalar = iterate((o,), state)
+Base.iterate(o::Union{Object,TimeSlice,Anything,ParameterValue{T}}, state) where T<:_Scalar = iterate((o,), state)
 function Base.iterate(x::Union{TimeSeries,Map}, state=1)
     if state > length(x)
         nothing
