@@ -494,6 +494,15 @@ function indices_as_tuples(p::Parameter, class::Union{ObjectClass,RelationshipCl
     )
 end
 
+_entities(class::ObjectClass; kwargs...) = class()
+_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
+
+_entity_key(o::ObjectLike) = o
+_entity_key(r::RelationshipLike) = tuple(r...)
+
+_entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
+_entity_tuple(r::RelationshipLike, class) = r
+
 classes(p::Parameter) = p.classes
 
 push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
@@ -510,37 +519,27 @@ function maximum_parameter_value(p::Parameter)
     )
     pvs_skip_nothing = (pv for pv in pvs if pv() !== nothing)
     isempty(pvs_skip_nothing) && return nothing
-    maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)
+    maximum(maximum_parameter_value(pv) for pv in pvs_skip_nothing)
 end
-
-_entities(class::ObjectClass; kwargs...) = class()
-_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
-
-_entity_key(o::ObjectLike) = o
-_entity_key(r::RelationshipLike) = tuple(r...)
-
-_entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
-_entity_tuple(r::RelationshipLike, class) = r
+maximum_parameter_value(pv::ParameterValue) = maximum_parameter_value(pv.value)
+maximum_parameter_value(value::Array) = _maximum_skipnan(value)
+maximum_parameter_value(value::Union{TimePattern,TimeSeries}) = _maximum_skipnan(values(value))
+maximum_parameter_value(value::Map) = _maximum_skipnan(maximum_parameter_value.(values(value)))
+maximum_parameter_value(value) = _upper_bound(value)
 
 _entity_tuples(class::ObjectClass; kwargs...) = (_entity_tuple(o, class) for o in class())
 _entity_tuples(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
 
-# Enable comparing Month and Year with all the other period types for computing the maximum parameter value
+# FIXME: We need to handle empty collections here
+_maximum_skipnan(itr) = maximum(_upper_bound, (x for x in itr if !_isnan(x)))
+
+_isnan(x) = false
+_isnan(x::Float64) = isnan(x)
+
 _upper_bound(p) = p
+# Enable comparing Month and Year with all the other period types for computing the maximum parameter value
 _upper_bound(p::Month) = p.value * Day(31)
 _upper_bound(p::Year) = p.value * Day(366)
-
-# FIXME: We need to handle empty collections here
-_maximum_skipnan(itr) = maximum(x -> x isa Float64 && isnan(x) ? -Inf : _upper_bound(x), itr)
-
-_maximum_parameter_value(pv::ParameterValue{T}) where T<:Array = _maximum_skipnan(pv.value)
-function _maximum_parameter_value(pv::ParameterValue{T}) where T<:Union{TimePattern,TimeSeries}
-    _maximum_skipnan(values(pv.value))
-end
-function _maximum_parameter_value(pv::ParameterValue{T}) where T<:Map
-    _maximum_skipnan(_maximum_parameter_value.(values(pv.value)))
-end
-_maximum_parameter_value(pv::ParameterValue) = _upper_bound(pv.value)
 
 """
     add_objects!(object_class, objects)
