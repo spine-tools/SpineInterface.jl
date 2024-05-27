@@ -44,6 +44,9 @@ Base.isless(dt::DateTime, t::TimeSlice) = isless(dt, start(t))
 Base.isless(v1::ParameterValue{T}, v2::ParameterValue{T}) where {T<:_Scalar} = v1.value < v2.value
 Base.isless(scalar::Number, ts::TimeSeries) = all(isless(scalar, v) for v in ts.values)
 Base.isless(ts::TimeSeries, scalar::Number) = all(isless(v, scalar) for v in ts.values)
+Base.isless(x::Call, y) = Call(isless, x, y)
+Base.isless(x::Call, y::Call) = Call(isless, x, y)
+Base.isless(x, y::Call) = Call(isless, x, y)
 
 Base.:(==)(x::T, y::T) where T<:Union{Object,TimeSlice} = x.id == y.id
 Base.:(==)(x::TimeSeries, y::TimeSeries) = all(
@@ -73,6 +76,9 @@ _isequal(op, x, y) = x == y
 Base.:(<=)(scalar::Number, ts::TimeSeries) = all(scalar <= v for v in ts.values)
 Base.:(<=)(ts::TimeSeries, scalar::Number) = all(v <= scalar for v in ts.values)
 Base.:(<=)(t::TimeSlice, dt::DateTime) = end_(t) <= dt
+Base.:(<=)(x::Call, y) = Call(<=, x, y)
+Base.:(<=)(x::Call, y::Call) = Call(<=, x, y)
+Base.:(<=)(x, y::Call) = Call(<=, x, y)
 
 Base.hash(::Anything, h::UInt64) = hash(objectid(anything), h)
 Base.hash(o::Union{Object,TimeSlice}, h::UInt64) = hash(o.id, h)
@@ -504,3 +510,5 @@ function Base.empty!(x::Union{TimeSeries,Map})
     empty!(x.indexes)
     empty!(x.values)
 end
+
+Base.ifelse(call::Call, x, y) = Call(ifelse, [call, x, y])
