@@ -27,6 +27,40 @@ parameter_value(value::Union{T,Array,TimePattern,TimeSeries}) where T<:_Scalar =
 parameter_value(value::Map) = ParameterValue(Map(value.indexes, parameter_value.(value.values)))
 parameter_value(value::T) where {T} = error("can't parse $value of unrecognized type $T")
 parameter_value(x::T) where {T<:ParameterValue} = x
+"""
+    maximum_parameter_value(p::Parameter)
+
+The singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses`
+for any`ParameterValue` types.
+"""
+function maximum_parameter_value(p::Parameter; translate_value=nothing)
+    isempty(indices(p)) && return nothing
+    maximum(maximum_parameter_value(p(; ind...); translate_value=translate_value) for ind in indices(p))
+end
+function maximum_parameter_value(pv::ParameterValue; translate_value=nothing)
+    maximum_parameter_value(pv.value; translate_value=translate_value)
+end
+maximum_parameter_value(value::Array; translate_value=nothing) = _maximum_skipnan(value)
+maximum_parameter_value(value::Union{TimePattern,TimeSeries}; translate_value=nothing) = _maximum_skipnan(values(value))
+function maximum_parameter_value(value::Map; translate_value=nothing)
+    _maximum_skipnan(maximum_parameter_value.(values(value); translate_value=translate_value))
+end
+function maximum_parameter_value(value::Symbol; translate_value=nothing)
+    translate_value === nothing ? value : maximum_parameter_value(translate_value(value); translate_value=nothing)
+end
+maximum_parameter_value(value; translate_value=nothing) = _upper_bound(value)
+
+# FIXME: We need to handle empty collections here
+_maximum_skipnan(itr) = maximum(_upper_bound, (x for x in itr if !_isnan(x)))
+
+_isnan(x) = false
+_isnan(x::Float64) = isnan(x)
+
+_upper_bound(p) = p
+# Enable comparing Month and Year with all the other period types for computing the maximum parameter value
+_upper_bound(p::Month) = p.value * Day(31)
+_upper_bound(p::Year) = p.value * Day(366)
+
 
 """
     indexed_values(value)

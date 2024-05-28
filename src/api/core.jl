@@ -243,16 +243,9 @@ end
 A value from `pv`.
 """
 function (pv::ParameterValue)(upd=nothing; kwargs...) end
-
-# _Scalar
 (pv::ParameterValue{T} where T<:_Scalar)(upd=nothing; kwargs...) = pv.value
 (pv::ParameterValue{T} where T<:Array)(upd=nothing; i::Union{Int64,Nothing}=nothing, kwargs...) = _get_value(pv, i)
-function (pv::ParameterValue{T} where T<:TimePattern)(
-    upd=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
-)
-    _get_value(pv, t, upd)
-end
-function (pv::ParameterValue{T} where T<:TimeSeries)(
+function (pv::ParameterValue{T} where T<:Union{TimePattern,TimeSeries})(
     upd=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
     _get_value(pv, t, upd)
@@ -261,6 +254,9 @@ function (pv::ParameterValue{T} where {T<:Map})(upd=nothing, cycles=0; kwargs...
     isempty(kwargs) && return _recursive_inner_value(pv.value)
     (kw, arg), new_kwargs = Iterators.peel(kwargs)
     _recursive_inner_value(_get_value(pv, kw, arg, upd, cycles; new_kwargs...))
+end
+function (pv::ParameterValue{T} where T<:Symbol)(upd=nothing; translate_value=nothing, kwargs...)
+    translate_value === nothing ? pv.value : translate_value(pv.value)(upd; translate_value=nothing, kwargs...)
 end
 
 _recursive_inner_value(x) = x
@@ -506,40 +502,6 @@ _entity_tuple(r::RelationshipLike, class) = r
 classes(p::Parameter) = p.classes
 
 push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
-
-"""
-    maximum_parameter_value(p::Parameter)
-
-The singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses`
-for any`ParameterValue` types.
-"""
-function maximum_parameter_value(p::Parameter)
-    pvs = (
-        first(_split_parameter_value_kwargs(p; ent_tup...)) for class in p.classes for ent_tup in _entity_tuples(class)
-    )
-    pvs_skip_nothing = (pv for pv in pvs if pv() !== nothing)
-    isempty(pvs_skip_nothing) && return nothing
-    maximum(maximum_parameter_value(pv) for pv in pvs_skip_nothing)
-end
-maximum_parameter_value(pv::ParameterValue) = maximum_parameter_value(pv.value)
-maximum_parameter_value(value::Array) = _maximum_skipnan(value)
-maximum_parameter_value(value::Union{TimePattern,TimeSeries}) = _maximum_skipnan(values(value))
-maximum_parameter_value(value::Map) = _maximum_skipnan(maximum_parameter_value.(values(value)))
-maximum_parameter_value(value) = _upper_bound(value)
-
-_entity_tuples(class::ObjectClass; kwargs...) = (_entity_tuple(o, class) for o in class())
-_entity_tuples(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
-
-# FIXME: We need to handle empty collections here
-_maximum_skipnan(itr) = maximum(_upper_bound, (x for x in itr if !_isnan(x)))
-
-_isnan(x) = false
-_isnan(x::Float64) = isnan(x)
-
-_upper_bound(p) = p
-# Enable comparing Month and Year with all the other period types for computing the maximum parameter value
-_upper_bound(p::Month) = p.value * Day(31)
-_upper_bound(p::Year) = p.value * Day(366)
 
 """
     add_objects!(object_class, objects)
