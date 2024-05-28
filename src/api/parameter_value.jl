@@ -35,7 +35,7 @@ for any`ParameterValue` types.
 """
 function maximum_parameter_value(p::Parameter; translate_value=nothing)
     isempty(indices(p)) && return nothing
-    maximum(maximum_parameter_value(p(; ind...); translate_value=translate_value) for ind in indices(p))
+    maximum(maximum_parameter_value(p(; ind...); translate_value=translate_value) for ind in indices_as_tuples(p))
 end
 function maximum_parameter_value(pv::ParameterValue; translate_value=nothing)
     maximum_parameter_value(pv.value; translate_value=translate_value)
