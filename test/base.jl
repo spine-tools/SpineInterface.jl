@@ -314,9 +314,9 @@
     m = Map(collect(1:4), collect(5:8))
     ts = TimeSeries(ts1_dates, ts1_vals, false, false)
     @test get(m, 1, nothing) == 5
-    @test get(m, 7, nothing) == nothing
+    @test get(m, 7, nothing) === nothing
     @test get(ts, DateTime(1, 4), nothing) == 4
-    @test get(ts, DateTime(8, 4), nothing) == nothing
+    @test get(ts, DateTime(8, 4), nothing) === nothing
     # iterate
     @test iterate(ts1) == (ts1_dates[1] => ts1_vals[1], 2)
     @test iterate(ts1, 2) == (ts1_dates[2] => ts1_vals[2], 3)

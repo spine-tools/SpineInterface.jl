@@ -73,7 +73,7 @@ function (oc::ObjectClass)(; kwargs...)
 end
 function (oc::ObjectClass)(name::Symbol)
     i = findfirst(o -> o.name == name, oc.objects)
-    i != nothing && return oc.objects[i]
+    !isnothing(i) && return oc.objects[i]
     nothing
 end
 (oc::ObjectClass)(name::String) = oc(Symbol(name))
