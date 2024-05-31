@@ -60,6 +60,7 @@ export difference
 export duration
 export end_
 export export_data
+export fixer
 export groups
 export import_data
 export indexed_values

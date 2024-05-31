@@ -231,6 +231,14 @@ function _fix(upd, fix_value)
     end
 end
 
+function fixer(var)
+    m = owner_model(var)
+    _get_si_ext!(m) do ext
+        upd = get(ext.fixer, var, nothing)
+        upd isa AbstractUpdate ? upd.call : nothing
+    end
+end
+
 # @constraint extension
 # utility
 MOI.constant(s::_GreaterThanCall) = s.lower
