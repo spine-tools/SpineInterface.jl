@@ -137,7 +137,7 @@ _parse_db_value(value, ::Nothing) = _parse_db_value(value)
 _parse_db_value(value::Dict, ::Val{:date_time}) = _parse_date_time(value["data"])
 _parse_db_value(value::Dict, ::Val{:duration}) = _parse_duration(value["data"])
 _parse_db_value(value::Dict, ::Val{:time_pattern}) = Dict(
-    _parse_time_period(ind) => val for (ind, val) in value["data"]
+    parse_time_period(ind) => val for (ind, val) in value["data"]
 )
 function _parse_db_value(value::Dict, type::Val{:time_series})
     _parse_db_value(get(value, "index", Dict()), value["data"], type)
@@ -184,7 +184,7 @@ function _parse_duration(data::String)
     Dict('s' => Second, 'm' => Minute, 'h' => Hour, 'd' => Day, 'M' => Month, 'y' => Year)[key](quantity)
 end
 
-function _parse_time_period(union_str::String)
+function parse_time_period(union_str::String)
     union_op = ","
     intersection_op = ";"
     range_op = "-"
