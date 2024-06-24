@@ -68,7 +68,7 @@
     @test string(id_call) === "13"
     @test string(op_call) === "2 + 3"
     @test string(param_val_call) === "{apero_time(scenario=covid) = apero_time}"
-    tp1 = SpineInterface._parse_time_period("Y1-5;M1-4,M6-9")
+    tp1 = SpineInterface.parse_time_period("Y1-5;M1-4,M6-9")
     @test string(tp1) === "year from 1 to 5, and month from 1 to 4, or month from 6 to 9"
     # convert
     call = convert(Call, 9)
@@ -191,8 +191,8 @@
     ts1_repeat = TimeSeries(ts1_dates, ts1_vals, false, true)
     ts1_ignore_year = TimeSeries(ts1_dates .- Year(DateTime(1)), ts1_vals, true, false)
     ts2 = TimeSeries(ts2_dates, ts2_vals, false, false)
-    month2to3 = SpineInterface._parse_time_period("M2-3")
-    month4to5 = SpineInterface._parse_time_period("M4-5")
+    month2to3 = SpineInterface.parse_time_period("M2-3")
+    month4to5 = SpineInterface.parse_time_period("M4-5")
     tp1 = Dict(month2to3 => 2.0, month4to5 => 3.0)
     tp2 = Dict(month2to3 => 8.0, month4to5 => -4.0)
     m_keys = [:one, :two]
@@ -338,25 +338,25 @@
     @test isempty(Map([],[]))
 end
 @testset "TimePattern-TimePattern arithmetic" begin
-    month1to3or7to12 = SpineInterface._parse_time_period("M1-3,M7-12")
-    month4to6 = SpineInterface._parse_time_period("M4-6")
-    weekday1to5 = SpineInterface._parse_time_period("WD1-5")
-    weekday6to7 = SpineInterface._parse_time_period("WD6-7")
-    weekday3to6 = SpineInterface._parse_time_period("WD3-6")
+    month1to3or7to12 = SpineInterface.parse_time_period("M1-3,M7-12")
+    month4to6 = SpineInterface.parse_time_period("M4-6")
+    weekday1to5 = SpineInterface.parse_time_period("WD1-5")
+    weekday6to7 = SpineInterface.parse_time_period("WD6-7")
+    weekday3to6 = SpineInterface.parse_time_period("WD3-6")
     tp1 = Dict(month1to3or7to12 => 1, month4to6 => 2)
     tp2 = Dict(weekday1to5 => 1, weekday6to7 => 2)
     tp3 = Dict(weekday3to6 => 10)
     observed = tp1 + tp2
     expected = Dict(
-        SpineInterface._parse_time_period("WD1-5;M1-3") => 2,
-        SpineInterface._parse_time_period("WD1-5;M4-6") => 3,
-        SpineInterface._parse_time_period("WD1-5;M7-12") => 2,
-        SpineInterface._parse_time_period("WD6-7;M1-3") => 3,
-        SpineInterface._parse_time_period("WD6-7;M4-6") => 4,
-        SpineInterface._parse_time_period("WD6-7;M7-12") => 3,
+        SpineInterface.parse_time_period("WD1-5;M1-3") => 2,
+        SpineInterface.parse_time_period("WD1-5;M4-6") => 3,
+        SpineInterface.parse_time_period("WD1-5;M7-12") => 2,
+        SpineInterface.parse_time_period("WD6-7;M1-3") => 3,
+        SpineInterface.parse_time_period("WD6-7;M4-6") => 4,
+        SpineInterface.parse_time_period("WD6-7;M7-12") => 3,
     )
     @test observed == expected
     observed = tp2 - tp3
-    expected = Dict(SpineInterface._parse_time_period("WD3-5") => -9, SpineInterface._parse_time_period("WD6-6") => -8)
+    expected = Dict(SpineInterface.parse_time_period("WD3-5") => -9, SpineInterface.parse_time_period("WD6-6") => -8)
     @test observed == expected
 end

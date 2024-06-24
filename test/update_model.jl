@@ -113,7 +113,7 @@ end
 end
 
 @testset "time pattern upd" begin
-	parse_tp = SpineInterface._parse_time_period
+	parse_tp = SpineInterface.parse_time_period
 	tp = Dict(parse_tp("M1-6;WD1-5") => 1.0, parse_tp("M1-6;WD6-7") => 20, parse_tp("M7-12") => -4.0)
 	tp_pval = parameter_value(tp)
 	t_start, t_end = DateTime(7, 1, 1, 0), DateTime(7, 1, 1, 1)
