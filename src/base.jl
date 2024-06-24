@@ -516,3 +516,5 @@ Base.ifelse(call::Call, x, y) = Call(ifelse, [call, x, y])
 Base.rem(x::Call, y) = Call(rem, x, y)
 Base.rem(x, y::Call) = Call(rem, x, y)
 Base.rem(x::Call, y::Call) = Call(rem, x, y)
+
+Base.something(c::Call, x...) = Call(something, [c, x...])

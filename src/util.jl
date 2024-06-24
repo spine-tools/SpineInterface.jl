@@ -37,6 +37,14 @@ function _get(d, key, backup, default=nothing)
     end
 end
 
+"""
+    _split_parameter_value_kwargs(p; <keyword arguments>)
+
+# Keyword arguments
+  - _strict=true: whether to emit a warning if no entity matches the given kwargs
+  - _default=nothing: A value to return if the parameter is not specified for the entity matching the kwargs.
+    If not given, then the default value of the parameter as specified in the DB is returned.
+"""
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
     # The search stops when a parameter value is found in a class
