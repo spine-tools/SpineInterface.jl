@@ -19,8 +19,8 @@
 
 @testset "base" begin
     # intersect
-    @test intersect(anything, 1) === 1
-    @test intersect(anything, :Spine) === :Spine
+    @test intersect(anything, [1]) == [1]
+    @test intersect(anything, [:Spine]) == [:Spine]
     @test intersect([1, 2, 3], anything) == [1, 2, 3]
     # in, iterate, length, isless
     @test "Spine" in anything
@@ -271,8 +271,8 @@
     @test tp1 ^ 2.0 == Dict(k => v ^ 2.0 for (k, v) in tp1)
     @test 2.0 ^ ts1 == TimeSeries(ts1.indexes, 2.0 .^ ts1.values, false, false)
     @test 2.0 ^ tp1 == Dict(k => 2.0 ^ v for (k, v) in tp1)
-    @test ts1 ^ ts2 == TimeSeries([DateTime(1, i) for i in 2:4], [4.0, 8.0, 256.0], false, false)
-    @test ts1 ^ tp1 == TimeSeries(ts1.indexes[2:end], [4.0, 64.0], false, false)
+    @test ts1 ^ ts2 == TimeSeries([DateTime(1, i) for i in 1:4], [1.0, 4.0, 8.0, 256.0], false, false)
+    @test ts1 ^ tp1 == TimeSeries(ts1.indexes, [1.0, 4.0, 64.0], false, false)
     @test tp1 ^ ts1 == TimeSeries(ts1.indexes[2:end], [4.0, 81.0], false, false)
     @test tp1 ^ tp2 == Dict(month2to3 => 2.0 ^ 8.0, month4to5 => 3.0 ^ -4.0)
     @test m1 ^ 2.0 == Map(m_keys, m1_vals .^ 2.0)

@@ -60,6 +60,7 @@ export difference
 export duration
 export end_
 export export_data
+export fixer
 export groups
 export import_data
 export indexed_values
@@ -85,6 +86,7 @@ export ParameterValue
 export parameter_value
 export parameters
 export parse_db_value
+export parse_time_period
 export push_class!
 export realize
 export refresh!

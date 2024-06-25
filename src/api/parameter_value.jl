@@ -27,6 +27,40 @@ parameter_value(value::Union{T,Array,TimePattern,TimeSeries}) where T<:_Scalar =
 parameter_value(value::Map) = ParameterValue(Map(value.indexes, parameter_value.(value.values)))
 parameter_value(value::T) where {T} = error("can't parse $value of unrecognized type $T")
 parameter_value(x::T) where {T<:ParameterValue} = x
+"""
+    maximum_parameter_value(p::Parameter)
+
+The singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses`
+for any`ParameterValue` types.
+"""
+function maximum_parameter_value(p::Parameter; translate_value=nothing)
+    isempty(indices(p)) && return nothing
+    maximum(maximum_parameter_value(p(; ind...); translate_value=translate_value) for ind in indices_as_tuples(p))
+end
+function maximum_parameter_value(pv::ParameterValue; translate_value=nothing)
+    maximum_parameter_value(pv.value; translate_value=translate_value)
+end
+maximum_parameter_value(value::Array; translate_value=nothing) = _maximum_skipnan(value)
+maximum_parameter_value(value::Union{TimePattern,TimeSeries}; translate_value=nothing) = _maximum_skipnan(values(value))
+function maximum_parameter_value(value::Map; translate_value=nothing)
+    _maximum_skipnan(maximum_parameter_value.(values(value); translate_value=translate_value))
+end
+function maximum_parameter_value(value::Symbol; translate_value=nothing)
+    translate_value === nothing ? value : maximum_parameter_value(translate_value(value); translate_value=nothing)
+end
+maximum_parameter_value(value; translate_value=nothing) = _upper_bound(value)
+
+# FIXME: We need to handle empty collections here
+_maximum_skipnan(itr) = maximum(_upper_bound, (x for x in itr if !_isnan(x)))
+
+_isnan(x) = false
+_isnan(x::Float64) = isnan(x)
+
+_upper_bound(p) = p
+# Enable comparing Month and Year with all the other period types for computing the maximum parameter value
+_upper_bound(p::Month) = p.value * Day(31)
+_upper_bound(p::Year) = p.value * Day(366)
+
 
 """
     indexed_values(value)
@@ -79,44 +113,8 @@ function collect_indexed_values(x::Dict{K,V}) where {H,K<:Tuple{H,Vararg},V}
     Map(collect(keys(d)), collect_indexed_values.(values(d)))
 end
 
-"""
-    parse_time_period(union_str)
-
-A UnionOfIntersections from the given string.
-"""
-function parse_time_period(union_str::String)
-    union_op = ","
-    intersection_op = ";"
-    range_op = "-"
-    union = UnionOfIntersections()
-    regexp = r"(Y|M|D|WD|h|m|s)"
-    for intersection_str in split(union_str, union_op)
-        intersection = IntersectionOfIntervals()
-        for interval in split(intersection_str, intersection_op)
-            m = Base.match(regexp, interval)
-            m === nothing && error("invalid interval specification $interval.")
-            key = m.match
-            lower_upper = interval[(length(key) + 1):end]
-            lower_upper = split(lower_upper, range_op)
-            length(lower_upper) != 2 && error("invalid interval specification $interval.")
-            lower_str, upper_str = lower_upper
-            lower = try
-                parse(Int64, lower_str)
-            catch ArgumentError
-                error("invalid lower bound $lower_str.")
-            end
-            upper = try
-                parse(Int64, upper_str)
-            catch ArgumentError
-                error("invalid upper bound $upper_str.")
-            end
-            lower > upper && error("lower bound can't be higher than upper bound.")
-            push!(intersection, TimeInterval(Symbol(key), lower, upper))
-        end
-        push!(union, intersection)
-    end
-    union
-end
+const _db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
+const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
 
 """
     parse_db_value(value, type)
@@ -138,7 +136,9 @@ _parse_db_value(value, type::String) = _parse_db_value(value, Val(Symbol(type)))
 _parse_db_value(value, ::Nothing) = _parse_db_value(value)
 _parse_db_value(value::Dict, ::Val{:date_time}) = _parse_date_time(value["data"])
 _parse_db_value(value::Dict, ::Val{:duration}) = _parse_duration(value["data"])
-_parse_db_value(value::Dict, ::Val{:time_pattern}) = Dict(parse_time_period(ind) => val for (ind, val) in value["data"])
+_parse_db_value(value::Dict, ::Val{:time_pattern}) = Dict(
+    parse_time_period(ind) => val for (ind, val) in value["data"]
+)
 function _parse_db_value(value::Dict, type::Val{:time_series})
     _parse_db_value(get(value, "index", Dict()), value["data"], type)
 end
@@ -184,6 +184,40 @@ function _parse_duration(data::String)
     Dict('s' => Second, 'm' => Minute, 'h' => Hour, 'd' => Day, 'M' => Month, 'y' => Year)[key](quantity)
 end
 
+function parse_time_period(union_str::String)
+    union_op = ","
+    intersection_op = ";"
+    range_op = "-"
+    union = UnionOfIntersections()
+    regexp = r"(Y|M|D|WD|h|m|s)"
+    for intersection_str in split(union_str, union_op)
+        intersection = IntersectionOfIntervals()
+        for interval in split(intersection_str, intersection_op)
+            m = Base.match(regexp, interval)
+            m === nothing && error("invalid interval specification $interval.")
+            key = m.match
+            lower_upper = interval[(length(key) + 1):end]
+            lower_upper = split(lower_upper, range_op)
+            length(lower_upper) != 2 && error("invalid interval specification $interval.")
+            lower_str, upper_str = lower_upper
+            lower = try
+                parse(Int64, lower_str)
+            catch ArgumentError
+                error("invalid lower bound $lower_str.")
+            end
+            upper = try
+                parse(Int64, upper_str)
+            catch ArgumentError
+                error("invalid upper bound $upper_str.")
+            end
+            lower > upper && error("lower bound can't be higher than upper bound.")
+            push!(intersection, TimeInterval(Symbol(key), lower, upper))
+        end
+        push!(union, intersection)
+    end
+    union
+end
+
 _parse_float(x) = Float64(x)
 _parse_float(::Nothing) = NaN
 
@@ -192,7 +226,7 @@ _parse_inner_value(value::T, ::Val{:float}) where {T<:Number} = _parse_float(val
 _parse_inner_value(value::String, ::Val{:duration}) = _parse_duration(value)
 _parse_inner_value(value::String, ::Val{:date_time}) = _parse_date_time(value)
 
-_inner_type_str(::Type{Float64}) = "float"
+_inner_type_str(::Type{T}) where T<:Number = "float"
 _inner_type_str(::Type{Symbol}) = "str"
 _inner_type_str(::Type{String}) = "str"
 _inner_type_str(::Type{DateTime}) = "date_time"
@@ -287,7 +321,7 @@ function _unparse_duration(x::T) where {T<:Period}
     end
 end
 
-_unparse_element(x::Union{Float64,String}) = x
+_unparse_element(x::Union{Number,String}) = x
 _unparse_element(x::DateTime) = _unparse_date_time(x)
 _unparse_element(x::T) where {T<:Period} = _unparse_duration(x)
 
@@ -461,7 +495,7 @@ function _timedata_operation(f, x, y)
     param_val_x = parameter_value(x)
     param_val_y = parameter_value(y)
     value_iter = ((param_val_x(; t=t), param_val_y(; t=t)) for t in indexes)
-    values = [(isnan(val_x) || isnan(val_y)) ? NaN : f(val_x, val_y) for (val_x, val_y) in value_iter]
+    values = [f(val_x, val_y) for (val_x, val_y) in value_iter]
     to_remove = findall(isnan, values)
     deleteat!(indexes, to_remove)
     deleteat!(values, to_remove)

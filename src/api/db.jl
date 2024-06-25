@@ -43,12 +43,6 @@ function using_spinedb(template::Dict{String,T}, mod=@__MODULE__; filters=nothin
     _generate_convenience_functions(template, mod; filters=filters, extend=extend)
 end
 
-function export_data(url; upgrade=false, filters=Dict())
-    _db(url; upgrade=upgrade) do db
-        _export_data(db; filters=filters)
-    end
-end
-
 """
 A Dict mapping entity group ids to an Array of member ids.
 """
@@ -327,7 +321,7 @@ mapping object or relationship (`NamedTuple`) to values.
   - `for_object::Bool=true`: whether to write an object parameter or a 1D relationship parameter in case the number of
     dimensions is 1.
   - `report::String=""`: the name of a report object that will be added as an extra dimension to the written parameters.
-  - `alternative::String`: an alternative to pass to `SpineInterface.write_parameters`.
+  - `alternative::String`: an alternative where to write the parameter values.
   - `comment::String=""`: a comment explaining the nature of the writing operation.
 """
 function write_parameters(
@@ -420,15 +414,8 @@ end
 
 """An `Array` with the object class names of an entity."""
 _object_class_names(entity::NamedTuple) = [_object_class_name(key, val) for (key, val) in pairs(entity)]
-function _object_class_name(key, val::ObjectLike)
-    try
-        _object_class_name(key, val, val.class_name)
-    catch
-        _object_class_name(key, val, Symbol(val))
-    end
-end
-_object_class_name(key, val::ObjectLike, class_name::Symbol) = string(class_name)
-_object_class_name(key, val::ObjectLike, ::Nothing) = string(key)
+
+_object_class_name(key, val::Object) = string(val.class_name !== nothing ? val.class_name : key)
 _object_class_name(key, val) = string(key)
 
 """
@@ -487,32 +474,14 @@ function import_data(url, data::Dict{Symbol,T}, comment::String; upgrade=false) 
 end
 
 """
-    run_request(url::String, request::String, args, kwargs; upgrade=false)
+    export_data(url)
 
-Run the given request on the given url, using the given args.
+Export data from a Spine DB.
 """
-function run_request(url, request::String; upgrade=false)
-    run_request(url, request, (), Dict(); upgrade=upgrade)
-end
-function run_request(url, request::String, args::Tuple; upgrade=false)
-    run_request(url, request, args, Dict(); upgrade=upgrade)
-end
-function run_request(url, request::String, kwargs::Dict; upgrade=false)
-    run_request(url, request, (), kwargs; upgrade=upgrade)
-end
-function run_request(url, request::String, args::Tuple, kwargs::Dict; upgrade=false)
+function export_data(url; upgrade=false, filters=Dict())
     _db(url; upgrade=upgrade) do db
-        _run_request(db, request, args, kwargs)
+        _export_data(db; filters=filters)
     end
-end
-
-function open_connection(db_url)
-    _handlers[db_url] = _create_db_handler(db_url, false)
-end
-
-function close_connection(db_url)
-    handler = pop!(_handlers, db_url, nothing)
-    handler === nothing || _close_db_handler(handler)
 end
 
 """
@@ -534,46 +503,36 @@ function without_filters(f, url)
     end
 end
 
-function _parse_spinedb_api_version(version)
-    # Version number shortened and tweaked to avoid PEP 440 -> SemVer issues
-    VersionNumber(replace(join(split(version, '.')[1:3],'.'), '-' => '+'))
-end
-_parse_spinedb_api_version(::Nothing) = VersionNumber(0)
+"""
+    run_request(url::String, request::String, args, kwargs; upgrade=false)
 
-function _import_spinedb_api()
-    isdefined(@__MODULE__, :db_api) && return
-    @eval begin
-        using PyCall
-        const db_api, db_server = try
-            pyimport("spinedb_api"), pyimport("spinedb_api.spine_db_server")
-        catch err
-            if err isa PyCall.PyError
-                error(_spinedb_api_not_found(PyCall.pyprogramname))
-            else
-                rethrow()
-            end
-        end
-        spinedb_api_version = _parse_spinedb_api_version(db_api.__version__)
-        if spinedb_api_version < _required_spinedb_api_version
-            error(_required_spinedb_api_version_not_found_py_call(PyCall.pyprogramname))
-        end
+Run the given request on the given url, using the given args.
+"""
+function run_request(url, request::String; upgrade=false)
+    run_request(url, request, (), Dict(); upgrade=upgrade)
+end
+function run_request(url, request::String, args::Tuple; upgrade=false)
+    run_request(url, request, args, Dict(); upgrade=upgrade)
+end
+function run_request(url, request::String, kwargs::Dict; upgrade=false)
+    run_request(url, request, (), kwargs; upgrade=upgrade)
+end
+function run_request(url, request::String, args::Tuple, kwargs::Dict; upgrade=false)
+    _db(url; upgrade=upgrade) do db
+        _run_server_request(db, request, args, kwargs)
     end
 end
 
-_handlers = Dict()
-
-_do_create_db_handler(db_url::String, upgrade::Bool) = db_server.DBHandler(db_url, upgrade)
-
-_do_close_db_handler(handler) = handler.close()
-
-function _create_db_handler(db_url::String, upgrade::Bool)
-    _import_spinedb_api()
-    handler = Base.invokelatest(_do_create_db_handler, db_url, upgrade)
-    atexit(() -> _close_db_handler(handler))
-    handler
+function open_connection(db_url)
+    _handlers[db_url] = _create_db_handler(db_url, false)
 end
 
-_close_db_handler(handler) = Base.invokelatest(_do_close_db_handler, handler)
+function close_connection(db_url)
+    handler = pop!(_handlers, db_url, nothing)
+    handler === nothing || _close_db_handler(handler)
+end
+
+_handlers = Dict()
 
 function _db(f, url::String; upgrade=false)
     uri = URI(url)
@@ -593,73 +552,137 @@ function _db(f, url::String; upgrade=false)
 end
 _db(f, db; kwargs...) = f(db)
 
-function _process_db_answer(answer::Dict)
-    result = get(answer, "result", nothing)
-    err = get(answer, "error", nothing)
-    _process_db_answer(result, err)
+function _create_db_handler(db_url::String, upgrade::Bool)
+    _import_spinedb_api()
+    handler = Base.invokelatest(_do_create_db_handler, db_url, upgrade)
+    atexit(() -> _close_db_handler(handler))
+    handler
 end
-_process_db_answer(answer) = answer  # Legacy
-_process_db_answer(result, err::Nothing) = result
-function _process_db_answer(result, err::Int64)
-    if err == 1
-        required_client_version = result
+
+const _required_spinedb_api_version = v"0.31.0"
+
+function _import_spinedb_api()
+    indent = repeat(" ", 4)
+
+    _spinedb_api_not_found_error(pyprogramname) = error(
+        "The required Python package `spinedb_api` could not be found in the current Python environment\n\n",
+        "$indent$pyprogramname\n\n",
+        "You can fix this in two different ways:\n",
+        "A. Install `spinedb_api` in the current Python environment; ",
+        "open a terminal (command prompt on Windows) and run\n\n",
+        "$indent$pyprogramname -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'\n\n",
+        "B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run\n\n",
+        "$(indent)ENV[\"PYTHON\"] = \"... path of the python executable ...\"\n",
+        "$(indent)Pkg.build(\"PyCall\")\n\n",
+        "And restart Julia.\n",
+    )
+
+    _required_spinedb_api_version_not_found_py_call_error(pyprogramname) = error(
+        "The required version $_required_spinedb_api_version of `spinedb_api` could not be found ",
+        "in the current Python environment\n\n",
+        "$indent$pyprogramname\n\n",
+        "You can fix this in two different ways:\n",
+        "A. Upgrade `spinedb_api` to its latest version in the current Python environment; ",
+        "open a terminal (command prompt on Windows) and run\n\n",
+        "$indent$pyprogramname -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'\n\n",
+        "B. Switch to another Python environment ",
+        "that has `spinedb_api` version $_required_spinedb_api_version installed; from Julia, run\n\n",
+        "$(indent)ENV[\"PYTHON\"] = \"... path of the python executable ...\"\n",
+        "$(indent)Pkg.build(\"PyCall\")\n\n",
+        "And restart Julia.",
+    )
+
+    isdefined(@__MODULE__, :db_api) && return
+    @eval begin
+        using PyCall
+        const db_api, db_server = try
+            pyimport("spinedb_api"), pyimport("spinedb_api.spine_db_server")
+        catch err
+            if err isa PyCall.PyError
+                _spinedb_api_not_found_error(PyCall.pyprogramname)
+            else
+                rethrow()
+            end
+        end
+        spinedb_api_version = _parse_spinedb_api_version(db_api.__version__)
+        if spinedb_api_version < _required_spinedb_api_version
+            _required_spinedb_api_version_not_found_py_call_error(PyCall.pyprogramname)
+        end
+    end
+end
+
+function _parse_spinedb_api_version(version)
+    # Version number shortened and tweaked to avoid PEP 440 -> SemVer issues
+    VersionNumber(replace(join(split(version, '.')[1:3],'.'), '-' => '+'))
+end
+_parse_spinedb_api_version(::Nothing) = VersionNumber(0)
+
+_do_create_db_handler(db_url::String, upgrade::Bool) = db_server.DBHandler(db_url, upgrade)
+
+_close_db_handler(handler) = Base.invokelatest(_do_close_db_handler, handler)
+
+_do_close_db_handler(handler) = handler.close()
+
+function _import_data(db, data::Dict{Symbol,T}, comment::String) where {T}
+    _run_server_request(db, "import_data", (Dict(string(k) => v for (k, v) in data), comment))
+end
+
+function _export_data(db; filters=Dict())
+    isempty(filters) && return _run_server_request(db, "export_data")
+    old_filters = _current_filters(db)
+    _run_server_request(db, "apply_filters", (filters,))
+    data = _run_server_request(db, "export_data")
+    _run_server_request(db, "clear_filters")
+    isempty(old_filters) || _run_server_request(db, "apply_filters", (old_filters,))
+    data
+end
+
+function _current_filters(db)
+    Dict(
+        k => v
+        for (k, v) in merge!(Dict(), _run_server_request(db, "call_method", ("get_filter_configs",))...)
+        if k in ("alternatives", "scenario", "tool")
+    )
+end
+
+const _client_version = 7
+const _EOT = '\u04'  # End of transmission
+const _START_OF_TAIL = '\u1f'  # Unit separator
+const _START_OF_ADDRESS = '\u91'  # Private Use 1
+const _ADDRESS_SEP = ':'
+
+function _run_server_request(db, request::String)
+    _run_server_request(db, request, (), Dict())
+end
+function _run_server_request(db, request::String, args::Tuple)
+    _run_server_request(db, request, args, Dict())
+end
+function _run_server_request(db, request::String, kwargs::Dict)
+    _run_server_request(db, request, (), kwargs)
+end
+function _run_server_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict)
+    _do_run_server_request(server_uri, ["get_db_url", ()])  # to trigger compilation
+    elapsed = @elapsed _do_run_server_request(server_uri, ["get_db_url", ()])
+    spinedb_api_version = _do_run_server_request(server_uri, ["get_api_version", ()]; timeout=10 * elapsed)
+    if _parse_spinedb_api_version(spinedb_api_version) < _required_spinedb_api_version
         error(
-            "version mismatch: DB server requires client version $required_client_version, ",
-            "whereas current version is $_client_version; ",
-            "please update SpineInterface"
+            "The required version $_required_spinedb_api_version of `spinedb_api` could not be found. ",
+            "Please update Spine Toolbox by following the instructions at\n\n",
+            "\thttps://github.com/Spine-project/Spine-Toolbox#installation\n\n",
         )
-    else
-        error("unknown error code $err returned by DB server")
     end
+    full_request = [request, args, kwargs, _client_version]
+    _do_run_server_request(server_uri, full_request)
 end
-_process_db_answer(result, err) = error(string(err))
-
-struct _TailSerialization <: JSON.CommonSerialization
-    tail::Vector{UInt8}
-    _TailSerialization() = new(Vector{UInt8}())
+function _run_server_request(dbh, request::String, args::Tuple, kwargs::Dict)
+    full_request = [request, args, kwargs, _client_version]
+    request = Base.invokelatest(pybytes, _encode(full_request))
+    io = IOBuffer()
+    str = Base.invokelatest(_handle_request, dbh, request)
+    write(io, str)
+    answer = _decode(io)
+    _process_db_answer(answer)
 end
-
-function JSON.show_json(io::JSON.StructuralContext, s::_TailSerialization, bytes::Vector{UInt8})
-    tip = length(s.tail)
-    from, to = tip, tip + length(bytes) - 1  # 0-based
-    marker = string(_START_OF_ADDRESS, from, _ADDRESS_SEP, to)
-    append!(s.tail, bytes)
-    JSON.show_json(io, JSON.StandardSerialization(), marker)
-end
-
-function _encode(obj)
-    s = _TailSerialization()
-    body = sprint(JSON.show_json, s, obj)
-    vcat(Vector{UInt8}(body), UInt8(_START_OF_TAIL), s.tail)
-end
-
-function _decode(io)
-    bytes = take!(io)
-    i = findlast(bytes .== UInt8(_START_OF_TAIL))
-    body, tail = bytes[1 : i - 1], bytes[i + 1 : end]
-    o = JSON.parse(String(body))
-    _expand_addresses!(o, tail)
-end
-
-function _expand_addresses!(o::Dict, tail)
-    for (k, v) in o
-        o[k] = _expand_addresses!(v, tail)
-    end
-    o
-end
-function _expand_addresses!(o::Array, tail)
-    for (k, e) in enumerate(o)
-        o[k] = _expand_addresses!(e, tail)
-    end
-    o
-end
-function _expand_addresses!(o::String, tail)
-    startswith(o, _START_OF_ADDRESS) || return o
-    marker = lstrip(o, _START_OF_ADDRESS)
-    from, to = (parse(Int64, x) + 1 for x in split(marker, _ADDRESS_SEP))  # 1-based
-    tail[from:to]
-end
-_expand_addresses!(o, tail) = o
 
 function _do_run_server_request(server_uri::URI, full_request::Array; timeout=Inf)
     clientside = connect(server_uri.host, parse(Int, server_uri.port))
@@ -690,62 +713,75 @@ function _do_run_server_request(server_uri::URI, full_request::Array; timeout=In
     _process_db_answer(answer)
 end
 
+function _encode(obj)
+    s = _TailSerialization()
+    body = sprint(JSON.show_json, s, obj)
+    vcat(Vector{UInt8}(body), UInt8(_START_OF_TAIL), s.tail)
+end
+
+struct _TailSerialization <: JSON.CommonSerialization
+    tail::Vector{UInt8}
+    _TailSerialization() = new(Vector{UInt8}())
+end
+
+function JSON.show_json(io::JSON.StructuralContext, s::_TailSerialization, bytes::Vector{UInt8})
+    tip = length(s.tail)
+    from, to = tip, tip + length(bytes) - 1  # 0-based
+    marker = string(_START_OF_ADDRESS, from, _ADDRESS_SEP, to)
+    append!(s.tail, bytes)
+    JSON.show_json(io, JSON.StandardSerialization(), marker)
+end
+
 _handle_request(dbh, request) = dbh.handle_request(request)
 
-function _run_server_request(db, request::String)
-    _run_server_request(db, request, (), Dict())
+function _decode(io)
+    bytes = take!(io)
+    i = findlast(bytes .== UInt8(_START_OF_TAIL))
+    body, tail = bytes[1 : i - 1], bytes[i + 1 : end]
+    o = JSON.parse(String(body))
+    _expand_addresses!(o, tail)
 end
-function _run_server_request(db, request::String, args::Tuple)
-    _run_server_request(db, request, args, Dict())
-end
-function _run_server_request(db, request::String, kwargs::Dict)
-    _run_server_request(db, request, (), kwargs)
-end
-function _run_server_request(server_uri::URI, request::String, args::Tuple, kwargs::Dict)
-    _do_run_server_request(server_uri, ["get_db_url", ()])  # to trigger compilation
-    elapsed = @elapsed _do_run_server_request(server_uri, ["get_db_url", ()])
-    spinedb_api_version = _do_run_server_request(server_uri, ["get_api_version", ()]; timeout=10 * elapsed)
-    if _parse_spinedb_api_version(spinedb_api_version) < _required_spinedb_api_version
-        error(_required_spinedb_api_version_not_found_server)
+
+function _expand_addresses!(o::Dict, tail)
+    for (k, v) in o
+        o[k] = _expand_addresses!(v, tail)
     end
-    full_request = [request, args, kwargs, _client_version]
-    _do_run_server_request(server_uri, full_request)
+    o
 end
-function _run_server_request(dbh, request::String, args::Tuple, kwargs::Dict)
-    full_request = [request, args, kwargs, _client_version]
-    request = Base.invokelatest(pybytes, _encode(full_request))
-    io = IOBuffer()
-    str = Base.invokelatest(_handle_request, dbh, request)
-    write(io, str)
-    answer = _decode(io)
-    _process_db_answer(answer)
+function _expand_addresses!(o::Array, tail)
+    for (k, e) in enumerate(o)
+        o[k] = _expand_addresses!(e, tail)
+    end
+    o
 end
+function _expand_addresses!(o::String, tail)
+    startswith(o, _START_OF_ADDRESS) || return o
+    marker = lstrip(o, _START_OF_ADDRESS)
+    from, to = (parse(Int64, x) + 1 for x in split(marker, _ADDRESS_SEP))  # 1-based
+    tail[from:to]
+end
+_expand_addresses!(o, tail) = o
 
-function _export_data(db; filters=Dict())
-    isempty(filters) && return _run_server_request(db, "export_data")
-    old_filters = _current_filters(db)
-    _run_server_request(db, "apply_filters", (filters,))
-    data = _run_server_request(db, "export_data")
-    _run_server_request(db, "clear_filters")
-    isempty(old_filters) || _run_server_request(db, "apply_filters", (old_filters,))
-    data
+function _process_db_answer(answer::Dict)
+    result = get(answer, "result", nothing)
+    err = get(answer, "error", nothing)
+    _process_db_answer(result, err)
 end
-
-function _current_filters(db)
-    Dict(
-        k => v
-        for (k, v) in merge!(Dict(), _run_server_request(db, "call_method", ("get_filter_configs",))...)
-        if k in ("alternatives", "scenario", "tool")
-    )
+_process_db_answer(answer) = answer  # Legacy
+_process_db_answer(result, err::Nothing) = result
+function _process_db_answer(result, err::Int64)
+    if err == 1
+        required_client_version = result
+        error(
+            "version mismatch: DB server requires client version $required_client_version, ",
+            "whereas current version is $_client_version; ",
+            "please update SpineInterface"
+        )
+    else
+        error("unknown error code $err returned by DB server")
+    end
 end
-
-function _import_data(db, data::Dict{Symbol,T}, comment::String) where {T}
-    _run_server_request(db, "import_data", (Dict(string(k) => v for (k, v) in data), comment))
-end
-
-function _run_request(db, request::String, args::Tuple, kwargs::Dict)
-    _run_server_request(db, request, args, kwargs)
-end
+_process_db_answer(result, err) = error(string(err))
 
 function _to_dict(obj_cls::ObjectClass)
     Dict(

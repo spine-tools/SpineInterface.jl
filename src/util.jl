@@ -17,62 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-# Constants, and utility functions that are used in more than one file.
+# Utility functions that are used in more than one file.
 # (Everything that is used in only one file, we put it in the same file.)
-
-const _df = DateFormat("yyyy-mm-ddTHH:MM")
-const _db_df = dateformat"yyyy-mm-ddTHH:MM:SS"
-const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS"
-const _required_spinedb_api_version = v"0.31.0"
-const _client_version = 7
-const _EOT = '\u04'  # End of transmission
-const _START_OF_TAIL = '\u1f'  # Unit separator
-const _START_OF_ADDRESS = '\u91'  # Private Use 1
-const _ADDRESS_SEP = ':'
-
-const _spinedb_api_not_found(pyprogramname) = """
-The required Python package `spinedb_api` could not be found in the current Python environment
-    $pyprogramname
-
-You can fix this in two different ways:
-
-    A. Install `spinedb_api` in the current Python environment; open a terminal (command prompt on Windows) and run
-
-        $pyprogramname -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'
-
-    B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run
-
-        ENV["PYTHON"] = "... path of the python executable ..."
-        Pkg.build("PyCall")
-
-    And restart Julia.
-"""
-
-const _required_spinedb_api_version_not_found_py_call(pyprogramname) = """
-The required version $_required_spinedb_api_version of `spinedb_api` could not be found in the current Python environment
-
-    $pyprogramname
-
-You can fix this in two different ways:
-
-    A. Upgrade `spinedb_api` to its latest version in the current Python environment; open a terminal (command prompt on Windows) and run
-
-        $pyprogramname -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'
-
-    B. Switch to another Python environment that has `spinedb_api` version $_required_spinedb_api_version installed; from Julia, run
-
-        ENV["PYTHON"] = "... path of the python executable ..."
-        Pkg.build("PyCall")
-
-    And restart Julia.
-"""
-
-const _required_spinedb_api_version_not_found_server = """
-The required version $_required_spinedb_api_version of `spinedb_api` could not be found.
-Please update Spine Toolbox by following the instructions at
-
-    https://github.com/Spine-project/Spine-Toolbox#installation
-"""
 
 function _getproperty(m::Module, name::Symbol, default)
     isdefined(m, name) ? getproperty(m, name) : default
@@ -91,6 +37,14 @@ function _get(d, key, backup, default=nothing)
     end
 end
 
+"""
+    _split_parameter_value_kwargs(p; <keyword arguments>)
+
+# Keyword arguments
+  - _strict=true: whether to emit a warning if no entity matches the given kwargs
+  - _default=nothing: A value to return if the parameter is not specified for the entity matching the kwargs.
+    If not given, then the default value of the parameter as specified in the DB is returned.
+"""
 function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=nothing, kwargs...)
     _strict &= _default === nothing
     # The search stops when a parameter value is found in a class

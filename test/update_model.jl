@@ -229,7 +229,7 @@ end
 	roll!(t, Hour(-1))
 	@test last(scen1_upd.values) == 1
 	@test last(scen2_upd.values) == 1
-	roll!.([t, window], Hour(6))
+	roll!.([window, t], Hour(6))
 	@test last(scen1_upd.values) == 4
 	@test last(scen2_upd.values) == 7
 	roll!(t, Hour(1))

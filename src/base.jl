@@ -17,16 +17,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-Base.intersect(::Anything, s) = s
-Base.intersect(s, ::Anything) = s
+Base.intersect(::Anything, s) = collect(s)
+Base.intersect(s, ::Anything) = collect(s)
 Base.intersect(::Anything, ::Anything) = anything
 
 Base.in(item, ::Anything) = true
 
-Base.iterate(o::Union{Object,TimeSlice}) = iterate((o,))
-Base.iterate(o::Union{Object,TimeSlice}, state::T) where {T} = iterate((o,), state)
-Base.iterate(v::ParameterValue{T}) where {T<:_Scalar} = iterate((v,))
-Base.iterate(v::ParameterValue{T}, state) where {T<:_Scalar} = iterate((v,), state)
+Base.iterate(o::Union{Object,TimeSlice,Anything,ParameterValue{T}}) where T<:_Scalar = iterate((o,))
+Base.iterate(o::Union{Object,TimeSlice,Anything,ParameterValue{T}}, state) where T<:_Scalar = iterate((o,), state)
 function Base.iterate(x::Union{TimeSeries,Map}, state=1)
     if state > length(x)
         nothing
@@ -46,6 +44,9 @@ Base.isless(dt::DateTime, t::TimeSlice) = isless(dt, start(t))
 Base.isless(v1::ParameterValue{T}, v2::ParameterValue{T}) where {T<:_Scalar} = v1.value < v2.value
 Base.isless(scalar::Number, ts::TimeSeries) = all(isless(scalar, v) for v in ts.values)
 Base.isless(ts::TimeSeries, scalar::Number) = all(isless(v, scalar) for v in ts.values)
+Base.isless(x::Call, y) = Call(isless, x, y)
+Base.isless(x::Call, y::Call) = Call(isless, x, y)
+Base.isless(x, y::Call) = Call(isless, x, y)
 
 Base.:(==)(x::T, y::T) where T<:Union{Object,TimeSlice} = x.id == y.id
 Base.:(==)(x::TimeSeries, y::TimeSeries) = all(
@@ -75,19 +76,23 @@ _isequal(op, x, y) = x == y
 Base.:(<=)(scalar::Number, ts::TimeSeries) = all(scalar <= v for v in ts.values)
 Base.:(<=)(ts::TimeSeries, scalar::Number) = all(v <= scalar for v in ts.values)
 Base.:(<=)(t::TimeSlice, dt::DateTime) = end_(t) <= dt
+Base.:(<=)(x::Call, y) = Call(<=, x, y)
+Base.:(<=)(x::Call, y::Call) = Call(<=, x, y)
+Base.:(<=)(x, y::Call) = Call(<=, x, y)
 
-Base.hash(::Anything) = zero(UInt64)
-Base.hash(o::Union{Object,TimeSlice}) = o.id
-Base.hash(ot::ObjectTupleLike) = hash(Tuple(hash(o) for o in ot))
-Base.hash(r::RelationshipLike) = hash(Tuple(hash(o) for o in values(r)))
-# FIXME: Implement :== and isqual for the types that implement hash. Also, use the two argument form
+Base.hash(::Anything, h::UInt64) = hash(objectid(anything), h)
+Base.hash(o::Union{Object,TimeSlice}, h::UInt64) = hash(o.id, h)
+Base.hash(ot::ObjectTupleLike, h::UInt64) = hash(hash(ot[2:end], hash(ot[1])), h)
+Base.hash(r::RelationshipLike, h::UInt64) = hash(Tuple(r), h)
+# FIXME: Implement :== and isequal for the types that implement hash
+
+const _df = DateFormat("yyyy-mm-ddTHH:MM")
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
 Base.show(io::IO, o::Object) = print(io, o.name)
 function Base.show(io::IO, t::TimeSlice)
     print(io, string(Dates.format(start(t), _df)), "~(", t.actual_duration, ")~>", Dates.format(end_(t), _df))
 end
-Base.show(io::IO, s::_StartRef) = print(io, string(Dates.format(start(s.time_slice), _df)))
 Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
 Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
@@ -505,3 +510,11 @@ function Base.empty!(x::Union{TimeSeries,Map})
     empty!(x.indexes)
     empty!(x.values)
 end
+
+Base.ifelse(call::Call, x, y) = Call(ifelse, [call, x, y])
+
+Base.rem(x::Call, y) = Call(rem, x, y)
+Base.rem(x, y::Call) = Call(rem, x, y)
+Base.rem(x::Call, y::Call) = Call(rem, x, y)
+
+Base.something(c::Call, x...) = Call(something, [c, x...])

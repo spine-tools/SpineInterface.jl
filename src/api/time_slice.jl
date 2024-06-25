@@ -36,7 +36,7 @@ start(t::TimeSlice) = t.start[]
 
 A reference to the start of time slice `t`.
 """
-startref(t::TimeSlice) = _StartRef(t)
+startref(t::TimeSlice) = t.start
 
 """
     end_(t::TimeSlice)
@@ -143,21 +143,20 @@ end
 
 Roll the given `t` in time by the period specified by `forward`.
 """
-function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod}; refresh::Bool=true)
+function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod})
     t.start[] += forward
     t.end_[] += forward
-    if refresh
-        to_call = []
-        for (upd, timeout) in t.updates
-            timeout -= forward
-            if Dates.toms(forward) < 0 || Dates.toms(timeout) <= 0
-                push!(to_call, upd)
-            else
-                t.updates[upd] = timeout
-            end
+    # Refresh
+    to_call = []
+    for (upd, timeout) in t.updates
+        timeout -= forward
+        if Dates.toms(forward) < 0 || Dates.toms(timeout) <= 0
+            push!(to_call, upd)
+        else
+            t.updates[upd] = timeout
         end
-        _do_call.(to_call)
     end
+    _do_call.(to_call)
     t
 end
 

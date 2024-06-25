@@ -243,25 +243,20 @@ end
 A value from `pv`.
 """
 function (pv::ParameterValue)(upd=nothing; kwargs...) end
-
-# _Scalar
 (pv::ParameterValue{T} where T<:_Scalar)(upd=nothing; kwargs...) = pv.value
 (pv::ParameterValue{T} where T<:Array)(upd=nothing; i::Union{Int64,Nothing}=nothing, kwargs...) = _get_value(pv, i)
-function (pv::ParameterValue{T} where T<:TimePattern)(
+function (pv::ParameterValue{T} where T<:Union{TimePattern,TimeSeries})(
     upd=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
     _get_value(pv, t, upd)
 end
-function (pv::ParameterValue{T} where T<:TimeSeries)(
-    upd=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
-)
-    _get_value(pv, t, upd)
-end
-function (pv::ParameterValue{T} where {T<:Map})(upd=nothing; t=nothing, i=nothing, kwargs...)
+function (pv::ParameterValue{T} where {T<:Map})(upd=nothing, cycles=0; kwargs...)
     isempty(kwargs) && return _recursive_inner_value(pv.value)
-    arg = first(values(kwargs))
-    new_kwargs = Base.tail((; kwargs...))
-    _recursive_inner_value(_get_value(pv, arg, upd; t=t, i=i, new_kwargs...))
+    (kw, arg), new_kwargs = Iterators.peel(kwargs)
+    _recursive_inner_value(_get_value(pv, kw, arg, upd, cycles; new_kwargs...))
+end
+function (pv::ParameterValue{T} where T<:Symbol)(upd=nothing; translate_value=nothing, kwargs...)
+    translate_value === nothing ? pv.value : translate_value(pv.value)(upd; translate_value=nothing, kwargs...)
 end
 
 _recursive_inner_value(x) = x
@@ -303,6 +298,45 @@ function _get_value(pv::ParameterValue{T}, t, upd) where T<:TimeSeries
         _get_time_series_value(pv, t, upd)
     end
 end
+# Map
+function _get_value(pv::ParameterValue{T}, kw, arg, upd, cycles; kwargs...) where {T<:Map}
+    i = _search_equal(pv.value.indexes, arg)
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
+    pv.value.values[i](upd; kwargs...)
+end
+function _get_value(pv::ParameterValue{T}, kw, arg::Object, upd, cycles; kwargs...) where {V,T<:Map{Symbol,V}}
+    i = _search_equal(pv.value.indexes, arg.name)
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
+    pv.value.values[i](upd; kwargs...)
+end
+function _get_value(
+    pv::ParameterValue{T}, kw, arg::K, upd, cycles; kwargs...
+) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
+    i = _search_nearest(pv.value.indexes, arg)
+    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
+    pv.value.values[i](upd; kwargs...)
+end
+function _get_value(pv::ParameterValue{T}, kw, arg::Pair{TimeSlice,V}, upd, cycles; kwargs...) where {T<:Map,V}
+    t, arg = arg
+    if upd !== nothing
+        _add_update(t, Minute(-1), upd)
+    end
+    _get_value(pv, kw, arg, upd, cycles; kwargs...)
+end
+function _get_value(pv::ParameterValue{T}, kw, arg::Base.RefValue, upd, cycles; kwargs...) where {T<:Map}
+    _get_value(pv, kw, arg[], upd, cycles; kwargs...)
+end
+
+"""
+Called when `arg` is not found at the current level of `pv`.
+Push the `kw => arg` to the tail of the `kwargs` and start over.
+With this, the order of the `kwargs` doesn't necessarily need to match the order of the `pv` keys.
+"""
+function _get_value_cyclic(pv::ParameterValue{T}, kw, arg, upd, cycles; kwargs...) where {T<:Map}
+    cycles >= length(kwargs) && return pv
+    pv(upd, cycles + 1; kwargs..., zip((kw,), (arg,))...)
+end
+
 function _get_time_series_value(pv, t::DateTime, upd)
     pv.value.ignore_year && (t -= Year(t))
     t < pv.value.indexes[1] && return NaN
@@ -321,6 +355,7 @@ function _get_time_series_value(pv, t::TimeSlice, upd)
     t_start > pv.value.indexes[end] && !pv.value.ignore_year && return NaN
     mean(Iterators.filter(!isnan, pv.value.values[a:b]))
 end
+
 function _get_repeating_time_series_value(pv, t::DateTime, upd)
     pv.value.ignore_year && (t -= Year(t))
     mismatch = t - pv.value.indexes[1]
@@ -352,32 +387,6 @@ function _get_repeating_time_series_value(pv, t::TimeSlice, upd)
     alen = count(!isnan, avals)
     blen = count(!isnan, bvals)
     (asum + bsum + (reps - 1) * pv.valsum) / (alen + blen + (reps - 1) * pv.len)
-end
-# Map
-function _get_value(pv::ParameterValue{T}, k, upd; kwargs...) where {T<:Map}
-    i = _search_equal(pv.value.indexes, k)
-    i === nothing && return pv(upd; kwargs...)
-    pv.value.values[i](upd; kwargs...)
-end
-function _get_value(pv::ParameterValue{T}, o::ObjectLike, upd; kwargs...) where {V,T<:Map{Symbol,V}}
-    i = _search_equal(pv.value.indexes, o.name)
-    i === nothing && return pv(upd; kwargs...)
-    pv.value.values[i](upd; kwargs...)
-end
-function _get_value(pv::ParameterValue{T}, x::K, upd; kwargs...) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
-    i = _search_nearest(pv.value.indexes, x)
-    i === nothing && return pv(upd; kwargs...)
-    pv.value.values[i](upd; kwargs...)
-end
-function _get_value(pv::ParameterValue{T}, s::_StartRef, upd; kwargs...) where {V,T<:Map{DateTime,V}}
-    t = s.time_slice
-    i = _search_nearest(pv.value.indexes, start(t))
-    if upd !== nothing
-        timeout = i === nothing ? Second(0) : _next_index(pv.value, i) - start(t)
-        _add_update(s.time_slice, timeout, upd)
-    end
-    i === nothing && return pv(upd; kwargs...)
-    pv.value.values[i](upd; kwargs...)
 end
 
 function _search_overlap(ts::TimeSeries, t_start::DateTime, t_end::DateTime)
@@ -417,7 +426,7 @@ members(x) = unique(member for obj in x for member in obj.members)
 groups(x) = unique(group for obj in x for group in obj.groups)
 
 """
-    indices(p::Parameter; kwargs...)
+    indices(p::Parameter, [c::Union{ObjectClass,RelationshipClass}]; kwargs...)
 
 An iterator over all objects and relationships where the value of `p` is different than `nothing`.
 
@@ -466,36 +475,19 @@ function indices(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwar
 end
 
 """
-    indices_as_tuples(p::Parameter; kwargs...)
+    indices_as_tuples(p::Parameter, [c::Union{ObjectClass,RelationshipClass}]; kwargs...)
 
 Like `indices` but also yields tuples for single-dimensional entities.
 """
 function indices_as_tuples(p::Parameter; kwargs...)
+    (ent for class in p.classes for ent in indices_as_tuples(p, class; kwargs...))
+end
+function indices_as_tuples(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
     (
         _entity_tuple(ent, class)
-        for class in p.classes
         for ent in _entities(class; kwargs...)
         if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
     )
-end
-
-classes(p::Parameter) = p.classes
-
-push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
-
-"""
-    maximum_parameter_value(p::Parameter)
-
-The singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses`
-for any`ParameterValue` types.
-"""
-function maximum_parameter_value(p::Parameter)
-    pvs = (
-        first(_split_parameter_value_kwargs(p; ent_tup...)) for class in p.classes for ent_tup in _entity_tuples(class)
-    )
-    pvs_skip_nothing = (pv for pv in pvs if pv() !== nothing)
-    isempty(pvs_skip_nothing) && return nothing
-    maximum(_maximum_parameter_value(pv) for pv in pvs_skip_nothing)
 end
 
 _entities(class::ObjectClass; kwargs...) = class()
@@ -507,25 +499,9 @@ _entity_key(r::RelationshipLike) = tuple(r...)
 _entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
 _entity_tuple(r::RelationshipLike, class) = r
 
-_entity_tuples(class::ObjectClass; kwargs...) = (_entity_tuple(o, class) for o in class())
-_entity_tuples(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
+classes(p::Parameter) = p.classes
 
-# Enable comparing Month and Year with all the other period types for computing the maximum parameter value
-_upper_bound(p) = p
-_upper_bound(p::Month) = p.value * Day(31)
-_upper_bound(p::Year) = p.value * Day(366)
-
-# FIXME: We need to handle empty collections here
-_maximum_skipnan(itr) = maximum(x -> isnan(x) ? -Inf : _upper_bound(x), itr)
-
-_maximum_parameter_value(pv::ParameterValue{T}) where T<:Array = _maximum_skipnan(pv.value)
-function _maximum_parameter_value(pv::ParameterValue{T}) where T<:Union{TimePattern,TimeSeries}
-    _maximum_skipnan(values(pv.value))
-end
-function _maximum_parameter_value(pv::ParameterValue{T}) where T<:Map
-    _maximum_skipnan(_maximum_parameter_value.(values(pv.value)))
-end
-_maximum_parameter_value(pv::ParameterValue) = _upper_bound(pv.value)
+push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
 
 """
     add_objects!(object_class, objects)
