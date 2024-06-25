@@ -296,10 +296,12 @@ function db_value(x::TimePattern)
     Dict{String,Any}("data" => Dict(_unparse_time_pattern(k) => v for (k, v) in x))
 end
 function db_value(x::TimeSeries)
-    Dict{String,Any}(
-        "index" => Dict("repeat" => x.repeat, "ignore_year" => x.ignore_year),
+    d = Dict{String,Any}(
         "data" => OrderedDict(_unparse_date_time(i) => v for (i, v) in zip(x.indexes, x.values)),
     )
+    x.repeat && push!(get!(d, "index", Dict()), "repeat" => x.repeat)
+    x.ignore_year && push!(get!(d, "index", Dict()), "ignore_year" => x.ignore_year)
+    d
 end
 function db_value(x::Map{K,V}) where {K,V}
     Dict{String,Any}(
