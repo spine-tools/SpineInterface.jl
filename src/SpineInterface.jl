@@ -96,6 +96,7 @@ export RelationshipClass
 export RelationshipLike
 export roll!
 export run_request
+export set_value_translator
 export start
 export startref
 export t_highest_resolution

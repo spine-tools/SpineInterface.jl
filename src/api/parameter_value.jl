@@ -33,22 +33,26 @@ parameter_value(x::T) where {T<:ParameterValue} = x
 The singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses`
 for any`ParameterValue` types.
 """
-function maximum_parameter_value(p::Parameter; translate_value=nothing)
+function maximum_parameter_value(p::Parameter)
     isempty(indices(p)) && return nothing
-    maximum(maximum_parameter_value(p(; ind...); translate_value=translate_value) for ind in indices_as_tuples(p))
+    maximum(maximum_parameter_value(p(; ind...)) for ind in indices_as_tuples(p))
 end
-function maximum_parameter_value(pv::ParameterValue; translate_value=nothing)
-    maximum_parameter_value(pv.value; translate_value=translate_value)
+function maximum_parameter_value(pv::ParameterValue)
+    maximum_parameter_value(pv.value)
 end
-maximum_parameter_value(value::Array; translate_value=nothing) = _maximum_skipnan(value)
-maximum_parameter_value(value::Union{TimePattern,TimeSeries}; translate_value=nothing) = _maximum_skipnan(values(value))
-function maximum_parameter_value(value::Map; translate_value=nothing)
-    _maximum_skipnan(maximum_parameter_value.(values(value); translate_value=translate_value))
+maximum_parameter_value(value::Array) = _maximum_skipnan(value)
+maximum_parameter_value(value::Union{TimePattern,TimeSeries}) = _maximum_skipnan(values(value))
+function maximum_parameter_value(value::Map)
+    _maximum_skipnan(maximum_parameter_value.(values(value)))
 end
-function maximum_parameter_value(value::Symbol; translate_value=nothing)
-    translate_value === nothing ? value : maximum_parameter_value(translate_value(value); translate_value=nothing)
+function maximum_parameter_value(value::Symbol)
+    translator = _value_translator()
+    translator === nothing && return value
+    translated_value = translator(pv.value)
+    translated_value === nothing && return value
+    maximum_parameter_value(translated_value)
 end
-maximum_parameter_value(value; translate_value=nothing) = _upper_bound(value)
+maximum_parameter_value(value) = _upper_bound(value)
 
 # FIXME: We need to handle empty collections here
 _maximum_skipnan(itr) = maximum(_upper_bound, (x for x in itr if !_isnan(x)))
