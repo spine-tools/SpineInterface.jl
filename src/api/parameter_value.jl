@@ -48,7 +48,7 @@ end
 function maximum_parameter_value(value::Symbol)
     translator = _value_translator()
     translator === nothing && return value
-    translated_value = translator(pv.value)
+    translated_value = translator(value)
     translated_value === nothing && return value
     maximum_parameter_value(translated_value)
 end
