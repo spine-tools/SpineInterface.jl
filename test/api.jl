@@ -195,7 +195,10 @@ end
 function _test_parse_db_value()
     @testset "parse_db_value" begin
         # Add parameter values of all types
-        scalar_value = 18
+        float_value = 18.1 # NOTE! `18.0` gets parsed as an `Int64`!
+        int_value = 19
+        bool_value = true
+        string_value = "asd"
         array_data = [4, 8, 7]
         array_value = Dict("type" => "array", "value_type" => "float", "data" => array_data)
         time_pattern_data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
@@ -227,11 +230,14 @@ function _test_parse_db_value()
                 ),
             ),
         )
-        @test parse_db_value(parse_db_value(scalar_value)) == parse_db_value(scalar_value)
-        @test parse_db_value(parse_db_value(array_value)) == parse_db_value(array_value)
-        @test parse_db_value(parse_db_value(time_pattern_value)) == parse_db_value(time_pattern_value)
-        @test parse_db_value(parse_db_value(time_series_value)) == parse_db_value(time_series_value)
-        @test parse_db_value(parse_db_value(map_value)) == parse_db_value(map_value)
+        @test parse_db_value(parse_db_value(float_value)) == parse_db_value(float_value)::Float64
+        @test parse_db_value(parse_db_value(int_value)) == parse_db_value(int_value)::Int64
+        @test parse_db_value(parse_db_value(bool_value)) == parse_db_value(bool_value)::Bool
+        @test parse_db_value(parse_db_value(string_value)) == parse_db_value(string_value)::String
+        @test parse_db_value(parse_db_value(array_value)) == parse_db_value(array_value)::Array
+        @test parse_db_value(parse_db_value(time_pattern_value)) == parse_db_value(time_pattern_value)::TimePattern
+        @test parse_db_value(parse_db_value(time_series_value)) == parse_db_value(time_series_value)::TimeSeries
+        @test parse_db_value(parse_db_value(map_value)) == parse_db_value(map_value)::Map
     end
 end
 
