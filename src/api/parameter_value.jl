@@ -349,6 +349,9 @@ end
 _add_db_type!(db_val, x) = db_val
 
 _db_type(x) = nothing
+_db_type(x::Real) = "float"
+_db_type(x::Union{String,Symbol}) = "str"
+_db_type(x::Bool) = "bool"
 _db_type(x::Dict) = x["type"]
 _db_type(::DateTime) = "date_time"
 _db_type(::T) where {T<:Period} = "duration"
