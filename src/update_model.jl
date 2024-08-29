@@ -113,6 +113,29 @@ struct _UpperBoundUpdate <: AbstractUpdate
     call
 end
 
+struct _PausableConstraintCoefficientUpdate <: AbstractUpdate
+    constraint::ConstraintRef
+    variable::VariableRef
+    call
+    paused::Ref{Bool}
+    _PausableConstraintCoefficientUpdate(constraint, var, coef) = new(constraint, var, coef, false)
+end
+
+struct _ExprBoundUpdate <: AbstractUpdate
+    constraint
+    coefficient_updates
+    call
+    function _ExprBoundUpdate(m, expr, sense, call)
+        constraint = _add_constraint(m, 0, sense, 0)
+        coefficient_updates = [
+            _PausableConstraintCoefficientUpdate(constraint, var, coef) for (var, coef) in expr.terms
+        ]
+        f(call, constant) = isnothing(call) ? nothing : call - constant
+        new_call = Call(f, [call, expr.constant])
+        new(constraint, coefficient_updates, new_call)
+    end
+end
+
 Base.show(io::IO, upd::_ObjectiveCoefficientUpdate) = print(
     io, string(typeof(upd), "(", upd.variable, ", ", upd.call, ")")
 )
@@ -121,7 +144,9 @@ Base.show(io::IO, upd::_ObjectiveCoefficientUpdate) = print(
 (upd::_VariableUBUpdate)() = _set_upper_bound(upd.variable, realize(upd.call, upd))
 (upd::_VariableFixValueUpdate)() = _fix(upd, realize(upd.call, upd))
 (upd::_ObjectiveCoefficientUpdate)() = set_objective_coefficient(upd.model, upd.variable, realize(upd.call, upd))
-(upd::_ConstraintCoefficientUpdate)() = set_normalized_coefficient(upd.constraint[], upd.variable, realize(upd.call, upd))
+function (upd::_ConstraintCoefficientUpdate)()
+    set_normalized_coefficient(upd.constraint[], upd.variable, realize(upd.call, upd))
+end
 (upd::_RHSUpdate)() = set_normalized_rhs(upd.constraint[], realize(upd.call, upd))
 function (upd::_LowerBoundUpdate)()
     constraint = upd.constraint[]
@@ -135,6 +160,15 @@ function (upd::_UpperBoundUpdate)()
     lower = MOI.get(model, MOI.ConstraintSet(), constraint).lower
     MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, realize(upd.call, upd)))
 end
+(upd::_ExprBoundUpdate)() = _set_expr_bound(upd.constraint, upd.coefficient_updates, realize(upd.call, upd))
+function (upd::_PausableConstraintCoefficientUpdate)()
+    new_coef = realize(upd.call, upd)
+    upd.paused[] || set_normalized_coefficient(upd.constraint, upd.variable, new_coef)
+end
+
+_pause(upd::_PausableConstraintCoefficientUpdate) = (upd.paused[] = true)
+
+_resume(upd::_PausableConstraintCoefficientUpdate) = (upd.paused[] = false)
 
 """
     JuMP.set_lower_bound(var, call)
@@ -155,7 +189,7 @@ function _set_lower_bound(var, lb)
         _get_si_ext!(m) do ext
             ext.lower_bound[var] = lb
         end
-    elseif !isnan(lb)
+    elseif isfinite(lb)
         set_lower_bound(var, lb)
     end
 end
@@ -179,7 +213,7 @@ function _set_upper_bound(var, ub)
         _get_si_ext!(m) do ext
             ext.upper_bound[var] = ub
         end
-    elseif !isnan(ub)
+    elseif isfinite(ub)
         set_upper_bound(var, ub)
     end
 end
@@ -238,6 +272,58 @@ function fixer(var)
         upd isa AbstractUpdate ? upd.call : nothing
     end
 end
+
+set_expr_bound(_expr, _sense, ::Nothing) = nothing
+function set_expr_bound(expr, sense, bound::Number)
+    m = owner_model(expr)
+    (m === nothing || !isfinite(bound)) && return 
+    _add_constraint(m, expr, sense, bound)
+end
+function set_expr_bound(expr, sense, call::Call)
+    m = owner_model(expr)
+    m === nothing && return
+    upd = _ExprBoundUpdate(m, expr, sense, call)
+    upd()
+end
+
+_set_expr_bound(_constraint, _coefficient_updates, ::Nothing) = nothing
+function _set_expr_bound(constraint, coefficient_updates, bound)
+    set = get_attribute(constraint, MOI.ConstraintSet())
+    _do_set_expr_bound(set, constraint, coefficient_updates, bound)
+end
+
+function _do_set_expr_bound(::MOI.EqualTo, constraint, coefficient_updates, bound)
+    if !isnan(bound)
+        if iszero(get_attribute(constraint, MOI.ConstraintFunction()))
+            for upd in coefficient_updates
+                _resume(upd)
+                upd()
+            end
+        end
+        set_normalized_rhs(upd.constraint, bound)
+    else
+        for upd in coefficient_updates
+            _pause(upd)
+            set_normalized_coefficient(upd.constraint, upd.var, 0)
+        end
+        set_normalized_rhs(upd.constraint, 0)
+    end
+end
+function _do_set_expr_bound(_set, constraint, coefficient_updates, bound)
+    if isfinite(bound)
+        if iszero(get_attribute(constraint, MOI.ConstraintFunction()))
+            for upd in coefficient_updates
+                upd()
+            end
+        end
+        set_normalized_rhs(constraint, bound)
+    end
+    constraint
+end
+
+_add_constraint(m, lhs, ::typeof(==), rhs) = @constraint(m, lhs == rhs)
+_add_constraint(m, lhs, ::typeof(>=), rhs) = @constraint(m, lhs >= rhs)
+_add_constraint(m, lhs, ::typeof(<=), rhs) = @constraint(m, lhs <= rhs)
 
 # @constraint extension
 # utility
@@ -302,7 +388,6 @@ function JuMP.add_constraint(
     con::ScalarConstraint{GenericAffExpr{Call,VariableRef},S},
     name::String="",
 ) where {S<:_CallSet}
-    iszero(con.func) && return nothing
     con_ref = Ref{ConstraintRef}()
     realized_func = realize(con.func, con_ref)
     realized_set = realize(con.set, con_ref)

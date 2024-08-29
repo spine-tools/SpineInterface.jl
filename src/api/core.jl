@@ -237,6 +237,16 @@ function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
     end
 end
 
+const __value_translator = Ref{Union{Nothing,Function}}(nothing)
+
+function set_value_translator(translator)
+    __value_translator[] = translator
+end
+
+function _value_translator()
+    __value_translator[]
+end
+
 """
     (<pv>::ParameterValue)(upd; <keyword arguments>)
 
@@ -255,8 +265,12 @@ function (pv::ParameterValue{T} where {T<:Map})(upd=nothing, cycles=0; kwargs...
     (kw, arg), new_kwargs = Iterators.peel(kwargs)
     _recursive_inner_value(_get_value(pv, kw, arg, upd, cycles; new_kwargs...))
 end
-function (pv::ParameterValue{T} where T<:Symbol)(upd=nothing; translate_value=nothing, kwargs...)
-    translate_value === nothing ? pv.value : translate_value(pv.value)(upd; translate_value=nothing, kwargs...)
+function (pv::ParameterValue{T} where T<:Symbol)(upd=nothing; kwargs...)
+    translator = _value_translator()
+    translator === nothing && return pv.value
+    translated_value = translator(pv.value)
+    translated_value === nothing && return pv.value
+    parameter_value(translated_value)(upd; kwargs...)
 end
 
 _recursive_inner_value(x) = x

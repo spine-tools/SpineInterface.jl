@@ -96,6 +96,7 @@ export RelationshipClass
 export RelationshipLike
 export roll!
 export run_request
+export set_value_translator
 export start
 export startref
 export t_highest_resolution
@@ -121,6 +122,7 @@ export add_roll_hook!
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin
 		include("update_model.jl")
+		export set_expr_bound
 	end
 end
 
