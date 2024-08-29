@@ -252,12 +252,12 @@ function _fix(upd, fix_value)
         elseif is_fixed(var) && get(ext.fixer, var, nothing) === upd
             # Unfix the variable and restore saved bounds
             unfix(var)
-            lb = pop!(ext.lower_bound, var, nothing)
-            ub = pop!(ext.upper_bound, var, nothing)
-            if lb !== nothing
+            lb = pop!(ext.lower_bound, var, NaN)
+            ub = pop!(ext.upper_bound, var, NaN)
+            if isfinite(lb)
                 set_lower_bound(var, lb)
             end
-            if ub !== nothing
+            if isfinite(ub)
                 set_upper_bound(var, ub)
             end
             ext.fixer[var] = nothing
@@ -273,13 +273,15 @@ function fixer(var)
     end
 end
 
-set_expr_bound(_expr, _sense, ::Nothing) = nothing
-function set_expr_bound(expr, sense, bound::Number)
+_Sense = Union{typeof(==),typeof(<=),typeof(>=)}
+
+set_expr_bound(::GenericAffExpr, ::_Sense, ::Nothing) = nothing
+function set_expr_bound(expr::GenericAffExpr, sense::_Sense, bound::Number)
     m = owner_model(expr)
     (m === nothing || !isfinite(bound)) && return 
     _add_constraint(m, expr, sense, bound)
 end
-function set_expr_bound(expr, sense, call::Call)
+function set_expr_bound(expr::GenericAffExpr, sense::_Sense, call::Call)
     m = owner_model(expr)
     m === nothing && return
     upd = _ExprBoundUpdate(m, expr, sense, call)
@@ -300,14 +302,15 @@ function _do_set_expr_bound(::MOI.EqualTo, constraint, coefficient_updates, boun
                 upd()
             end
         end
-        set_normalized_rhs(upd.constraint, bound)
+        set_normalized_rhs(constraint, bound)
     else
         for upd in coefficient_updates
             _pause(upd)
             set_normalized_coefficient(upd.constraint, upd.variable, 0)
         end
-        set_normalized_rhs(upd.constraint, 0)
+        set_normalized_rhs(constraint, 0)
     end
+    constraint
 end
 function _do_set_expr_bound(_set, constraint, coefficient_updates, bound)
     if isfinite(bound)
