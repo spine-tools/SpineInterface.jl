@@ -349,7 +349,6 @@ function _is_constraint_equal(con1, con2)
 end
 
 @testset "update_model" begin
-#=
 	_test_build_constraint()
 	_test_do_update_model()
 	_test_time_series_upd()
@@ -357,6 +356,5 @@ end
 	_test_map_upd()
 	_test_update_range_constraint()
 	_test_variable_bounds()
-	=#
 	_test_expression_bounds()
 end
