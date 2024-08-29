@@ -304,7 +304,7 @@ function _do_set_expr_bound(::MOI.EqualTo, constraint, coefficient_updates, boun
     else
         for upd in coefficient_updates
             _pause(upd)
-            set_normalized_coefficient(upd.constraint, upd.var, 0)
+            set_normalized_coefficient(upd.constraint, upd.variable, 0)
         end
         set_normalized_rhs(upd.constraint, 0)
     end
