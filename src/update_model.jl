@@ -27,8 +27,6 @@ import .JuMP: MOI, MOIU, MutableArithmetics
 
 _Constant = Union{Number,UniformScaling}
 
-const _si_ext_lock = ReentrantLock()
-
 struct SpineInterfaceExt
     lower_bound::Dict{VariableRef,Any}
     upper_bound::Dict{VariableRef,Any}
@@ -36,12 +34,9 @@ struct SpineInterfaceExt
     SpineInterfaceExt() = new(Dict(), Dict(), Dict())
 end
 
-function _get_si_ext!(f, m)
-    lock(_si_ext_lock) do
-        ext = get!(m.ext, :spineinterface) do
-            SpineInterfaceExt()
-        end
-        f(ext)
+function _get_si_ext!(m)
+    get!(m.ext, :spineinterface) do
+        SpineInterfaceExt()
     end
 end
 
@@ -186,9 +181,8 @@ function _set_lower_bound(var, lb)
     if is_fixed(var)
         # Save bound
         m = owner_model(var)
-        _get_si_ext!(m) do ext
-            ext.lower_bound[var] = lb
-        end
+        ext = _get_si_ext!(m)
+        ext.lower_bound[var] = lb
     elseif isfinite(lb)
         set_lower_bound(var, lb)
     end
@@ -210,9 +204,8 @@ function _set_upper_bound(var, ub)
     if is_fixed(var)
         # Save bound
         m = owner_model(var)
-        _get_si_ext!(m) do ext
-            ext.upper_bound[var] = ub
-        end
+        ext =_get_si_ext!(m)
+        ext.upper_bound[var] = ub
     elseif isfinite(ub)
         set_upper_bound(var, ub)
     end
@@ -236,41 +229,39 @@ _fix(_upd, ::Nothing) = nothing
 function _fix(upd, fix_value)
     var = upd.variable
     m = owner_model(var)
-    _get_si_ext!(m) do ext
-        if !isnan(fix_value)
-            # Save bounds, remove them and then fix the value
-            if has_lower_bound(var)
-                ext.lower_bound[var] = lower_bound(var)
-                delete_lower_bound(var)
-            end
-            if has_upper_bound(var)
-                ext.upper_bound[var] = upper_bound(var)
-                delete_upper_bound(var)
-            end
-            fix(var, fix_value)
-            ext.fixer[var] = upd
-        elseif is_fixed(var) && get(ext.fixer, var, nothing) === upd
-            # Unfix the variable and restore saved bounds
-            unfix(var)
-            lb = pop!(ext.lower_bound, var, NaN)
-            ub = pop!(ext.upper_bound, var, NaN)
-            if isfinite(lb)
-                set_lower_bound(var, lb)
-            end
-            if isfinite(ub)
-                set_upper_bound(var, ub)
-            end
-            ext.fixer[var] = nothing
+    ext = _get_si_ext!(m)
+    if !isnan(fix_value)
+        # Save bounds, remove them and then fix the value
+        if has_lower_bound(var)
+            ext.lower_bound[var] = lower_bound(var)
+            delete_lower_bound(var)
         end
+        if has_upper_bound(var)
+            ext.upper_bound[var] = upper_bound(var)
+            delete_upper_bound(var)
+        end
+        fix(var, fix_value)
+        ext.fixer[var] = upd
+    elseif is_fixed(var) && get(ext.fixer, var, nothing) === upd
+        # Unfix the variable and restore saved bounds
+        unfix(var)
+        lb = pop!(ext.lower_bound, var, NaN)
+        ub = pop!(ext.upper_bound, var, NaN)
+        if isfinite(lb)
+            set_lower_bound(var, lb)
+        end
+        if isfinite(ub)
+            set_upper_bound(var, ub)
+        end
+        ext.fixer[var] = nothing
     end
 end
 
 function fixer(var)
     m = owner_model(var)
-    _get_si_ext!(m) do ext
-        upd = get(ext.fixer, var, nothing)
-        upd isa AbstractUpdate ? upd.call : nothing
-    end
+    ext = _get_si_ext!(m)
+    upd = get(ext.fixer, var, nothing)
+    upd isa AbstractUpdate ? upd.call : nothing
 end
 
 _Sense = Union{typeof(==),typeof(<=),typeof(>=)}
