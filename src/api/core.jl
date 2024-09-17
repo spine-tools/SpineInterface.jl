@@ -531,9 +531,10 @@ function add_objects!(object_class::ObjectClass, objects::Array)
 end
 
 function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
-    add_objects!(object_class, collect(keys(parameter_values)))
+    add_objects!(object_class, only.(keys(parameter_values)))
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     for (obj, vals) in parameter_values
+        obj = only(obj)
         do_merge!(object_class.parameter_values[obj], vals)
     end
 end
@@ -584,6 +585,13 @@ end
 
 function add_relationship!(relationship_class::RelationshipClass, relationship::RelationshipLike)
     add_relationships!(relationship_class, [relationship])
+end
+
+function add_parameter_values!(cls::ObjectClass, vals; kwargs...)
+    add_object_parameter_values!(cls, vals; kwargs...)
+end
+function add_parameter_values!(cls::RelationshipClass, vals; kwargs...)
+    add_relationship_parameter_values!(cls, vals; kwargs...)
 end
 
 """
@@ -694,7 +702,9 @@ function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
     nothing
 end
 
-const __active_env = Ref(:base)
+dimensions(cls::RelationshipClass) = cls.object_class_names
+
+const __active_env = Ref(:__base__)
 
 function _activate_env(env::Symbol)
     __active_env[] = env

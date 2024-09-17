@@ -43,6 +43,7 @@ export add_object_parameter_values!
 export add_object_parameter_defaults!
 export add_object!
 export add_objects!
+export add_parameter_values!
 export add_relationship_parameter_values!
 export add_relationship_parameter_defaults!
 export add_relationship!
@@ -57,6 +58,7 @@ export db_api
 export db_value
 export db_value_and_type
 export difference
+export dimensions
 export duration
 export end_
 export export_data
