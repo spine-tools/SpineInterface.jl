@@ -77,6 +77,7 @@ function _do_get_pvals(pvals_by_entity, entity)
     end
 end
 
+_find_match(pvals_by_entity, x) = nothing
 _find_match(pvals_by_entity, ::Missing) = nothing
 _find_match(pvals_by_entity, ::NTuple{N,Missing}) where N = nothing
 function _find_match(pvals_by_entity, objects::Tuple)
