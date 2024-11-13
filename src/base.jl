@@ -348,6 +348,8 @@ Base.max(x::Call, y::Call) = Call(max, [x, y])
 Base.max(x::Call, y) = Call(max, [x, y])
 Base.max(x, y::Call) = Call(max, [x, y])
 
+Base.round(x::Call, r=RoundToZero) = Call(round, [x, r])
+
 _arg(x::Call) = _arg(x.func, x)
 _arg(::Nothing, x) = x.args[1]
 _arg(::T, x) where T = x
