@@ -397,27 +397,39 @@ end
 # realize
 function realize(s::_GreaterThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.GreaterThan(Float64(realize(c, _RHSUpdate(con_ref, c))))
+    MOI.GreaterThan(Float64(_realize_finite(c, _RHSUpdate(con_ref, c))))
 end
 function realize(s::_LessThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.LessThan(Float64(realize(c, _RHSUpdate(con_ref, c))))
+    MOI.LessThan(Float64(_realize_finite(c, _RHSUpdate(con_ref, c))))
 end
 function realize(s::_EqualToCall, con_ref)
     c = MOI.constant(s)
-    MOI.EqualTo(Float64(realize(c, _RHSUpdate(con_ref, c))))
+    MOI.EqualTo(Float64(_realize_finite(c, _RHSUpdate(con_ref, c))))
 end
 function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
-    MOI.Interval(Float64(realize(l, _LowerBoundUpdate(con_ref, l))), Float64(realize(u, _UpperBoundUpdate(con_ref, u))))
+    MOI.Interval(
+        Float64(_realize_finite(l, _LowerBoundUpdate(con_ref, l))),
+        Float64(_realize_finite(u, _UpperBoundUpdate(con_ref, u))),
+    )
 end
 function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
-    constant = Float64(realize(e.constant))
+    constant = Float64(_realize_finite(e.constant))
     terms = OrderedDict{VariableRef,Float64}(
-        var => realize(coef, _coefficient_update(model_or_con_ref, var, coef)) for (var, coef) in e.terms
+        var => _realize_finite(coef, _coefficient_update(model_or_con_ref, var, coef)) for (var, coef) in e.terms
     )
     GenericAffExpr(constant, terms)
 end
+
+function _realize_finite(x, upd=nothing)
+    v = realize(x, upd)
+    isfinite(v) && return v
+    error(
+        "the expression below resulted in a non-finite value - this is probably due to missing time-series data:\n\n$x"
+    )
+end
+
 
 _coefficient_update(m::Model, v, coef) = _ObjectiveCoefficientUpdate(m, v, coef)
 _coefficient_update(cr::Ref{ConstraintRef}, v, coef) = _ConstraintCoefficientUpdate(cr, v, coef)
