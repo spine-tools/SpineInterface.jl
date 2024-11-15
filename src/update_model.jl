@@ -138,26 +138,28 @@ Base.show(io::IO, upd::_ObjectiveCoefficientUpdate) = print(
 (upd::_VariableLBUpdate)() = _set_lower_bound(upd.variable, realize(upd.call, upd))
 (upd::_VariableUBUpdate)() = _set_upper_bound(upd.variable, realize(upd.call, upd))
 (upd::_VariableFixValueUpdate)() = _fix(upd, realize(upd.call, upd))
-(upd::_ObjectiveCoefficientUpdate)() = set_objective_coefficient(upd.model, upd.variable, realize(upd.call, upd))
-function (upd::_ConstraintCoefficientUpdate)()
-    set_normalized_coefficient(upd.constraint[], upd.variable, realize(upd.call, upd))
+function (upd::_ObjectiveCoefficientUpdate)()
+    set_objective_coefficient(upd.model, upd.variable, _realize_finite(upd.call, upd))
 end
-(upd::_RHSUpdate)() = set_normalized_rhs(upd.constraint[], realize(upd.call, upd))
+function (upd::_ConstraintCoefficientUpdate)()
+    set_normalized_coefficient(upd.constraint[], upd.variable, _realize_finite(upd.call, upd))
+end
+(upd::_RHSUpdate)() = set_normalized_rhs(upd.constraint[], _realize_finite(upd.call, upd))
 function (upd::_LowerBoundUpdate)()
     constraint = upd.constraint[]
     model = owner_model(constraint)
     upper = MOI.get(model, MOI.ConstraintSet(), constraint).upper
-    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(realize(upd.call, upd), upper))
+    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(_realize_finite(upd.call, upd), upper))
 end
 function (upd::_UpperBoundUpdate)()
     constraint = upd.constraint[]
     model = owner_model(constraint)
     lower = MOI.get(model, MOI.ConstraintSet(), constraint).lower
-    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, realize(upd.call, upd)))
+    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, _realize_finite(upd.call, upd)))
 end
 (upd::_ExprBoundUpdate)() = _set_expr_bound(upd.constraint, upd.coefficient_updates, realize(upd.call, upd))
 function (upd::_PausableConstraintCoefficientUpdate)()
-    new_coef = realize(upd.call, upd)
+    new_coef = _realize_finite(upd.call, upd)
     upd.paused[] || set_normalized_coefficient(upd.constraint, upd.variable, new_coef)
 end
 
