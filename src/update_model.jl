@@ -23,7 +23,7 @@
 using .JuMP
 import DataStructures: OrderedDict
 import LinearAlgebra: UniformScaling
-import .JuMP: MOI, MOIU, MutableArithmetics
+import .JuMP: MOI, MOIU, _MA as MutableArithmetics
 
 _Constant = Union{Number,UniformScaling}
 
