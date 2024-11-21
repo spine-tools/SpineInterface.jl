@@ -442,7 +442,11 @@ Dict(
     :object_groups => [[:class_name, :group_name, :member_name], ...],
     :scenarios => [(:scen_name, true), ...],  # true for the active flag, not in use at the moment
     :alternatives => [:alt_name, ...],
-    :scenario_alternatives => [(:scen_name, :alt_name, nothing), (:scen_name, :lower_alt_name, :alt_name), ...]
+    :scenario_alternatives => [(:scen_name, :alt_name, nothing), (:scen_name, :lower_alt_name, :alt_name), ...],
+    :entity_alternatives => [
+        [:object_class, :entity_name, :alt_name, true], ...
+        [:multi_d_class, [:entity_name1, :entity_name2], :alt_name, false]
+    ]
 )
 ```
 
