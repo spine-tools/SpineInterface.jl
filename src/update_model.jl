@@ -27,8 +27,6 @@ import .JuMP: MOI, MOIU, _MA as MutableArithmetics
 
 _Constant = Union{Number,UniformScaling}
 
-const _si_ext_lock = ReentrantLock()
-
 struct SpineInterfaceExt
     lower_bound::Dict{VariableRef,Any}
     upper_bound::Dict{VariableRef,Any}
@@ -36,12 +34,9 @@ struct SpineInterfaceExt
     SpineInterfaceExt() = new(Dict(), Dict(), Dict())
 end
 
-function _get_si_ext!(f, m)
-    lock(_si_ext_lock) do
-        ext = get!(m.ext, :spineinterface) do
-            SpineInterfaceExt()
-        end
-        f(ext)
+function _get_si_ext!(m)
+    get!(m.ext, :spineinterface) do
+        SpineInterfaceExt()
     end
 end
 
@@ -143,26 +138,28 @@ Base.show(io::IO, upd::_ObjectiveCoefficientUpdate) = print(
 (upd::_VariableLBUpdate)() = _set_lower_bound(upd.variable, realize(upd.call, upd))
 (upd::_VariableUBUpdate)() = _set_upper_bound(upd.variable, realize(upd.call, upd))
 (upd::_VariableFixValueUpdate)() = _fix(upd, realize(upd.call, upd))
-(upd::_ObjectiveCoefficientUpdate)() = set_objective_coefficient(upd.model, upd.variable, realize(upd.call, upd))
-function (upd::_ConstraintCoefficientUpdate)()
-    set_normalized_coefficient(upd.constraint[], upd.variable, realize(upd.call, upd))
+function (upd::_ObjectiveCoefficientUpdate)()
+    set_objective_coefficient(upd.model, upd.variable, _realize_finite(upd.call, upd))
 end
-(upd::_RHSUpdate)() = set_normalized_rhs(upd.constraint[], realize(upd.call, upd))
+function (upd::_ConstraintCoefficientUpdate)()
+    set_normalized_coefficient(upd.constraint[], upd.variable, _realize_finite(upd.call, upd))
+end
+(upd::_RHSUpdate)() = set_normalized_rhs(upd.constraint[], _realize_finite(upd.call, upd))
 function (upd::_LowerBoundUpdate)()
     constraint = upd.constraint[]
     model = owner_model(constraint)
     upper = MOI.get(model, MOI.ConstraintSet(), constraint).upper
-    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(realize(upd.call, upd), upper))
+    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(_realize_finite(upd.call, upd), upper))
 end
 function (upd::_UpperBoundUpdate)()
     constraint = upd.constraint[]
     model = owner_model(constraint)
     lower = MOI.get(model, MOI.ConstraintSet(), constraint).lower
-    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, realize(upd.call, upd)))
+    MOI.set(model, MOI.ConstraintSet(), constraint, MOI.Interval(lower, _realize_finite(upd.call, upd)))
 end
 (upd::_ExprBoundUpdate)() = _set_expr_bound(upd.constraint, upd.coefficient_updates, realize(upd.call, upd))
 function (upd::_PausableConstraintCoefficientUpdate)()
-    new_coef = realize(upd.call, upd)
+    new_coef = _realize_finite(upd.call, upd)
     upd.paused[] || set_normalized_coefficient(upd.constraint, upd.variable, new_coef)
 end
 
@@ -186,9 +183,8 @@ function _set_lower_bound(var, lb)
     if is_fixed(var)
         # Save bound
         m = owner_model(var)
-        _get_si_ext!(m) do ext
-            ext.lower_bound[var] = lb
-        end
+        ext = _get_si_ext!(m)
+        ext.lower_bound[var] = lb
     elseif isfinite(lb)
         set_lower_bound(var, lb)
     end
@@ -210,9 +206,8 @@ function _set_upper_bound(var, ub)
     if is_fixed(var)
         # Save bound
         m = owner_model(var)
-        _get_si_ext!(m) do ext
-            ext.upper_bound[var] = ub
-        end
+        ext =_get_si_ext!(m)
+        ext.upper_bound[var] = ub
     elseif isfinite(ub)
         set_upper_bound(var, ub)
     end
@@ -236,41 +231,39 @@ _fix(_upd, ::Nothing) = nothing
 function _fix(upd, fix_value)
     var = upd.variable
     m = owner_model(var)
-    _get_si_ext!(m) do ext
-        if !isnan(fix_value)
-            # Save bounds, remove them and then fix the value
-            if has_lower_bound(var)
-                ext.lower_bound[var] = lower_bound(var)
-                delete_lower_bound(var)
-            end
-            if has_upper_bound(var)
-                ext.upper_bound[var] = upper_bound(var)
-                delete_upper_bound(var)
-            end
-            fix(var, fix_value)
-            ext.fixer[var] = upd
-        elseif is_fixed(var) && get(ext.fixer, var, nothing) === upd
-            # Unfix the variable and restore saved bounds
-            unfix(var)
-            lb = pop!(ext.lower_bound, var, NaN)
-            ub = pop!(ext.upper_bound, var, NaN)
-            if isfinite(lb)
-                set_lower_bound(var, lb)
-            end
-            if isfinite(ub)
-                set_upper_bound(var, ub)
-            end
-            ext.fixer[var] = nothing
+    ext = _get_si_ext!(m)
+    if !isnan(fix_value)
+        # Save bounds, remove them and then fix the value
+        if has_lower_bound(var)
+            ext.lower_bound[var] = lower_bound(var)
+            delete_lower_bound(var)
         end
+        if has_upper_bound(var)
+            ext.upper_bound[var] = upper_bound(var)
+            delete_upper_bound(var)
+        end
+        fix(var, fix_value)
+        ext.fixer[var] = upd
+    elseif is_fixed(var) && get(ext.fixer, var, nothing) === upd
+        # Unfix the variable and restore saved bounds
+        unfix(var)
+        lb = pop!(ext.lower_bound, var, NaN)
+        ub = pop!(ext.upper_bound, var, NaN)
+        if isfinite(lb)
+            set_lower_bound(var, lb)
+        end
+        if isfinite(ub)
+            set_upper_bound(var, ub)
+        end
+        ext.fixer[var] = nothing
     end
 end
 
 function fixer(var)
     m = owner_model(var)
-    _get_si_ext!(m) do ext
-        upd = get(ext.fixer, var, nothing)
-        upd isa AbstractUpdate ? upd.call : nothing
-    end
+    ext = _get_si_ext!(m)
+    upd = get(ext.fixer, var, nothing)
+    upd isa AbstractUpdate ? upd.call : nothing
 end
 
 _Sense = Union{typeof(==),typeof(<=),typeof(>=)}
@@ -406,27 +399,39 @@ end
 # realize
 function realize(s::_GreaterThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.GreaterThan(Float64(realize(c, _RHSUpdate(con_ref, c))))
+    MOI.GreaterThan(Float64(_realize_finite(c, _RHSUpdate(con_ref, c))))
 end
 function realize(s::_LessThanCall, con_ref)
     c = MOI.constant(s)
-    MOI.LessThan(Float64(realize(c, _RHSUpdate(con_ref, c))))
+    MOI.LessThan(Float64(_realize_finite(c, _RHSUpdate(con_ref, c))))
 end
 function realize(s::_EqualToCall, con_ref)
     c = MOI.constant(s)
-    MOI.EqualTo(Float64(realize(c, _RHSUpdate(con_ref, c))))
+    MOI.EqualTo(Float64(_realize_finite(c, _RHSUpdate(con_ref, c))))
 end
 function realize(s::_CallInterval, con_ref)
     l, u = s.lower, s.upper
-    MOI.Interval(Float64(realize(l, _LowerBoundUpdate(con_ref, l))), Float64(realize(u, _UpperBoundUpdate(con_ref, u))))
+    MOI.Interval(
+        Float64(_realize_finite(l, _LowerBoundUpdate(con_ref, l))),
+        Float64(_realize_finite(u, _UpperBoundUpdate(con_ref, u))),
+    )
 end
 function realize(e::GenericAffExpr{C,VariableRef}, model_or_con_ref=nothing) where {C}
-    constant = Float64(realize(e.constant))
+    constant = Float64(_realize_finite(e.constant))
     terms = OrderedDict{VariableRef,Float64}(
-        var => realize(coef, _coefficient_update(model_or_con_ref, var, coef)) for (var, coef) in e.terms
+        var => _realize_finite(coef, _coefficient_update(model_or_con_ref, var, coef)) for (var, coef) in e.terms
     )
     GenericAffExpr(constant, terms)
 end
+
+function _realize_finite(x, upd=nothing)
+    v = realize(x, upd)
+    isfinite(v) && return v
+    error(
+        "the expression below resulted in a non-finite value - this is probably due to missing time-series data:\n\n$x"
+    )
+end
+
 
 _coefficient_update(m::Model, v, coef) = _ObjectiveCoefficientUpdate(m, v, coef)
 _coefficient_update(cr::Ref{ConstraintRef}, v, coef) = _ConstraintCoefficientUpdate(cr, v, coef)

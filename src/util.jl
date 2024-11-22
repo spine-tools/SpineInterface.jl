@@ -77,6 +77,7 @@ function _do_get_pvals(pvals_by_entity, entity)
     end
 end
 
+_find_match(pvals_by_entity, x) = nothing
 _find_match(pvals_by_entity, ::Missing) = nothing
 _find_match(pvals_by_entity, ::NTuple{N,Missing}) where N = nothing
 function _find_match(pvals_by_entity, objects::Tuple)
@@ -112,7 +113,7 @@ end
 
 _do_realize(x, _upd) = x
 _do_realize(call::Call, upd) = _do_realize(call.func, call, upd)
-_do_realize(::Nothing, call, _upd) = call.args[1]
+_do_realize(::Nothing, call, _upd) = realize(call.args[1])
 function _do_realize(pv::T, call, upd) where T<:ParameterValue
     pv(upd; call.kwargs...)
 end
@@ -129,7 +130,7 @@ function _do_realize(::T, call, upd) where T<:Function
             continue
         else
             # no children, realize value
-            current.value[] = _do_realize(current.call, upd)
+            current.value[] = realize(current.call, upd)
         end
         current.parent === nothing && break
         if current.child_number < length(current.parent.call.args)
