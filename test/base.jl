@@ -149,15 +149,40 @@
     @test op_call isa Call
     @test convert(Int, realize(op_call)) === -1
     # Call times
-    op_call = zero_call * one_call
-    @test op_call isa Call
-    @test convert(Int, realize(op_call)) === 0
-    op_call = 0 * one_call
-    @test op_call isa Call
-    @test convert(Int, realize(op_call)) === 0
     op_call = zero_call * 1
     @test op_call isa Call
     @test convert(Int, realize(op_call)) === 0
+    op_call = zero_call * -1
+    @test op_call isa Call
+    @test convert(Int, realize(op_call)) === 0
+    op_call = zero_call * one_call
+    @test op_call isa Call
+    @test convert(Int, realize(op_call)) === 0
+    op_call = one_call * one_call
+    @test op_call isa Call
+    @test convert(Int, realize(op_call)) === 1
+    minus_one_call = -one_call
+    op_call = one_call * minus_one_call
+    @test op_call isa Call
+    @test convert(Int, realize(op_call)) === -1
+    op_call = minus_one_call * minus_one_call
+    @test op_call isa Call
+    @test convert(Int, realize(op_call)) === 1
+    op_call = 0 * one_call
+    @test op_call isa Call
+    @test convert(Int, realize(op_call)) === 0
+    op_call = 1 * one_call
+    @test op_call isa Call
+    @test convert(Int, realize(op_call)) === 1
+    op_call = -1 * one_call
+    @test op_call isa Call
+    @test convert(Int, realize(op_call)) === -1
+    op_call = -1 * minus_one_call
+    @test op_call isa Call
+    @test convert(Int, realize(op_call)) === 1
+    op_call = 2 * one_call
+    @test op_call isa Call
+    @test convert(Int, realize(op_call)) === 2
     # Call div
     op_call = zero_call / one_call
     @test op_call isa Call

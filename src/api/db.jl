@@ -26,7 +26,7 @@ The argument `url` is either the url of the DB, or of an HTTP Spine DB server as
 # Keyword arguments
   - `upgrade`: if `true`, then the database is upgraded to the latest revision.
   - `filters`: a `Dict` specifying filters.
-  - `extend`: if `false`, then any convenience functions already created in the given module are 
+  - `extend`: if `false`, then any convenience functions already created in the given module are
     overwritten. Otherwise they are extended.
 
 See [`ObjectClass()`](@ref), [`RelationshipClass()`](@ref), and [`Parameter()`](@ref) for details on
@@ -245,7 +245,7 @@ function _class_names_per_parameter(object_classes, relationship_classes, param_
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
 end
 
-function _generate_convenience_functions(data, mod; filters, extend)
+function _generate_convenience_functions(data, mod; filters=Dict(), extend=false)
     object_classes = get(data, "object_classes", [])
     relationship_classes = get(data, "relationship_classes", [])
     objects = get(data, "objects", [])
@@ -428,7 +428,7 @@ _object_class_name(key, val) = string(key)
 Import data to a Spine db.
 
 # Arguments
-- `url::String`: the url of the target database. 
+- `url::String`: the url of the target database.
 - `data::Dict`: the data to import, in the format below.
 - `comment::String`: the commit message.
 

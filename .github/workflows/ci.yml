@@ -1,15 +1,11 @@
-# GitHub Action
-
 name: CI
 
-# Run workflow on every push
 on:
   push
 
 jobs:
-  test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
-    runs-on: ${{ matrix.os }}
+  call_test:
+    name: Test on Julia ${{ matrix.version }} - ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -18,54 +14,25 @@ jobs:
           - "1"    # Latest Release
         os:
           - ubuntu-latest
-          # - macOS-latest
           - windows-latest
-        arch:
-          - x64
-          # - x86  # FIXME: We don't support x86 because we type-annotate with Int64 and Float64 sparingly
         python-version: ["3.11"]
-        exclude:
-          # Test 32-bit only on Linux
-          - os: macOS-latest
-            arch: x86
-          - os: windows-latest
-            arch: x86
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.11' 
-      - uses: julia-actions/setup-julia@v1
-        with:
-          version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
-      - run: |
-          git config --global user.name Tester
-          git config --global user.email te@st.er
-      - name: Install spinedb_api
-        run:
-          julia ./.install_spinedb_api.jl
-        env:
-          PYTHON: python
-      - uses: julia-actions/julia-runtest@latest
-      - uses: julia-actions/julia-processcoverage@v1
-        if: matrix.version == '1' && matrix.os == 'ubuntu-latest'
-      - uses: codecov/codecov-action@v4
-        with:
-          file: lcov.info
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    uses: ./.github/workflows/Test.yml
+    with:
+      host-os: ${{ matrix.os }}
+      julia-version: ${{ matrix.version }}
+      python-version: ${{ matrix.python-version }}
+    secrets: inherit
   Documenter:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11' 
+          python-version: '3.11'
       - name: Install dependencies
         run: |
-          julia ./.install_spinedb_api.jl          
+          julia ./.install_spinedb_api.jl
           julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - uses: julia-actions/julia-docdeploy@latest
         env:
