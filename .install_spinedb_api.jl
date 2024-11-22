@@ -4,10 +4,5 @@ pkg"registry add https://github.com/spine-tools/SpineJuliaRegistry"
 pkg"add PyCall"
 using PyCall
 python = PyCall.pyprogramname
-if isempty(ARGS)
-    spine_db_api_git_ref = "release-0.30.5\#egg=spinedb_api"
-else
-    spine_db_api_git_ref = ARGS[1]
-end
 run(`$python -m pip install --user setuptools-scm`)
-run(`$python -m pip install --user git+https://github.com/spine-tools/Spine-Database-API@$spine_db_api_git_ref`)
+run(`$python -m pip install --user git+https://github.com/spine-tools/Spine-Database-API.git@release-0.30.5\#egg=spinedb_api`)
