@@ -353,8 +353,8 @@ end
 
 function _get_time_series_value(pv, t::DateTime, upd)
     pv.value.ignore_year && (t -= Year(t))
-    t < pv.value.indexes[1] && return NaN
-    t > pv.value.indexes[end] && !pv.value.ignore_year && return NaN
+    t < pv.value.indexes[1] && throw(DomainError(pv, "Time index $t out of range!"))
+    t > pv.value.indexes[end] && !pv.value.ignore_year && throw(DomainError(pv, "Time index $t out of range!"))
     pv.value.values[max(1, searchsortedlast(pv.value.indexes, t))]
 end
 function _get_time_series_value(pv, t::TimeSlice, upd)
@@ -365,8 +365,8 @@ function _get_time_series_value(pv, t::TimeSlice, upd)
         timeout = _timeout(pv.value, t_start, t_end, a, b)
         _add_update(t, timeout, upd)
     end
-    t_end <= pv.value.indexes[1] && return NaN
-    t_start > pv.value.indexes[end] && !pv.value.ignore_year && return NaN
+    t_end <= pv.value.indexes[1] && throw(DomainError(pv, "Time index $t out of range!"))
+    t_start > pv.value.indexes[end] && !pv.value.ignore_year && throw(DomainError(pv, "Time index $t out of range!"))
     mean(Iterators.filter(!isnan, pv.value.values[a:b]))
 end
 
