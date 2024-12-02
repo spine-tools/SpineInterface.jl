@@ -143,7 +143,7 @@ end
 
 Roll the given `t` in time by the period specified by `forward` and returns updates to call.
 """
-function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod})
+function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod}; return_updates=false)
     t.start[] += forward
     t.end_[] += forward
     updates = []
@@ -155,7 +155,11 @@ function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod})
             t.updates[upd] = timeout
         end
     end
-    updates
+    if return_updates
+        updates
+    else
+        (upd -> upd()).(updates)
+    end
 end
 
 """
