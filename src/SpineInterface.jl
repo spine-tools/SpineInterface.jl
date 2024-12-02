@@ -53,6 +53,7 @@ export anything
 export before
 export blocks
 export Call
+export collect_updates
 export contains
 export db_api
 export db_value
@@ -91,7 +92,6 @@ export parse_db_value
 export parse_time_period
 export push_class!
 export realize
-export refresh!
 export relationship_class
 export relationship_classes
 export RelationshipClass

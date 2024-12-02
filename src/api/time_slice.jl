@@ -139,38 +139,32 @@ function overlap_duration(a::TimeSlice, b::TimeSlice)
 end
 
 """
-    roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod}; update::Bool=true)
+    roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
 
-Roll the given `t` in time by the period specified by `forward`.
+Roll the given `t` in time by the period specified by `forward` and returns updates to call.
 """
 function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod})
     t.start[] += forward
     t.end_[] += forward
-    # Refresh
-    to_call = []
+    updates = []
     for (upd, timeout) in t.updates
         timeout -= forward
         if Dates.toms(forward) < 0 || Dates.toms(timeout) <= 0
-            push!(to_call, upd)
+            push!(updates, upd)
         else
             t.updates[upd] = timeout
         end
     end
-    _do_call.(to_call)
-    t
+    updates
 end
 
 """
-    refresh!(t::TimeSlice)
+    collect_updates(t::TimeSlice)
 
-Call updates registered in the given `t`.
+Collect updates registered in the given `t`.
 """
-function refresh!(t::TimeSlice)
-    _do_call.(keys(t.updates))
-end
-
-function _do_call(upd)
-    upd()
+function collect_updates(t::TimeSlice)
+    collect(keys(t.updates))
 end
 
 function add_roll_hook!(t, fn)
