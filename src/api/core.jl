@@ -254,24 +254,55 @@ A value from `pv`.
 """
 function (pv::ParameterValue)(upd=nothing; kwargs...) end
 (pv::ParameterValue{T} where T<:_Scalar)(upd=nothing; kwargs...) = pv.value
-(pv::ParameterValue{T} where T<:Array)(upd=nothing; i::Union{Int64,Nothing}=nothing, kwargs...) = _get_value(pv, i)
+function (pv::ParameterValue{T} where T<:Array)(upd=nothing; i::Union{Int64,Nothing}=nothing, kwargs...)
+    _get_value(pv, :i, i, upd)
+end
 function (pv::ParameterValue{T} where T<:Union{TimePattern,TimeSeries})(
     upd=nothing; t::Union{DateTime,TimeSlice,Nothing}=nothing, kwargs...
 )
-    _get_value(pv, t, upd)
+    _get_value(pv, :t, t, upd)
 end
 function (pv::ParameterValue{T} where {T<:Map})(upd=nothing, cycles=0; kwargs...)
     isempty(kwargs) && return _recursive_inner_value(pv.value)
-    (kw, arg), new_kwargs = Iterators.peel(kwargs)
-    _recursive_inner_value(_get_value(pv, kw, arg, upd, cycles; new_kwargs...))
+    current_pv = pv
+    resolved = Set()
+    while true
+        found = false
+        for (kw, arg) in kwargs
+            kw in resolved && continue
+            x = try
+                _get_value(current_pv, kw, arg, upd)
+            catch
+                nothing
+            end
+            x === nothing && continue
+            if x isa ParameterValue
+                push!(resolved, kw)
+                current_pv = _translated_pv(x)
+                found = true
+                break
+            else
+                return x
+            end
+        end
+        found || break
+    end
+    _recursive_inner_value(current_pv)
 end
 function (pv::ParameterValue{T} where T<:Symbol)(upd=nothing; kwargs...)
-    translator = _value_translator()
-    translator === nothing && return pv.value
-    translated_value = translator(pv.value)
-    translated_value === nothing && return pv.value
-    parameter_value(translated_value)(upd; kwargs...)
+    translated_pv = _translated_pv(pv)
+    translated_pv === nothing && return pv.value
+    translated_pv(upd; kwargs...)
 end
+
+function _translated_pv(pv::ParameterValue{T}) where T<:Symbol
+    translator = _value_translator()
+    translator === nothing && return nothing
+    translated_value = translator(pv.value)
+    translated_value === nothing && return nothing
+    parameter_value(translated_value)
+end
+_translated_pv(pv::ParameterValue) = pv
 
 _recursive_inner_value(x) = x
 _recursive_inner_value(x::ParameterValue) = _recursive_inner_value(x.value)
@@ -280,14 +311,14 @@ function _recursive_inner_value(x::Map)
 end
 
 # Array
-_get_value(pv::ParameterValue{T}, ::Nothing) where T<:Array = pv.value
-_get_value(pv::ParameterValue{T}, i::Int64) where T<:Array = get(pv.value, i, nothing)
+_get_value(pv::ParameterValue{T}, _kw, ::Nothing, upd) where T<:Array = pv.value
+_get_value(pv::ParameterValue{T}, _kw, i::Int64, upd) where T<:Array = get(pv.value, i, nothing)
 # TimePattern
-_get_value(pv::ParameterValue{T}, ::Nothing, upd) where T<:TimePattern = pv.value
-function _get_value(pv::ParameterValue{T}, t::DateTime, upd) where T<:TimePattern
-    _get_value(pv, TimeSlice(t, t), upd)
+_get_value(pv::ParameterValue{T}, _kw, ::Nothing, upd) where T<:TimePattern = pv.value
+function _get_value(pv::ParameterValue{T}, _kw, t::DateTime, upd) where T<:TimePattern
+    _get_value(pv, _kw, TimeSlice(t, t), upd)
 end
-function _get_value(pv::ParameterValue{T}, t::TimeSlice, upd) where T<:TimePattern
+function _get_value(pv::ParameterValue{T}, _kw, t::TimeSlice, upd) where T<:TimePattern
     vals = [val for (tp, val) in pv.value if overlaps(t, tp)]
     if upd !== nothing
         timeout = if isempty(vals)
@@ -304,8 +335,8 @@ function _get_value(pv::ParameterValue{T}, t::TimeSlice, upd) where T<:TimePatte
     mean(vals)
 end
 # TimeSeries
-_get_value(pv::ParameterValue{T}, ::Nothing, upd) where T<:TimeSeries = pv.value
-function _get_value(pv::ParameterValue{T}, t, upd) where T<:TimeSeries
+_get_value(pv::ParameterValue{T}, _kw, ::Nothing, upd) where T<:TimeSeries = pv.value
+function _get_value(pv::ParameterValue{T}, _kw, t, upd) where T<:TimeSeries
     if pv.value.repeat
         _get_repeating_time_series_value(pv, t, upd)
     else
@@ -313,42 +344,30 @@ function _get_value(pv::ParameterValue{T}, t, upd) where T<:TimeSeries
     end
 end
 # Map
-function _get_value(pv::ParameterValue{T}, kw, arg, upd, cycles; kwargs...) where {T<:Map}
+function _get_value(pv::ParameterValue{T}, kw, arg, upd) where {T<:Map}
     i = _search_equal(pv.value.indexes, arg)
-    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
-    pv.value.values[i](upd; kwargs...)
+    i === nothing && return nothing
+    pv.value.values[i]
 end
-function _get_value(pv::ParameterValue{T}, kw, arg::Object, upd, cycles; kwargs...) where {V,T<:Map{Symbol,V}}
+function _get_value(pv::ParameterValue{T}, kw, arg::Object, upd) where {V,T<:Map{Symbol,V}}
     i = _search_equal(pv.value.indexes, arg.name)
-    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
-    pv.value.values[i](upd; kwargs...)
+    i === nothing && return nothing
+    pv.value.values[i]
 end
-function _get_value(
-    pv::ParameterValue{T}, kw, arg::K, upd, cycles; kwargs...
-) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
+function _get_value(pv::ParameterValue{T}, kw, arg::K, upd) where {V,K<:Union{DateTime,Float64},T<:Map{K,V}}
     i = _search_nearest(pv.value.indexes, arg)
-    i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
-    pv.value.values[i](upd; kwargs...)
+    i === nothing && return nothing
+    pv.value.values[i]
 end
-function _get_value(pv::ParameterValue{T}, kw, arg::Pair{TimeSlice,V}, upd, cycles; kwargs...) where {T<:Map,V}
+function _get_value(pv::ParameterValue{T}, kw, arg::Pair{TimeSlice,V}, upd) where {T<:Map,V}
     t, arg = arg
     if upd !== nothing
         _add_update(t, Minute(-1), upd)
     end
-    _get_value(pv, kw, arg, upd, cycles; kwargs...)
+    _get_value(pv, kw, arg, upd)
 end
-function _get_value(pv::ParameterValue{T}, kw, arg::Base.RefValue, upd, cycles; kwargs...) where {T<:Map}
-    _get_value(pv, kw, arg[], upd, cycles; kwargs...)
-end
-
-"""
-Called when `arg` is not found at the current level of `pv`.
-Push the `kw => arg` to the tail of the `kwargs` and start over.
-With this, the order of the `kwargs` doesn't necessarily need to match the order of the `pv` keys.
-"""
-function _get_value_cyclic(pv::ParameterValue{T}, kw, arg, upd, cycles; kwargs...) where {T<:Map}
-    cycles >= length(kwargs) && return pv
-    pv(upd, cycles + 1; kwargs..., zip((kw,), (arg,))...)
+function _get_value(pv::ParameterValue{T}, kw, arg::Base.RefValue, upd) where {T<:Map}
+    _get_value(pv, kw, arg[], upd)
 end
 
 function _get_time_series_value(pv, t::DateTime, upd)
@@ -358,8 +377,11 @@ function _get_time_series_value(pv, t::DateTime, upd)
     pv.value.values[max(1, searchsortedlast(pv.value.indexes, t))]
 end
 function _get_time_series_value(pv, t::TimeSlice, upd)
-    adjusted_t = pv.value.ignore_year ? t - Year(start(t)) : t
-    t_start, t_end = start(adjusted_t), end_(adjusted_t)
+    t_start, t_end = if pv.value.ignore_year
+        start(t) - Year(start(t)), end_(t) - Year(start(t))
+    else
+        start(t), end_(t)
+    end
     a, b = _search_overlap(pv.value, t_start, t_end)
     if upd !== nothing
         timeout = _timeout(pv.value, t_start, t_end, a, b)
@@ -378,9 +400,11 @@ function _get_repeating_time_series_value(pv, t::DateTime, upd)
     pv.value.values[max(1, searchsortedlast(pv.value.indexes, t))]
 end
 function _get_repeating_time_series_value(pv, t::TimeSlice, upd)
-    adjusted_t = pv.value.ignore_year ? t - Year(start(t)) : t
-    t_start = start(adjusted_t)
-    t_end = end_(adjusted_t)
+    t_start, t_end = if pv.value.ignore_year
+        start(t) - Year(start(t)), end_(t) - Year(start(t))
+    else
+        start(t), end_(t)
+    end
     mismatch_start = t_start - pv.value.indexes[1]
     mismatch_end = t_end - pv.value.indexes[1]
     reps_start = fld(mismatch_start, pv.span)

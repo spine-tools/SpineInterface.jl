@@ -40,6 +40,57 @@ struct Call
     args::Vector
     kwargs::Union{Iterators.Pairs,NamedTuple}
     caller
+    root_node::Ref{Any}
+    function Call(func, args, kwargs, caller)
+        call = new(func, args, kwargs, caller, nothing)
+        call.root_node[] = _root_node(func, call)
+        call
+    end
+end
+
+struct _CallNode
+    call::Call
+    parent::Union{_CallNode,Nothing}
+    child_number::Int64
+    children::Vector{_CallNode}
+    value::Ref{Any}
+    function _CallNode(call, parent, child_number)
+        node = new(call, parent, child_number, Vector{_CallNode}(), nothing)
+        if parent !== nothing
+            push!(parent.children, node)
+        end
+        node
+    end
+end
+
+_root_node(func, call) = nothing
+function _root_node(::T, call) where T<:Function
+    current = _CallNode(call, nothing, -1)
+    while true
+        if isempty(current.children) && current.call.func isa Function
+            # visit children
+            current = _first_child(current)
+            continue
+        end
+        current.parent === nothing && break
+        sibling = _next_sibling(current)
+        if sibling !== nothing
+            # visit sibling
+            current = sibling
+        else
+            # go back to parent
+            current = current.parent
+        end
+    end
+    current
+end
+
+_first_child(node::_CallNode) = _CallNode(node.call.args[1], node, 1)
+
+function _next_sibling(node::_CallNode)
+    sibling_child_number = node.child_number + 1
+    sibling_child_number > length(node.parent.call.args) && return nothing
+    _CallNode(node.parent.call.args[sibling_child_number], node.parent, sibling_child_number)
 end
 
 """
@@ -71,14 +122,13 @@ struct TimeSlice
     blocks::NTuple{N,Object} where {N}
     id::UInt64
     actual_duration::Union{Dates.CompoundPeriod,Period}
-    updates::OrderedDict
-    updates_lock::ReentrantLock
+    updates::Dict
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
         blocks = isempty(blocks) ? () : Tuple(sort(collect(blocks)))
         id = objectid((start, end_, duration, blocks))
         actual_duration = canonicalize(end_ - start)
-        new(Ref(start), Ref(end_), duration, blocks, id, actual_duration, OrderedDict(), ReentrantLock())
+        new(Ref(start), Ref(end_), duration, blocks, id, actual_duration, Dict())
     end
 end
 

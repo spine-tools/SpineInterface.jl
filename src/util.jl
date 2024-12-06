@@ -96,21 +96,6 @@ _matches(key::Tuple, objects::Tuple) = all(_matches(k, obj) for (k, obj) in zip(
 _matches(k, ::Missing) = true
 _matches(k, obj) = k == obj
 
-struct _CallNode
-    call::Call
-    parent::Union{_CallNode,Nothing}
-    child_number::Int64
-    children::Vector{_CallNode}
-    value::Ref{Any}
-    function _CallNode(call, parent, child_number)
-        node = new(call, parent, child_number, Vector{_CallNode}(), Ref(nothing))
-        if parent !== nothing
-            push!(parent.children, node)
-        end
-        node
-    end
-end
-
 _do_realize(x, _upd) = x
 _do_realize(call::Call, upd) = _do_realize(call.func, call, upd)
 _do_realize(::Nothing, call, _upd) = realize(call.args[1])
@@ -118,37 +103,32 @@ function _do_realize(pv::T, call, upd) where T<:ParameterValue
     pv(upd; call.kwargs...)
 end
 function _do_realize(::T, call, upd) where T<:Function
-    current = _CallNode(call, nothing, -1)
+    current = call.root_node[]
+    moving_up = false
     while true
-        vals = [child.value[] for child in current.children]
-        if !isempty(vals)
-            # children already visited, compute value
-            current.value[] = current.call.func(vals...)
-        elseif current.call.func isa Function
-            # visit children
-            current = _first_child(current)
-            continue
-        else
-            # no children, realize value
-            current.value[] = realize(current.call, upd)
+        if !moving_up
+            if !isempty(current.children)
+                current = first(current.children)
+                continue
+            else
+                current.value[] = realize(current.call, upd)
+            end
+        else  # Moving up from last children
+            current.value[] = current.call.func([child.value[] for child in current.children]...)
         end
         current.parent === nothing && break
-        if current.child_number < length(current.parent.call.args)
+        # Move to next sibling or up
+        if current.child_number < length(current.parent.children)
             # visit sibling
-            current = _next_sibling(current)
+            moving_up = false
+            current = current.parent.children[current.child_number + 1]
         else
             # go back to parent
+            moving_up = true
             current = current.parent
         end
     end
     current.value[]
-end
-
-_first_child(node::_CallNode) = _CallNode(node.call.args[1], node, 1)
-
-function _next_sibling(node::_CallNode)
-    sibling_child_number = node.child_number + 1
-    _CallNode(node.parent.call.args[sibling_child_number], node.parent, sibling_child_number)
 end
 
 _parameter_value_metadata(value) = Dict()
@@ -178,9 +158,7 @@ function _refresh_metadata!(pval::ParameterValue)
 end
 
 function _add_update(t::TimeSlice, timeout, upd)
-    lock(t.updates_lock) do
-        t.updates[upd] = timeout
-    end
+    t.updates[upd] = timeout
 end
 
 function _append_relationships!(rc, rels)
