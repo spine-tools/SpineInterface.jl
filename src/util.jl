@@ -103,6 +103,9 @@ function _do_realize(pv::T, call, upd) where T<:ParameterValue
     pv(upd; call.kwargs...)
 end
 function _do_realize(::T, call, upd) where T<:Function
+    if call.root_node[] === nothing
+        call.root_node[] = _root_node(call)
+    end
     current = call.root_node[]
     moving_up = false
     while true
@@ -129,6 +132,32 @@ function _do_realize(::T, call, upd) where T<:Function
         end
     end
     current.value[]
+end
+
+function _root_node(call)
+    current = _CallNode(call, nothing, -1)
+    while true
+        if isempty(current.children) && current.call isa Call && current.call.func isa Function
+            current = _first_child(current)
+            continue
+        end
+        current.parent === nothing && break
+        sibling = _next_sibling(current)
+        if sibling !== nothing
+            current = sibling
+        else
+            current = current.parent
+        end
+    end
+    current
+end
+
+_first_child(node::_CallNode) = _CallNode(node.call.args[1], node, 1)
+
+function _next_sibling(node::_CallNode)
+    sibling_child_number = node.child_number + 1
+    sibling_child_number > length(node.parent.call.args) && return nothing
+    _CallNode(node.parent.call.args[sibling_child_number], node.parent, sibling_child_number)
 end
 
 _parameter_value_metadata(value) = Dict()

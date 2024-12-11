@@ -42,14 +42,12 @@ struct Call
     caller
     root_node::Ref{Any}
     function Call(func, args, kwargs, caller)
-        call = new(func, args, kwargs, caller, nothing)
-        call.root_node[] = _root_node(func, call)
-        call
+        new(func, args, kwargs, caller, nothing)
     end
 end
 
 struct _CallNode
-    call::Call
+    call
     parent::Union{_CallNode,Nothing}
     child_number::Int64
     children::Vector{_CallNode}
@@ -61,36 +59,6 @@ struct _CallNode
         end
         node
     end
-end
-
-_root_node(func, call) = nothing
-function _root_node(::T, call) where T<:Function
-    current = _CallNode(call, nothing, -1)
-    while true
-        if isempty(current.children) && current.call.func isa Function
-            # visit children
-            current = _first_child(current)
-            continue
-        end
-        current.parent === nothing && break
-        sibling = _next_sibling(current)
-        if sibling !== nothing
-            # visit sibling
-            current = sibling
-        else
-            # go back to parent
-            current = current.parent
-        end
-    end
-    current
-end
-
-_first_child(node::_CallNode) = _CallNode(node.call.args[1], node, 1)
-
-function _next_sibling(node::_CallNode)
-    sibling_child_number = node.child_number + 1
-    sibling_child_number > length(node.parent.call.args) && return nothing
-    _CallNode(node.parent.call.args[sibling_child_number], node.parent, sibling_child_number)
 end
 
 """
