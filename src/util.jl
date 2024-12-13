@@ -100,38 +100,56 @@ _do_realize(x, _upd) = x
 _do_realize(call::Call, upd) = _do_realize(call.func, call, upd)
 _do_realize(::Nothing, call, _upd) = realize(call.args[1])
 function _do_realize(pv::T, call, upd) where T<:ParameterValue
-    pv(upd; call.kwargs...)
+    pv(call.kwargs, upd)
 end
 function _do_realize(::T, call, upd) where T<:Function
     if call.root_node[] === nothing
         call.root_node[] = _root_node(call)
     end
-    current = call.root_node[]
-    moving_up = false
+    node = call.root_node[]
+    direction = :down
     while true
-        if !moving_up
-            if !isempty(current.children)
-                current = first(current.children)
-                continue
-            else
-                current.value[] = realize(current.call, upd)
+        if direction != :up
+            if isempty(node.children)
+                node.value[] = realize(node.call, upd)
             end
-        else  # Moving up from last children
-            current.value[] = current.call.func([child.value[] for child in current.children]...)
+        else
+            node.value[] = node.call.func((child.value[] for child in node.children)...)
         end
-        current.parent === nothing && break
-        # Move to next sibling or up
+        node_and_direction = _next_node_and_direction(node, direction)
+        node_and_direction === nothing && break
+        node, direction = node_and_direction
+    end
+    call.root_node[].value[]
+end
+
+function _visit_call!(func, call)
+    if call.root_node[] === nothing
+        call.root_node[] = _root_node(call)
+    end
+    node = call.root_node[]
+    direction = :down
+    while true
+        func(node, direction)
+        node_and_direction = _next_node_and_direction(node, direction)
+        node_and_direction === nothing && break
+        node, direction = node_and_direction
+    end
+end
+
+function _next_node_and_direction(current, direction)
+    if direction != :up && !isempty(current.children)
+        # visit child
+        first(current.children), :down
+    elseif current.parent !== nothing
         if current.child_number < length(current.parent.children)
             # visit sibling
-            moving_up = false
-            current = current.parent.children[current.child_number + 1]
+            current.parent.children[current.child_number + 1], :side
         else
             # go back to parent
-            moving_up = true
-            current = current.parent
+            current.parent, :up
         end
     end
-    current.value[]
 end
 
 function _root_node(call)
@@ -186,7 +204,7 @@ function _refresh_metadata!(pval::ParameterValue)
     merge!(pval.metadata, _parameter_value_metadata(pval.value))
 end
 
-function _add_update(t::TimeSlice, timeout, upd)
+function _add_update!(t::TimeSlice, timeout, upd)
     t.updates[upd] = timeout
 end
 

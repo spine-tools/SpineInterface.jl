@@ -31,7 +31,7 @@ A type for representing a parameter value from a Spine db.
 """
 struct ParameterValue{T}
     value::T
-    metadata::Dict
+    metadata::Dict{Symbol,Any}
     ParameterValue(value::T) where T = new{T}(value, _parameter_value_metadata(value))
 end
 
@@ -78,6 +78,8 @@ struct Object
     end
 end
 
+abstract type AbstractUpdate end
+
 """
     TimeSlice
 
@@ -90,7 +92,7 @@ struct TimeSlice
     blocks::NTuple{N,Object} where {N}
     id::UInt64
     actual_duration::Union{Dates.CompoundPeriod,Period}
-    updates::Dict
+    updates::Dict{AbstractUpdate,Union{Dates.CompoundPeriod,Period}}
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
         blocks = isempty(blocks) ? () : Tuple(sort(collect(blocks)))
@@ -325,5 +327,3 @@ end
 
 _Scalar = Union{Nothing,Missing,Bool,Int64,Float64,Symbol,DateTime,Period}
 _Indexed = Union{Array,TimePattern,TimeSeries,Map}
-
-abstract type AbstractUpdate end

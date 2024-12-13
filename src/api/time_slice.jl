@@ -69,6 +69,16 @@ iscontained(b::DateTime, a::TimeSlice) = start(a) <= b < end_(a)
 
 contains(a, b) = iscontained(b, a)
 
+const _component_enclosing_rounding = Dict(
+    :Y => (year, x -> 0, Year),
+    :M => (month, year, Month),
+    :D => (day, month, Day),
+    :WD => (dayofweek, week, Day),
+    :h => (hour, day, Hour),
+    :m => (minute, hour, Minute),
+    :s => (second, minute, Second),
+)
+
 """
     overlaps(a, b)
 
@@ -76,19 +86,10 @@ Determine whether `a` and `b` overlap.
 """
 overlaps(a::TimeSlice, b::TimeSlice) = start(a) <= start(b) < end_(a) || start(b) <= start(a) < end_(b)
 function overlaps(t::TimeSlice, union::UnionOfIntersections)
-    component_enclosing_rounding = Dict(
-        :Y => (year, x -> 0, Year),
-        :M => (month, year, Month),
-        :D => (day, month, Day),
-        :WD => (dayofweek, week, Day),
-        :h => (hour, day, Hour),
-        :m => (minute, hour, Minute),
-        :s => (second, minute, Second),
-    )
     for intersection in union
         does_overlap = true
         for interval in intersection
-            component, enclosing, rounding = component_enclosing_rounding[interval.key]
+            component, enclosing, rounding = _component_enclosing_rounding[interval.key]
             # Compute component and enclosing component for both start and end of time slice.
             # In the comments below, we assume component is hour, and thus enclosing component is day
             # (but of course, we don't use this assumption in the code itself!)
@@ -172,7 +173,7 @@ function collect_updates(t::TimeSlice)
 end
 
 function add_roll_hook!(t, fn)
-    _add_update(t, Minute(-1), fn)
+    _add_update!(t, Minute(-1), fn)
 end
 
 _TimeSliceColl = Union{Vector{TimeSlice},Dict{TimeSlice,V} where V}
