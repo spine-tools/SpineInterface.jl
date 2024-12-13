@@ -424,7 +424,7 @@ function _get_repeating_time_series_value(pv, t::TimeSlice, upd)
     end
     reps = reps_end - reps_start
     reps == 0 && return mean(Iterators.filter(!isnan, view(pv.value.values, a:b)))
-    avals = view(pv.value.values, a:end)
+    avals = view(pv.value.values, a:lastindex(pv.value.values))
     bvals = view(pv.value.values, 1:b)
     asum = sum(Iterators.filter(!isnan, avals))
     bsum = sum(Iterators.filter(!isnan, bvals))
