@@ -489,6 +489,48 @@ function export_data(url; upgrade=false, filters=Dict())
 end
 
 """
+    _get_data(url::String, upgrade::Bool)
+
+Get data from a Spine DB.
+
+`upgrade` can be used to control whether DB upgrading is triggered.
+See also [`get_data`](@ref).
+"""
+function _get_data(url::String, upgrade::Bool)
+    _db(url; upgrade=upgrade) do db
+        Dict(
+            key => _run_server_request(db, "call_method", ("get_items", key))
+            for key in [
+                "entity_class",
+                "entity",
+                "entity_group",
+                "parameter_definition",
+                "parameter_value",
+                "superclass_subclass"
+            ]
+        )
+    end
+end
+
+"""
+    get_data(url::String; upgrade=false, filters=Dict())
+
+Get data from a Spine DB.
+
+`upgrade` can be used to control whether DB upgrading is triggered, `false` by default.
+`filters` can be used to apply filtering to the DB.
+"""
+function get_data(url::String; upgrade=false, filters=Dict())
+    isempty(filters) && return _get_data(url, upgrade)
+    old_filters = _current_filters(db)
+    _run_server_request(db, "apply_filters", (filters,))
+    data = _get_data(url, upgrade)
+    _run_server_request(db, "clear_filters")
+    isempty(old_filters) || _run_server_request(db, "apply_filters", (old_filters,))
+    return data
+end
+
+"""
     without_filters(f, url)
 
 Run function f on given url without filters.
