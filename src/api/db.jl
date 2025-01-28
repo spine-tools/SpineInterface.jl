@@ -249,10 +249,10 @@ function _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent
     param_vals = Dict(obj => _parameter_values(string(obj.name), param_defs, param_vals_per_ent) for obj in objects)
     objects, param_vals
 end
-function __ents_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)
-    objects = [full_objs_per_id[class_name, obj_name] for (class_name, obj_name) in objects]
-    param_vals = Dict(obj => _parameter_values(string(obj.name), param_defs, param_vals_per_ent) for obj in objects)
-    objects, param_vals
+function __ents_and_vals(entities, full_ents_per_id, param_defs, param_vals_per_ent)
+    entities = [full_ents_per_id[class_name, ent_name] for (class_name, ent_name) in entities]
+    param_vals = Dict(ent => _parameter_values(string(ent.name), param_defs, param_vals_per_ent) for ent in entities)
+    entities, param_vals
 end
 
 function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
@@ -265,12 +265,12 @@ function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_c
         _default_parameter_values(param_defs),
     )
 end
-function _ent_class_args(class_name, dimension_name_list, ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent)
+function __ent_class_args(class_name, dimension_name_list, ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent)
     entities = get(ents_per_cls, class_name, ())
     param_defs = get(param_defs_per_cls, class_name, ())
     (
         Symbol.(dimension_name_list),
-        _ents_and_vals(dimension_name_list, entities, full_ents_per_id, param_defs, param_vals_per_ent)...,
+        __ents_and_vals(entities, full_ents_per_id, param_defs, param_vals_per_ent)...,
         _default_parameter_values(param_defs),
     )
 end
@@ -329,7 +329,7 @@ function _rel_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs
 end
 function __ent_args_per_class(entities, ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent)
     Dict(
-        Symbol(ent["entity_class_name"]) => _ent_class_args(
+        Symbol(ent["entity_class_name"]) => __ent_class_args(
             ent["entity_class_name"], ent["dimension_name_list"], ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent
         )
         for ent in entities
@@ -355,6 +355,16 @@ function _class_names_per_parameter(object_classes, relationship_classes, param_
         dim_count = length(object_class_name_list)
         for (class_name, parameter_name) in class_param_defs
             push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), dim_count))
+        end
+    end
+    Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
+end
+function __class_names_per_parameter(entity_classes, param_defs)
+    d = Dict()
+    for class in entity_classes
+        class_param_defs = get(param_defs, class["name"], ())
+        for (class_name, parameter_name) in class_param_defs
+            push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), class["dimension_count"]))
         end
     end
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)

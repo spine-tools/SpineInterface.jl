@@ -56,5 +56,6 @@ class_names_per_param = SpineInterface._class_names_per_parameter(object_classes
     args_per_ent_cls = SpineInterface.__ent_args_per_class(
         entities, entities_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent
     )
+    class_names_per_param = SpineInterface.__class_names_per_parameter(new_data["entity_class"], param_defs_per_cls)
 #end
 #@time _generate_convenience_functions(new_data, @__MODULE__)
