@@ -21,7 +21,7 @@
     anything
 
 The singleton instance of type [`Anything`](@ref), used to specify *all-pass* filters
-in calls to [`RelationshipClass()`](@ref).
+in calls to [`EntityClass()`](@ref).
 """
 anything = Anything()
 
@@ -60,7 +60,7 @@ julia> commodity(state_of_matter=commodity(:gas))
  wind
 ```
 """
-function (oc::ObjectClass)(; kwargs...)
+function (oc::EntityClass)(; kwargs...)
     isempty(kwargs) && return oc.objects
     function cond(o)
         for (p, v) in kwargs
@@ -71,12 +71,12 @@ function (oc::ObjectClass)(; kwargs...)
     end
     filter(cond, oc.objects)
 end
-function (oc::ObjectClass)(name::Symbol)
+function (oc::EntityClass)(name::Symbol)
     i = findfirst(o -> o.name == name, oc.objects)
     !isnothing(i) && return oc.objects[i]
     nothing
 end
-(oc::ObjectClass)(name::String) = oc(Symbol(name))
+(oc::EntityClass)(name::String) = oc(Symbol(name))
 
 """
     (<rc>::RelationshipClass)(;<keyword arguments>)
@@ -134,7 +134,7 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 :nogas
 ```
 """
-function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
+function (rc::EntityClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
     relationships = if !_compact
         _find_rels(rc; kwargs...)
@@ -318,7 +318,7 @@ function _get_value(pv::ParameterValue{T}, kw, arg, upd, cycles; kwargs...) wher
     i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
     pv.value.values[i](upd; kwargs...)
 end
-function _get_value(pv::ParameterValue{T}, kw, arg::Object, upd, cycles; kwargs...) where {V,T<:Map{Symbol,V}}
+function _get_value(pv::ParameterValue{T}, kw, arg::Entity, upd, cycles; kwargs...) where {V,T<:Map{Symbol,V}}
     i = _search_equal(pv.value.indexes, arg.name)
     i === nothing && return _get_value_cyclic(pv, kw, arg, upd, cycles; kwargs...)
     pv.value.values[i](upd; kwargs...)
@@ -480,7 +480,7 @@ julia> collect(indices(demand))
 function indices(p::Parameter; kwargs...)
     (ent for class in p.classes for ent in indices(p, class; kwargs...))
 end
-function indices(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
+function indices(p::Parameter, class::EntityClass; kwargs...)
     (
         ent
         for ent in _entities(class; kwargs...)
@@ -496,7 +496,7 @@ Like `indices` but also yields tuples for single-dimensional entities.
 function indices_as_tuples(p::Parameter; kwargs...)
     (ent for class in p.classes for ent in indices_as_tuples(p, class; kwargs...))
 end
-function indices_as_tuples(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
+function indices_as_tuples(p::Parameter, class::EntityClass; kwargs...)
     (
         _entity_tuple(ent, class)
         for ent in _entities(class; kwargs...)
@@ -504,18 +504,18 @@ function indices_as_tuples(p::Parameter, class::Union{ObjectClass,RelationshipCl
     )
 end
 
-_entities(class::ObjectClass; kwargs...) = class()
-_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
+#_entities(class::ObjectClass; kwargs...) = class()
+_entities(class::EntityClass; kwargs...) = class(; _compact=false, kwargs...)
 
-_entity_key(o::ObjectLike) = o
-_entity_key(r::RelationshipLike) = tuple(r...)
+#_entity_key(o::ObjectLike) = o
+_entity_key(r::EntityLike) = tuple(r...)
 
-_entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
-_entity_tuple(r::RelationshipLike, class) = r
+#_entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
+_entity_tuple(r::EntityLike, class) = r
 
 classes(p::Parameter) = p.classes
 
-push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
+push_class!(p::Parameter, class::EntityClass) = push!(p.classes, class)
 
 """
     add_objects!(object_class, objects)
@@ -523,14 +523,14 @@ push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p
 Remove from `objects` everything that's already in `object_class`, and append the rest.
 Return the modified `object_class`.
 """
-function add_objects!(object_class::ObjectClass, objects::Array)
+function add_objects!(object_class::EntityClass, objects::Array)
     setdiff!(objects, object_class.objects)
     append!(object_class.objects, objects)
     merge!(object_class.parameter_values, Dict(obj => Dict() for obj in objects))
     object_class
 end
 
-function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
+function add_object_parameter_values!(object_class::EntityClass, parameter_values::Dict; merge_values=false)
     add_objects!(object_class, only.(keys(parameter_values)))
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     for (obj, vals) in parameter_values
@@ -539,12 +539,12 @@ function add_object_parameter_values!(object_class::ObjectClass, parameter_value
     end
 end
 
-function add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
+function add_object_parameter_defaults!(object_class::EntityClass, parameter_defaults::Dict; merge_values=false)
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     do_merge!(object_class.parameter_defaults, parameter_defaults)
 end
 
-function add_object!(object_class::ObjectClass, object::ObjectLike)
+function add_object!(object_class::EntityClass, object::EntityLike)
     add_objects!(object_class, [object])
 end
 
@@ -554,11 +554,11 @@ end
 Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
 Return the modified `relationship_class`.
 """
-function add_relationships!(relationship_class::RelationshipClass, object_tuples::Vector{T}) where T<:ObjectTupleLike
+function add_relationships!(relationship_class::EntityClass, object_tuples::Vector{T}) where T<:EntityTupleLike
     relationships = [(; zip(relationship_class.object_class_names, obj_tup)...) for obj_tup in object_tuples]
     add_relationships!(relationship_class, relationships)
 end
-function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
+function add_relationships!(relationship_class::EntityClass, relationships::Vector)
     relationships = setdiff(relationships, relationship_class.relationships)
     _append_relationships!(relationship_class, relationships)
     merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
@@ -566,7 +566,7 @@ function add_relationships!(relationship_class::RelationshipClass, relationships
 end
 
 function add_relationship_parameter_values!(
-    relationship_class::RelationshipClass, parameter_values::Dict; merge_values=false
+    relationship_class::EntityClass, parameter_values::Dict; merge_values=false
 )
     add_relationships!(relationship_class, collect(keys(parameter_values)))
     do_merge! = merge_values ? mergewith!(merge!) : merge!
@@ -577,20 +577,20 @@ function add_relationship_parameter_values!(
 end
 
 function add_relationship_parameter_defaults!(
-    relationship_class::RelationshipClass, parameter_defaults::Dict; merge_values=false
+    relationship_class::EntityClass, parameter_defaults::Dict; merge_values=false
 )
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     do_merge!(relationship_class.parameter_defaults, parameter_defaults)
 end
 
-function add_relationship!(relationship_class::RelationshipClass, relationship::RelationshipLike)
+function add_relationship!(relationship_class::EntityClass, relationship::EntityLike)
     add_relationships!(relationship_class, [relationship])
 end
 
-function add_parameter_values!(cls::ObjectClass, vals; kwargs...)
+function add_parameter_values!(cls::EntityClass, vals; kwargs...)
     add_object_parameter_values!(cls, vals; kwargs...)
 end
-function add_parameter_values!(cls::RelationshipClass, vals; kwargs...)
+function add_parameter_values!(cls::EntityClass, vals; kwargs...)
     add_relationship_parameter_values!(cls, vals; kwargs...)
 end
 
@@ -702,7 +702,7 @@ function realize(call, upd=nothing)
     end
 end
 
-function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
+function add_dimension!(cls::EntityClass, name::Symbol, obj)
     push!(cls.object_class_names, name)
     push!(cls.intact_object_class_names, name)
     map!(rel -> (; rel..., Dict(name => obj)...), cls.relationships, cls.relationships)
@@ -716,7 +716,7 @@ function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
     nothing
 end
 
-dimensions(cls::RelationshipClass) = cls.object_class_names
+dimensions(cls::EntityClass) = cls.object_class_names
 
 const __active_env = Ref(:__base__)
 

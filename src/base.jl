@@ -23,8 +23,8 @@ Base.intersect(::Anything, ::Anything) = anything
 
 Base.in(item, ::Anything) = true
 
-Base.iterate(o::Union{Object,TimeSlice,Anything,ParameterValue{T}}) where T<:_Scalar = iterate((o,))
-Base.iterate(o::Union{Object,TimeSlice,Anything,ParameterValue{T}}, state) where T<:_Scalar = iterate((o,), state)
+Base.iterate(o::Union{Entity,TimeSlice,Anything,ParameterValue{T}}) where T<:_Scalar = iterate((o,))
+Base.iterate(o::Union{Entity,TimeSlice,Anything,ParameterValue{T}}, state) where T<:_Scalar = iterate((o,), state)
 function Base.iterate(x::Union{TimeSeries,Map}, state=1)
     if state > length(x)
         nothing
@@ -33,11 +33,11 @@ function Base.iterate(x::Union{TimeSeries,Map}, state=1)
     end
 end
 
-Base.length(t::Union{Object,TimeSlice}) = 1
+Base.length(t::Union{Entity,TimeSlice}) = 1
 Base.length(v::ParameterValue{T}) where {T<:_Scalar} = 1
 Base.length(x::Union{TimeSeries,Map}) = length(x.indexes)
 
-Base.isless(x::Object, y::Object) = x.name < y.name
+Base.isless(x::Entity, y::Entity) = x.name < y.name
 Base.isless(a::TimeSlice, b::TimeSlice) = tuple(start(a), end_(a)) < tuple(start(b), end_(b))
 Base.isless(t::TimeSlice, dt::DateTime) = isless(end_(t), dt)
 Base.isless(dt::DateTime, t::TimeSlice) = isless(dt, start(t))
@@ -48,7 +48,7 @@ Base.isless(x::Call, y) = Call(isless, x, y)
 Base.isless(x::Call, y::Call) = Call(isless, x, y)
 Base.isless(x, y::Call) = Call(isless, x, y)
 
-Base.:(==)(x::T, y::T) where T<:Union{Object,TimeSlice} = x.id == y.id
+Base.:(==)(x::T, y::T) where T<:Union{Entity,TimeSlice} = x.id == y.id
 Base.:(==)(x::TimeSeries, y::TimeSeries) = all(
     [getfield(x, field) == getfield(y, field) for field in fieldnames(TimeSeries)]
 )
@@ -81,20 +81,19 @@ Base.:(<=)(x::Call, y::Call) = Call(<=, x, y)
 Base.:(<=)(x, y::Call) = Call(<=, x, y)
 
 Base.hash(::Anything, h::UInt64) = hash(objectid(anything), h)
-Base.hash(o::Union{Object,TimeSlice}, h::UInt64) = hash(o.id, h)
-Base.hash(ot::ObjectTupleLike, h::UInt64) = hash(hash(ot[2:end], hash(ot[1])), h)
-Base.hash(r::RelationshipLike, h::UInt64) = hash(Tuple(r), h)
+Base.hash(o::Union{Entity,TimeSlice}, h::UInt64) = hash(o.id, h)
+Base.hash(ot::EntityTupleLike, h::UInt64) = hash(hash(ot[2:end], hash(ot[1])), h)
+Base.hash(r::EntityLike, h::UInt64) = hash(Tuple(r), h)
 # FIXME: Implement :== and isequal for the types that implement hash
 
 const _df = DateFormat("yyyy-mm-ddTHH:MM")
 
 Base.show(io::IO, ::Anything) = print(io, "anything")
-Base.show(io::IO, o::Object) = print(io, o.name)
+Base.show(io::IO, o::Entity) = print(io, o.name)
 function Base.show(io::IO, t::TimeSlice)
     print(io, string(Dates.format(start(t), _df)), "~(", t.actual_duration, ")~>", Dates.format(end_(t), _df))
 end
-Base.show(io::IO, oc::ObjectClass) = print(io, oc.name)
-Base.show(io::IO, rc::RelationshipClass) = print(io, rc.name)
+Base.show(io::IO, ec::EntityClass) = print(io, ec.name)
 Base.show(io::IO, p::Parameter) = print(io, p.name)
 Base.show(io::IO, v::ParameterValue{T}) where T = print(io, string("ParameterValue(", v.value, ")"))
 Base.show(io::IO, call::Call) = _show_call(io, call, call.caller, call.func)
@@ -367,16 +366,10 @@ Base.keys(ts::TimeSeries) = ts.indexes
 Base.keys(m::Map) = m.indexes
 Base.keys(pv::ParameterValue{T}) where {T<:_Indexed} = keys(pv.value)
 
-function Base.merge!(a::ObjectClass, b::ObjectClass)
-    add_objects!(a, b.objects)
+function Base.merge!(a::EntityClass, b::EntityClass)
+    add_objects!(a, b.objects) #TODO: This doesn't work
     add_object_parameter_values!(a, b.parameter_values)
     add_object_parameter_defaults!(a, b.parameter_defaults)
-    a
-end
-function Base.merge!(a::RelationshipClass, b::RelationshipClass)
-    add_relationships!(a, b.relationships)
-    add_relationship_parameter_values!(a, b.parameter_values)
-    add_relationship_parameter_defaults!(a, b.parameter_defaults)
     a
 end
 function Base.merge!(a::Parameter, b::Parameter)
@@ -482,7 +475,7 @@ Base.iszero(x::Union{TimeSeries,TimePattern}) = iszero(values(x))
 Base.isapprox(x::Union{TimeSeries,TimePattern}, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in values(x))
 Base.isapprox(x::ParameterValue, y; kwargs...) = isapprox(x(), y; kwargs...)
 
-function Base.getproperty(x::Union{ObjectClass,RelationshipClass,Parameter}, name::Symbol)
+function Base.getproperty(x::Union{EntityClass,Parameter}, name::Symbol)
     name in (:name, :env_dict) && return getfield(x, name)
     env = _active_env()
     real_x = get(getfield(x, :env_dict), env, nothing)

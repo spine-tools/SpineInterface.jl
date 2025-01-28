@@ -75,11 +75,11 @@ export Map
 export map_to_time_series
 export maximum_parameter_value
 export members
-export Object
+export Entity
 export object_class
 export object_classes
-export ObjectClass
-export ObjectLike
+export EntityClass
+export EntityLike
 export overlap_duration
 export overlaps
 export Parameter
@@ -94,8 +94,7 @@ export realize
 export refresh!
 export relationship_class
 export relationship_classes
-export RelationshipClass
-export RelationshipLike
+export EntityLike
 export roll!
 export run_request
 export set_value_translator

@@ -43,21 +43,10 @@ struct Call
 end
 
 """
-    Object
+    Entity
 
 A type for representing an object from a Spine db; an instance of an object class.
 """
-struct Object
-    name::Symbol
-    class_name::Union{Symbol,Nothing}
-    members::Array{Object,1}
-    groups::Array{Object,1}
-    id::UInt64
-    function Object(name, class_name, members, groups)
-        id = objectid((name, class_name))
-        new(name, class_name, members, groups, id)
-    end
-end
 struct Entity
     name::Symbol
     class_name::Union{Symbol,Nothing}
@@ -79,7 +68,7 @@ struct TimeSlice
     start::Ref{DateTime}
     end_::Ref{DateTime}
     duration::Float64
-    blocks::NTuple{N,Object} where {N}
+    blocks::NTuple{N,Entity} where {N}
     id::UInt64
     actual_duration::Union{Dates.CompoundPeriod,Period}
     updates::OrderedDict
@@ -93,64 +82,9 @@ struct TimeSlice
     end
 end
 
-ObjectLike = Union{Object,TimeSlice,Int64}
-ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
-RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
+EntityLike = Union{Entity,TimeSlice,Int64}
+EntityTupleLike = Tuple{EntityLike,Vararg{EntityLike}}
 
-struct _ObjectClass
-    name::Symbol
-    objects::Vector{ObjectLike}
-    parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
-    parameter_defaults::Dict{Symbol,ParameterValue}
-    _split_kwargs::Ref{Any}
-    function _ObjectClass(name, objects, vals=Dict(), defaults=Dict())
-        new(name, objects, vals, defaults, _make_split_kwargs(name))
-    end
-end
-
-"""
-    ObjectClass
-
-A type for representing an object class from a Spine db.
-"""
-struct ObjectClass
-    name::Symbol
-    env_dict::Dict{Symbol,_ObjectClass}
-    function ObjectClass(name, args...; mod=@__MODULE__, extend=false)
-        new_ = new(name, Dict(_active_env() => _ObjectClass(name, args...)))
-        spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
-        _resolve!(spine_object_classes, name, new_, extend)
-    end
-end
-
-struct _RelationshipClass
-    name::Symbol
-    intact_object_class_names::Vector{Symbol}
-    object_class_names::Vector{Symbol}
-    relationships::Vector{RelationshipLike}
-    parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
-    parameter_defaults::Dict{Symbol,ParameterValue}
-    row_map::Dict
-    row_map_lock::ReentrantLock
-    _split_kwargs::Ref{Any}
-    function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
-        cls_names = _fix_name_ambiguity(intact_cls_names)
-        rc = new(
-            name,
-            intact_cls_names,
-            cls_names,
-            [],
-            vals,
-            defaults,
-            Dict(),
-            ReentrantLock(),
-            _make_split_kwargs(cls_names),
-        )
-        rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
-        _append_relationships!(rc, rels)
-        rc
-    end
-end
 struct _EntityClass
     name::Symbol
     intact_dimension_names::Vector{Symbol}
@@ -181,22 +115,13 @@ struct _EntityClass
 end
 
 """
-    RelationshipClass
+    EntityClass
 
-A type for representing a relationship class from a Spine db.
+A type for representing an entity class from a Spine DB.
 """
-struct RelationshipClass
-    name::Symbol
-    env_dict::Dict{Symbol,_RelationshipClass}
-    function RelationshipClass(name, args...; mod=@__MODULE__, extend=false)
-        new_ = new(name, Dict(_active_env() => _RelationshipClass(name, args...)))
-        spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
-        _resolve!(spine_relationship_classes, name, new_, extend)
-    end
-end
 struct EntityClass
     name::Symbol
-    env_dict::Dict{Symbol,_RelationshipClass}
+    env_dict::Dict{Symbol,_EntityClass}
     function EntityClass(name, args...; mod=@__MODULE__, extend=false)
         new_ = new(name, Dict(_active_env() => _EntityClass(name, args...)))
         spine_entity_classes = _getproperty!(mod, :_spine_entity_classes, Dict())
@@ -216,10 +141,11 @@ function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
     end
     name_list
 end
+_fix_name_ambiguity(intact_name_list::Array{AbstractString,1}) = _fix_name_ambiguity(Symbol.(intact_name_list))
 
 struct _Parameter
     name::Symbol
-    classes::Vector{Union{ObjectClass,RelationshipClass}}
+    classes::Vector{EntityClass}
     _Parameter(name, classes=[]) = new(name, classes)
 end
 

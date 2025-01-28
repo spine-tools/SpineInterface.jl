@@ -30,7 +30,7 @@ parameter_value(x::T) where {T<:ParameterValue} = x
 """
     maximum_parameter_value(p::Parameter)
 
-The singe maximum value of a `Parameter` across all its `ObjectClasses` or `RelationshipClasses`
+The singe maximum value of a `Parameter` across all its [`EntityClass`](@ref)es
 for any`ParameterValue` types.
 """
 function maximum_parameter_value(p::Parameter)

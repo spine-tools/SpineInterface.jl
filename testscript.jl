@@ -12,6 +12,12 @@ url = "sqlite:///c:\\_spineprojects\\superclasstest\\.spinetoolbox\\data store.s
 @time new_data = SpineInterface.get_data(url)
 
 
+## Test using_spinedb
+
+@info "Testing `using_spinedb`"
+@time using_spinedb(url)
+
+#=
 ## Examine old processing
 
 object_classes = [x for x in get(old_data, "entity_classes", []) if isempty(x[2])]
@@ -59,3 +65,5 @@ class_names_per_param = SpineInterface._class_names_per_parameter(object_classes
     class_names_per_param = SpineInterface.__class_names_per_parameter(new_data["entity_class"], param_defs_per_cls)
 #end
 #@time _generate_convenience_functions(new_data, @__MODULE__)
+
+=#

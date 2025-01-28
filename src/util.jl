@@ -58,11 +58,9 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     nothing
 end
 
-_object_class_names(x::ObjectClass) = (x.name,)
-_object_class_names(x::RelationshipClass) = x.object_class_names
+_dimension_names(x::EntityClass) = x.object_class_names
 
-_dimensionality(x::ObjectClass) = 0
-_dimensionality(x::RelationshipClass) = length(x.object_class_names)
+_dimensionality(x::EntityClass) = length(x.dimension_names)
 
 _get_pvals(pvals_by_entity, ::Nothing) = nothing
 _get_pvals(pvals_by_entity, object) = _do_get_pvals(pvals_by_entity, object)

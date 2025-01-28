@@ -17,10 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-Object(name::Symbol, class_name) = Object(name, class_name, [], [])
-Object(name::AbstractString, args...) = Object(Symbol(name), args...)
-Object(name::AbstractString, class_name::AbstractString, args...) = Object(Symbol(name), Symbol(class_name), args...)
-Object(name::Symbol) = Object(name::Symbol, nothing)
 Entity(name::Symbol, class_name) = Entity(name, class_name, [], [])
 Entity(name::AbstractString, args...) = Entity(Symbol(name), args...)
 Entity(name::AbstractString, class_name::AbstractString, args...) = Entity(Symbol(name), Symbol(class_name), args...)
@@ -31,7 +27,7 @@ Entity(name::Symbol) = Entity(name::Symbol, nothing)
 
 Construct a `TimeSlice` with bounds given by `start` and `end_`.
 """
-function TimeSlice(start::DateTime, end_::DateTime, blocks::Object...; duration_unit=Hour)
+function TimeSlice(start::DateTime, end_::DateTime, blocks::Entity...; duration_unit=Hour)
     dur = Minute(end_ - start) / Minute(duration_unit(1))
     TimeSlice(start, end_, dur, blocks)
 end
