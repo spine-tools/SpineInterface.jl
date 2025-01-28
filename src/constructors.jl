@@ -21,6 +21,10 @@ Object(name::Symbol, class_name) = Object(name, class_name, [], [])
 Object(name::AbstractString, args...) = Object(Symbol(name), args...)
 Object(name::AbstractString, class_name::AbstractString, args...) = Object(Symbol(name), Symbol(class_name), args...)
 Object(name::Symbol) = Object(name::Symbol, nothing)
+Entity(name::Symbol, class_name) = Entity(name, class_name, [], [])
+Entity(name::AbstractString, args...) = Entity(Symbol(name), args...)
+Entity(name::AbstractString, class_name::AbstractString, args...) = Entity(Symbol(name), Symbol(class_name), args...)
+Entity(name::Symbol) = Entity(name::Symbol, nothing)
 
 """
     TimeSlice(start::DateTime, end_::DateTime)

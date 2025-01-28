@@ -58,6 +58,17 @@ struct Object
         new(name, class_name, members, groups, id)
     end
 end
+struct Entity
+    name::Symbol
+    class_name::Union{Symbol,Nothing}
+    members::Array{Entity,1}
+    groups::Array{Entity,1}
+    id::UInt64
+    function Entity(name, class_name, members, groups)
+        id = objectid((name, class_name)) #TODO: use DB ids?
+        new(name, class_name, members, groups, id)
+    end
+end
 
 """
     TimeSlice
@@ -140,6 +151,34 @@ struct _RelationshipClass
         rc
     end
 end
+struct _EntityClass
+    name::Symbol
+    intact_dimension_names::Vector{Symbol}
+    dimension_names::Vector{Symbol}
+    entities::Vector{Entity}
+    parameter_values::Dict{Entity,Dict{Symbol,ParameterValue}}
+    parameter_defaults::Dict{Symbol,ParameterValue}
+    row_map::Dict
+    row_map_lock::ReentrantLock
+    _split_kwargs::Ref{Any}
+    function _EntityClass(name, intact_dim_names, entities, vals=Dict(), defaults=Dict())
+        dim_names = _fix_name_ambiguity(intact_dim_names)
+        ec = new(
+            name,
+            intact_dim_names,
+            dim_names,
+            [],
+            vals,
+            defaults,
+            Dict(),
+            ReentrantLock(),
+            _make_split_kwargs(dim_names),
+        )
+        ents = [(; zip(dim_names, ents)...) for ents in entities]
+        _append_relationships!(rc, ents)
+        ec
+    end
+end
 
 """
     RelationshipClass
@@ -153,6 +192,15 @@ struct RelationshipClass
         new_ = new(name, Dict(_active_env() => _RelationshipClass(name, args...)))
         spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
         _resolve!(spine_relationship_classes, name, new_, extend)
+    end
+end
+struct EntityClass
+    name::Symbol
+    env_dict::Dict{Symbol,_RelationshipClass}
+    function EntityClass(name, args...; mod=@__MODULE__, extend=false)
+        new_ = new(name, Dict(_active_env() => _EntityClass(name, args...)))
+        spine_entity_classes = _getproperty!(mod, :_spine_entity_classes, Dict())
+        _resolve!(spine_entity_classes, name, new_, extend)
     end
 end
 

@@ -53,6 +53,16 @@ function _members_per_group(groups)
     end
     d
 end
+function __members_per_group(entity_groups)
+    d = Dict()
+    for group in entity_groups
+        push!(
+            get!(d, (group["entity_class_name"], group["group_name"]), []),
+            (group["entity_class_name"], group["member_name"])
+        )
+    end
+    return d
+end
 
 """
 A Dict mapping member ids to an Array of entity group ids.
@@ -61,6 +71,16 @@ function _groups_per_member(groups)
     d = Dict()
     for (class_name, group_name, member_name) in groups
         push!(get!(d, (class_name, member_name), []), (class_name, group_name))
+    end
+    d
+end
+function __groups_per_member(entity_groups)
+    d = Dict()
+    for group in entity_groups
+        push!(
+            get!(d, (group["entity_class_name"], group["member_name"]), []),
+            (group["entity_class_name"], group["group_name"])
+        )
     end
     d
 end
@@ -86,6 +106,25 @@ function _full_objects_per_id(objects, members_per_group, groups_per_member)
     end
     objects_per_id
 end
+function __full_entities_per_id(entities, members_per_group, groups_per_member)
+    entities_per_id = Dict(
+        (entity["entity_class_name"], entity["name"]) => Entity(entity["name"], entity["entity_class_name"])
+        for entity in entities
+    )
+    # Specify `members` for each group
+    for (class, entity) in entities_per_id
+        member_classes = get(members_per_group, class, ())
+        members = isempty(member_classes) ? [entity] : [entities_per_id[member_class] for member_class in member_classes]
+        append!(entity.members, members)
+    end
+    # Specify `groups` for each member
+    for (class, entity) in entities_per_id
+        group_classes = get(groups_per_member, class, ())
+        groups = [entities_per_id[group_class] for group_class in group_classes]
+        append!(entity.groups, groups)
+    end
+    entities_per_id
+end
 
 """
 A Dict mapping class ids to an Array of entities in that class.
@@ -94,6 +133,20 @@ function _entities_per_class(entities)
     d = Dict()
     for ent in entities
         push!(get!(d, ent[1], []), ent)
+    end
+    d
+end
+function __entities_per_class(entities)
+    d = Dict()
+    for ent in entities
+        push!(
+            get!(d, ent["entity_class_name"], []),
+            [
+                ent["entity_class_name"],
+                ent["name"],
+                ent["description"]
+            ]
+        )
     end
     d
 end
@@ -108,6 +161,22 @@ function _parameter_definitions_per_class(param_defs)
     end
     d
 end
+function __parameter_definitions_per_class(param_defs)
+    d = Dict()
+    for param_def in param_defs
+        push!(
+            get!(d, param_def["entity_class_name"], []),
+            [
+                param_def["entity_class_name"],
+                param_def["name"],
+                param_def["default_value"],
+                param_def["parameter_value_list_name"],
+                param_def["description"]
+            ]
+        )
+    end
+    d
+end
 
 """
 A Dict mapping tuples of parameter definition and entity ids, to an Array of corresponding parameter values.
@@ -116,6 +185,16 @@ function _parameter_values_per_entity(param_values)
     Dict(
         (class_name, entity_name, param_name) => value
         for (class_name, entity_name, param_name, value) in param_values
+    )
+end
+function __parameter_values_per_entity(param_values)
+    Dict(
+        (
+            param["entity_class_name"],
+            param["entity_name"],
+            param["parameter_definition_name"]
+        ) => param["value"]
+        for param in param_values
     )
 end
 
@@ -163,9 +242,14 @@ function _obj_class_args(class, objs_per_cls, full_objs_per_id, param_defs_per_c
         _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)...,
         _default_parameter_values(param_defs),
     )
-end
+end #TODO: Obsolete?
 
 function _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)
+    objects = [full_objs_per_id[class_name, obj_name] for (class_name, obj_name) in objects]
+    param_vals = Dict(obj => _parameter_values(string(obj.name), param_defs, param_vals_per_ent) for obj in objects)
+    objects, param_vals
+end
+function __ents_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)
     objects = [full_objs_per_id[class_name, obj_name] for (class_name, obj_name) in objects]
     param_vals = Dict(obj => _parameter_values(string(obj.name), param_defs, param_vals_per_ent) for obj in objects)
     objects, param_vals
@@ -178,6 +262,15 @@ function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_c
     (
         Symbol.(object_class_name_list),
         _rels_and_vals(object_class_name_list, relationships, full_objs_per_id, param_defs, param_vals_per_ent)...,
+        _default_parameter_values(param_defs),
+    )
+end
+function _ent_class_args(class_name, dimension_name_list, ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent)
+    entities = get(ents_per_cls, class_name, ())
+    param_defs = get(param_defs_per_cls, class_name, ())
+    (
+        Symbol.(dimension_name_list),
+        _ents_and_vals(dimension_name_list, entities, full_ents_per_id, param_defs, param_vals_per_ent)...,
         _default_parameter_values(param_defs),
     )
 end
@@ -196,6 +289,20 @@ function _rels_and_vals(object_class_name_list, relationships, full_objs_per_id,
     )
     object_tuples, param_vals
 end
+#function _ents_and_vals(dimension_name_list, entities, full_ents_per_id, param_defs, param_vals_per_ent)
+#    entity_tuples = [
+#        Tuple(
+#            full_ents_per_id[cls_name, ent_name]
+#            for (cls_name, ent_name) in zip(dimension_name_list, ent_name_list)
+#        )
+#        for (ent_cls_name, ent_name_list) in entities
+#    ]
+#    param_vals = Dict(
+#        entity_tuple => _parameter_values(string.(ent.name for ent in entity_tuple), param_defs, param_vals_per_ent)
+#        for entity_tuple in entity_tuples
+#    )
+#    entity_tuples, param_vals
+#end
 
 """
 A Dict mapping object class names to arguments.
@@ -207,7 +314,7 @@ function _obj_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs
         )
         for class in classes
     )
-end
+end #TODO: Obsolete?
 
 """
 A Dict mapping relationship class names to arguments.
@@ -218,6 +325,14 @@ function _rel_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs
             class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
         )
         for class in classes
+    )
+end
+function __ent_args_per_class(entities, ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent)
+    Dict(
+        Symbol(ent["entity_class_name"]) => _ent_class_args(
+            ent["entity_class_name"], ent["dimension_name_list"], ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent
+        )
+        for ent in entities
     )
 end
 
@@ -292,6 +407,54 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
     end
     for (name, args) in args_per_rel_cls
         new = RelationshipClass(name, args...; mod=mod, extend=extend)
+        @eval mod begin
+            $name = $new
+            export $name
+        end
+    end
+    for (name, class_names) in class_names_per_param
+        classes = [getfield(mod, x) for x in class_names]
+        new = Parameter(name, classes; mod=mod, extend=extend)
+        @eval mod begin
+            $name = $new
+            export $name
+        end
+    end
+end
+function __generate_convenience_functions(
+    data::Dict, mod::Module; extend::Bool=false
+)
+    # Fetch and create entities, organize them by "id" (class, name) and class.
+    members_per_group = __members_per_group(data["entity_group"])
+    groups_per_member = __groups_per_member(data["entity_group"])
+    full_entities_per_id = __full_entities_per_id(data["entity"], members_per_group, groups_per_member)
+    entities_per_class = __entities_per_class(data["entity"])
+    # Fetch and organise parameter definitions and values.
+    param_defs_per_cls = __parameter_definitions_per_class(data["parameter_definition"])
+    param_vals_per_ent = __parameter_values_per_entity(data["parameter_value"])
+    # Organise arguments for EntityClass creation
+    args_per_ent_cls = __ent_args_per_class(
+        data["entity"], entities_per_class, full_entities_per_id, param_defs_per_cls, param_vals_per_ent
+    )
+    # Organise arguments for Parameter creation
+    class_names_per_param = __class_names_per_parameter(data["entity_class"], param_defs_per_cls)
+    # Get or create Spine data structure containers
+    spine_entity_classes = _getproperty!(mod, :_spine_entity_classes, Dict())
+    spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
+    if !extend
+        env = _active_env()
+        for elements in (spine_entity_classes, spine_parameters)
+            for (name, x) in collect(elements)
+                if isempty(delete!(x.env_dict, env))
+                    pop!(elements, name)
+                    @eval mod $name = nothing
+                end
+            end
+        end
+    end
+    # Create the convenience functions and eval them to the desired scope.
+    for (name, args) in args_per_ent_cls
+        new = EntityClass(name, args...; mod=mod, extend=extend)
         @eval mod begin
             $name = $new
             export $name
