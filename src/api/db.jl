@@ -207,7 +207,8 @@ end
 """
 A Dict mapping entity class names to arguments.
 """
-function _ent_args_per_class(entities, ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent)
+function _ent_args_per_class(data, ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent)
+    entities = data["entity"]
     Dict(
         Symbol(ent["entity_class_name"]) => _ent_class_args(
             ent["entity_class_name"], ent["dimension_name_list"], ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent
@@ -221,7 +222,8 @@ A Dict mapping parameter names to an Array of class names where the parameter is
 The Array of class names is sorted by decreasing number of dimensions in the class.
 Note that for object classes, the number of dimensions is one.
 """
-function _class_names_per_parameter(entity_classes, param_defs)
+function _class_names_per_parameter(data, param_defs)
+    entity_classes = data["entity_class"]
     d = Dict()
     for class in entity_classes
         class_param_defs = get(param_defs, class["name"], ())
@@ -245,10 +247,10 @@ function _generate_convenience_functions(
     param_vals_per_ent = _parameter_values_per_entity(data)
     # Organise arguments for EntityClass creation
     args_per_ent_cls = _ent_args_per_class(
-        data["entity"], entities_per_class, full_entities_per_id, param_defs_per_cls, param_vals_per_ent
+        data, entities_per_class, full_entities_per_id, param_defs_per_cls, param_vals_per_ent
     )
     # Organise arguments for Parameter creation
-    class_names_per_param = _class_names_per_parameter(data["entity_class"], param_defs_per_cls)
+    class_names_per_param = _class_names_per_parameter(data, param_defs_per_cls)
     # Get or create Spine data structure containers
     spine_entity_classes = _getproperty!(mod, :_spine_entity_classes, Dict())
     spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
