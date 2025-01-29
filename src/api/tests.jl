@@ -66,7 +66,7 @@ function test_parameter(
 end
 function test_parameter(
     param::Parameter,
-    obj_class::ObjectClass,
+    obj_class::EntityClass,
     value_type::Union{DataType,Union,UnionAll};
     value_min::Real=-Inf,
     value_max::Real=Inf,
@@ -95,7 +95,7 @@ function test_parameter(
 end
 function test_parameter(
     param::Parameter,
-    rel_class::RelationshipClass,
+    rel_class::EntityClass,
     value_type::Union{DataType,Union,UnionAll};
     value_min::Real=-Inf,
     value_max::Real=Inf,
@@ -140,8 +140,8 @@ Test if the `object_class` in module `m` is included in `relationship_class` wit
 The `limit` keyword can be used to limit the number of tests performed.
 """
 function test_object_class(
-    obj_class::ObjectClass,
-    rel_class::RelationshipClass,
+    obj_class::EntityClass,
+    rel_class::EntityClass,
     m::Module = @__MODULE__;
     count_min::Real=0,
     count_max::Real=Inf,
@@ -186,8 +186,8 @@ Test if `relationship_class` in module `m` is included in `in_rel_class` with th
 The `limit` keyword can be used to limit the number of tests performed.
 """
 function test_relationship_class(
-    rel_class::RelationshipClass,
-    in_rel_class::RelationshipClass,
+    rel_class::EntityClass,
+    in_rel_class::EntityClass,
     m::Module = @__MODULE__;
     count_min::Real=0,
     count_max::Real=Inf,

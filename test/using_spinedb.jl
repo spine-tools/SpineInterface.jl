@@ -31,7 +31,7 @@ function _test_object_class()
         @test Set(x.name for x in institution()) == Set(vcat(Symbol.(institutions), :Spine))
         @test institution(:FIFA) === nothing
         @test length(object_classes()) === 1
-        @test all(x isa ObjectClass for x in object_classes())
+        @test all(x isa EntityClass for x in object_classes())
         Spine = institution(:Spine)
         @test Set(members(Spine)) == Set(x for x in institution() if x != Spine)
         @test isempty(groups(Spine))
@@ -95,7 +95,7 @@ function _test_relationship_class()
         @test [x.name for x in country__neighbour(country1=country(:France))] == [:Belgium]
         @test [x.name for x in country__neighbour(country2=country(:Finland))] == [:Sweden]
         @test length(relationship_classes()) === 2
-        @test all(x isa RelationshipClass for x in relationship_classes())
+        @test all(x isa EntityClass for x in relationship_classes())
     end
 end
 

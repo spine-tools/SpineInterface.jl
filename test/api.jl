@@ -96,13 +96,13 @@ function _test_object_class_relationship_class_parameter()
             relationship_parameters=relationship_parameters,
         )
         using_spinedb(db_url)
-        @test object_class(:institution) isa ObjectClass
+        @test object_class(:institution) isa EntityClass
         @test object_class(:institution).name == :institution
-        @test object_class(:country) isa ObjectClass
+        @test object_class(:country) isa EntityClass
         @test object_class(:country).name == :country
-        @test relationship_class(:institution__country) isa RelationshipClass
+        @test relationship_class(:institution__country) isa EntityClass
         @test relationship_class(:institution__country).name == :institution__country
-        @test relationship_class(:country__institution) isa RelationshipClass
+        @test relationship_class(:country__institution) isa EntityClass
         @test relationship_class(:country__institution).name == :country__institution
         @test parameter(:people_count) isa Parameter
         @test parameter(:people_count).name == :people_count
@@ -148,10 +148,10 @@ function _test_add_objects()
         import_test_data(db_url; object_classes=object_classes, objects=objects)
         using_spinedb(db_url)
         @test length(institution()) === 2
-        add_objects!(institution, [institution()[1], Object(:KUL), Object(:ER)])
+        add_objects!(institution, [institution()[1], Entity(:KUL), Entity(:ER)])
         @test length(institution()) === 4
         @test Set(x.name for x in institution()) == Set([Symbol.(institutions); [:KUL, :ER]])
-        add_object!(institution, Object(:UCD))
+        add_object!(institution, Entity(:UCD))
         @test length(institution()) === 5
         @test last(institution()).name === :UCD
     end
@@ -180,8 +180,8 @@ function _test_add_relationships()
             institution__country,
             [
                 institution__country()[3],
-                (institution=Object(:ER), country=Object(:France)),
-                (institution=Object(:ER), country=Object(:Ireland)),
+                (institution=Entity(:ER), country=Entity(:France)),
+                (institution=Entity(:ER), country=Entity(:Ireland)),
             ],
         )
         @test length(institution__country()) === 7
@@ -263,13 +263,13 @@ function _test_add_object_parameter_values()
         ER = institution(:ER)
         @test since_year(institution=ER) == 2010
         pvals = Dict(
-            Object(:ER, :institution) => Dict(:since_year => parameter_value(2011)),
-            Object(:CORRE_LABS, :institution) => Dict(
+            Entity(:ER, :institution) => Dict(:since_year => parameter_value(2011)),
+            Entity(:CORRE_LABS, :institution) => Dict(
                 :since_year => parameter_value(2022), :people_count => parameter_value(3)
             ),
         )
         add_object_parameter_values!(institution, pvals)
-        CORRE_LABS = Object(:CORRE_LABS, :institution)
+        CORRE_LABS = Entity(:CORRE_LABS, :institution)
         @test Set(x.name for x in institution()) == Set([Symbol.(institutions); [:CORRE_LABS]])
         @test length(institution()) === 3
         @test since_year(institution=ER) == 2011
@@ -306,7 +306,7 @@ function _test_add_relationship_parameter_values()
         )
         using_spinedb(db_url)
         @test length(institution__country()) === 5
-        ER = Object(:ER, :institution)
+        ER = Entity(:ER, :institution)
         ERFrance = (institution=ER, country=country(:France))
         ERIreland = (institution=ER, country=country(:Ireland))
         ERSweden = (institution=ER, country=country(:Sweden))
@@ -450,9 +450,9 @@ function _test_call()
         @test realize(call) == 5
         call = Call(+, 3, 4)
         @test realize(call) == 7
-        France = Object(:France)
+        France = Entity(:France)
         ts = TimeSeries([DateTime(0), DateTime(1)], [40, 70], false, false)
-        country = ObjectClass(:country, [France], Dict(France => Dict(:apero_time => parameter_value(ts))))
+        country = EntityClass(:country, [France], Dict(France => Dict(:apero_time => parameter_value(ts))))
         apero_time = Parameter(:apero_time, [country])
         call = apero_time[(; country=France, t=TimeSlice(DateTime(0), DateTime(1)))]
         @test realize(call) == 40
@@ -557,10 +557,10 @@ function _test_import_data()
             :map_parameter => parameter_value(map)
         )
         # Create objects and object class for testing
-        to1 = Object(:test_object_1)
-        to2 = Object(:test_object_2)
-        original_oc = ObjectClass(:test_oc, [to1, to2], Dict(to1 => pv_dict), pv_dict)
-        original_rc = RelationshipClass(
+        to1 = Entity(:test_object_1)
+        to2 = Entity(:test_object_2)
+        original_oc = EntityClass(:test_oc, [to1, to2], Dict(to1 => pv_dict), pv_dict)
+        original_rc = EntityClass(
             :test_rc, [:test_oc, :test_oc], [(to1, to2)], Dict((to1, to2) => pv_dict), pv_dict
         )
         # Import the newly created `ObjectClass` and `RelationshipClass`

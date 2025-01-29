@@ -108,7 +108,7 @@ function generate_t_out_of_t(m)
         if start(t1) > end_(t2) || start(t2) > end_(t1)
     ]
     # Is the above optimal?
-    RelationshipClass(:t_out_of_t, [:t1, :t2], t_out_of_t_tuples)
+    EntityClass(:t_out_of_t, [:t1, :t2], t_out_of_t_tuples)
 end
     
 """

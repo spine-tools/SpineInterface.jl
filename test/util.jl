@@ -21,10 +21,10 @@
 using_spinedb("sqlite://")
 
 @testset "object_class_to_dict" begin
-    objects = [Object(:silvester), Object(:tom)]
+    objects = [Entity(:silvester), Entity(:tom)]
     parameter_values = Dict(obj => Dict(:age => parameter_value(k)) for (k, obj) in enumerate(objects))
     parameter_defaults = Dict(:age => parameter_value(9))
-    cls = ObjectClass(:cat, objects, parameter_values, parameter_defaults)
+    cls = EntityClass(:cat, objects, parameter_values, parameter_defaults)
     d_obs = SpineInterface._to_dict(cls)
     d_exp = Dict(
         :object_classes => [:cat],
@@ -40,13 +40,13 @@ using_spinedb("sqlite://")
     end
 end
 @testset "relationship_class_to_dict" begin
-    silvester = Object(:silvester)
-    tom = Object(:tom)
-    pluto = Object(:pluto)
+    silvester = Entity(:silvester)
+    tom = Entity(:tom)
+    pluto = Entity(:pluto)
     object_tuples = [(silvester, tom, pluto), (tom, silvester, pluto)]
     parameter_values = Dict(x => Dict(:aver_age => parameter_value(k)) for (k, x) in enumerate(object_tuples))
     parameter_defaults = Dict(:aver_age => parameter_value(9))
-    cls = RelationshipClass(:cat__cat__dog, [:cat, :cat, :dog], object_tuples, parameter_values, parameter_defaults)
+    cls = EntityClass(:cat__cat__dog, [:cat, :cat, :dog], object_tuples, parameter_values, parameter_defaults)
     d_obs = SpineInterface._to_dict(cls)
     d_exp = Dict(
         :object_classes => [:cat, :dog],
