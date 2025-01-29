@@ -26,70 +26,17 @@ in calls to [`EntityClass()`](@ref).
 anything = Anything()
 
 """
-    (<oc>::ObjectClass)(;<keyword arguments>)
+    (<ec>::EntityClass)(;<keyword arguments>)
 
-An `Array` of [`Object`](@ref) instances corresponding to the objects in class `oc`.
-
-# Arguments
-
-For each parameter associated to `oc` in the database there is a keyword argument
-named after it. The purpose is to filter the result by specific values of that parameter.
-
-# Examples
-
-```jldoctest
-julia> using SpineInterface;
-
-
-julia> url = "sqlite:///" * joinpath(dirname(pathof(SpineInterface)), "..", "examples/data/example.sqlite");
-
-
-julia> using_spinedb(url)
-
-
-julia> sort(node())
-5-element Array{Object,1}:
- Dublin
- Espoo
- Leuven
- Nimes
- Sthlm
-
-julia> commodity(state_of_matter=commodity(:gas))
-1-element Array{Object,1}:
- wind
-```
-"""
-function (oc::EntityClass)(; kwargs...)
-    isempty(kwargs) && return oc.objects
-    function cond(o)
-        for (p, v) in kwargs
-            value = get(oc.parameter_values[o], p, get(oc.parameter_defaults, p, nothing))
-            (value !== nothing && value() === v) || return false
-        end
-        true
-    end
-    filter(cond, oc.objects)
-end
-function (oc::EntityClass)(name::Symbol)
-    i = findfirst(o -> o.name == name, oc.objects)
-    !isnothing(i) && return oc.objects[i]
-    nothing
-end
-(oc::EntityClass)(name::String) = oc(Symbol(name))
-
-"""
-    (<rc>::RelationshipClass)(;<keyword arguments>)
-
-An `Array` of [`Object`](@ref) tuples corresponding to the relationships of class `rc`.
+An `Array` of [`Entity`](@ref) tuples corresponding to the [`EntityClass`](@ref) `ec`.
 
 # Arguments
 
-  - For each object class in `rc` there is a keyword argument named after it.
-    The purpose is to filter the result by an object or list of objects of that class,
-    or to accept all objects of that class by specifying `anything` for this argument.
-  - `_compact::Bool=true`: whether or not filtered object classes should be removed from the resulting tuples.
-  - `_default=[]`: the default value to return in case no relationship passes the filter.
+  - For each dimension in `ec` there is a keyword argument named after it.
+    The purpose is to filter the result by an entity or list of entities of that class,
+    or to accept all entities of that class by specifying `anything` for this argument.
+  - `_compact::Bool=true`: whether or not filtered entity classes should be removed from the resulting tuples.
+  - `_default=[]`: the default value to return in case no entities pass the filter.
 
 # Examples
 
@@ -134,20 +81,20 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 :nogas
 ```
 """
-function (rc::EntityClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
-    isempty(kwargs) && return rc.relationships
+function (ec::EntityClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
+    isempty(kwargs) && return ec.entities
     relationships = if !_compact
-        _find_rels(rc; kwargs...)
+        _find_rels(ec; kwargs...)
     else
-        object_class_names = setdiff(rc.object_class_names, keys(kwargs))
-        if isempty(object_class_names)
+        dimension_names = setdiff(ec.dimension_names, keys(kwargs))
+        if isempty(dimension_names)
             []
-        elseif length(object_class_names) == 1
-            unique(rel[object_class_names[1]] for rel in _find_rels(rc; kwargs...))
+        elseif length(dimension_names) == 1
+            unique(rel[dimension_names[1]] for rel in _find_rels(ec; kwargs...))
         else
             unique(
-                (; zip(object_class_names, (rel[k] for k in object_class_names))...)
-                for rel in _find_rels(rc; kwargs...)
+                (; zip(dimension_names, (rel[k] for k in dimension_names))...)
+                for rel in _find_rels(ec; kwargs...)
             )
         end
     end
@@ -157,40 +104,46 @@ function (rc::EntityClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
         _default
     end
 end
+function (ec::EntityClass)(name::Symbol)
+    i = findfirst(e -> e.name == name, ec.entities)
+    !isnothing(i) && return ec.entities[i]
+    nothing
+end
+(ec::EntityClass)(name::String) = ec(Symbol(name))
 
-_find_rels(rc; kwargs...) = _find_rels(rc, _find_rows(rc; kwargs...))
-_find_rels(rc, rows) = (rc.relationships[row] for row in rows)
-_find_rels(rc, ::Anything) = rc.relationships
+_find_rels(ec::EntityClass; kwargs...) = _find_rels(ec, _find_rows(ec; kwargs...))
+_find_rels(ec::EntityClass, rows) = (ec.entities[row] for row in rows)
+_find_rels(ec::EntityClass, ::Anything) = ec.entities
 
-function _find_rows(rc; kwargs...)
-    lock(rc.row_map_lock) do
-        memoized_rows = get!(rc.row_map, rc.name, Dict())
+function _find_rows(ec; kwargs...)
+    lock(ec.row_map_lock) do
+        memoized_rows = get!(ec.row_map, ec.name, Dict())
         get!(memoized_rows, kwargs) do
-            _do_find_rows(rc; kwargs...)
+            _do_find_rows(ec; kwargs...)
         end
     end
 end
 
-function _do_find_rows(rc; kwargs...)
+function _do_find_rows(ec; kwargs...)
     rows = anything
-    for (oc_name, objs) in kwargs
-        oc_row_map = get(rc.row_map, oc_name, nothing)
-        oc_row_map === nothing && return []
-        oc_rows = _oc_rows(rc, oc_row_map, objs)
-        oc_rows === anything && continue
+    for (ec_name, ents) in kwargs
+        ec_row_map = get(ec.row_map, ec_name, nothing)
+        ec_row_map === nothing && return []
+        ec_rows = _ec_rows(ec, ec_row_map, ents)
+        ec_rows === anything && continue
         if rows === anything
-            rows = collect(oc_rows)
+            rows = collect(ec_rows)
         else
-            intersect!(rows, oc_rows)
+            intersect!(rows, ec_rows)
         end
         isempty(rows) && return []
     end
     rows
 end
 
-_oc_rows(_rc, oc_row_map, objs) = (row for obj in objs for row in get(oc_row_map, obj, ()))
-_oc_rows(rc, _oc_row_map, ::Anything) = anything
-_oc_rows(rc, _oc_row_map, ::Nothing) = []
+_ec_rows(_ec::EntityClass, ec_row_map::Dict, ents) = (row for ent in ents for row in get(ec_row_map, ent, ()))
+_ec_rows(ec::EntityClass, _ec_row_map::Dict, ::Anything) = anything
+_ec_rows(ec::EntityClass, _ec_row_map::Dict, ::Nothing) = []
 
 """
     (<p>::Parameter)(;<keyword arguments>)
@@ -595,44 +548,30 @@ function add_parameter_values!(cls::EntityClass, vals; kwargs...)
 end
 
 """
-    object_classes(m=@__MODULE__)
+    entity_classes(m=@__MODULE__)
 
-A sequence of `ObjectClass`es generated by `using_spinedb` in the given module.
+A sequence of [`EntityClass`](@ref)es generated by [`using_spinedb`](@ref) in the given module.
 """
-object_classes(m=@__MODULE__) = _active_values(m, :_spine_object_classes)
-
-"""
-    relationship_classes(m=@__MODULE__)
-
-A sequence of `RelationshipClass`es generated by `using_spinedb` in the given module.
-"""
-relationship_classes(m=@__MODULE__) = _active_values(m, :_spine_relationship_classes)
+entity_classes(m=@__MODULE__) = _active_values(m, :_spine_entity_classes)
 
 """
     parameters(m=@__MODULE__)
 
-A sequence of `Parameter`s generated by `using_spinedb` in the given module.
+A sequence of [`Parameter`](@ref)s generated by [`using_spinedb`](@ref) in the given module.
 """
 parameters(m=@__MODULE__) = _active_values(m, :_spine_parameters)
 
 """
-    object_class(name, m=@__MODULE__)
+    entity_class(name, m=@__MODULE__)
 
-The `ObjectClass` of given name, generated by `using_spinedb` in the given module.
+The [`EntityClass`](@ref) of the given name, generated by [`using_spinedb`](@ref) in the given module.
 """
-object_class(name, m=@__MODULE__) = _active_value(m, :_spine_object_classes, name)
-
-"""
-    relationship_class(name, m=@__MODULE__)
-
-The `RelationshipClass` of given name, generated by `using_spinedb` in the given module.
-"""
-relationship_class(name, m=@__MODULE__) = _active_value(m, :_spine_relationship_classes, name)
+entity_class(name, m=@__MODULE__) = _active_value(m, :_spine_entity_classes, name)
 
 """
     parameter(name, m=@__MODULE__)
 
-The `Parameter` of given name, generated by `using_spinedb` in the given module.
+The [`Parameter`](@ref) of given name, generated by [`using_spinedb`](@ref) in the given module.
 """
 parameter(name, m=@__MODULE__) = _active_value(m, :_spine_parameters, name)
 

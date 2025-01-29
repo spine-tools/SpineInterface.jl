@@ -77,7 +77,7 @@ export maximum_parameter_value
 export members
 export Entity
 export object_class
-export object_classes
+export entity_classes
 export EntityClass
 export EntityLike
 export overlap_duration

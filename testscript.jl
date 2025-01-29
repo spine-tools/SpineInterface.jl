@@ -1,4 +1,6 @@
 # Ad-hoc testing script for structural reworks
+using Pkg
+Pkg.activate(@__DIR__)
 
 @info "Using SpineInterface"
 using SpineInterface
@@ -6,14 +8,15 @@ url = "sqlite:///c:\\_spineprojects\\superclasstest\\.spinetoolbox\\data store.s
 
 
 ## Test data export
-
+#=
 @info "Testing database exports"
 @time old_data = export_data(url)
 @time new_data = SpineInterface.get_data(url)
-
+=#
 
 ## New convenience function generation
 
+#=
 # Fetch and create entities, organize them by "id" (class, name) and class.
 members_per_group = SpineInterface._members_per_group(new_data)
 groups_per_member = SpineInterface._groups_per_member(new_data)
@@ -28,9 +31,31 @@ args_per_ent_cls = SpineInterface._ent_args_per_class(
 )
 # Organise arguments for Parameter creation
 class_names_per_param = SpineInterface._class_names_per_parameter(new_data, param_defs_per_cls)
-
+=#
 
 ## Test using_spinedb
-
+#=
 @info "Testing `using_spinedb`"
 @time using_spinedb(url)
+=#
+
+
+## From `test/runtests.jl`
+
+# Original tests used a slightly different syntax for `import_data`, so correct it here for convenience.
+SpineInterface.import_data(db_url::String; kwargs...) = SpineInterface.import_data(db_url, Dict(kwargs...), "testing")
+
+# Convenience function for overwriting in-memory Database with test data.
+function import_test_data(db_url::String; kwargs...)
+    SpineInterface.close_connection(db_url)
+    SpineInterface.open_connection(db_url)
+    import_data(db_url; kwargs...)
+end
+
+
+## Run unit tests?
+
+Pkg.activate("test")
+using Test
+
+include("test/using_spinedb.jl")

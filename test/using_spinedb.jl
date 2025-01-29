@@ -27,11 +27,11 @@ function _test_object_class()
         import_test_data(db_url; object_classes=obj_classes, objects=objects, object_groups=object_groups)
         using_spinedb(db_url)
         @test length(institution()) === 6
-        @test all(x isa Object for x in institution())
+        @test all(x isa Entity for x in institution())
         @test Set(x.name for x in institution()) == Set(vcat(Symbol.(institutions), :Spine))
         @test institution(:FIFA) === nothing
-        @test length(object_classes()) === 1
-        @test all(x isa EntityClass for x in object_classes())
+        @test length(entity_classes()) === 1
+        @test all(x isa EntityClass for x in entity_classes())
         Spine = institution(:Spine)
         @test Set(members(Spine)) == Set(x for x in institution() if x != Spine)
         @test isempty(groups(Spine))
