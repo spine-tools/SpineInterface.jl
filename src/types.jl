@@ -97,20 +97,17 @@ struct _EntityClass
     _split_kwargs::Ref{Any}
     function _EntityClass(name, intact_dim_names, entities, vals=Dict(), defaults=Dict())
         dim_names = _fix_name_ambiguity(intact_dim_names)
-        ec = new(
+        new(
             name,
             intact_dim_names,
             dim_names,
-            [],
+            entities,
             vals,
             defaults,
             Dict(),
             ReentrantLock(),
             _make_split_kwargs(dim_names),
         )
-        ents = [(; zip(dim_names, ents)...) for ents in entities]
-        _append_relationships!(rc, ents)
-        ec
     end
 end
 
@@ -132,7 +129,7 @@ end
 """
 Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
 """
-function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
+function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
     name_list = copy(intact_name_list)
     for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
         for (k, index) in enumerate(findall(name_list .== ambiguous))
@@ -141,7 +138,7 @@ function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
     end
     name_list
 end
-_fix_name_ambiguity(intact_name_list::Array{AbstractString,1}) = _fix_name_ambiguity(Symbol.(intact_name_list))
+_fix_name_ambiguity(v::Vector{Any}) = isempty(v) ? Vector{Symbol}() : _fix_name_ambiguity(Symbol.(v))
 
 struct _Parameter
     name::Symbol
