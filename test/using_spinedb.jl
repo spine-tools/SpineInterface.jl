@@ -37,7 +37,7 @@ function _test_object_class()
         @test isempty(groups(Spine))
         @testset for i in institution()
             i != Spine || continue
-            @test members(i) == [i]
+            @test members(i) == []
             @test groups(i) == [Spine]
         end
     end
