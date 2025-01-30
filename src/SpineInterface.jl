@@ -94,7 +94,7 @@ export realize
 export refresh!
 export relationship_class
 export relationship_classes
-export ObjectLike
+export RelationshipLike
 export roll!
 export run_request
 export set_value_translator
