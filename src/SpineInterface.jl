@@ -79,7 +79,7 @@ export Entity
 export object_class
 export entity_classes
 export EntityClass
-export EntityLike
+export ObjectLike
 export overlap_duration
 export overlaps
 export Parameter
@@ -94,7 +94,7 @@ export realize
 export refresh!
 export relationship_class
 export relationship_classes
-export EntityLike
+export ObjectLike
 export roll!
 export run_request
 export set_value_translator

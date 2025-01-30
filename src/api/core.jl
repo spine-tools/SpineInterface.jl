@@ -461,10 +461,10 @@ end
 _entities(class::EntityClass; kwargs...) = class(; _compact=false, kwargs...)
 
 #_entity_key(o::ObjectLike) = o
-_entity_key(r::EntityLike) = tuple(r...)
+_entity_key(r::ObjectLike) = tuple(r...)
 
 #_entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
-_entity_tuple(r::EntityLike, class) = r
+_entity_tuple(r::ObjectLike, class) = r
 
 classes(p::Parameter) = p.classes
 
@@ -497,7 +497,7 @@ function add_object_parameter_defaults!(object_class::EntityClass, parameter_def
     do_merge!(object_class.parameter_defaults, parameter_defaults)
 end
 
-function add_object!(object_class::EntityClass, object::EntityLike)
+function add_object!(object_class::EntityClass, object::ObjectLike)
     add_objects!(object_class, [object])
 end
 
@@ -507,7 +507,7 @@ end
 Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
 Return the modified `relationship_class`.
 """
-function add_relationships!(relationship_class::EntityClass, object_tuples::Vector{T}) where T<:EntityTupleLike
+function add_relationships!(relationship_class::EntityClass, object_tuples::Vector{T}) where T<:ObjectTupleLike
     relationships = [(; zip(relationship_class.object_class_names, obj_tup)...) for obj_tup in object_tuples]
     add_relationships!(relationship_class, relationships)
 end
@@ -536,7 +536,7 @@ function add_relationship_parameter_defaults!(
     do_merge!(relationship_class.parameter_defaults, parameter_defaults)
 end
 
-function add_relationship!(relationship_class::EntityClass, relationship::EntityLike)
+function add_relationship!(relationship_class::EntityClass, relationship::ObjectLike)
     add_relationships!(relationship_class, [relationship])
 end
 

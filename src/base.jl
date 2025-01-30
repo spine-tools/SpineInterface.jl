@@ -82,8 +82,8 @@ Base.:(<=)(x, y::Call) = Call(<=, x, y)
 
 Base.hash(::Anything, h::UInt64) = hash(objectid(anything), h)
 Base.hash(o::Union{Entity,TimeSlice}, h::UInt64) = hash(o.id, h)
-Base.hash(ot::EntityTupleLike, h::UInt64) = hash(hash(ot[2:end], hash(ot[1])), h)
-Base.hash(r::EntityLike, h::UInt64) = hash(Tuple(r), h)
+Base.hash(ot::ObjectTupleLike, h::UInt64) = hash(hash(ot[2:end], hash(ot[1])), h)
+Base.hash(r::ObjectLike, h::UInt64) = hash(Tuple(r), h)
 # FIXME: Implement :== and isequal for the types that implement hash
 
 const _df = DateFormat("yyyy-mm-ddTHH:MM")

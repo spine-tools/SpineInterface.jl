@@ -84,8 +84,9 @@ struct TimeSlice
     end
 end
 
-EntityLike = Union{Entity,TimeSlice,Int64}
-EntityTupleLike = Tuple{EntityLike,Vararg{EntityLike}}
+ObjectLike = Union{Entity,TimeSlice,Int64}
+ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
+RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
 
 struct _EntityClass
     name::Symbol
