@@ -50,12 +50,14 @@ A type for representing an object from a Spine db; an instance of an object clas
 struct Entity
     name::Symbol
     class_name::Union{Symbol,Nothing}
-    members::Array{Entity,1}
-    groups::Array{Entity,1}
+    members::Vector{Entity}
+    groups::Vector{Entity}
     id::UInt64
+    element_list::Vector{Entity}
+    byelement_list::Vector{Entity}
     function Entity(name, class_name, members, groups)
         id = objectid((name, class_name)) #TODO: use DB ids?
-        new(name, class_name, members, groups, id)
+        new(name, class_name, members, groups, id, [], [])
     end
 end
 

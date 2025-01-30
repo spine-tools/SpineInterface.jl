@@ -50,10 +50,7 @@ function _members_per_group(data::Dict)
     entity_groups = data["entity_group"]
     d = Dict()
     for group in entity_groups
-        push!(
-            get!(d, (group["entity_class_name"], group["group_name"]), []),
-            (group["entity_class_name"], group["member_name"])
-        )
+        push!(get!(d, group["entity_id"], []), group["member_id"])
     end
     return d
 end
@@ -65,53 +62,61 @@ function _groups_per_member(data::Dict)
     entity_groups = data["entity_group"]
     d = Dict()
     for group in entity_groups
-        push!(
-            get!(d, (group["entity_class_name"], group["member_name"]), []),
-            (group["entity_class_name"], group["group_name"])
-        )
+        push!(get!(d, group["member_id"], []), group["entity_id"])
     end
     d
 end
 
 """
-A Dict mapping `(class, name)` pairs ("ids") to the corresponding [`Entity`](@ref).
+Return the list of "byelemenents" (aka leaf elements) for a given [`Entity`](@ref).
+"""
+function _recursive_byelement_list(entity::Entity)
+    isempty(entity.element_list) && return [entity]
+    byelement_list = vcat(_recursive_byelement_list.(entity.element_list)...)
+    return byelement_list
+end
+
+"""
+A Dict mapping entity ids to the corresponding [`Entity`](@ref).
 """
 function _full_entities_per_id(data::Dict, members_per_group::Dict, groups_per_member::Dict)
     entities = data["entity"]
     entities_per_id = Dict(
-        (entity["entity_class_name"], entity["name"]) => Entity(entity["name"], entity["entity_class_name"])
-        for entity in entities
+        ent["id"] => Entity(ent["name"], ent["entity_class_name"])
+        for ent in entities
     )
-    # Specify `members` for each group
-    for (class, entity) in entities_per_id
-        member_classes = get(members_per_group, class, ())
-        members = isempty(member_classes) ? [entity] : [entities_per_id[member_class] for member_class in member_classes]
-        append!(entity.members, members)
+    # Specify `element_list` for each entity
+    for ent in entities
+        append!(
+            entities_per_id[ent["id"]].element_list,
+            [entities_per_id[id] for id in ent["element_id_list"]]
+        )
     end
-    # Specify `groups` for each member
-    for (class, entity) in entities_per_id
-        group_classes = get(groups_per_member, class, ())
-        groups = [entities_per_id[group_class] for group_class in group_classes]
-        append!(entity.groups, groups)
+    for (id, entity) in entities_per_id
+        # Specify `members` for each group
+        member_ids = get(members_per_group, id, [])
+        !isempty(member_ids) && append!(
+            entity.members, [entities_per_id[id] for id in member_ids]
+        )
+        # Specify `groups` for each member
+        group_ids = get(groups_per_member, id, [])
+        !isempty(group_ids) && append!(
+            entity.groups, [entities_per_id[id] for id in group_ids]
+        )
+        # Specify `byelement_list` for each entity
+        append!(entity.byelement_list, _recursive_byelement_list(entity))
     end
     entities_per_id
 end
 
 """
-A Dict mapping class ids to an Array of entities in that class.
+A Dict mapping entity class names to an Array of entity ids in that class.
 """
-function _entities_per_class(data::Dict)
+function _entity_ids_per_class(data::Dict)
     entities = data["entity"]
     d = Dict()
     for ent in entities
-        push!(
-            get!(d, ent["entity_class_name"], []),
-            [
-                ent["entity_class_name"],
-                ent["name"],
-                ent["description"]
-            ]
-        )
+        push!(get!(d, ent["entity_class_name"], []), ent["id"])
     end
     d
 end
@@ -188,18 +193,18 @@ function _parameter_values(entity_name, param_defs, param_vals_per_ent)
     )
 end
 
-function _ents_and_vals(entities, full_ents_per_id, param_defs, param_vals_per_ent)
-    entities = [full_ents_per_id[class_name, ent_name] for (class_name, ent_name) in entities]
+function _ents_and_vals(entity_ids, full_ents_per_id, param_defs, param_vals_per_ent)
+    entities = [full_ents_per_id[id] for id in entity_ids]
     param_vals = Dict(ent => _parameter_values(string(ent.name), param_defs, param_vals_per_ent) for ent in entities)
     entities, param_vals
 end
 
 function _ent_class_args(class_name, dimension_name_list, ents_per_cls, full_ents_per_id, param_defs_per_cls, param_vals_per_ent)
-    entities = get(ents_per_cls, class_name, ())
+    entity_ids = get(ents_per_cls, class_name, ())
     param_defs = get(param_defs_per_cls, class_name, ())
     (
         Symbol.(dimension_name_list),
-        _ents_and_vals(entities, full_ents_per_id, param_defs, param_vals_per_ent)...,
+        _ents_and_vals(entity_ids, full_ents_per_id, param_defs, param_vals_per_ent)...,
         _default_parameter_values(param_defs),
     )
 end
@@ -241,13 +246,13 @@ function _generate_convenience_functions(
     members_per_group = _members_per_group(data)
     groups_per_member = _groups_per_member(data)
     full_entities_per_id = _full_entities_per_id(data, members_per_group, groups_per_member)
-    entities_per_class = _entities_per_class(data)
+    entity_ids_per_class = _entity_ids_per_class(data)
     # Fetch and organise parameter definitions and values.
     param_defs_per_cls = _parameter_definitions_per_class(data)
     param_vals_per_ent = _parameter_values_per_entity(data)
     # Organise arguments for EntityClass creation
     args_per_ent_cls = _ent_args_per_class(
-        data, entities_per_class, full_entities_per_id, param_defs_per_cls, param_vals_per_ent
+        data, entity_ids_per_class, full_entities_per_id, param_defs_per_cls, param_vals_per_ent
     )
     # Organise arguments for Parameter creation
     class_names_per_param = _class_names_per_parameter(data, param_defs_per_cls)

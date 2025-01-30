@@ -21,13 +21,13 @@ url = "sqlite:///c:\\_spineprojects\\superclasstest\\.spinetoolbox\\data store.s
 members_per_group = SpineInterface._members_per_group(new_data)
 groups_per_member = SpineInterface._groups_per_member(new_data)
 full_entities_per_id = SpineInterface._full_entities_per_id(new_data, members_per_group, groups_per_member)
-entities_per_class = SpineInterface._entities_per_class(new_data)
+entity_ids_per_class = SpineInterface._entity_ids_per_class(new_data)
 # Fetch and organise parameter definitions and values.
 param_defs_per_cls = SpineInterface._parameter_definitions_per_class(new_data)
 param_vals_per_ent = SpineInterface._parameter_values_per_entity(new_data)
 # Organise arguments for EntityClass creation
 args_per_ent_cls = SpineInterface._ent_args_per_class(
-    new_data, entities_per_class, full_entities_per_id, param_defs_per_cls, param_vals_per_ent
+    new_data, entity_ids_per_class, full_entities_per_id, param_defs_per_cls, param_vals_per_ent
 )
 # Organise arguments for Parameter creation
 class_names_per_param = SpineInterface._class_names_per_parameter(new_data, param_defs_per_cls)

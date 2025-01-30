@@ -117,8 +117,8 @@ _find_rels(ec::EntityClass, ::Anything) = ec.entities
 
 function _find_rows(ec; kwargs...)
     lock(ec.row_map_lock) do
-        memoized_rows = get!(ec.row_map, ec.name, Dict())
-        get!(memoized_rows, kwargs) do
+        memorized_rows = get!(ec.row_map, ec.name, Dict())
+        get!(memorized_rows, kwargs) do
             _do_find_rows(ec; kwargs...)
         end
     end
