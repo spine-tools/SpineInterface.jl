@@ -59,3 +59,4 @@ Pkg.activate("test")
 using Test
 
 include("test/using_spinedb.jl")
+_test_relationship_class()

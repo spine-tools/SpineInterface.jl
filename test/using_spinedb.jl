@@ -94,8 +94,8 @@ function _test_relationship_class()
         @test all(x isa RelationshipLike for x in country__neighbour())
         @test [x.name for x in country__neighbour(country1=country(:France))] == [:Belgium]
         @test [x.name for x in country__neighbour(country2=country(:Finland))] == [:Sweden]
-        @test length(relationship_classes()) === 2
-        @test all(x isa EntityClass for x in relationship_classes())
+        @test length(entity_classes()) === 4
+        @test all(x isa EntityClass for x in entity_classes())
     end
 end
 

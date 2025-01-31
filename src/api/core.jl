@@ -82,27 +82,32 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 ```
 """
 function (ec::EntityClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
-    isempty(kwargs) && return ec.entities
-    relationships = if !_compact
-        _find_rels(ec; kwargs...)
-    else
-        dimension_names = setdiff(ec.dimension_names, keys(kwargs))
-        if isempty(dimension_names)
-            []
-        elseif length(dimension_names) == 1
-            unique(rel[dimension_names[1]] for rel in _find_rels(ec; kwargs...))
-        else
-            unique(
-                (; zip(dimension_names, (rel[k] for k in dimension_names))...)
-                for rel in _find_rels(ec; kwargs...)
-            )
+    # If kwargs is empty and ec has no dimensions, just return the entities.
+    isempty(kwargs) && isempty(ec.dimension_names) && return ec.entities
+    # Otherwise we need to form RelationshipLikes and potentially apply filtering.
+    byentities = getproperty.(ec.entities, :byelement_list)
+    byentities = [
+        NamedTuple(Pair.(_fix_name_ambiguity(getproperty.(byent, :class_name)), byent))
+        for byent in byentities
+    ]
+    if !isempty(kwargs)
+        # Byentity filtering based on kwargs
+        byentities = filter(
+            byent -> _byentity_filter(byent, kwargs), 
+            byentities
+        )
+    end
+    # If nothing passes the filters, return _default
+    isempty(byentities) && return _default
+    # If _compact, remove filtered dimensions from all byentities
+    if _compact
+        byentities = map(byent -> _nt_drop(byent, keys(kwargs)), byentities)
+        # If only a single dimension remains, return the underlying entities
+        if all(length.(byentities) .== 1)
+            byentities = only.(values.(byentities))
         end
     end
-    if !isempty(relationships)
-        relationships
-    else
-        _default
-    end
+    return byentities
 end
 function (ec::EntityClass)(name::Symbol)
     i = findfirst(e -> e.name == name, ec.entities)
@@ -111,39 +116,27 @@ function (ec::EntityClass)(name::Symbol)
 end
 (ec::EntityClass)(name::String) = ec(Symbol(name))
 
-_find_rels(ec::EntityClass; kwargs...) = _find_rels(ec, _find_rows(ec; kwargs...))
-_find_rels(ec::EntityClass, rows) = (ec.entities[row] for row in rows)
-_find_rels(ec::EntityClass, ::Anything) = ec.entities
-
-function _find_rows(ec; kwargs...)
-    lock(ec.row_map_lock) do
-        memorized_rows = get!(ec.row_map, ec.name, Dict())
-        get!(memorized_rows, kwargs) do
-            _do_find_rows(ec; kwargs...)
-        end
-    end
+function _byentity_filter(byentity::RelationshipLike, kwargs)
+    # First check that keywords match and are similarly ordered
+    byclasses = keys(byentity)
+    length(byclasses) < length(kwargs) && return false
+    kw_inds = [findfirst(kw .== byclasses) for (kw, arg) in kwargs]
+    length(kw_inds) < length(kwargs) && return false
+    !issorted(kw_inds) && return false
+    # Only then do actual argument filtering
+    all(_check_byentity_arg(getfield(byentity, kw), arg) for (kw, arg) in kwargs)
 end
 
-function _do_find_rows(ec; kwargs...)
-    rows = anything
-    for (ec_name, ents) in kwargs
-        ec_row_map = get(ec.row_map, ec_name, nothing)
-        ec_row_map === nothing && return []
-        ec_rows = _ec_rows(ec, ec_row_map, ents)
-        ec_rows === anything && continue
-        if rows === anything
-            rows = collect(ec_rows)
-        else
-            intersect!(rows, ec_rows)
-        end
-        isempty(rows) && return []
-    end
-    rows
-end
+_check_byentity_arg(ent::Entity, arg::Anything) = true
+_check_byentity_arg(ent::Entity, arg::Entity) = ent == arg
+_check_byentity_arg(ent::Entity, arg::Symbol) = ent.name == arg
 
-_ec_rows(_ec::EntityClass, ec_row_map::Dict, ents) = (row for ent in ents for row in get(ec_row_map, ent, ()))
-_ec_rows(ec::EntityClass, _ec_row_map::Dict, ::Anything) = anything
-_ec_rows(ec::EntityClass, _ec_row_map::Dict, ::Nothing) = []
+"""
+    _nt_drop(nt::NamedTuple, keys::Tuple)
+
+Return `nt` with `keys` dropped.
+"""
+_nt_drop(nt::NamedTuple, keys::Tuple) = Base.structdiff(nt, NamedTuple{(keys...,)})
 
 """
     (<p>::Parameter)(;<keyword arguments>)

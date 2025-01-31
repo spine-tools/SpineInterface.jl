@@ -95,8 +95,8 @@ struct _EntityClass
     entities::Vector{Entity}
     parameter_values::Dict{Entity,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    row_map::Dict
-    row_map_lock::ReentrantLock
+    row_map::Dict # Not sure if these will have any function anymore?
+    row_map_lock::ReentrantLock # Not sure if these will have any function anymore?
     _split_kwargs::Ref{Any}
     function _EntityClass(name, intact_dim_names, entities, vals=Dict(), defaults=Dict())
         dim_names = _fix_name_ambiguity(intact_dim_names)
