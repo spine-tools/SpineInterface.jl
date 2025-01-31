@@ -233,7 +233,10 @@ function _class_names_per_parameter(data, param_defs)
     for class in entity_classes
         class_param_defs = get(param_defs, class["name"], ())
         for (class_name, parameter_name) in class_param_defs
-            push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), class["dimension_count"]))
+            push!(
+                get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]),
+                (Symbol(class_name), length(class["dimension_name_list"]))
+            )
         end
     end
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
