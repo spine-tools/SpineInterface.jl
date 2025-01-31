@@ -15,7 +15,6 @@ url = "sqlite:///c:\\_spineprojects\\superclasstest\\.spinetoolbox\\data store.s
 =#
 
 ## New convenience function generation
-
 #=
 # Fetch and create entities, organize them by "id" (class, name) and class.
 members_per_group = SpineInterface._members_per_group(new_data)
@@ -59,4 +58,4 @@ Pkg.activate("test")
 using Test
 
 include("test/using_spinedb.jl")
-_test_relationship_class()
+_test_parameter()

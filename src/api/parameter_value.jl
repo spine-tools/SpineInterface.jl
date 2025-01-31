@@ -127,8 +127,8 @@ A parsed value (TimeSeries, TimePattern, Map, etc.) from given DB value and type
 
 Note that parsing is skipped for already parsed DB values.
 """
-parse_db_value(value_and_type::Vector{Any}) = parse_db_value(value_and_type...)
-function parse_db_value(value::Vector{UInt8}, type::Union{String,Nothing})
+parse_db_value(value_and_type::DBParVal) = parse_db_value(value_and_type...)
+function parse_db_value(value::Vector{UInt8}, type::DBTypeLike)
     isempty(value) && return nothing
     _parse_db_value(JSON.parse(String(value)), type)
 end

@@ -93,7 +93,7 @@ struct _EntityClass
     intact_dimension_names::Vector{Symbol}
     dimension_names::Vector{Symbol}
     entities::Vector{Entity}
-    parameter_values::Dict{Entity,Dict{Symbol,ParameterValue}}
+    parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
     row_map::Dict # Not sure if these will have any function anymore?
     row_map_lock::ReentrantLock # Not sure if these will have any function anymore?
