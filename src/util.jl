@@ -63,7 +63,7 @@ _dimension_names(x::EntityClass) = x.object_class_names
 _dimensionality(x::EntityClass) = length(x.dimension_names)
 
 _get_pvals(pvals_by_entity, ::Nothing) = nothing
-_get_pvals(pvals_by_entity, object) = _do_get_pvals(pvals_by_entity, object)
+_get_pvals(pvals_by_entity, object::Entity) = _do_get_pvals(pvals_by_entity, (object,))
 function _get_pvals(pvals_by_entity, objects::Tuple)
     any(x === nothing for x in objects) && return nothing
     _do_get_pvals(pvals_by_entity, objects)

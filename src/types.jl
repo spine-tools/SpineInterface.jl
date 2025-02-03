@@ -99,7 +99,13 @@ struct _EntityClass
     row_map_lock::ReentrantLock # Not sure if these will have any function anymore?
     _split_kwargs::Ref{Any}
     function _EntityClass(name, intact_dim_names, entities, vals=Dict(), defaults=Dict())
-        dim_names = _fix_name_ambiguity(intact_dim_names)
+        if isempty(intact_dim_names)
+            dim_names = intact_dim_names
+            split_kwargs = _make_split_kwargs(name)
+        else
+            dim_names = _fix_name_ambiguity(intact_dim_names)
+            split_kwargs = _make_split_kwargs(dim_names)
+        end
         new(
             name,
             intact_dim_names,
@@ -109,7 +115,7 @@ struct _EntityClass
             defaults,
             Dict(),
             ReentrantLock(),
-            _make_split_kwargs(dim_names),
+            split_kwargs,
         )
     end
 end
