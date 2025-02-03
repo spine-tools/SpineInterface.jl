@@ -114,13 +114,13 @@ function _full_entities_per_id(
 end
 
 """
-A Dict mapping entity class names to an Array of entity ids in that class.
+A Dict mapping entity class ids to an Array of entity ids in that class.
 """
 function _entity_ids_per_class(data::Dict{String,Vector{Any}})
     entities = data["entity"]
-    d = Dict{String,Vector{Int64}}()
+    d = Dict{Int64,Vector{Int64}}()
     for ent in entities
-        push!(get!(d, ent["entity_class_name"], []), ent["id"])
+        push!(get!(d, ent["class_id"], []), ent["id"])
     end
     d
 end
@@ -135,10 +135,10 @@ A Dict mapping entity class ids to an Array of parameter definitions associated 
 """
 function _parameter_definitions_per_class(data::Dict{String,Vector{Any}})
     param_defs = data["parameter_definition"]
-    d = Dict{String,Vector{DBParDef}}()
+    d = Dict{Int64,Vector{DBParDef}}()
     for param_def in param_defs
         push!(
-            get!(d, param_def["entity_class_name"], []),
+            get!(d, param_def["entity_class_id"], []),
             (
                 param_def["entity_class_name"],
                 param_def["name"],
@@ -152,18 +152,21 @@ function _parameter_definitions_per_class(data::Dict{String,Vector{Any}})
 end
 
 """
-A Dict mapping tuples of parameter definition and entity ids, to an Array of corresponding parameter values.
+A Dict mapping entity ids to its parameter values.
 """
 function _parameter_values_per_entity(data::Dict{String,Vector{Any}})
     param_values = data["parameter_value"]
-    Dict{Tuple{String,String,String},DBParVal}(
-        (
-            param["entity_class_name"],
-            param["entity_name"],
-            param["parameter_definition_name"]
-        ) => (param["value"], param["type"])
-        for param in param_values
-    )
+    d = Dict{Int64,Vector{Tuple{String,DBParVal}}}()
+    for param in param_values
+        push!(
+            get!(d, param["entity_id"], []),
+            (
+                param["parameter_definition_name"],
+                (param["value"], param["type"])
+            )
+        )
+    end
+    d
 end
 
 function _try_parameter_value_from_db(db_value::DBParVal, err_msg::String)
@@ -192,49 +195,48 @@ end
 A Dict mapping parameter names to their values for a given entity.
 """
 function _parameter_values(
-    entity_name::Symbol,
-    param_defs::Vector{DBParDef},
-    param_vals_per_ent::Dict{Tuple{String,String,String},DBParVal}
+    entity_name::String,
+    param_vals_for_ent::Vector{Tuple{String,DBParVal}}
 )
     Dict{Symbol,ParameterValue}(
         Symbol(param_name) => _try_parameter_value_from_db(
             value, "unable to parse value of `$param_name` for `$entity_name`"
         )
-        for (param_name, value) in (
-            (param_name, get(param_vals_per_ent, (class_name, entity_name, param_name), nothing))
-            for (class_name, param_name) in param_defs
-        )
-        if value !== nothing
+        for (param_name, value) in param_vals_for_ent
     )
 end
 
 function _ents_and_vals(
     entity_ids::Vector{Int64},
     full_ents_per_id::Dict{Int64, Entity},
-    param_defs::Vector{DBParDef},
-    param_vals_per_ent::Dict{Tuple{String,String,String},DBParVal}
+    param_vals_per_ent::Dict{Int64,Vector{Tuple{String,DBParVal}}}
 )
-    entities = [full_ents_per_id[id] for id in entity_ids]
-    param_vals = Dict(
-        (ent.byelement_list...,) => _parameter_values(ent.name, param_defs, param_vals_per_ent)
-        for ent in entities
+    entity_ids_with_params = intersect(entity_ids, keys(param_vals_per_ent))
+    entities_with_params = zip(
+        entity_ids_with_params,
+        [full_ents_per_id[id] for id in entity_ids_with_params]
     )
-    entities, param_vals
+    param_vals = Dict(
+        (ent.byelement_list...,) => _parameter_values(string(ent.name), param_vals_per_ent[id])
+        for (id, ent) in entities_with_params
+    )
+    param_vals
 end
 
 function _ent_class_args(
-    class_name::String,
-    dimension_name_list::Vector{Any}, # This can be empty unfortunately.
-    ents_per_cls::Dict{String,Vector{Int64}},
+    class_id::Int64,
+    dimension_name_list::Vector{Any}, # This can be empty, no strict typing
+    ents_per_cls::Dict{Int64,Vector{Int64}},
     full_ents_per_id::Dict{Int64,Entity},
-    param_defs_per_cls::Dict{String,Vector{DBParDef}},
-    param_vals_per_ent::Dict{Tuple{String,String,String},DBParVal}
+    param_defs_per_cls::Dict{Int64,Vector{DBParDef}},
+    param_vals_per_ent::Dict{Int64,Vector{Tuple{String,DBParVal}}}
 )
-    entity_ids = get(ents_per_cls, class_name, Vector{Int64}())
-    param_defs = get(param_defs_per_cls, class_name, Vector{DBParDef}())
+    entity_ids = get(ents_per_cls, class_id, Vector{Int64}())
+    param_defs = get(param_defs_per_cls, class_id, Vector{DBParDef}())
     (
         Symbol.(dimension_name_list),
-        _ents_and_vals(entity_ids, full_ents_per_id, param_defs, param_vals_per_ent)...,
+        [full_ents_per_id[id] for id in entity_ids],
+        _ents_and_vals(entity_ids, full_ents_per_id, param_vals_per_ent),
         _default_parameter_values(param_defs),
     )
 end
@@ -244,22 +246,22 @@ A Dict mapping entity class names to arguments.
 """
 function _ent_args_per_class(
     data::Dict{String,Vector{Any}},
-    ents_per_cls::Dict{String,Vector{Int64}},
+    ents_per_cls::Dict{Int64,Vector{Int64}},
     full_ents_per_id::Dict{Int64,Entity},
-    param_defs_per_cls::Dict{String,Vector{DBParDef}},
-    param_vals_per_ent::Dict{Tuple{String,String,String},DBParVal}
+    param_defs_per_cls::Dict{Int64,Vector{DBParDef}},
+    param_vals_per_ent::Dict{Int64,Vector{Tuple{String,DBParVal}}}
 )
-    entities = data["entity"]
+    classes = data["entity_class"]
     Dict{Symbol,Tuple{Vector,Vector{Entity},Dict,Dict}}(
-        Symbol(ent["entity_class_name"]) => _ent_class_args(
-            ent["entity_class_name"],
-            ent["dimension_name_list"],
+        Symbol(cls["name"]) => _ent_class_args(
+            cls["id"],
+            cls["dimension_name_list"],
             ents_per_cls,
             full_ents_per_id,
             param_defs_per_cls,
             param_vals_per_ent
         )
-        for ent in entities
+        for cls in classes
     )
 end
 
@@ -269,16 +271,17 @@ The Array of class names is sorted by decreasing number of dimensions in the cla
 Note that for object classes, the number of dimensions is one.
 """
 function _class_names_per_parameter(
-    data::Dict{String,Vector{Any}}, param_defs::Dict{String,Vector{DBParDef}}
+    data::Dict{String,Vector{Any}},
+    param_defs_per_cls::Dict{Int64,Vector{DBParDef}}
 )
-    entity_classes = data["entity_class"]
+    raw_param_defs = data["parameter_definition"]
     d = Dict{Symbol,Vector{Tuple{Symbol,Int64}}}()
-    for class in entity_classes
-        class_param_defs = get(param_defs, class["name"], ())
+    for def in raw_param_defs
+        class_param_defs = param_defs_per_cls[def["entity_class_id"]]
         for (class_name, parameter_name) in class_param_defs
             push!(
                 get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]),
-                (Symbol(class_name), length(class["dimension_name_list"]))
+                (Symbol(class_name), length(def["dimension_name_list"]))
             )
         end
     end

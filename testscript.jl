@@ -58,4 +58,5 @@ Pkg.activate("test")
 using Test
 
 include("test/using_spinedb.jl")
-_test_parameter()
+test_data = SpineInterface.get_data(db_url)
+new_data = deepcopy(test_data)
