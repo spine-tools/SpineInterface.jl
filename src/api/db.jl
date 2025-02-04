@@ -521,27 +521,24 @@ function export_data(url; upgrade=false, filters=Dict())
 end
 
 """
-    _get_data(url::String, upgrade::Bool)
+    _get_data(db)
 
 Get data from a Spine DB.
 
-`upgrade` can be used to control whether DB upgrading is triggered.
 See also [`get_data`](@ref).
 """
-function _get_data(url::String, upgrade::Bool)
-    _db(url; upgrade=upgrade) do db
-        Dict(
-            key => _run_server_request(db, "call_method", ("get_items", key))
-            for key in [
-                "entity_class",
-                "entity",
-                "entity_group",
-                "parameter_definition",
-                "parameter_value",
-                "superclass_subclass"
-            ]
-        )
-    end
+function _get_data(db)
+    Dict(
+        key => _run_server_request(db, "call_method", ("get_items", key))
+        for key in [
+            "entity_class",
+            "entity",
+            "entity_group",
+            "parameter_definition",
+            "parameter_value",
+            "superclass_subclass"
+        ]
+    )
 end
 
 """
@@ -553,13 +550,15 @@ Get data from a Spine DB.
 `filters` can be used to apply filtering to the DB.
 """
 function get_data(url::String; upgrade=false, filters=Dict())
-    isempty(filters) && return _get_data(url, upgrade)
-    old_filters = _current_filters(db)
-    _run_server_request(db, "apply_filters", (filters,))
-    data = _get_data(url, upgrade)
-    _run_server_request(db, "clear_filters")
-    isempty(old_filters) || _run_server_request(db, "apply_filters", (old_filters,))
-    return data
+    _db(url; upgrade=upgrade) do db
+        isempty(filters) && return _get_data(db)
+        old_filters = _current_filters(db)
+        _run_server_request(db, "apply_filters", (filters,))
+        data = _get_data(db)
+        _run_server_request(db, "clear_filters")
+        isempty(old_filters) || _run_server_request(db, "apply_filters", (old_filters,))
+        return data
+    end
 end
 
 """
@@ -868,7 +867,7 @@ function _to_dict(obj_cls::EntityClass)
             [obj_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
             for (parameter_name, parameter_default_value) in obj_cls.parameter_defaults
         ],
-        :objects => [[obj_cls.name, object.name] for object in obj_cls.objects],
+        :objects => [[obj_cls.name, object.name] for object in obj_cls.entities],
         :object_parameter_values => [
             [obj_cls.name, object.name, parameter_name, unparse_db_value(parameter_value)]
             for (object, parameter_values) in obj_cls.parameter_values

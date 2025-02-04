@@ -367,7 +367,7 @@ Base.keys(m::Map) = m.indexes
 Base.keys(pv::ParameterValue{T}) where {T<:_Indexed} = keys(pv.value)
 
 function Base.merge!(a::EntityClass, b::EntityClass)
-    add_objects!(a, b.objects) #TODO: This doesn't work
+    add_objects!(a, b.entities)
     add_object_parameter_values!(a, b.parameter_values)
     add_object_parameter_defaults!(a, b.parameter_defaults)
     a

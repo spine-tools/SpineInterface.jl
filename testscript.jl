@@ -39,24 +39,9 @@ class_names_per_param = SpineInterface._class_names_per_parameter(new_data, para
 =#
 
 
-## From `test/runtests.jl`
-
-# Original tests used a slightly different syntax for `import_data`, so correct it here for convenience.
-SpineInterface.import_data(db_url::String; kwargs...) = SpineInterface.import_data(db_url, Dict(kwargs...), "testing")
-
-# Convenience function for overwriting in-memory Database with test data.
-function import_test_data(db_url::String; kwargs...)
-    SpineInterface.close_connection(db_url)
-    SpineInterface.open_connection(db_url)
-    import_data(db_url; kwargs...)
-end
-
-
 ## Run unit tests?
 
 Pkg.activate("test")
-using Test
-
-include("test/using_spinedb.jl")
+include("test/runtests.jl")
 test_data = SpineInterface.get_data(db_url)
 new_data = deepcopy(test_data)

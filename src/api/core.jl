@@ -496,9 +496,9 @@ Remove from `objects` everything that's already in `object_class`, and append th
 Return the modified `object_class`.
 """
 function add_objects!(object_class::EntityClass, objects::Array)
-    setdiff!(objects, object_class.objects)
-    append!(object_class.objects, objects)
-    merge!(object_class.parameter_values, Dict(obj => Dict() for obj in objects))
+    setdiff!(objects, object_class.entities)
+    append!(object_class.entities, objects)
+    merge!(object_class.parameter_values, Dict((obj,) => Dict() for obj in objects))
     object_class
 end
 

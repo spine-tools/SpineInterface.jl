@@ -73,7 +73,7 @@ function test_parameter(
     limit::Real=Inf,
 )
     @testset "Parameter `$param`" begin
-        for (i, object) in enumerate(obj_class.objects)
+        for (i, object) in enumerate(obj_class.entities)
             if i <= limit
                 val = _get(obj_class.parameter_values[object], param.name, obj_class.parameter_defaults)()
                 cond = val isa value_type
@@ -156,7 +156,7 @@ function test_object_class(
         @test _check(cond, "`$obj_class` not included in `$rel_class`!")
         if cond
             obs_in_rels = getfield.(rel_class.relationships, obj_class.name)
-            for (i, object) in enumerate(obj_class.objects)
+            for (i, object) in enumerate(obj_class.entities)
                 if i <= limit
                     c = count(entry -> entry == object, obs_in_rels)
                     @test _check(
