@@ -148,6 +148,7 @@ function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
     name_list
 end
 _fix_name_ambiguity(v::Vector{Any}) = isempty(v) ? Vector{Symbol}() : _fix_name_ambiguity(Symbol.(v))
+_fix_name_ambiguity(tup::Tuple) = _fix_name_ambiguity(collect(tup))
 
 struct _Parameter
     name::Symbol

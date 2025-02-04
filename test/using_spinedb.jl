@@ -132,7 +132,7 @@ function _test_parameter()
         @test since_year(institution=institution(:KTH)) === 1827
         @test since_year(institution=institution(:VTT), _strict=false) === nothing
         @test people_count(institution=institution(:VTT), country=country(:France)) === nothing
-        @test [x.name for x in institution(since_year=1827)] == [:KTH]
+        @test [x[1].name for x in institution(since_year=1827)] == [:KTH]
         @test length(parameters()) === 2
         @test all(x isa Parameter for x in parameters())
     end

@@ -82,42 +82,68 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 ```
 """
 function (ec::EntityClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
-    # If kwargs is empty and ec has no dimensions, just return the entities.
+    # If kwargs is empty and ec has no dimensions, just return the entities (old ObjectClass behaviour).
     isempty(kwargs) && isempty(ec.dimension_names) && return ec.entities
-    # Otherwise we need to form RelationshipLikes and potentially apply filtering.
-    byentities = getproperty.(ec.entities, :byelement_list)
-    byentities = [
+    # Next, let's check for potential parameter value filters
+    class_kwargs, param_kwargs = _split_filter_kwargs(ec, kwargs)
+    if !isempty(param_kwargs)
+        # Parameter value filters significantly limit the byentities for class filtering.
+        byentities = collect(keys(filter(
+            byent_param_dict_pair -> _parameter_filter(byent_param_dict_pair, param_kwargs),
+            ec.parameter_values
+        )))
+    else
+        # Otherwise include all byentities for class keyword filtering.
+        byentities = getproperty.(ec.entities, :byelement_list)
+    end
+    # Form `RelationshipLike` named tuples and fix name ambiguity.
+    byentities = [ # Maybe we could store these in `Entity` upon creation like this already?
         NamedTuple(Pair.(_fix_name_ambiguity(getproperty.(byent, :class_name)), byent))
         for byent in byentities
     ]
-    if !isempty(kwargs)
-        # Byentity filtering based on kwargs
+    if !isempty(class_kwargs)
         byentities = filter(
-            byent -> _byentity_filter(byent, kwargs), 
+            byent -> _byentity_filter(byent, class_kwargs), 
             byentities
         )
-    end
-    # If nothing passes the filters, return _default
-    isempty(byentities) && return _default
-    # If _compact, remove filtered dimensions from all byentities
-    if _compact
-        byentities = map(byent -> _nt_drop(byent, keys(kwargs)), byentities)
-        # If only a single dimension remains, return the underlying entities
-        if all(length.(byentities) .== 1)
-            byentities = only.(values.(byentities))
+        # If _compact, remove filtered dimensions from all byentities
+        if _compact
+            byentities = map(byent -> _nt_drop(byent, keys(class_kwargs)), byentities)
+            # If only a single dimension remains, return the underlying entities
+            if all(length.(byentities) .== 1)
+                byentities = only.(values.(byentities))
+            end
         end
     end
-    return byentities
+    return isempty(byentities) ? _default : byentities
 end
-function (ec::EntityClass)(name::Symbol)
+function (ec::EntityClass)(name::Symbol) # Old ObjectClass behaviour.
     i = findfirst(e -> e.name == name, ec.entities)
     !isnothing(i) && return ec.entities[i]
     nothing
 end
 (ec::EntityClass)(name::String) = ec(Symbol(name))
 
+function _split_filter_kwargs(ec::EntityClass, kwargs::Base.Pairs)
+    class_kwargs = pairs(_nt_drop((;kwargs...), (keys(ec.parameter_defaults)...,)))
+    param_kwargs = pairs(_nt_drop((;kwargs...), keys(class_kwargs)))
+    return class_kwargs, param_kwargs
+end
+
+function _parameter_filter(
+    byent_param_dict_pair::Pair{ObjectTupleLike,Dict{Symbol,ParameterValue}},
+    param_kwargs
+)
+    # Can't do the comparison directly due to `ParameterValue` in byent_param_dict_pair
+    param_value_set = Set(
+        param_name => param_value.value
+        for (param_name, param_value) in byent_param_dict_pair.second
+    )
+    all([kwarg in param_value_set for kwarg in param_kwargs])
+end
+
 function _byentity_filter(byentity::RelationshipLike, kwargs)
-    # First check that keywords match and are similarly ordered
+    # Next check that remaining keywords match and are similarly ordered
     byclasses = keys(byentity)
     length(byclasses) < length(kwargs) && return false
     kw_inds = [findfirst(kw .== byclasses) for (kw, arg) in kwargs]
