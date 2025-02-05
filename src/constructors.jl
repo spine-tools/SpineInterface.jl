@@ -56,10 +56,6 @@ function EntityClass(
     EntityClass(class_name, intact_dim_names, entities, args...)
 end
 
-_default_entity_name_from_tuple(objtup::ObjectTupleLike) = Symbol(
-    join(string.(getfield.(objtup, :name)), "__")
-)
-
 """
     TimeSlice(start::DateTime, end_::DateTime)
 

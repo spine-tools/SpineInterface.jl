@@ -181,7 +181,7 @@ function _add_update(t::TimeSlice, timeout, upd)
     end
 end
 
-function _append_relationships!(rc, rels)
+function _append_relationships!(rc, rels) #TODO This is no longer used.
     isempty(rels) && return
     delete!(rc.row_map, rc.name)  # delete memoized rows
     offset = length(rc.relationships)
@@ -216,10 +216,21 @@ function _make_split_kwargs(names::Vector{Symbol})
 end
 
 """
+    _recursive_byelement_list(entity::Entity)
+
 Return the list of "byelemenents" (aka leaf elements) for a given [`Entity`](@ref).
 """
 function _recursive_byelement_list(entity::Entity)
     isempty(entity.element_list) && return [entity]
     byelement_list = vcat(_recursive_byelement_list.(entity.element_list)...)
     return byelement_list::Vector{Entity}
+end
+
+"""
+    _default_entity_name_from_tuple(objtup::ObjectTupleLike) 
+
+Generate the default entity name from a tuple by joining element names with "__".
+"""
+function _default_entity_name_from_tuple(objtup::ObjectTupleLike) 
+    Symbol(join(string.(getfield.(objtup, :name)), "__"))
 end

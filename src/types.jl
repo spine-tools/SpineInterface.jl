@@ -102,8 +102,8 @@ struct _EntityClass
     entities::Vector{Entity}
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    row_map::Dict # Not sure if these will have any function anymore?
-    row_map_lock::ReentrantLock # Not sure if these will have any function anymore?
+    row_map::Dict # Not sure if these will have any function with new filtering?
+    row_map_lock::ReentrantLock # Not sure if these will have any function with new filtering?
     _split_kwargs::Ref{Any}
     function _EntityClass(
         name, intact_dim_names=[], entities=[], vals=Dict(), defaults=Dict()

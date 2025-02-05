@@ -180,8 +180,8 @@ function _test_add_relationships()
             institution__country,
             [
                 institution__country()[3],
-                (institution=Entity(:ER), country=Entity(:France)),
-                (institution=Entity(:ER), country=Entity(:Ireland)),
+                (institution=institution(:ER), country=country(:France)),
+                (institution=institution(:ER), country=country(:Ireland)),
             ],
         )
         @test length(institution__country()) === 7
