@@ -17,10 +17,48 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-Entity(name::Symbol, class_name) = Entity(name, class_name, [], [])
 Entity(name::AbstractString, args...) = Entity(Symbol(name), args...)
 Entity(name::AbstractString, class_name::AbstractString, args...) = Entity(Symbol(name), Symbol(class_name), args...)
-Entity(name::Symbol) = Entity(name::Symbol, nothing)
+
+# Old "ObjectClass" equivalent constructors.
+EntityClass(name, entities::Vector{Entity}, args...) = EntityClass(name, Vector{Symbol}(), entities, args...)
+function EntityClass(
+    name,
+    intact_dim_names,
+    entities,
+    vals::Dict{Entity,Dict{Symbol,ParameterValue}},
+    args...
+)
+    new_vals = Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}(
+        tuple(k) => v for (k,v) in vals
+    )
+    EntityClass(name, intact_dim_names, entities, new_vals, args...)
+end
+# Old "RelationshipClass" equivalent constructors.
+function EntityClass(
+    class_name,
+    intact_dim_names,
+    entities::Vector{T} where {T<:ObjectTupleLike},
+    args...
+)
+    # We need to create new entities for the old relationships.
+    entities = [
+        Entity(
+            _default_entity_name_from_tuple(ent_tuple),
+            class_name,
+            Vector{Entity}(),
+            Vector{Entity}(),
+            Vector{Entity}([ent_tuple...]),
+            vcat(_recursive_byelement_list.([ent_tuple...])...)
+        )
+        for ent_tuple in entities
+    ]
+    EntityClass(class_name, intact_dim_names, entities, args...)
+end
+
+_default_entity_name_from_tuple(objtup::ObjectTupleLike) = Symbol(
+    join(string.(getfield.(objtup, :name)), "__")
+)
 
 """
     TimeSlice(start::DateTime, end_::DateTime)

@@ -68,15 +68,6 @@ function _groups_per_member(data::Dict{String,Vector{Any}})
 end
 
 """
-Return the list of "byelemenents" (aka leaf elements) for a given [`Entity`](@ref).
-"""
-function _recursive_byelement_list(entity::Entity)
-    isempty(entity.element_list) && return [entity]
-    byelement_list = vcat(_recursive_byelement_list.(entity.element_list)...)
-    return byelement_list
-end
-
-"""
 A Dict mapping entity ids to the corresponding [`Entity`](@ref).
 """
 function _full_entities_per_id(
@@ -216,7 +207,7 @@ function _ents_and_vals(
         entity_ids_with_params,
         [full_ents_per_id[id] for id in entity_ids_with_params]
     )
-    param_vals = Dict(
+    param_vals = Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}(
         (ent.byelement_list...,) => _parameter_values(string(ent.name), param_vals_per_ent[id])
         for (id, ent) in entities_with_params
     )
@@ -234,8 +225,8 @@ function _ent_class_args(
     entity_ids = get(ents_per_cls, class_id, Vector{Int64}())
     param_defs = get(param_defs_per_cls, class_id, Vector{DBParDef}())
     (
-        Symbol.(dimension_name_list),
-        [full_ents_per_id[id] for id in entity_ids],
+        Vector{Symbol}(Symbol.(dimension_name_list)),
+        Vector{Entity}([full_ents_per_id[id] for id in entity_ids]),
         _ents_and_vals(entity_ids, full_ents_per_id, param_vals_per_ent),
         _default_parameter_values(param_defs),
     )

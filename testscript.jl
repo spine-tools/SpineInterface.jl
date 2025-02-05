@@ -38,7 +38,6 @@ class_names_per_param = SpineInterface._class_names_per_parameter(new_data, para
 @time using_spinedb(url)
 =#
 
-
 ## Run unit tests?
 
 Pkg.activate("test")

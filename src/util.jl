@@ -214,3 +214,12 @@ function _make_split_kwargs(names::Vector{Symbol})
         )
     )
 end
+
+"""
+Return the list of "byelemenents" (aka leaf elements) for a given [`Entity`](@ref).
+"""
+function _recursive_byelement_list(entity::Entity)
+    isempty(entity.element_list) && return [entity]
+    byelement_list = vcat(_recursive_byelement_list.(entity.element_list)...)
+    return byelement_list::Vector{Entity}
+end

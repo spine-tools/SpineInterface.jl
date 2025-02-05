@@ -135,12 +135,15 @@ function _parameter_filter(
     param_kwargs
 )
     # Can't do the comparison directly due to `ParameterValue` in byent_param_dict_pair
-    param_value_set = Set(
+    param_value_dict = Dict(
         param_name => param_value.value
         for (param_name, param_value) in byent_param_dict_pair.second
     )
-    all([kwarg in param_value_set for kwarg in param_kwargs])
+    all([_pv_in(kwarg, param_value_dict) for kwarg in param_kwargs])
 end
+
+_pv_in(kwarg::Pair{Symbol,Anything}, param_value_dict::Dict) = in(kwarg.first, keys(param_value_dict))
+_pv_in(kwarg::Pair, param_value_dict::Dict) = in(kwarg, param_value_dict)
 
 function _byentity_filter(byentity::RelationshipLike, kwargs)
     # Next check that remaining keywords match and are similarly ordered
@@ -453,10 +456,10 @@ function indices(p::Parameter; kwargs...)
     (ent for class in p.classes for ent in indices(p, class; kwargs...))
 end
 function indices(p::Parameter, class::EntityClass; kwargs...)
+    new_kwargs = (; p.name=>anything, kwargs...)
     (
         ent
-        for ent in _entities(class; kwargs...)
-        if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
+        for ent in _entities(class; new_kwargs...)
     )
 end
 
@@ -476,14 +479,13 @@ function indices_as_tuples(p::Parameter, class::EntityClass; kwargs...)
     )
 end
 
-#_entities(class::ObjectClass; kwargs...) = class()
 _entities(class::EntityClass; kwargs...) = class(; _compact=false, kwargs...)
 
-#_entity_key(o::ObjectLike) = o
-_entity_key(r::ObjectLike) = tuple(r...)
+_entity_key(o::ObjectLike) = tuple(o)
+_entity_key(r::RelationshipLike) = tuple(r...)
 
-#_entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
-_entity_tuple(r::ObjectLike, class) = r
+_entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
+_entity_tuple(r::RelationshipLike, class) = r
 
 classes(p::Parameter) = p.classes
 

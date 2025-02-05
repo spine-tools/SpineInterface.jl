@@ -52,12 +52,19 @@ struct Entity
     class_name::Union{Symbol,Nothing}
     members::Vector{Entity}
     groups::Vector{Entity}
-    id::UInt64
     element_list::Vector{Entity}
     byelement_list::Vector{Entity}
-    function Entity(name, class_name, members, groups)
-        id = objectid((name, class_name)) #TODO: use DB ids?
-        new(name, class_name, members, groups, id, [], [])
+    id::UInt64
+    function Entity(
+        name,
+        class_name=nothing,
+        members=[],
+        groups=[],
+        element_list=[],
+        byelement_list=[]
+    )
+        id = objectid((name, class_name)) #TODO: use DB ids? (not sure if possible)
+        new(name, class_name, members, groups, element_list, byelement_list, id)
     end
 end
 
@@ -98,7 +105,9 @@ struct _EntityClass
     row_map::Dict # Not sure if these will have any function anymore?
     row_map_lock::ReentrantLock # Not sure if these will have any function anymore?
     _split_kwargs::Ref{Any}
-    function _EntityClass(name, intact_dim_names, entities, vals=Dict(), defaults=Dict())
+    function _EntityClass(
+        name, intact_dim_names=[], entities=[], vals=Dict(), defaults=Dict()
+    )
         if isempty(intact_dim_names)
             dim_names = intact_dim_names
             split_kwargs = _make_split_kwargs(name)
@@ -128,8 +137,18 @@ A type for representing an entity class from a Spine DB.
 struct EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_EntityClass}
-    function EntityClass(name, args...; mod=@__MODULE__, extend=false)
-        new_ = new(name, Dict(_active_env() => _EntityClass(name, args...)))
+    function EntityClass(
+        name,
+        intact_dim_names=[],
+        entities=[],
+        vals=Dict(),
+        defaults=Dict();
+        mod=@__MODULE__,
+        extend=false
+    )
+        new_ = new(name, Dict(_active_env() => _EntityClass(
+            name, intact_dim_names, entities, vals, defaults
+        )))
         spine_entity_classes = _getproperty!(mod, :_spine_entity_classes, Dict())
         _resolve!(spine_entity_classes, name, new_, extend)
     end
