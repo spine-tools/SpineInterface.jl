@@ -157,8 +157,13 @@ function _byentity_filter(byentity::RelationshipLike, kwargs)
 end
 
 _check_byentity_arg(ent::Entity, arg::Anything) = true
-_check_byentity_arg(ent::Entity, arg::Entity) = ent == arg
+_check_byentity_arg(ent::Entity, arg::Nothing) = false
 _check_byentity_arg(ent::Entity, arg::Symbol) = ent.name == arg
+_check_byentity_arg(ent::Entity, arg::ObjectLike) = ent == arg
+_check_byentity_arg(ent::Entity, arg::Vector{Entity}) = ent in arg
+# The following is a horrible mess dealing with `indices()` output when given as arguments for `_test_indices()`
+_check_byentity_arg(ent::Entity, arg::Base.Iterators.Flatten) = _check_byentity_arg(ent, collect(arg))
+_check_byentity_arg(ent::Entity, arg::Vector) = ent in only.(values(arg))
 
 """
     _nt_drop(nt::NamedTuple, keys::Tuple)
