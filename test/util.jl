@@ -21,7 +21,7 @@
 using_spinedb("sqlite://")
 
 @testset "object_class_to_dict" begin
-    objects = [Entity(:silvester), Entity(:tom)]
+    objects = [Entity(:silvester, :cat), Entity(:tom, :cat)]
     parameter_values = Dict(obj => Dict(:age => parameter_value(k)) for (k, obj) in enumerate(objects))
     parameter_defaults = Dict(:age => parameter_value(9))
     cls = EntityClass(:cat, objects, parameter_values, parameter_defaults)
@@ -40,9 +40,9 @@ using_spinedb("sqlite://")
     end
 end
 @testset "relationship_class_to_dict" begin
-    silvester = Entity(:silvester)
-    tom = Entity(:tom)
-    pluto = Entity(:pluto)
+    silvester = Entity(:silvester, :cat)
+    tom = Entity(:tom, :cat)
+    pluto = Entity(:pluto, :dog)
     object_tuples = [(silvester, tom, pluto), (tom, silvester, pluto)]
     parameter_values = Dict(x => Dict(:aver_age => parameter_value(k)) for (k, x) in enumerate(object_tuples))
     parameter_defaults = Dict(:aver_age => parameter_value(9))
