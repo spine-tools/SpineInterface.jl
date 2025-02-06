@@ -54,6 +54,14 @@ function EntityClass(
     ]
     EntityClass(class_name, intact_dim_names, entities, args...)
 end
+function EntityClass(
+    class_name,
+    intact_dim_names,
+    entities::Vector{<:RelationshipLike},
+    args...
+)
+    EntityClass(class_name, intact_dim_names, values.(entities), args...)
+end
 
 """
     TimeSlice(start::DateTime, end_::DateTime)

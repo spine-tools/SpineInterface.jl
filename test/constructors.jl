@@ -21,11 +21,11 @@
 using_spinedb("sqlite://")
 
 @testset "constructors" begin
-    ducks = [Entity(:Daffy), Entity(:Donald)]
+    ducks = [Entity(:Daffy, :duck), Entity(:Donald, :duck)]
     duck = EntityClass(:duck, ducks)
     @test duck isa EntityClass
     @test duck() == ducks
-    studios = [Entity(:WB), Entity(:Disney)]
+    studios = [Entity(:WB, :studio), Entity(:Disney, :studio)]
     studio = EntityClass(:studio, studios)
     studio_duck_rels = [(studio=s, duck=d) for (s, d) in zip(studios, ducks)]
     studio__duck = EntityClass(:studio__duck, [:studio, :duck], studio_duck_rels)

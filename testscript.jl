@@ -4,7 +4,7 @@ Pkg.activate(@__DIR__)
 
 @info "Using SpineInterface"
 using SpineInterface
-url = "sqlite:///c:\\_spineprojects\\superclasstest\\.spinetoolbox\\data store.sqlite"
+db_url = "sqlite:///c:\\_spineprojects\\superclasstest\\.spinetoolbox\\data store.sqlite"
 
 
 ## Test data export
