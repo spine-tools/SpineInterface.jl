@@ -26,7 +26,7 @@ function EntityClass(
     name,
     intact_dim_names,
     entities,
-    vals::Dict{Entity,Dict{Symbol,ParameterValue}},
+    vals::Dict{Entity,<:Dict{Symbol,<:ParameterValue}},
     args...
 )
     new_vals = Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}(
@@ -38,7 +38,7 @@ end
 function EntityClass(
     class_name,
     intact_dim_names,
-    entities::Vector{T} where {T<:ObjectTupleLike},
+    entities::Vector{<:ObjectTupleLike},
     args...
 )
     # We need to create new entities for the old relationships.

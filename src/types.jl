@@ -138,11 +138,11 @@ struct EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_EntityClass}
     function EntityClass(
-        name,
-        intact_dim_names=[],
-        entities=[],
-        vals=Dict(),
-        defaults=Dict();
+        name::Symbol,
+        intact_dim_names::Vector{Symbol}=Vector{Symbol}(),
+        entities::Vector{Entity}=Vector{Entity}(),
+        vals::Dict{<:ObjectTupleLike,<:Dict{Symbol,<:ParameterValue}}=Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}(),
+        defaults::Dict{Symbol,<:ParameterValue}=Dict{Symbol,ParameterValue}();
         mod=@__MODULE__,
         extend=false
     )

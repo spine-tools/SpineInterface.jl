@@ -508,7 +508,9 @@ function add_entities!(entity_class::EntityClass, entities::Vector{Entity})
     merge!(entity_class.parameter_values, Dict((ent,) => Dict() for ent in entities))
     entity_class
 end
-function add_entities!(entity_class::EntityClass, entity_tuples::Vector{T}) where T<:ObjectTupleLike
+function add_entities!(
+    entity_class::EntityClass, entity_tuples::Vector{<:ObjectTupleLike}
+)
     new_entities = [
         Entity(
             _default_entity_name_from_tuple(ent_tuple),
@@ -525,7 +527,9 @@ function add_entities!(entity_class::EntityClass, entity_tuples::Vector{T}) wher
     merge!(entity_class.parameter_values, Dict((values(tup) => Dict()) for tup in entity_tuples))
     entity_class
 end
-function add_entities!(entity_class::EntityClass, relationships::Vector{T}) where {T<:RelationshipLike}
+function add_entities!(
+    entity_class::EntityClass, relationships::Vector{<:RelationshipLike}
+)
     add_entities!(entity_class, values.(relationships))
 end
 # Aliases for backwards compatibility
@@ -538,7 +542,6 @@ Return the modified `object_class`.
 Alias for [`add_entities!`](@ref) for backwards compatibility.
 """
 add_objects!(ec::EntityClass, ents) = add_entities!(ec, ents)
-
 """
     add_relationships!(relationship_class, relationships)
 
@@ -549,52 +552,79 @@ Alias for [`add_entities!`](@ref) for backwards compatibility.
 """
 add_relationships!(ec::EntityClass, ents) = add_entities!(ec, ents)
 
-function add_object_parameter_values!(object_class::EntityClass, parameter_values::Dict; merge_values=false)
-    add_objects!(object_class, only.(keys(parameter_values)))
-    do_merge! = merge_values ? mergewith!(merge!) : merge!
-    for (obj, vals) in parameter_values
-        obj = only(obj)
-        do_merge!(object_class.parameter_values[obj], vals)
-    end
-end
-
-function add_object_parameter_defaults!(object_class::EntityClass, parameter_defaults::Dict; merge_values=false)
-    do_merge! = merge_values ? mergewith!(merge!) : merge!
-    do_merge!(object_class.parameter_defaults, parameter_defaults)
-end
-
 function add_entity!(entity_class::EntityClass, entity::Entity)
     add_entities!(entity_class, [entity])
 end
 add_object!(ec::EntityClass, o::Entity) = add_entity!(ec, o)
+add_relationship!(ec::EntityClass, r::ObjectLike) = add_entity!(ec, r)
 
+function add_parameter_values!(
+    entity_class::EntityClass,
+    parameter_values::Dict{<:ObjectTupleLike,<:Dict{Symbol,<:ParameterValue}};
+    merge_values=false
+)
+    add_entities!(entity_class, collect(keys(parameter_values)))
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
+    for (ents, vals) in parameter_values
+        do_merge!(entity_class.parameter_values[ents], vals)
+    end
+end
+function add_parameter_values!(
+    entity_class::EntityClass,
+    parameter_values::Dict{Entity,<:Dict{Symbol,<:ParameterValue}};
+    merge_values=false
+)
+    add_parameter_values!(
+        entity_class,
+        Dict((key,) => val for (key, val) in parameter_values);
+        merge_values=merge_values
+    )
+end
+function add_parameter_values!(
+    entity_class::EntityClass,
+    parameter_values::Dict{<:RelationshipLike,<:Dict{Symbol,<:ParameterValue}};
+    merge_values=false
+)
+    add_parameter_values!(
+        entity_class,
+        Dict(values(key) => val for (key, val) in parameter_values);
+        merge_values=merge_values
+    )
+end
+# Aliases for backwards compatibility
+function add_object_parameter_values!(
+    object_class::EntityClass, parameter_values::Dict; merge_values=false
+)
+    add_parameter_values!(object_class, parameter_values; merge_values=merge_values)
+end
 function add_relationship_parameter_values!(
     relationship_class::EntityClass, parameter_values::Dict; merge_values=false
 )
-    add_relationships!(relationship_class, collect(keys(parameter_values)))
-    do_merge! = merge_values ? mergewith!(merge!) : merge!
-    for (rel, vals) in parameter_values
-        obj_tup = values(rel)
-        do_merge!(relationship_class.parameter_values[obj_tup], vals)
-    end
+    add_parameter_values!(relationship_class, parameter_values; merge_values=merge_values)
 end
 
+function add_parameter_defaults!(
+    entity_class::EntityClass,
+    parameter_defaults::Dict{Symbol,<:ParameterValue};
+    merge_values=false
+)
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
+    do_merge!(entity_class.parameter_defaults, parameter_defaults)
+end
+# Aliases for backwards compatibility
+function add_object_parameter_defaults!(
+    object_class::EntityClass, parameter_defaults::Dict; merge_values=false
+)
+    add_parameter_defaults!(
+        object_class, parameter_defaults; merge_values=merge_values
+    )
+end
 function add_relationship_parameter_defaults!(
     relationship_class::EntityClass, parameter_defaults::Dict; merge_values=false
 )
-    do_merge! = merge_values ? mergewith!(merge!) : merge!
-    do_merge!(relationship_class.parameter_defaults, parameter_defaults)
-end
-
-function add_relationship!(relationship_class::EntityClass, relationship::ObjectLike)
-    add_relationships!(relationship_class, [relationship])
-end
-
-function add_parameter_values!(cls::EntityClass, vals; kwargs...)
-    add_object_parameter_values!(cls, vals; kwargs...)
-end
-function add_parameter_values!(cls::EntityClass, vals; kwargs...)
-    add_relationship_parameter_values!(cls, vals; kwargs...)
+    add_parameter_defaults!(
+        relationship_class, parameter_defaults; merge_values=merge_values
+    )
 end
 
 """
