@@ -19,6 +19,21 @@
 
 Entity(name::AbstractString, class_name::AbstractString, args...) = Entity(Symbol(name), Symbol(class_name), args...)
 
+# Handle empty vectors given in some `base.jl` unit tests.
+function EntityClass(name, v::Vector{Any}, args...)
+    if isempty(v)
+        EntityClass(name, args...)
+    else
+        EntityClass(name, Vector{Entity}(v), args...)
+    end
+end
+function EntityClass(name, intact_dim_names, v::Vector{Any}, args...)
+    if isempty(v)
+        EntityClass(name, intact_dim_names, args...)
+    else
+        EntityClass(name, intact_dim_names, Vector{Entity}(v), args...)
+    end
+end
 # Old "ObjectClass" equivalent constructors.
 EntityClass(name, entities::Vector{Entity}, args...) = EntityClass(name, Vector{Symbol}(), entities, args...)
 function EntityClass(
