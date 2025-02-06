@@ -49,7 +49,7 @@ A type for representing an object from a Spine db; an instance of an object clas
 """
 struct Entity
     name::Symbol
-    class_name::Union{Symbol,Nothing}
+    class_name::Symbol
     members::Vector{Entity}
     groups::Vector{Entity}
     element_list::Vector{Entity}
@@ -57,7 +57,7 @@ struct Entity
     id::UInt64
     function Entity(
         name,
-        class_name=nothing,
+        class_name,
         members=[],
         groups=[],
         element_list=[],

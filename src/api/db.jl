@@ -851,7 +851,14 @@ function _process_db_answer(result, err::Int64)
 end
 _process_db_answer(result, err) = error(string(err))
 
-function _to_dict(obj_cls::EntityClass)
+function _to_dict(ent_cls::EntityClass)
+    if isempty(ent_cls.dimension_names)
+        _old_obj_cls_to_dict(ent_cls)
+    else
+        _old_rel_cls_to_dict(ent_cls)
+    end
+end
+function _old_obj_cls_to_dict(obj_cls::EntityClass)
     Dict(
         :object_classes => [obj_cls.name],
         :object_parameters => [
@@ -861,26 +868,27 @@ function _to_dict(obj_cls::EntityClass)
         :objects => [[obj_cls.name, object.name] for object in obj_cls.entities],
         :object_parameter_values => [
             [obj_cls.name, object.name, parameter_name, unparse_db_value(parameter_value)]
-            for (object, parameter_values) in obj_cls.parameter_values
+            for ((object,), parameter_values) in obj_cls.parameter_values
             for (parameter_name, parameter_value) in parameter_values
         ]
     )
 end
-function _to_dict(rel_cls::EntityClass)
+
+# Old relationship classes are completely screwed with the new entity and superclass stuff.
+# This is a bastardization of what the actual entity structures look like.
+function _old_rel_cls_to_dict(rel_cls::EntityClass)
+    byentities = getproperty.(rel_cls.entities, :byelement_list)
+    objects = unique(vcat(byentities...))
     Dict(
-        :object_classes => unique(rel_cls.intact_object_class_names),
-        :objects => unique(
-            [obj_cls_name, obj.name]
-            for relationship in rel_cls.relationships
-            for (obj_cls_name, obj) in zip(rel_cls.intact_object_class_names, relationship)
-        ),
-        :relationship_classes => [[rel_cls.name, rel_cls.intact_object_class_names]],
+        :object_classes => unique(getproperty.(objects, :class_name)),
+        :objects => [[obj.class_name, obj.name] for obj in objects],
+        :relationship_classes => [[rel_cls.name, rel_cls.intact_dimension_names]],
         :relationship_parameters => [
             [rel_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
             for (parameter_name, parameter_default_value) in rel_cls.parameter_defaults
         ],
         :relationships => [
-            [rel_cls.name, [obj.name for obj in relationship]] for relationship in rel_cls.relationships
+            [rel_cls.name, [obj.name for obj in relationship]] for relationship in byentities
         ],
         :relationship_parameter_values => [
             [rel_cls.name, [obj.name for obj in relationship], parameter_name, unparse_db_value(parameter_value)]

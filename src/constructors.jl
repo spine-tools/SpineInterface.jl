@@ -17,7 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-Entity(name::AbstractString, args...) = Entity(Symbol(name), args...)
 Entity(name::AbstractString, class_name::AbstractString, args...) = Entity(Symbol(name), Symbol(class_name), args...)
 
 # Old "ObjectClass" equivalent constructors.
