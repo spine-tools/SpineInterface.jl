@@ -42,5 +42,5 @@ class_names_per_param = SpineInterface._class_names_per_parameter(new_data, para
 
 Pkg.activate("test")
 include("test/runtests.jl")
-test_data = SpineInterface.get_data(db_url)
-new_data = deepcopy(test_data)
+#test_data = SpineInterface.get_data(db_url)
+#new_data = deepcopy(test_data)
