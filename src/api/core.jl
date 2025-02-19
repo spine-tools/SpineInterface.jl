@@ -81,7 +81,33 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 :nogas
 ```
 """
-function (ec::EntityClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
+function (ec::EntityClass)(; kwargs...)
+    byentities = _entity_class_filtering(ec; kwargs...)
+    if isempty(ec.subclasses)
+        return byentities
+    else # Need to filter subclasses as well if they exist.
+        return vcat(
+            byentities,
+            [
+                _entity_class_filtering(sc; kwargs...)
+                for sc in entity_class.(ec.subclasses)
+            ]...
+        )
+    end
+end
+function (ec::EntityClass)(name::Symbol) # Old ObjectClass behaviour.
+    i = findfirst(e -> e.name == name, ec.entities)
+    !isnothing(i) && return ec.entities[i]
+    nothing
+end
+(ec::EntityClass)(name::String) = ec(Symbol(name))
+
+"""
+Return a `Vector` of `EntityClass` byentities filtered using given `kwargs`.
+
+See [`EntityClass`](@ref) for documentation on the actual filtering.
+"""
+function _entity_class_filtering(ec; _compact::Bool=true, _default::Any=[], kwargs...)
     # If kwargs is empty and ec has no dimensions, just return the entities (old ObjectClass behaviour).
     isempty(kwargs) && isempty(ec.dimension_names) && return ec.entities
     # Next, let's check for potential parameter value filters
@@ -117,12 +143,6 @@ function (ec::EntityClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
     end
     return isempty(byentities) ? _default : byentities
 end
-function (ec::EntityClass)(name::Symbol) # Old ObjectClass behaviour.
-    i = findfirst(e -> e.name == name, ec.entities)
-    !isnothing(i) && return ec.entities[i]
-    nothing
-end
-(ec::EntityClass)(name::String) = ec(Symbol(name))
 
 function _split_filter_kwargs(ec::EntityClass, kwargs::Base.Pairs)
     class_kwargs = pairs(_nt_drop((;kwargs...), (keys(ec.parameter_defaults)...,)))
