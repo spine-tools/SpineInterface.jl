@@ -116,6 +116,18 @@ function _entity_ids_per_class(data::Dict{String,Vector{Any}})
     d
 end
 
+"""
+A Dict mapping entity class ids to Vectors of subclass names
+"""
+function _subclasses_per_id(data::Dict{String,Vector{Any}})
+    superclass_subclass = data["superclass_subclass"]
+    d = Dict{Int64,Vector{Symbol}}()
+    for sup_sub in superclass_subclass
+        push!(get!(d, sup_sub["superclass_id"], []), Symbol(sup_sub["subclass_name"]))
+    end
+    d
+end
+
 DBParseLike = Union{Vector{UInt8},Nothing}
 DBTypeLike = Union{String,Nothing}
 DBParVal = Tuple{DBParseLike,DBTypeLike}
@@ -160,6 +172,9 @@ function _parameter_values_per_entity(data::Dict{String,Vector{Any}})
     d
 end
 
+"""
+A function for trying to parse database parameter values, errors if not successful.
+"""
 function _try_parameter_value_from_db(db_value::DBParVal, err_msg::String)
     try
         parameter_value(parse_db_value(db_value))
@@ -167,8 +182,6 @@ function _try_parameter_value_from_db(db_value::DBParVal, err_msg::String)
         rethrow(ErrorException("$err_msg: $(sprint(showerror, e))"))
     end
 end
-
-
 
 """
 A Dict mapping parameter names to their default values.
@@ -197,6 +210,9 @@ function _parameter_values(
     )
 end
 
+"""
+Constructs a `parameter_values` Dict for an [`EntityClass`](@ref) based on its entities.
+"""
 function _ents_and_vals(
     entity_ids::Vector{Int64},
     full_ents_per_id::Dict{Int64, Entity},
@@ -214,13 +230,17 @@ function _ents_and_vals(
     param_vals
 end
 
+"""
+Constructs a `Tuple` with the required elements for the [`EntityClass`](@ref) constructor.
+"""
 function _ent_class_args(
     class_id::Int64,
     dimension_name_list::Vector{Any}, # This can be empty, no strict typing
     ents_per_cls::Dict{Int64,Vector{Int64}},
     full_ents_per_id::Dict{Int64,Entity},
     param_defs_per_cls::Dict{Int64,Vector{DBParDef}},
-    param_vals_per_ent::Dict{Int64,Vector{Tuple{String,DBParVal}}}
+    param_vals_per_ent::Dict{Int64,Vector{Tuple{String,DBParVal}}},
+    subclasses_per_id::Dict{Int64,Vector{Symbol}}
 )
     entity_ids = get(ents_per_cls, class_id, Vector{Int64}())
     param_defs = get(param_defs_per_cls, class_id, Vector{DBParDef}())
@@ -229,6 +249,7 @@ function _ent_class_args(
         Vector{Entity}([full_ents_per_id[id] for id in entity_ids]),
         _ents_and_vals(entity_ids, full_ents_per_id, param_vals_per_ent),
         _default_parameter_values(param_defs),
+        get(subclasses_per_id, class_id, Vector{Symbol}())
     )
 end
 
@@ -240,17 +261,19 @@ function _ent_args_per_class(
     ents_per_cls::Dict{Int64,Vector{Int64}},
     full_ents_per_id::Dict{Int64,Entity},
     param_defs_per_cls::Dict{Int64,Vector{DBParDef}},
-    param_vals_per_ent::Dict{Int64,Vector{Tuple{String,DBParVal}}}
+    param_vals_per_ent::Dict{Int64,Vector{Tuple{String,DBParVal}}},
+    subclasses_per_id::Dict{Int64,Vector{Symbol}}
 )
     classes = data["entity_class"]
-    Dict{Symbol,Tuple{Vector,Vector{Entity},Dict,Dict}}(
+    Dict{Symbol,Tuple{Vector,Vector{Entity},Dict,Dict,Vector{Symbol}}}(
         Symbol(cls["name"]) => _ent_class_args(
             cls["id"],
             cls["dimension_name_list"],
             ents_per_cls,
             full_ents_per_id,
             param_defs_per_cls,
-            param_vals_per_ent
+            param_vals_per_ent,
+            subclasses_per_id
         )
         for cls in classes
     )
@@ -289,12 +312,18 @@ function _generate_convenience_functions(
     groups_per_member = _groups_per_member(data)
     full_entities_per_id = _full_entities_per_id(data, members_per_group, groups_per_member)
     entity_ids_per_class = _entity_ids_per_class(data)
+    subclasses_per_id = _subclasses_per_id(data)
     # Fetch and organise parameter definitions and values.
     param_defs_per_cls = _parameter_definitions_per_class(data)
     param_vals_per_ent = _parameter_values_per_entity(data)
     # Organise arguments for EntityClass creation
     args_per_ent_cls = _ent_args_per_class(
-        data, entity_ids_per_class, full_entities_per_id, param_defs_per_cls, param_vals_per_ent
+        data,
+        entity_ids_per_class,
+        full_entities_per_id,
+        param_defs_per_cls,
+        param_vals_per_ent,
+        subclasses_per_id
     )
     # Organise arguments for Parameter creation
     class_names_per_param = _class_names_per_parameter(data, param_defs_per_cls)

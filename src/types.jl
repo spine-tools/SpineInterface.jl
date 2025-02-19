@@ -102,11 +102,12 @@ struct _EntityClass
     entities::Vector{Entity}
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
+    subclasses::Vector{Symbol} # Topi: I would've preferred to link to `EntityClass` directly, but can't do that due to type compiling.
     row_map::Dict # Not sure if these will have any function with new filtering?
     row_map_lock::ReentrantLock # Not sure if these will have any function with new filtering?
     _split_kwargs::Ref{Any}
     function _EntityClass(
-        name, intact_dim_names=[], entities=[], vals=Dict(), defaults=Dict()
+        name, intact_dim_names, entities, vals, defaults, subclasses
     )
         if isempty(intact_dim_names)
             dim_names = intact_dim_names
@@ -122,6 +123,7 @@ struct _EntityClass
             entities,
             vals,
             defaults,
+            subclasses,
             Dict(),
             ReentrantLock(),
             split_kwargs,
@@ -142,12 +144,13 @@ struct EntityClass
         intact_dim_names::Vector{Symbol}=Vector{Symbol}(),
         entities::Vector{Entity}=Vector{Entity}(),
         vals::Dict{<:ObjectTupleLike,<:Dict{Symbol,<:ParameterValue}}=Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}(),
-        defaults::Dict{Symbol,<:ParameterValue}=Dict{Symbol,ParameterValue}();
+        defaults::Dict{Symbol,<:ParameterValue}=Dict{Symbol,ParameterValue}(),
+        subclasses::Vector{Symbol}=Vector{Symbol}();
         mod=@__MODULE__,
         extend=false
     )
         new_ = new(name, Dict(_active_env() => _EntityClass(
-            name, intact_dim_names, entities, vals, defaults
+            name, intact_dim_names, entities, vals, defaults, subclasses
         )))
         spine_entity_classes = _getproperty!(mod, :_spine_entity_classes, Dict())
         _resolve!(spine_entity_classes, name, new_, extend)
