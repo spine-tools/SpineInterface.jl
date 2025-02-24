@@ -54,7 +54,6 @@ data = Dict(
 )
 
 message = "data for ObjectClass demo"
-
 import_data(db_url, data, message; upgrade=true)
 
 #=
@@ -90,7 +89,6 @@ data = Dict(
 )
 
 message = "data for RelationshipClass demo"
-
 import_data(db_url, data, message; upgrade=true)
 
 #=
@@ -184,8 +182,7 @@ new_object_parameter_values = [
     ["node", "Sthlm", "demand", value_array],
     ["node", "Espoo", "demand", value_map],
     ["node", "Dublin", "demand", value_ts_fixed_resolution],
-    ["node", "Leuven", "demand", value_ts_var_resolution],
-    ["node", "Nimes", "demand", 13.1]
+    ["node", "Leuven", "demand", value_ts_var_resolution]
 ]
 
 data = Dict(
@@ -196,8 +193,11 @@ data = Dict(
 )
 
 message = "data for Parameter demo"
-
 import_data(db_url, data, message; upgrade=true)
+
+# alternative way to write array values to the database
+parameter_array = Dict(:demand => Dict((node = :Nimes,) => [22.0, 18.0, 10.0]))
+write_parameters(parameter_array, db_url)
 
 #=
 julia> using_spinedb(db_url)
