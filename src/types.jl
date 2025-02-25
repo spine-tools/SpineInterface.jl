@@ -102,9 +102,9 @@ struct _EntityClass
     entities::Vector{Entity}
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    subclasses::Vector{Symbol} # Topi: I would've preferred to link to `EntityClass` directly, but can't do that due to type compiling.
-    row_map::Dict # Not sure if these will have any function with new filtering?
-    row_map_lock::ReentrantLock # Not sure if these will have any function with new filtering?
+    subclasses::Vector{Symbol} # Tasku: I would've preferred to link to `EntityClass` directly, but can't do that due to type compiling.
+    row_map::Dict # Tasku: Not sure if these will have any function with new filtering?
+    row_map_lock::ReentrantLock # Tasku: Not sure if these will have any function with new filtering?
     _split_kwargs::Ref{Any}
     function _EntityClass(
         name, intact_dim_names, entities, vals, defaults, subclasses
