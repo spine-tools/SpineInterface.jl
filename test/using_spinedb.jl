@@ -39,6 +39,8 @@ function _test_object_class()
             i != Spine || continue
             @test members(i) == []
             @test groups(i) == [Spine]
+        @test isempty(institution(a=1)) # Tasku: Test that nonsensical filters return empty arrays.
+        @test isempty(institution(b=1, c=2))
         end
     end
 end
@@ -96,6 +98,9 @@ function _test_relationship_class()
         @test [x.name for x in country__neighbour(country2=country(:Finland))] == [:Sweden]
         @test length(entity_classes()) === 4
         @test all(x isa EntityClass for x in entity_classes())
+        @test isempty(institution__country(a=1)) # Tasku: Test that nonsensical filters return empty arrays.
+        @test isempty(institution__country(b=1, c=2))
+        @test isempty(institution__country(d=1, e=2, f=3))
     end
 end
 
