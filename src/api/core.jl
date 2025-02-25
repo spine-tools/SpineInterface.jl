@@ -168,10 +168,9 @@ _pv_in(kwarg::Pair, param_value_dict::Dict) = in(kwarg, param_value_dict)
 function _byentity_filter(byentity::RelationshipLike, kwargs)
     # Next check that remaining keywords match and are similarly ordered
     byclasses = keys(byentity)
-    length(byclasses) < length(kwargs) && return false
+    !isempty(setdiff(keys(kwargs), byclasses)) && return false # Tasku: Filter out if kwargs contains something not in byclasses.
     kw_inds = [findfirst(kw .== byclasses) for (kw, arg) in kwargs]
-    length(kw_inds) < length(kwargs) && return false
-    !issorted(kw_inds) && return false
+    !issorted(kw_inds) && return false # Tasku: Filter out unless keywords are in the desired order.
     # Only then do actual argument filtering
     all(_check_byentity_arg(getfield(byentity, kw), arg) for (kw, arg) in kwargs)
 end
