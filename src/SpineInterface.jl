@@ -37,17 +37,10 @@ include("api/core.jl")
 include("api/parameter_value.jl")
 include("api/time_slice.jl")
 include("api/tests.jl")
+include("backwards_compat.jl") # Backwards compatibility pre v0.16
 
 export add_dimension!
-export add_object_parameter_values!
-export add_object_parameter_defaults!
-export add_object!
-export add_objects!
 export add_parameter_values!
-export add_relationship_parameter_values!
-export add_relationship_parameter_defaults!
-export add_relationship!
-export add_relationships!
 export Anything
 export anything
 export before
@@ -76,7 +69,6 @@ export map_to_time_series
 export maximum_parameter_value
 export members
 export Entity
-export object_class
 export entity_classes
 export EntityClass
 export ObjectLike
@@ -92,8 +84,6 @@ export parse_time_period
 export push_class!
 export realize
 export refresh!
-export relationship_class
-export relationship_classes
 export RelationshipLike
 export roll!
 export run_request
@@ -119,6 +109,24 @@ export with_env
 export without_filters
 export write_parameters
 export add_roll_hook!
+
+# Backwards compatibility exports pre-v0.16
+# Note that the "new" underlying functions are not yet necessarily exported!
+export add_object_parameter_values!
+export add_object_parameter_defaults!
+export add_object!
+export add_objects!
+export add_relationship_parameter_values!
+export add_relationship_parameter_defaults!
+export add_relationship!
+export add_relationships!
+export Object
+export ObjectClass
+export object_class
+export object_classes
+export RelationshipClass
+export relationship_class
+export relationship_classes
 
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin

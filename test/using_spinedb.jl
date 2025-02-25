@@ -27,17 +27,17 @@ function _test_object_class()
         import_test_data(db_url; object_classes=obj_classes, objects=objects, object_groups=object_groups)
         using_spinedb(db_url)
         @test length(institution()) === 6
-        @test all(x isa Entity for x in institution())
+        @test all(x isa Object for x in institution())
         @test Set(x.name for x in institution()) == Set(vcat(Symbol.(institutions), :Spine))
         @test institution(:FIFA) === nothing
-        @test length(entity_classes()) === 1
-        @test all(x isa EntityClass for x in entity_classes())
+        @test length(object_classes()) === 1
+        @test all(x isa ObjectClass for x in object_classes())
         Spine = institution(:Spine)
         @test Set(members(Spine)) == Set(x for x in institution() if x != Spine)
         @test isempty(groups(Spine))
         @testset for i in institution()
             i != Spine || continue
-            @test members(i) == []
+            @test members(i) == [i]
             @test groups(i) == [Spine]
         @test isempty(institution(a=1)) # Tasku: Test that nonsensical filters return empty arrays.
         @test isempty(institution(b=1, c=2))
@@ -96,8 +96,8 @@ function _test_relationship_class()
         @test all(x isa RelationshipLike for x in country__neighbour())
         @test [x.name for x in country__neighbour(country1=country(:France))] == [:Belgium]
         @test [x.name for x in country__neighbour(country2=country(:Finland))] == [:Sweden]
-        @test length(entity_classes()) === 4
-        @test all(x isa EntityClass for x in entity_classes())
+        @test length(relationship_classes()) === 2
+        @test all(x isa RelationshipClass for x in relationship_classes())
         @test isempty(institution__country(a=1)) # Tasku: Test that nonsensical filters return empty arrays.
         @test isempty(institution__country(b=1, c=2))
         @test isempty(institution__country(d=1, e=2, f=3))
@@ -137,7 +137,7 @@ function _test_parameter()
         @test since_year(institution=institution(:KTH)) === 1827
         @test since_year(institution=institution(:VTT), _strict=false) === nothing
         @test people_count(institution=institution(:VTT), country=country(:France)) === nothing
-        @test [x[1].name for x in institution(since_year=1827)] == [:KTH]
+        @test [x.name for x in institution(since_year=1827)] == [:KTH]
         @test length(parameters()) === 2
         @test all(x isa Parameter for x in parameters())
     end

@@ -90,9 +90,11 @@ function _full_entities_per_id(
     for (id, entity) in entities_per_id
         # Specify `members` for each group
         member_ids = get(members_per_group, id, [])
-        !isempty(member_ids) && append!(
-            entity.members, [entities_per_id[id] for id in member_ids]
-        )
+        if isempty(member_ids)
+            append!(entity.members, [entity])
+        else
+            append!(entity.members, [entities_per_id[id] for id in member_ids])
+        end
         # Specify `groups` for each member
         group_ids = get(groups_per_member, id, [])
         !isempty(group_ids) && append!(
