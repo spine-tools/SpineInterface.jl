@@ -51,7 +51,7 @@ julia> using_spinedb(url)
 
 
 julia> sort(node__commodity())
-5-element Array{NamedTuple,1}:
+5-element Vector{NamedTuple{K, V} where {K, V<:Tuple{Union{Int64, Object, TimeSlice}, Vararg{Union{Int64, Object, TimeSlice}}}}}:
  (node = Dublin, commodity = wind)
  (node = Espoo, commodity = wind)
  (node = Leuven, commodity = wind)
@@ -59,23 +59,24 @@ julia> sort(node__commodity())
  (node = Sthlm, commodity = water)
 
 julia> node__commodity(commodity=commodity(:water))
-2-element Array{Object,1}:
+2-element Vector{Object}:
  Nimes
  Sthlm
 
 julia> node__commodity(node=(node(:Dublin), node(:Espoo)))
-1-element Array{Object,1}:
+1-element Vector{Object}:
  wind
 
 julia> sort(node__commodity(node=anything))
-2-element Array{Object,1}:
+2-element Vector{Object}:
  water
  wind
 
-julia> sort(node__commodity(commodity=commodity(:water), _compact=false))
-2-element Array{NamedTuple,1}:
+julia> collect(node__commodity(commodity=commodity(:water), _compact=false))
+2-element Vector{@NamedTuple{node::Object, commodity::Object}}:
  (node = Nimes, commodity = water)
  (node = Sthlm, commodity = water)
+# `sort()` doesn't work with Base.Generator, use `collect()` instead.
 
 julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 :nogas
@@ -222,8 +223,14 @@ julia> using_spinedb(url)
 julia> tax_net_flow(node=node(:Sthlm), commodity=commodity(:water))
 4
 
-julia> demand(node=node(:Sthlm), i=1)
-21
+julia> demand(node=node(:Sthlm))
+3-element Vector{Float64}:
+ 21.0
+ 17.0
+  9.0
+
+julia> demand(node=node(:Sthlm), i=2)
+17.0
 ```
 """
 function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
@@ -464,16 +471,16 @@ julia> using_spinedb(url)
 
 
 julia> collect(indices(tax_net_flow))
-1-element Array{NamedTuple{(:commodity, :node),Tuple{Object,Object}},1}:
- (commodity = water, node = Sthlm)
+1-element Vector{@NamedTuple{node::Object, commodity::Object}}:
+ (node = Sthlm, commodity = water)
 
 julia> collect(indices(demand))
-5-element Array{Object,1}:
+5-element Vector{Object}:
+ Dublin
+ Espoo
+ Leuven
  Nimes
  Sthlm
- Leuven
- Espoo
- Dublin
 ```
 """
 function indices(p::Parameter; kwargs...)
