@@ -148,6 +148,7 @@ function _test_add_objects()
         import_test_data(db_url; object_classes=object_classes, objects=objects)
         using_spinedb(db_url)
         @test length(institution()) === 2
+        @test add_objects!(institution, []) == false # Test empty add, should do nothing.
         add_objects!(institution, [institution()[1], Object(:KUL, :institution), Object(:ER, :institution)])
         @test length(institution()) === 4
         @test Set(x.name for x in institution()) == Set([Symbol.(institutions); [:KUL, :ER]])
@@ -176,6 +177,7 @@ function _test_add_relationships()
         )
         using_spinedb(db_url)
         @test length(institution__country()) === 5
+        @test add_relationships!(institution__country, []) == false # Test empty add, should do nothing.
         add_relationships!(
             institution__country,
             [
@@ -268,6 +270,7 @@ function _test_add_object_parameter_values()
                 :since_year => parameter_value(2022), :people_count => parameter_value(3)
             ),
         )
+        @test add_object_parameter_values!(institution, Dict()) == false # Test empty add, should do nothing.
         add_object_parameter_values!(institution, pvals)
         CORRE_LABS = Object(:CORRE_LABS, :institution)
         @test Set(x.name for x in institution()) == Set([Symbol.(institutions); [:CORRE_LABS]])
@@ -317,6 +320,7 @@ function _test_add_relationship_parameter_values()
             ERSweden => Dict(:people_count => parameter_value(1)),
             KTHFrance => Dict(:people_count => parameter_value(0)),
         )
+        @test add_relationship_parameter_values!(institution__country, Dict()) == false
         add_relationship_parameter_values!(institution__country, pvals)
         @test length(institution__country()) === 8
         @test Set((x.name, y.name) for (x, y) in institution__country()) == Set([

@@ -555,6 +555,9 @@ function add_entities!(
 )
     add_entities!(entity_class, values.(relationships))
 end
+function add_entities!(ec::EntityClass, empty::Vector)
+    !isempty(empty) && throw(MethodError(add_entities!, (ec, empty)))
+end
 
 function add_entity!(entity_class::EntityClass, entity::Entity)
     add_entities!(entity_class, [entity])
@@ -592,6 +595,9 @@ function add_parameter_values!(
         Dict(values(key) => val for (key, val) in parameter_values);
         merge_values=merge_values
     )
+end
+function add_parameter_values!(ec::EntityClass, empty::Dict; merge_values=false)
+    !isempty(empty) && throw(MethodError(add_parameter_values!, (ec, empty, merge_values)))
 end
 
 function add_parameter_defaults!(
