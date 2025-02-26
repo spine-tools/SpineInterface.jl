@@ -66,35 +66,6 @@ function test_parameter(
 end
 function test_parameter(
     param::Parameter,
-    obj_class::EntityClass,
-    value_type::Union{DataType,Union,UnionAll};
-    value_min::Real=-Inf,
-    value_max::Real=Inf,
-    limit::Real=Inf,
-)
-    @testset "Parameter `$param`" begin
-        for (i, object) in enumerate(obj_class.entities)
-            if i <= limit
-                val = _get(obj_class.parameter_values[object], param.name, obj_class.parameter_defaults)()
-                cond = val isa value_type
-                @test _check(
-                    cond,
-                    "Unexpected `$param` type `$(typeof(val))` for `$object` - `$value_type` expected!",
-                )
-                if cond && value_type <: Real
-                    @test _check(
-                        value_min <= val <= value_max,
-                        "`$param` for `$object` value `$val` outside expected range `[$value_min, $value_max]`!",
-                    )
-                end
-            else
-                break
-            end
-        end
-    end
-end
-function test_parameter(
-    param::Parameter,
     rel_class::EntityClass,
     value_type::Union{DataType,Union,UnionAll};
     value_min::Real=-Inf,
