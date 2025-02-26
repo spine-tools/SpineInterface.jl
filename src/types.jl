@@ -63,7 +63,7 @@ struct Entity
         element_list=[],
         byelement_list=[]
     )
-        id = objectid((name, class_name)) #TODO: use DB ids? (not sure if possible)
+        id = objectid((name, class_name)) # Tasku: use DB ids? (not sure if possible)
         new(name, class_name, members, groups, element_list, byelement_list, id)
     end
 end

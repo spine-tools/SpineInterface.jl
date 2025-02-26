@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-## Type aliases for Backwards compatibility
+## Type aliases for backwards compatibility
 
 Object = Entity
 ObjectClass = EntityClass
