@@ -46,8 +46,8 @@ end
 """
 A Dict mapping entity group ids to an Array of member ids.
 """
-function _members_per_group(data::Dict{String,Vector{Any}})
-    entity_groups = data["entity_group"]
+function _members_per_group(data::Dict)
+    entity_groups = get(data, "entity_group", [])
     d = Dict{Int64,Vector{Int64}}()
     for group in entity_groups
         push!(get!(d, group["entity_id"], []), group["member_id"])
@@ -58,8 +58,8 @@ end
 """
 A Dict mapping member ids to an Array of entity group ids.
 """
-function _groups_per_member(data::Dict{String,Vector{Any}})
-    entity_groups = data["entity_group"]
+function _groups_per_member(data::Dict)
+    entity_groups = get(data, "entity_group", [])
     d = Dict{Int64,Vector{Int64}}()
     for group in entity_groups
         push!(get!(d, group["member_id"], []), group["entity_id"])
@@ -71,11 +71,11 @@ end
 A Dict mapping entity ids to the corresponding [`Entity`](@ref).
 """
 function _full_entities_per_id(
-    data::Dict{String,Vector{Any}},
+    data::Dict,
     members_per_group::Dict{Int64,Vector{Int64}},
     groups_per_member::Dict{Int64,Vector{Int64}}
 )
-    entities = data["entity"]
+    entities = get(data, "entity", [])
     entities_per_id = Dict{Int64,Entity}(
         ent["id"] => Entity(ent["name"], ent["entity_class_name"])
         for ent in entities
@@ -109,8 +109,8 @@ end
 """
 A Dict mapping entity class ids to an Array of entity ids in that class.
 """
-function _entity_ids_per_class(data::Dict{String,Vector{Any}})
-    entities = data["entity"]
+function _entity_ids_per_class(data::Dict)
+    entities = get(data, "entity", [])
     d = Dict{Int64,Vector{Int64}}()
     for ent in entities
         push!(get!(d, ent["class_id"], []), ent["id"])
@@ -121,8 +121,8 @@ end
 """
 A Dict mapping entity class ids to Vectors of subclass names
 """
-function _subclasses_per_id(data::Dict{String,Vector{Any}})
-    superclass_subclass = data["superclass_subclass"]
+function _subclasses_per_id(data::Dict)
+    superclass_subclass = get(data, "superclass_subclass", [])
     d = Dict{Int64,Vector{Symbol}}()
     for sup_sub in superclass_subclass
         push!(get!(d, sup_sub["superclass_id"], []), Symbol(sup_sub["subclass_name"]))
@@ -138,8 +138,8 @@ DBParDef = Tuple{String,String,DBParVal,DBTypeLike,DBTypeLike}
 """
 A Dict mapping entity class ids to an Array of parameter definitions associated to that class.
 """
-function _parameter_definitions_per_class(data::Dict{String,Vector{Any}})
-    param_defs = data["parameter_definition"]
+function _parameter_definitions_per_class(data::Dict)
+    param_defs = get(data, "parameter_definition", [])
     d = Dict{Int64,Vector{DBParDef}}()
     for param_def in param_defs
         push!(
@@ -159,8 +159,8 @@ end
 """
 A Dict mapping entity ids to its parameter values.
 """
-function _parameter_values_per_entity(data::Dict{String,Vector{Any}})
-    param_values = data["parameter_value"]
+function _parameter_values_per_entity(data::Dict)
+    param_values = get(data, "parameter_value", [])
     d = Dict{Int64,Vector{Tuple{String,DBParVal}}}()
     for param in param_values
         push!(
@@ -259,14 +259,14 @@ end
 A Dict mapping entity class names to arguments.
 """
 function _ent_args_per_class(
-    data::Dict{String,Vector{Any}},
+    data::Dict,
     ents_per_cls::Dict{Int64,Vector{Int64}},
     full_ents_per_id::Dict{Int64,Entity},
     param_defs_per_cls::Dict{Int64,Vector{DBParDef}},
     param_vals_per_ent::Dict{Int64,Vector{Tuple{String,DBParVal}}},
     subclasses_per_id::Dict{Int64,Vector{Symbol}}
 )
-    classes = data["entity_class"]
+    classes = get(data, "entity_class", [])
     Dict{Symbol,Tuple{Vector,Vector{Entity},Dict,Dict,Vector{Symbol}}}(
         Symbol(cls["name"]) => _ent_class_args(
             cls["id"],
@@ -287,10 +287,10 @@ The Array of class names is sorted by decreasing number of dimensions in the cla
 Note that for object classes, the number of dimensions is one.
 """
 function _class_names_per_parameter(
-    data::Dict{String,Vector{Any}},
+    data::Dict,
     param_defs_per_cls::Dict{Int64,Vector{DBParDef}}
 )
-    raw_param_defs = data["parameter_definition"]
+    raw_param_defs = get(data, "parameter_definition", [])
     d = Dict{Symbol,Vector{Tuple{Symbol,Int64}}}()
     for def in raw_param_defs
         class_param_defs = param_defs_per_cls[def["entity_class_id"]]
@@ -307,7 +307,7 @@ function _class_names_per_parameter(
 end
 
 function _generate_convenience_functions(
-    data::Dict{String,Vector{Any}}, mod::Module; extend::Bool=false
+    data::Dict, mod::Module; extend::Bool=false
 )
     # Fetch and create entities, organize them by "id" (class, name) and class.
     members_per_group = _members_per_group(data)
@@ -535,6 +535,8 @@ end
     export_data(url)
 
 Export data from a Spine DB.
+
+Included for backwards compatibility only, see [`get_data`](@ref) instead.
 """
 function export_data(url; upgrade=false, filters=Dict())
     _db(url; upgrade=upgrade) do db
@@ -726,7 +728,7 @@ function _import_data(db, data::Dict{Symbol,T}, comment::String) where {T}
     _run_server_request(db, "import_data", (Dict(string(k) => v for (k, v) in data), comment))
 end
 
-function _export_data(db; filters=Dict())
+function _export_data(db; filters=Dict()) # Only for backwards compatibility, see `_get_data` instead.
     isempty(filters) && return _run_server_request(db, "export_data")
     old_filters = _current_filters(db)
     _run_server_request(db, "apply_filters", (filters,))

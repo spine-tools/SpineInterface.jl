@@ -54,7 +54,7 @@ export difference
 export dimensions
 export duration
 export end_
-export export_data
+export get_data
 export fixer
 export groups
 export import_data
@@ -127,6 +127,7 @@ export object_classes
 export RelationshipClass
 export relationship_class
 export relationship_classes
+export export_data
 
 function __init__()
 	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin
