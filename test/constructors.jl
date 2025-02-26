@@ -21,15 +21,15 @@
 using_spinedb("sqlite://")
 
 @testset "constructors" begin
-    ducks = [Entity(:Daffy, :duck), Entity(:Donald, :duck)]
-    duck = EntityClass(:duck, ducks)
-    @test duck isa EntityClass
+    ducks = [Object(:Daffy, :duck), Object(:Donald, :duck)]
+    duck = ObjectClass(:duck, ducks)
+    @test duck isa ObjectClass
     @test duck() == ducks
-    studios = [Entity(:WB, :studio), Entity(:Disney, :studio)]
-    studio = EntityClass(:studio, studios)
+    studios = [Object(:WB, :studio), Object(:Disney, :studio)]
+    studio = ObjectClass(:studio, studios)
     studio_duck_rels = [(studio=s, duck=d) for (s, d) in zip(studios, ducks)]
-    studio__duck = EntityClass(:studio__duck, [:studio, :duck], studio_duck_rels)
-    @test studio__duck isa EntityClass
+    studio__duck = RelationshipClass(:studio__duck, [:studio, :duck], studio_duck_rels)
+    @test studio__duck isa RelationshipClass
     @test studio__duck() == studio_duck_rels
     color_vals = ("black", "white")
     uses_pants_vals = (false, TimeSeries([DateTime(0)], [1.0], false, false))
@@ -37,7 +37,7 @@ using_spinedb("sqlite://")
         (s, d) => Dict(:color => parameter_value(c), :uses_pants => parameter_value(up))
         for (s, d, c, up) in zip(studios, ducks, color_vals, uses_pants_vals)
     )
-    studio__duck = EntityClass(:studio__duck, [:studio, :duck], studio_duck_rels, studio_duck_param_vals)
+    studio__duck = RelationshipClass(:studio__duck, [:studio, :duck], studio_duck_rels, studio_duck_param_vals)
     color = Parameter(:color, [studio__duck])
     uses_pants = Parameter(:uses_pants, [studio__duck])
     t = TimeSlice(DateTime(0), DateTime(1))
