@@ -58,7 +58,7 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     nothing
 end
 
-_dimension_names(x::EntityClass) = x.object_class_names
+_dimension_names(x::EntityClass) = x.dimension_names
 
 _dimensionality(x::EntityClass) = length(x.dimension_names)
 
@@ -181,11 +181,12 @@ function _add_update(t::TimeSlice, timeout, upd)
     end
 end
 
-function _append_relationships!(rc, rels) #TODO This is no longer used.
+#= #TODO This is no longer used, pending removal?
+function _append_relationships!(rc, rels)
     isempty(rels) && return
     delete!(rc.row_map, rc.name)  # delete memoized rows
     offset = length(rc.relationships)
-    for cls_name in rc.object_class_names
+    for cls_name in rc.dimension_names
         oc_row_map = get!(rc.row_map, cls_name, Dict())
         for (row, rel) in enumerate(rels)
             obj = getproperty(rel, cls_name)
@@ -195,6 +196,7 @@ function _append_relationships!(rc, rels) #TODO This is no longer used.
     append!(rc.relationships, rels)
     nothing
 end
+=#
 
 function _make_split_kwargs(name::Symbol)
     eval(

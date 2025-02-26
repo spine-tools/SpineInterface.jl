@@ -110,7 +110,7 @@ struct _EntityClass
         name, intact_dim_names, entities, vals, defaults, subclasses
     )
         if isempty(intact_dim_names)
-            dim_names = intact_dim_names
+            dim_names = copy(intact_dim_names) # Tasku: copy needed to avoid interlinking fields if dimensions are added later.
             split_kwargs = _make_split_kwargs(name)
         else
             dim_names = _fix_name_ambiguity(intact_dim_names)
@@ -171,6 +171,17 @@ function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
 end
 _fix_name_ambiguity(v::Vector{Any}) = isempty(v) ? Vector{Symbol}() : _fix_name_ambiguity(Symbol.(v))
 _fix_name_ambiguity(tup::Tuple) = _fix_name_ambiguity(collect(tup))
+
+"""
+In-place variant of [`_fix_name_ambiguity`](@ref) required by [`add_dimension!`](@ref).
+"""
+function _fix_name_ambiguity!(name_list::Vector{Symbol})
+    new_name_list = _fix_name_ambiguity(name_list)
+    for (i, new_name) in enumerate(new_name_list)
+        name_list[i] = new_name
+    end
+    nothing
+end
 
 struct _Parameter
     name::Symbol

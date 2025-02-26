@@ -703,21 +703,24 @@ function realize(call, upd=nothing)
     end
 end
 
-function add_dimension!(cls::EntityClass, name::Symbol, obj)
-    push!(cls.object_class_names, name)
-    push!(cls.intact_object_class_names, name)
-    map!(rel -> (; rel..., Dict(name => obj)...), cls.relationships, cls.relationships)
+function add_dimension!(cls::EntityClass, name::Symbol, obj::Entity)
+    isempty(cls.intact_dimension_names) && push!(cls.intact_dimension_names, cls.name) # Tasku: Potentially turn old "object class" into "relationship class".
+    isempty(cls.dimension_names) && push!(cls.dimension_names, cls.name) # Tasku: Potentially turn old "object class" into "relationship class".
+    push!(cls.dimension_names, obj.class_name)
+    push!(cls.intact_dimension_names, obj.class_name) # Tasku: This does not currently fix name ambiguity.
+    _fix_name_ambiguity!(cls.dimension_names)
+    for ent in cls.entities
+        push!(ent.byelement_list, obj)
+    end
     for rel in collect(keys(cls.parameter_values))
         new_rel = (rel..., obj)
         cls.parameter_values[new_rel] = pop!(cls.parameter_values, rel)
     end
-    cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
-    delete!(cls.row_map, cls.name)  # delete memoized rows
-    cls._split_kwargs[] = _make_split_kwargs(cls.object_class_names)
+    cls._split_kwargs[] = _make_split_kwargs(cls.dimension_names)
     nothing
 end
 
-dimensions(cls::EntityClass) = cls.object_class_names
+dimensions(cls::EntityClass) = cls.dimension_names
 
 const __active_env = Ref(:__base__)
 

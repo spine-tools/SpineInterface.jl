@@ -687,6 +687,54 @@ function _test_indexed_values()
     end
 end
 
+function _test_add_dimension()
+    @testset "add_dimension" begin
+        object_classes = ["institution", "country"]
+        relationship_classes = [["institution__country", ["institution", "country"]]]
+        object_parameters = [["institution", "since_year"]]
+        relationship_parameters = [["institution__country", "people_count"]]
+        institutions = ["KTH", "VTT"]
+        countries = ["Sweden", "France"]
+        objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
+        relationships = [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]]
+        object_parameter_values = [
+            ["institution", "KTH", "since_year", 1827],
+            ["institution", "VTT", "since_year", 1942],
+        ]
+        relationship_parameter_values = [
+            ["institution__country", ["KTH", "Sweden"], "people_count", 3],
+            ["institution__country", ["KTH", "France"], "people_count", 1],
+        ]
+        import_test_data(
+            db_url;
+            object_classes=object_classes,
+            relationship_classes=relationship_classes,
+            objects=objects,
+            relationships=relationships,
+            object_parameters=object_parameters,
+            relationship_parameters=relationship_parameters,
+            object_parameter_values=object_parameter_values,
+            relationship_parameter_values=relationship_parameter_values,
+        )
+        using_spinedb(db_url)
+        @test isempty(institution.dimension_names)
+        @test isempty(institution.intact_dimension_names)
+        @test getfield.(institution(), :name) == [:KTH, :VTT]
+        @test since_year(institution=institution(:KTH)) == 1827
+        add_dimension!(institution, :country, country(:Sweden))
+        @test institution.dimension_names == [:institution, :country]
+        @test institution.intact_dimension_names == [:institution, :country]
+        @test since_year(institution=institution(:VTT), country=country(:Sweden)) == 1942
+        @test institution__country.dimension_names == [:institution, :country]
+        @test institution__country.intact_dimension_names == [:institution, :country]
+        @test people_count(institution=institution(:KTH), country=country(:Sweden)) == 3
+        add_dimension!(institution__country, :institution, institution(:VTT))
+        @test institution__country.dimension_names == [:institution1, :country, :institution2]
+        @test institution__country.intact_dimension_names == [:institution, :country, :institution]
+        @test people_count(institution1=institution(:KTH), country=country(:France), institution2=institution(:VTT)) == 1
+    end
+end
+
 @testset "api" begin
     _test_indices()
     _test_indices_as_tuples()
@@ -703,4 +751,5 @@ end
     _test_import_data()
     _test_difference()
     _test_indexed_values()
+    _test_add_dimension()
 end
