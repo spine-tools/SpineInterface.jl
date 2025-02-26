@@ -25,8 +25,8 @@
     # in, iterate, length, isless
     @test "Spine" in anything
     @test [4, 5, 6] in anything
-    Spine = Entity(:Spine, :App)
-    Julia = Entity(:Julia, :Lang)
+    Spine = Object(:Spine, :App)
+    Julia = Object(:Julia, :Lang)
     @test [x for x in Spine] == [Spine]
     @test length(Spine) == 1
     @test Julia < Spine
@@ -57,8 +57,8 @@
     @test string(anything) === "anything"
     @test string(t1) === "0000-01-01T00:00~(52 weeks, 2 days)~>0001-01-01T00:00"
     @test string(p5) === "ParameterValue(5)"
-    duck = EntityClass(:duck, [])
-    studio_duck = EntityClass(:studio_duck, [:studio, :duck], [])
+    duck = ObjectClass(:duck, [])
+    studio_duck = RelationshipClass(:studio_duck, [:studio, :duck], [])
     @test string(duck) === "duck"
     @test string(studio_duck) === "studio_duck"
     id_call = Call(13)
