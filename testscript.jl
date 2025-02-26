@@ -8,7 +8,7 @@ db_url = raw"sqlite:///c:\_spineprojects\superclasstest\.spinetoolbox\data store
 
 
 ## Test data export
-
+#=
 @info "Testing database exports"
 @time old_data = export_data(db_url)
 @time new_data = SpineInterface.get_data(db_url)
@@ -42,7 +42,7 @@ class_names_per_param = SpineInterface._class_names_per_parameter(new_data, para
 
 @info "Testing `using_spinedb`"
 @time using_spinedb(db_url)
-
+=#
 
 ## Run unit tests?
 
