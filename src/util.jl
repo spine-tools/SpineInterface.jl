@@ -96,58 +96,85 @@ _matches(key::Tuple, objects::Tuple) = all(_matches(k, obj) for (k, obj) in zip(
 _matches(k, ::Missing) = true
 _matches(k, obj) = k == obj
 
-struct _CallNode
-    call::Call
-    parent::Union{_CallNode,Nothing}
-    child_number::Int64
-    children::Vector{_CallNode}
-    value::Ref{Any}
-    function _CallNode(call, parent, child_number)
-        node = new(call, parent, child_number, Vector{_CallNode}(), Ref(nothing))
-        if parent !== nothing
-            push!(parent.children, node)
-        end
-        node
-    end
-end
-
 _do_realize(x, _upd) = x
 _do_realize(call::Call, upd) = _do_realize(call.func, call, upd)
 _do_realize(::Nothing, call, _upd) = realize(call.args[1])
 function _do_realize(pv::T, call, upd) where T<:ParameterValue
-    pv(upd; call.kwargs...)
+    pv(call.kwargs, upd)
 end
 function _do_realize(::T, call, upd) where T<:Function
-    current = _CallNode(call, nothing, -1)
+    if call.root_node[] === nothing
+        call.root_node[] = _root_node(call)
+    end
+    node = call.root_node[]
+    direction = :down
     while true
-        vals = [child.value[] for child in current.children]
-        if !isempty(vals)
-            # children already visited, compute value
-            current.value[] = current.call.func(vals...)
-        elseif current.call.func isa Function
-            # visit children
-            current = _first_child(current)
-            continue
+        if direction != :up
+            if isempty(node.children)
+                node.value[] = realize(node.call, upd)
+            end
         else
-            # no children, realize value
-            current.value[] = realize(current.call, upd)
+            node.value[] = node.call.func((child.value[] for child in node.children)...)
         end
-        current.parent === nothing && break
-        if current.child_number < length(current.parent.call.args)
+        node_and_direction = _next_node_and_direction(node, direction)
+        node_and_direction === nothing && break
+        node, direction = node_and_direction
+    end
+    call.root_node[].value[]
+end
+
+function _visit_call!(func, call)
+    if call.root_node[] === nothing
+        call.root_node[] = _root_node(call)
+    end
+    node = call.root_node[]
+    direction = :down
+    while true
+        func(node, direction)
+        node_and_direction = _next_node_and_direction(node, direction)
+        node_and_direction === nothing && break
+        node, direction = node_and_direction
+    end
+end
+
+function _next_node_and_direction(current, direction)
+    if direction != :up && !isempty(current.children)
+        # visit child
+        first(current.children), :down
+    elseif current.parent !== nothing
+        if current.child_number < length(current.parent.children)
             # visit sibling
-            current = _next_sibling(current)
+            current.parent.children[current.child_number + 1], :side
         else
             # go back to parent
+            current.parent, :up
+        end
+    end
+end
+
+function _root_node(call)
+    current = _CallNode(call, nothing, -1)
+    while true
+        if isempty(current.children) && current.call isa Call && current.call.func isa Function
+            current = _first_child(current)
+            continue
+        end
+        current.parent === nothing && break
+        sibling = _next_sibling(current)
+        if sibling !== nothing
+            current = sibling
+        else
             current = current.parent
         end
     end
-    current.value[]
+    current
 end
 
 _first_child(node::_CallNode) = _CallNode(node.call.args[1], node, 1)
 
 function _next_sibling(node::_CallNode)
     sibling_child_number = node.child_number + 1
+    sibling_child_number > length(node.parent.call.args) && return nothing
     _CallNode(node.parent.call.args[sibling_child_number], node.parent, sibling_child_number)
 end
 
@@ -177,10 +204,8 @@ function _refresh_metadata!(pval::ParameterValue)
     merge!(pval.metadata, _parameter_value_metadata(pval.value))
 end
 
-function _add_update(t::TimeSlice, timeout, upd)
-    lock(t.updates_lock) do
-        t.updates[upd] = timeout
-    end
+function _add_update!(t::TimeSlice, timeout, upd)
+    t.updates[upd] = timeout
 end
 
 function _append_relationships!(rc, rels)

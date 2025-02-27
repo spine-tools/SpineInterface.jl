@@ -53,6 +53,7 @@ export anything
 export before
 export blocks
 export Call
+export collect_updates
 export contains
 export db_api
 export db_value
@@ -91,7 +92,6 @@ export parse_db_value
 export parse_time_period
 export push_class!
 export realize
-export refresh!
 export relationship_class
 export relationship_classes
 export RelationshipClass
@@ -114,6 +114,7 @@ export timedata_operation
 export TimePattern
 export TimeSeries
 export TimeSlice
+export translate_map_pv_arg!
 export unparse_db_value
 export using_spinedb
 export with_env
