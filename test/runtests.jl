@@ -24,7 +24,7 @@ using PyCall
 using Dates
 using JSON
 using JuMP
-using Cbc
+using HiGHS
 
 # Handle JuMP and SpineInterface `Parameter` and `parameter_value` conflicts.
 import SpineInterface: Parameter, parameter_value
