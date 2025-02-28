@@ -107,7 +107,7 @@ struct _EntityClass
     row_map_lock::ReentrantLock # Tasku: Not sure if these will have any function with new filtering?
     _split_kwargs::Ref{Any}
     function _EntityClass(
-        name, intact_dim_names, entities, vals, defaults, subclasses
+        name, intact_dim_names, entities=[], vals=Dict(), defaults=Dict(), subclasses=[]
     )
         if isempty(intact_dim_names)
             dim_names = copy(intact_dim_names) # Tasku: copy needed to avoid interlinking fields if dimensions are added later.
@@ -139,19 +139,8 @@ A type for representing an entity class from a Spine DB.
 struct EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_EntityClass}
-    function EntityClass(
-        name::Symbol,
-        intact_dim_names::Vector{Symbol}=Vector{Symbol}(),
-        entities::Vector{Entity}=Vector{Entity}(),
-        vals::Dict{<:ObjectTupleLike,<:Dict{Symbol,<:ParameterValue}}=Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}(),
-        defaults::Dict{Symbol,<:ParameterValue}=Dict{Symbol,ParameterValue}(),
-        subclasses::Vector{Symbol}=Vector{Symbol}();
-        mod=@__MODULE__,
-        extend=false
-    )
-        new_ = new(name, Dict(_active_env() => _EntityClass(
-            name, intact_dim_names, entities, vals, defaults, subclasses
-        )))
+    function EntityClass(name, args...; mod=@__MODULE__, extend=false)
+        new_ = new(name, Dict(_active_env() => _EntityClass(name, args...)))
         spine_entity_classes = _getproperty!(mod, :_spine_entity_classes, Dict())
         _resolve!(spine_entity_classes, name, new_, extend)
     end
