@@ -220,14 +220,13 @@ function _ents_and_vals(
     full_ents_per_id::Dict{Int64, Entity},
     param_vals_per_ent::Dict{Int64,Vector{Tuple{String,DBParVal}}}
 )
-    entity_ids_with_params = intersect(entity_ids, keys(param_vals_per_ent))
-    entities_with_params = zip(
-        entity_ids_with_params,
-        [full_ents_per_id[id] for id in entity_ids_with_params]
-    )
+    ents_per_id = filter(id_ent -> id_ent[1] in entity_ids, full_ents_per_id)
     param_vals = Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}(
-        (ent.byelement_list...,) => _parameter_values(string(ent.name), param_vals_per_ent[id])
-        for (id, ent) in entities_with_params
+        (ent.byelement_list...,) => _parameter_values(
+            string(ent.name),
+            get(param_vals_per_ent, id, Vector{Tuple{String,DBParVal}}())
+        )
+        for (id, ent) in ents_per_id
     )
     param_vals
 end

@@ -24,7 +24,7 @@ ObjectClass = EntityClass
 RelationshipClass = EntityClass
 
 
-## Functions for backwards compatibility
+## Function aliases for backwards compatibility
 
 """
     add_objects!(object_class, objects)

@@ -108,7 +108,7 @@ function _test_parameter()
     @testset "parameter" begin
         obj_classes = ["institution", "country"]
         rel_classes = [["institution__country", ["institution", "country"]]]
-        object_parameters = [["institution", "since_year"]]
+        object_parameters = [["institution", "since_year", "unknown"]]
         relationship_parameters = [["institution__country", "people_count"]]
         institutions = ["KTH", "VTT"]
         countries = ["Sweden", "France"]
@@ -135,7 +135,7 @@ function _test_parameter()
         @test people_count(institution=institution(:KTH), country=country(:France)) == 1
         @test people_count(institution=institution(:KTH), country=country(:Sweden)) == 3
         @test since_year(institution=institution(:KTH)) === 1827
-        @test since_year(institution=institution(:VTT), _strict=false) === nothing
+        @test since_year(institution=institution(:VTT), _strict=false) === :unknown
         @test people_count(institution=institution(:VTT), country=country(:France)) === nothing
         @test [x.name for x in institution(since_year=1827)] == [:KTH]
         @test length(parameters()) === 2
