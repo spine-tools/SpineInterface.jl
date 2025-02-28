@@ -69,6 +69,16 @@ iscontained(b::DateTime, a::TimeSlice) = start(a) <= b < end_(a)
 
 contains(a, b) = iscontained(b, a)
 
+const _component_enclosing_rounding = Dict(
+    :Y => (year, x -> 0, Year),
+    :M => (month, year, Month),
+    :D => (day, month, Day),
+    :WD => (dayofweek, week, Day),
+    :h => (hour, day, Hour),
+    :m => (minute, hour, Minute),
+    :s => (second, minute, Second),
+)
+
 """
     overlaps(a, b)
 
@@ -76,19 +86,10 @@ Determine whether `a` and `b` overlap.
 """
 overlaps(a::TimeSlice, b::TimeSlice) = start(a) <= start(b) < end_(a) || start(b) <= start(a) < end_(b)
 function overlaps(t::TimeSlice, union::UnionOfIntersections)
-    component_enclosing_rounding = Dict(
-        :Y => (year, x -> 0, Year),
-        :M => (month, year, Month),
-        :D => (day, month, Day),
-        :WD => (dayofweek, week, Day),
-        :h => (hour, day, Hour),
-        :m => (minute, hour, Minute),
-        :s => (second, minute, Second),
-    )
     for intersection in union
         does_overlap = true
         for interval in intersection
-            component, enclosing, rounding = component_enclosing_rounding[interval.key]
+            component, enclosing, rounding = _component_enclosing_rounding[interval.key]
             # Compute component and enclosing component for both start and end of time slice.
             # In the comments below, we assume component is hour, and thus enclosing component is day
             # (but of course, we don't use this assumption in the code itself!)
@@ -139,42 +140,40 @@ function overlap_duration(a::TimeSlice, b::TimeSlice)
 end
 
 """
-    roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod}; update::Bool=true)
+    roll!(t::TimeSlice, forward::Union{Period,CompoundPeriod})
 
-Roll the given `t` in time by the period specified by `forward`.
+Roll the given `t` in time by the period specified by `forward` and returns updates to call.
 """
-function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod})
+function roll!(t::TimeSlice, forward::Union{Period,Dates.CompoundPeriod}; return_updates=false)
     t.start[] += forward
     t.end_[] += forward
-    # Refresh
-    to_call = []
+    updates = []
     for (upd, timeout) in t.updates
         timeout -= forward
         if Dates.toms(forward) < 0 || Dates.toms(timeout) <= 0
-            push!(to_call, upd)
+            push!(updates, upd)
         else
             t.updates[upd] = timeout
         end
     end
-    _do_call.(to_call)
-    t
+    if return_updates
+        updates
+    else
+        (upd -> upd()).(updates)
+    end
 end
 
 """
-    refresh!(t::TimeSlice)
+    collect_updates(t::TimeSlice)
 
-Call updates registered in the given `t`.
+Collect updates registered in the given `t`.
 """
-function refresh!(t::TimeSlice)
-    _do_call.(keys(t.updates))
-end
-
-function _do_call(upd)
-    upd()
+function collect_updates(t::TimeSlice)
+    collect(keys(t.updates))
 end
 
 function add_roll_hook!(t, fn)
-    _add_update(t, Minute(-1), fn)
+    _add_update!(t, Minute(-1), fn)
 end
 
 _TimeSliceColl = Union{Vector{TimeSlice},Dict{TimeSlice,V} where V}

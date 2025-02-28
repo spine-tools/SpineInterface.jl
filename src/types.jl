@@ -31,7 +31,7 @@ A type for representing a parameter value from a Spine db.
 """
 struct ParameterValue{T}
     value::T
-    metadata::Dict
+    metadata::Dict{Symbol,Any}
     ParameterValue(value::T) where T = new{T}(value, _parameter_value_metadata(value))
 end
 
@@ -40,6 +40,25 @@ struct Call
     args::Vector
     kwargs::Union{Iterators.Pairs,NamedTuple}
     caller
+    root_node::Ref{Any}
+    function Call(func, args, kwargs, caller)
+        new(func, args, kwargs, caller, nothing)
+    end
+end
+
+struct _CallNode
+    call
+    parent::Union{_CallNode,Nothing}
+    child_number::Int64
+    children::Vector{_CallNode}
+    value::Ref{Any}
+    function _CallNode(call, parent, child_number)
+        node = new(call, parent, child_number, Vector{_CallNode}(), nothing)
+        if parent !== nothing
+            push!(parent.children, node)
+        end
+        node
+    end
 end
 
 """
@@ -59,6 +78,8 @@ struct Object
     end
 end
 
+abstract type AbstractUpdate end
+
 """
     TimeSlice
 
@@ -71,14 +92,13 @@ struct TimeSlice
     blocks::NTuple{N,Object} where {N}
     id::UInt64
     actual_duration::Union{Dates.CompoundPeriod,Period}
-    updates::OrderedDict
-    updates_lock::ReentrantLock
+    updates::Dict{AbstractUpdate,Union{Dates.CompoundPeriod,Period}}
     function TimeSlice(start, end_, duration, blocks)
         start > end_ && error("out of order")
         blocks = isempty(blocks) ? () : Tuple(sort(collect(blocks)))
         id = objectid((start, end_, duration, blocks))
         actual_duration = canonicalize(end_ - start)
-        new(Ref(start), Ref(end_), duration, blocks, id, actual_duration, OrderedDict(), ReentrantLock())
+        new(Ref(start), Ref(end_), duration, blocks, id, actual_duration, Dict())
     end
 end
 
@@ -307,5 +327,3 @@ end
 
 _Scalar = Union{Nothing,Missing,Bool,Int64,Float64,Symbol,DateTime,Period}
 _Indexed = Union{Array,TimePattern,TimeSeries,Map}
-
-abstract type AbstractUpdate end
