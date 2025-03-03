@@ -227,12 +227,21 @@ function _recursive_byelement_list(entity::Entity)
     byelement_list = vcat(_recursive_byelement_list.(entity.element_list)...)
     return byelement_list::Vector{Entity}
 end
+# Tasku: Required to allow `TimeSlice` relationshis in SpineOpt.
+_recursive_byelement_list(timeslice::Union{TimeSlice,Int64}) = [timeslice]
 
 """
     _default_entity_name_from_tuple(objtup::ObjectTupleLike) 
 
 Generate the default entity name from a tuple by joining element names with "__".
 """
-function _default_entity_name_from_tuple(objtup::ObjectTupleLike) 
+function _default_entity_name_from_tuple(objtup::Tuple{Entity,Vararg{Entity}}) 
     Symbol(join(string.(getfield.(objtup, :name)), "__"))
+end
+# Tasku: SpineOpt `TimeSlice` relationships need these.
+function _default_entity_name_from_tuple(objtup::Tuple{TimeSlice,Vararg{TimeSlice}}) 
+    Symbol(join(string.(getfield.(objtup, :start)), "__"))
+end
+function _default_entity_name_from_tuple(objtup::Tuple{Int64,Vararg{Int64}}) 
+    Symbol(join(string.(objtup), "__"))
 end

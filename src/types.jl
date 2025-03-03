@@ -52,8 +52,8 @@ struct Entity
     class_name::Symbol
     members::Vector{Entity}
     groups::Vector{Entity}
-    element_list::Vector{Entity}
-    byelement_list::Vector{Entity}
+    element_list::Vector # Tasku: Cannot be `Vector{ObjectLike}` typed due to type compilation conflicts with `TimeSlice`?
+    byelement_list::Vector # Tasku: Cannot be `Vector{ObjectLike}` typed due to type compilation conflicts with `TimeSlice`?
     id::UInt64
     function Entity(
         name,
@@ -102,7 +102,7 @@ struct _EntityClass
     entities::Vector{Entity}
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    subclasses::Vector{Symbol} # Tasku: I would've preferred to link to `EntityClass` directly, but can't do that due to type compiling.
+    subclasses::Vector{Symbol} # Tasku: I would've preferred to link to `EntityClass` directly, but can't do that due to type compiling?
     row_map::Dict # Tasku: Not sure if these will have any function with new filtering?
     row_map_lock::ReentrantLock # Tasku: Not sure if these will have any function with new filtering?
     _split_kwargs::Ref{Any}
