@@ -128,18 +128,49 @@ end
 
 _show_call(io::IO, call::Call, _caller::Nothing, func::Nothing) = print(io, _do_realize(call, nothing))
 function _show_call(io::IO, call::Call, _caller::Nothing, func::Function)
-    call_str = if length(call.args) == 1
-        string(func, "(", call.args[1], ")")
-    else
-        join(call.args, string(" ", func, " "))
+    level = 0
+    println(io)
+    _visit_call!(call) do node, direction
+        if direction == :up
+            level -= 1
+        elseif direction == :down
+            level += 1
+        end
+        if direction == :side
+            println(io, ",")
+        end
+        if direction == :up
+            println(io, "")
+            print(io, repeat(" ", 4 * level))
+            print(io, ")")
+            return
+        end
+        print(io, repeat(" ", 4 * level))
+        if node.call isa Call
+            if node.call.func isa Function
+                if !isempty(node.children)
+                    println(io, string(node.call.func, "("))
+                end
+            elseif node.call.func isa ParameterValue
+                _show_call(io, node.call, node.call.caller, node.call.func, level)
+            else
+                print(io, node.call)
+            end
+        else
+            print(io, node.call)
+        end
     end
-    print(io, call_str)
 end
-function _show_call(io::IO, call::Call, caller, func::ParameterValue)
+function _show_call(io::IO, call::Call, caller, func::ParameterValue, level=0)
     result = _do_realize(call, nothing)
     p, kwargs = caller
-    kwargs_str = join((join(kw, "=") for kw in pairs(kwargs)), ", ")
-    print(io, string("{", p, "(", kwargs_str, ") = ", result, "}"))
+    println(io, string(p, "("))
+    for kw in pairs(kwargs)
+        print(io, repeat(" ", 4 * (level + 1)))
+        println(io, string(join(kw, "="), ","))
+    end
+    print(io, repeat(" ", 4 * level))
+    print(io, string(") = ", result))
 end
 
 Base.convert(::Type{Call}, x::T) where {T} = Call(x)

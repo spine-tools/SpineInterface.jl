@@ -68,58 +68,58 @@ end
 
 struct _VariableLBUpdate <: AbstractUpdate
     variable::VariableRef
-    call
+    call::Call
 end
 
 struct _VariableUBUpdate <: AbstractUpdate
     variable::VariableRef
-    call
+    call::Call
 end
 
 struct _VariableFixValueUpdate <: AbstractUpdate
     variable::VariableRef
-    call
+    call::Call
 end
 
 struct _ObjectiveCoefficientUpdate <: AbstractUpdate
     model::Model
     variable::VariableRef
-    call
+    call::Call
 end
 
 struct _ConstraintCoefficientUpdate <: AbstractUpdate
     constraint::Ref{ConstraintRef}
     variable::VariableRef
-    call
+    call::Call
 end
 
 struct _RHSUpdate <: AbstractUpdate
     constraint::Ref{ConstraintRef}
-    call
+    call::Call
 end
 
 struct _LowerBoundUpdate <: AbstractUpdate
     constraint::Ref{ConstraintRef}
-    call
+    call::Call
 end
 
 struct _UpperBoundUpdate <: AbstractUpdate
     constraint::Ref{ConstraintRef}
-    call
+    call::Call
 end
 
 struct _PausableConstraintCoefficientUpdate <: AbstractUpdate
     constraint::ConstraintRef
     variable::VariableRef
-    call
+    call::Call
     paused::Ref{Bool}
     _PausableConstraintCoefficientUpdate(constraint, var, coef) = new(constraint, var, coef, false)
 end
 
 struct _ExprBoundUpdate <: AbstractUpdate
-    constraint
-    coefficient_updates
-    call
+    constraint::ConstraintRef
+    coefficient_updates::Vector{_PausableConstraintCoefficientUpdate}
+    call::Call
     function _ExprBoundUpdate(m, expr, sense, call)
         constraint = _add_constraint(m, 0, sense, 0)
         coefficient_updates = [

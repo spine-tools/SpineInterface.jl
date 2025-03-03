@@ -46,7 +46,7 @@ end
 
 function _test_do_update_model()
 	@testset "do_update_model" begin
-		m = Model(Cbc.Optimizer)
+		m = Model(HiGHS.Optimizer)
 		@variable(m, x, lower_bound=0)
 		@variable(m, y, lower_bound=0)
 		@variable(m, z, lower_bound=0)
@@ -253,7 +253,7 @@ end
 
 function _test_update_range_constraint()
 	@testset "update_range_constraint" begin
-		m = Model(Cbc.Optimizer)
+		m = Model(HiGHS.Optimizer)
 		@variable(m, x)
 		pval1 = parameter_value(TimeSeries([DateTime(1), DateTime(2)], [20, 4], false, false))
 		pval2 = parameter_value(TimeSeries([DateTime(1), DateTime(2)], [40, 8], false, false))
