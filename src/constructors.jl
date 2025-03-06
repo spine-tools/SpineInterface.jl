@@ -62,6 +62,15 @@ function EntityClass(
 )
     EntityClass(class_name, intact_dim_names, values.(entities), args...)
 end
+# Handle cases in SpineOpt data preprocessing
+function EntityClass(
+    class_name,
+    intact_dim_names,
+    entities::AbstractSet,
+    args...
+)
+    EntityClass(class_name, intact_dim_names, collect(entities), args...)
+end
 
 """
     TimeSlice(start::DateTime, end_::DateTime)
