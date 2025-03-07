@@ -168,10 +168,7 @@ struct _RelationshipClass
             ReentrantLock(),
             _make_split_kwargs(cls_names),
         )
-        rels = [
-            (; zip(_fix_name_ambiguity(collect(getfield.(objects, :class_name))), objects)...)
-            for objects in object_tuples
-        ]
+        rels = [_fix_name_ambiguity(objects) for objects in object_tuples]
         _append_relationships!(rc, rels)
         rc
     end
@@ -193,8 +190,13 @@ struct RelationshipClass <: EntityClass
 end
 
 """
-Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
+    _fix_name_ambiguity(otl::ObjectTupleLike)
+
+Return a `RelationshipLike` with an increasing integer appended to each repeated `class_name` in `otl`.
 """
+function _fix_name_ambiguity(otl::ObjectTupleLike)
+    (; zip(_fix_name_ambiguity(collect(getfield.(otl, :class_name))), otl)...)
+end
 function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
     name_list = copy(intact_name_list)
     for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
@@ -204,6 +206,7 @@ function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
     end
     name_list
 end
+_fix_name_ambiguity(rl::RelationshipLike) = rl # Tasku: `RelationshipLike`s assumed to be correct.
 
 struct _Parameter
     name::Symbol
