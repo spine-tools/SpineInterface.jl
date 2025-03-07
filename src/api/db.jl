@@ -66,6 +66,17 @@ function _groups_per_member(groups)
 end
 
 """
+A Dict mapping [`EntityClass`](@ref) superclass names to their subclass names.
+"""
+function _subclasses_per_superclass(superclass_subclass)
+    d = Dict()
+    for (superclass_name, subclass_name) in superclass_subclass
+        push!(get!(d, superclass_name, []), subclass_name)
+    end 
+    return d
+end
+
+"""
 A Dict mapping `Object` names to the corresponding `Object`.
 """
 function _full_objects_per_id(objects, members_per_group, groups_per_member)
@@ -155,13 +166,21 @@ function _parameter_values(entity_name, param_defs, param_vals_per_ent)
     )
 end
 
-function _obj_class_args(class, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
+function _obj_class_args(
+    class,
+    objs_per_cls,
+    full_objs_per_id,
+    param_defs_per_cls,
+    param_vals_per_ent,
+    subclasses_per_superclass
+)
     class_name, = class
     objects = get(objs_per_cls, class_name, ())
     param_defs = get(param_defs_per_cls, class_name, ())
     (
         _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)...,
         _default_parameter_values(param_defs),
+        Symbol.(get(subclasses_per_superclass, class_name, []))
     )
 end
 
@@ -200,10 +219,22 @@ end
 """
 A Dict mapping object class names to arguments.
 """
-function _obj_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
+function _obj_args_per_class(
+    classes,
+    ents_per_cls,
+    full_objs_per_id,
+    param_defs_per_cls,
+    param_vals_per_ent,
+    subclasses_per_superclass,
+)
     Dict(
         Symbol(class[1]) => _obj_class_args(
-            class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
+            class,
+            ents_per_cls,
+            full_objs_per_id,
+            param_defs_per_cls,
+            param_vals_per_ent,
+            subclasses_per_superclass
         )
         for class in classes
     )
@@ -253,15 +284,22 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
     object_groups = get(data, "entity_groups", [])
     param_defs = get(data, "parameter_definitions", [])
     param_vals = get(data, "parameter_values", [])
+    superclass_subclass = get(data, "superclass_subclasses", [])
     members_per_group = _members_per_group(object_groups)
     groups_per_member = _groups_per_member(object_groups)
+    subclasses_per_superclass = _subclasses_per_superclass(superclass_subclass)
     full_objs_per_id = _full_objects_per_id(objects, members_per_group, groups_per_member)
     objs_per_cls = _entities_per_class(objects)
     rels_per_cls = _entities_per_class(relationships)
     param_defs_per_cls = _parameter_definitions_per_class(param_defs)
     param_vals_per_ent = _parameter_values_per_entity(param_vals)
     args_per_obj_cls = _obj_args_per_class(
-        object_classes, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
+        object_classes,
+        objs_per_cls,
+        full_objs_per_id,
+        param_defs_per_cls,
+        param_vals_per_ent,
+        subclasses_per_superclass
     )
     args_per_rel_cls = _rel_args_per_class(
         relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
