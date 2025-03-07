@@ -21,11 +21,11 @@
 using_spinedb("sqlite://")
 
 @testset "constructors" begin
-    ducks = [Object(:Daffy), Object(:Donald)]
+    ducks = [Object(:Daffy, :duck), Object(:Donald, :duck)]
     duck = ObjectClass(:duck, ducks)
     @test duck isa ObjectClass
     @test duck() == ducks
-    studios = [Object(:WB), Object(:Disney)]
+    studios = [Object(:WB, :studio), Object(:Disney, :studio)]
     studio = ObjectClass(:studio, studios)
     studio_duck_rels = [(studio=s, duck=d) for (s, d) in zip(studios, ducks)]
     studio__duck = RelationshipClass(:studio__duck, [:studio, :duck], studio_duck_rels)
