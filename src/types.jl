@@ -106,11 +106,23 @@ ObjectLike = Union{Object,TimeSlice,Int64}
 ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
 RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
 
+"""
+    EntityClass
+
+An abstract type including both [`ObjectClass`](@ref) and [`RelationshipClass`](@ref).
+
+Current versions of Spine tools no longer distinguish between "Objects"
+and "Relationships", instead referring to both as "Entities".
+However, SpineInterface still uses the old structure under the hood.
+"""
+abstract type EntityClass end
+
 struct _ObjectClass
     name::Symbol
     objects::Vector{ObjectLike}
     parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
+    #subclasses::Vector{EntityClass}
     _split_kwargs::Ref{Any}
     function _ObjectClass(name, objects, vals=Dict(), defaults=Dict())
         new(name, objects, vals, defaults, _make_split_kwargs(name))
@@ -122,7 +134,7 @@ end
 
 A type for representing an object class from a Spine db.
 """
-struct ObjectClass
+struct ObjectClass <: EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_ObjectClass}
     function ObjectClass(name, args...; mod=@__MODULE__, extend=false)
@@ -134,20 +146,21 @@ end
 
 struct _RelationshipClass
     name::Symbol
-    intact_object_class_names::Vector{Symbol}
-    object_class_names::Vector{Symbol}
+    intact_object_class_names::Vector{Symbol} # Tasku: Is this useful anymore? With compound superclass relationships, there is no class-level consistency in byentity classes.
+    object_class_names::Vector{Symbol} # Tasku: Is this useful anymore? With compound superclass relationships, there is no class-level consistency in byentity classes.
     relationships::Vector{RelationshipLike}
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
+    #subclasses::Vector{EntityClass}
     row_map::Dict
     row_map_lock::ReentrantLock
     _split_kwargs::Ref{Any}
     function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
-        cls_names = _fix_name_ambiguity(intact_cls_names)
+        cls_names = _fix_name_ambiguity(intact_cls_names) # Tasku: This will be obsolete?
         rc = new(
             name,
-            intact_cls_names,
-            cls_names,
+            intact_cls_names, # Tasku: Obsolete?
+            cls_names, # Tasku: Obsolete?
             [],
             vals,
             defaults,
@@ -155,7 +168,10 @@ struct _RelationshipClass
             ReentrantLock(),
             _make_split_kwargs(cls_names),
         )
-        rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
+        rels = [
+            (; zip(_fix_name_ambiguity(collect(getfield.(objects, :class_name))), objects)...)
+            for objects in object_tuples
+        ]
         _append_relationships!(rc, rels)
         rc
     end
@@ -166,7 +182,7 @@ end
 
 A type for representing a relationship class from a Spine db.
 """
-struct RelationshipClass
+struct RelationshipClass <: EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_RelationshipClass}
     function RelationshipClass(name, args...; mod=@__MODULE__, extend=false)

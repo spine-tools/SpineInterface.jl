@@ -212,10 +212,9 @@ function _append_relationships!(rc, rels)
     isempty(rels) && return
     delete!(rc.row_map, rc.name)  # delete memoized rows
     offset = length(rc.relationships)
-    for cls_name in rc.object_class_names
-        oc_row_map = get!(rc.row_map, cls_name, Dict())
-        for (row, rel) in enumerate(rels)
-            obj = getproperty(rel, cls_name)
+    for (row, rel) in enumerate(rels)
+        for (cls_name, obj) in pairs(rel)
+            oc_row_map = get!(rc.row_map, cls_name, Dict())
             push!(get!(oc_row_map, obj, []), offset + row)
         end
     end

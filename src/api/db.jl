@@ -44,44 +44,44 @@ function using_spinedb(template::Dict{String,T}, mod=@__MODULE__; filters=nothin
 end
 
 """
-A Dict mapping entity group ids to an Array of member ids.
+A Dict mapping entity group names to an Array of member names.
 """
 function _members_per_group(groups)
     d = Dict()
     for (class_name, group_name, member_name) in groups
-        push!(get!(d, (class_name, group_name), []), (class_name, member_name))
+        push!(get!(d, group_name, []), member_name)
     end
     d
 end
 
 """
-A Dict mapping member ids to an Array of entity group ids.
+A Dict mapping member names to an Array of entity group names.
 """
 function _groups_per_member(groups)
     d = Dict()
     for (class_name, group_name, member_name) in groups
-        push!(get!(d, (class_name, member_name), []), (class_name, group_name))
+        push!(get!(d, member_name, []), group_name)
     end
     d
 end
 
 """
-A Dict mapping `Int64` ids to the corresponding `Object`.
+A Dict mapping `Object` names to the corresponding `Object`.
 """
 function _full_objects_per_id(objects, members_per_group, groups_per_member)
     objects_per_id = Dict(
-        (class_name, name) => Object(name, class_name) for (class_name, name) in objects
+        name => Object(name, class_name) for (class_name, name) in objects
     )
     # Specify `members` for each group
-    for (id, object) in objects_per_id
-        member_ids = get(members_per_group, id, ())
-        members = isempty(member_ids) ? [object] : [objects_per_id[member_id] for member_id in member_ids]
+    for (name, object) in objects_per_id
+        member_names = get(members_per_group, name, ())
+        members = isempty(member_names) ? [object] : [objects_per_id[member_name] for member_name in member_names]
         append!(object.members, members)
     end
     # Specify `groups` for each member
-    for (id, object) in objects_per_id
-        group_ids = get(groups_per_member, id, ())
-        groups = [objects_per_id[group_id] for group_id in group_ids]
+    for (name, object) in objects_per_id
+        group_names = get(groups_per_member, name, ())
+        groups = [objects_per_id[group_name] for group_name in group_names]
         append!(object.groups, groups)
     end
     objects_per_id
@@ -166,7 +166,7 @@ function _obj_class_args(class, objs_per_cls, full_objs_per_id, param_defs_per_c
 end
 
 function _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)
-    objects = [full_objs_per_id[class_name, obj_name] for (class_name, obj_name) in objects]
+    objects = [full_objs_per_id[obj_name] for (class_name, obj_name) in objects]
     param_vals = Dict(obj => _parameter_values(string(obj.name), param_defs, param_vals_per_ent) for obj in objects)
     objects, param_vals
 end
@@ -177,16 +177,16 @@ function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_c
     param_defs = get(param_defs_per_cls, class_name, ())
     (
         Symbol.(object_class_name_list),
-        _rels_and_vals(object_class_name_list, relationships, full_objs_per_id, param_defs, param_vals_per_ent)...,
+        _rels_and_vals(relationships, full_objs_per_id, param_defs, param_vals_per_ent)...,
         _default_parameter_values(param_defs),
     )
 end
 
-function _rels_and_vals(object_class_name_list, relationships, full_objs_per_id, param_defs, param_vals_per_ent)
+function _rels_and_vals(relationships, full_objs_per_id, param_defs, param_vals_per_ent)
     object_tuples = [
         Tuple(
-            full_objs_per_id[cls_name, obj_name]
-            for (cls_name, obj_name) in zip(object_class_name_list, object_name_list)
+            full_objs_per_id[obj_name]
+            for obj_name in object_name_list
         )
         for (rel_cls_name, object_name_list) in relationships
     ]
@@ -638,7 +638,25 @@ function _export_data(db; filters=Dict())
     data = _run_server_request(db, "export_data")
     _run_server_request(db, "clear_filters")
     isempty(old_filters) || _run_server_request(db, "apply_filters", (old_filters,))
-    data
+    _ensure_object_name_uniqueness(data)
+end
+
+"""
+    _ensure_object_name_uniqueness(data::Dict)
+
+Return `data` if its [`Object`](@ref) names are unique, error otherwise.
+
+Unless we want to perform complicated logical gymnastics to figure out valid
+`(class, name)` pairs from `data["entities"]`, banning ambiguous names is by far
+the easiest solution.
+"""
+function _ensure_object_name_uniqueness(data::Dict)
+    objects = filter(row -> !isa(row[2], Vector), get(data, "entities", []))
+    if length(objects) == length(unique(getindex.(objects, 2)))
+        return data
+    else
+        error("Non-unique object names not permitted in input!")
+    end
 end
 
 function _current_filters(db)
