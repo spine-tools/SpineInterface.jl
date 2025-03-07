@@ -148,10 +148,10 @@ function _test_add_objects()
         import_test_data(db_url; object_classes=object_classes, objects=objects)
         using_spinedb(db_url)
         @test length(institution()) === 2
-        add_objects!(institution, [institution()[1], Object(:KUL), Object(:ER)])
+        add_objects!(institution, [institution()[1], Object(:KUL, :institution), Object(:ER, :institution)])
         @test length(institution()) === 4
         @test Set(x.name for x in institution()) == Set([Symbol.(institutions); [:KUL, :ER]])
-        add_object!(institution, Object(:UCD))
+        add_object!(institution, Object(:UCD, :institution))
         @test length(institution()) === 5
         @test last(institution()).name === :UCD
     end
@@ -180,8 +180,8 @@ function _test_add_relationships()
             institution__country,
             [
                 institution__country()[3],
-                (institution=Object(:ER), country=Object(:France)),
-                (institution=Object(:ER), country=Object(:Ireland)),
+                (institution=Object(:ER, :institution), country=Object(:France, :country)),
+                (institution=Object(:ER, :institution), country=Object(:Ireland, :country)),
             ],
         )
         @test length(institution__country()) === 7
@@ -450,7 +450,7 @@ function _test_call()
         @test realize(call) == 5
         call = Call(+, 3, 4)
         @test realize(call) == 7
-        France = Object(:France)
+        France = Object(:France, :country)
         ts = TimeSeries([DateTime(0), DateTime(1)], [40, 70], false, false)
         country = ObjectClass(:country, [France], Dict(France => Dict(:apero_time => parameter_value(ts))))
         apero_time = Parameter(:apero_time, [country])
@@ -557,8 +557,8 @@ function _test_import_data()
             :map_parameter => parameter_value(map)
         )
         # Create objects and object class for testing
-        to1 = Object(:test_object_1)
-        to2 = Object(:test_object_2)
+        to1 = Object(:test_object_1, :test_oc)
+        to2 = Object(:test_object_2, :test_oc)
         original_oc = ObjectClass(:test_oc, [to1, to2], Dict(to1 => pv_dict), pv_dict)
         original_rc = RelationshipClass(
             :test_rc, [:test_oc, :test_oc], [(to1, to2)], Dict((to1, to2) => pv_dict), pv_dict

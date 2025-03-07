@@ -68,7 +68,7 @@ A type for representing an object from a Spine db; an instance of an object clas
 """
 struct Object
     name::Symbol
-    class_name::Union{Symbol,Nothing}
+    class_name::Union{Symbol} # Tasku: `Object`s now need to know their class for filtering, since `RelationshipClass`es can't reliably do it for them.
     members::Array{Object,1}
     groups::Array{Object,1}
     id::UInt64
@@ -195,7 +195,7 @@ end
 """
 Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
 """
-function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
+function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
     name_list = copy(intact_name_list)
     for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
         for (k, index) in enumerate(findall(name_list .== ambiguous))

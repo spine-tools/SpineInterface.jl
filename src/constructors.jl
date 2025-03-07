@@ -18,9 +18,7 @@
 #############################################################################
 
 Object(name::Symbol, class_name) = Object(name, class_name, [], [])
-Object(name::AbstractString, args...) = Object(Symbol(name), args...)
 Object(name::AbstractString, class_name::AbstractString, args...) = Object(Symbol(name), Symbol(class_name), args...)
-Object(name::Symbol) = Object(name::Symbol, nothing)
 
 """
     TimeSlice(start::DateTime, end_::DateTime)
