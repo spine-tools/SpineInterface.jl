@@ -737,15 +737,16 @@ function _test_superclasses()
         # Tests for `unit_flow` and `flow_capacity`
         @test length(unit_flow()) == 4
         @test unit_flow(unit = unit(:u1)) == [node(:n1), node(:n3)]
-        @test unit_flow(unit = unit(:u1); _compact=false) == [
-            (node=node(:n1), unit=unit(:u1)), (unit=unit(:u1), node=node(:n3))
+        @test collect(unit_flow(unit = unit(:u1); _compact=false)) == [
+            (node=node(:n1), unit=unit(:u1)),
+            (unit=unit(:u1), node=node(:n3))
         ]
         @test unit_flow(node = node(:n2)) == [unit(:u2)]
-        @test unit_flow(node = node(:n2); _compact=false) == [
+        @test collect(unit_flow(node = node(:n2); _compact=false)) == [
             (node=node(:n2), unit=unit(:u2))
         ]
-        @test unit_flow(node = anything, unit = unit(:u1); _compact=false) == [
-            (node=node(:n1), unit=unit(:n1))
+        @test collect(unit_flow(node = anything, unit = unit(:u1); _compact=false)) == [
+            (node=node(:n1), unit=unit(:u1))
         ]
         @test unit_flow(unit = unit(:u1), node = anything; _compact=false) == [
             (unit=unit(:n1), node=node(:n3))

@@ -160,26 +160,16 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
     isempty(kwargs) && return rc.relationships
-    relationships = if !_compact
-        _find_rels(rc; kwargs...)
-    else
-        object_class_names = setdiff(rc.object_class_names, keys(kwargs))
-        if isempty(object_class_names)
-            []
-        elseif length(object_class_names) == 1
-            unique(rel[object_class_names[1]] for rel in _find_rels(rc; kwargs...))
-        else
-            unique(
-                (; zip(object_class_names, (rel[k] for k in object_class_names))...)
-                for rel in _find_rels(rc; kwargs...)
-            )
+    relationships = _find_rels(rc; kwargs...)
+    isempty(relationships) && return _default
+    if _compact
+        relationships = unique(map(rel -> _nt_drop(rel, keys(kwargs)), relationships))
+        all(isempty.(relationships)) && return _default # In case `_nt_drop` filters out all dimensions.
+        if length(first(relationships)) == 1 # Return Objects if only one dimension left
+            relationships = only.(values.(relationships))
         end
     end
-    if !isempty(relationships)
-        relationships
-    else
-        _default
-    end
+    return relationships
 end
 
 _find_rels(rc; kwargs...) = _find_rels(rc, _find_rows(rc; kwargs...))
@@ -215,6 +205,13 @@ end
 _oc_rows(_rc, oc_row_map, objs) = (row for obj in objs for row in get(oc_row_map, obj, ()))
 _oc_rows(rc, _oc_row_map, ::Anything) = anything
 _oc_rows(rc, _oc_row_map, ::Nothing) = []
+
+"""
+    _nt_drop(nt::NamedTuple, keys::Tuple)
+
+Return `nt` with `keys` dropped.
+"""
+_nt_drop(nt::NamedTuple, keys::Tuple) = Base.structdiff(nt, NamedTuple{(keys...,)})
 
 """
     (<p>::Parameter)(;<keyword arguments>)
