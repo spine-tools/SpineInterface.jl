@@ -123,11 +123,10 @@ struct _ObjectClass
     parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
     subclasses::Vector{Symbol} # Tasku: Linking to classes directly would be a bit complicated.
-    _split_kwargs::Ref{Any}
     function _ObjectClass(
         name, objects, vals=Dict(), defaults=Dict(), subclasses=[]
     )
-        new(name, objects, vals, defaults, subclasses, _make_split_kwargs(name))
+        new(name, objects, vals, defaults, subclasses)
     end
 end
 
@@ -153,9 +152,6 @@ struct _RelationshipClass
     relationships::Vector{RelationshipLike}
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    row_map::Dict # Tasku: Obsolete? Not used by new filtering.
-    row_map_lock::ReentrantLock # Tasku: Obsolete? Not used by new filtering.
-    _split_kwargs::Ref{Any} # Tasku: Obsolete? Not necessary with new filtering?
     function _RelationshipClass(name, intact_dim_names, object_tuples, vals=Dict(), defaults=Dict())
         rels = [_fix_name_ambiguity(objects) for objects in object_tuples]
         valid_filter_dims = _valid_dimensions_from_rels(rels)
@@ -165,10 +161,7 @@ struct _RelationshipClass
             valid_filter_dims,
             rels,
             vals,
-            defaults,
-            Dict(),
-            ReentrantLock(),
-            _make_split_kwargs(valid_filter_dims),
+            defaults
         )
     end
 end

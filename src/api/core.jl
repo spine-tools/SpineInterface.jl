@@ -809,9 +809,6 @@ function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
         new_rel = (rel..., obj)
         cls.parameter_values[new_rel] = pop!(cls.parameter_values, rel)
     end
-    #cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
-    #delete!(cls.row_map, cls.name)  # delete memoized rows
-    cls._split_kwargs[] = _make_split_kwargs(cls.valid_filter_dimensions)
     nothing
 end
 

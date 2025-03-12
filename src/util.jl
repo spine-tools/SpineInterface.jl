@@ -52,7 +52,7 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     # The search stops when a parameter value is found in a class
     for class in sort(p.classes; by=_dimensionality, rev=true)
         # Split kwargs into class and parameter kwargs.
-        new_kwargs = _nt_drop((;kwargs...), _object_class_names(class))
+        new_kwargs = _nt_drop((;kwargs...), _dimension_names(class))
         entity = values(_nt_drop((;kwargs...), keys(new_kwargs)))
         if length(entity) == 1 # If entity is an object
             entity = only(entity)
@@ -65,8 +65,8 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     nothing
 end
 
-_object_class_names(x::ObjectClass) = (x.name,)
-_object_class_names(x::RelationshipClass) = (x.valid_filter_dimensions...,)
+_dimension_names(x::ObjectClass) = (x.name,)
+_dimension_names(x::RelationshipClass) = (x.valid_filter_dimensions...,)
 
 _dimensionality(x::ObjectClass) = 0
 _dimensionality(x::RelationshipClass) = length(first(x.relationships))
@@ -229,25 +229,9 @@ function _valid_dimensions_from_rels(rels::Vector{<:RelationshipLike})
     unique(Iterators.flatten(keys.(rels)))
 end
 _valid_dimensions_from_rels(::Vector{Union{}}) = Vector{Symbol}() # Tasku: Weird unit test case.
-
-function _make_split_kwargs(name::Symbol) # Tasku: Obsolete?
-    eval(
-        Expr(
-            :->,
-            Expr(:tuple, Expr(:parameters, Expr(:kw, name, :missing), :(kwargs...))),
-            Expr(:block, Expr(:tuple, name, :kwargs)),
-        )
-    )
-end
-function _make_split_kwargs(names::Vector{Symbol}) # Tasku: Obsolete?
-    eval(
-        Expr(
-            :->,
-            Expr(:tuple, Expr(:parameters, (Expr(:kw, n, :missing) for n in names)..., :(kwargs...))),
-            Expr(:block, Expr(:tuple, Expr(:tuple, names...), :kwargs)),
-        )
-    )
-end
+_valid_dimensions_from_rels(v::Vector{Any}) = ( # Tasku: Another weird unit test case.
+    isempty(v) ? Vector{Symbol}() : error("No valid dimension names for empty relationship vector!") 
+)
 
 """
     _nt_drop(nt::NamedTuple, keys::Tuple)
