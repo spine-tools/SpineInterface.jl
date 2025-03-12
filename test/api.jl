@@ -438,7 +438,7 @@ function _test_write_parameters()
             write_parameters(parameters, url; report="report_x")
             M = Module()
             using_spinedb(url, M)
-            @test M.apero_time(country=M.country(:France), report=M.report(:report_x)) === Symbol("later...")
+            @test M.apero_time(report=M.report(:report_x), country=M.country(:France)) === Symbol("later...")
         end
     end
 end
