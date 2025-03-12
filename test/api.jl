@@ -749,7 +749,7 @@ function _test_superclasses()
             (node=node(:n1), unit=unit(:u1))
         ]
         @test unit_flow(unit = unit(:u1), node = anything; _compact=false) == [
-            (unit=unit(:n1), node=node(:n3))
+            (unit=unit(:u1), node=node(:n3))
         ]
         @test flow_capacity(node=node(:n1), unit=unit(:u1)) == 4.0
         @test flow_capacity(node=node(:n2), unit=unit(:u2)) == 6.0

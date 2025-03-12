@@ -860,13 +860,13 @@ function _to_dict(obj_cls::ObjectClass)
 end
 function _to_dict(rel_cls::RelationshipClass)
     Dict(
-        :object_classes => unique(rel_cls.intact_object_class_names),
+        :object_classes => unique(rel_cls.intact_dimension_names),
         :objects => unique(
             [obj_cls_name, obj.name]
             for relationship in rel_cls.relationships
-            for (obj_cls_name, obj) in zip(rel_cls.intact_object_class_names, relationship)
+            for (obj_cls_name, obj) in zip(rel_cls.intact_dimension_names, relationship)
         ),
-        :relationship_classes => [[rel_cls.name, rel_cls.intact_object_class_names]],
+        :relationship_classes => [[rel_cls.name, rel_cls.intact_dimension_names]],
         :relationship_parameters => [
             [rel_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
             for (parameter_name, parameter_default_value) in rel_cls.parameter_defaults

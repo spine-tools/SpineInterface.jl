@@ -61,11 +61,11 @@ julia> commodity(state_of_matter=:gas)
 ```
 """
 function (oc::ObjectClass)(args...; kwargs...)
-    if isempty(oc.subclasses)
+    if isempty(oc.subclasses) # No subclasses -> Filter this one.
         return _object_class_filtering(oc, args...; kwargs...)
-    elseif length(oc.subclasses) == 1
+    elseif length(oc.subclasses) == 1 # One subclass -> Filter that one.
         return entity_class(only(oc.subclasses))(args...; kwargs...)
-    else
+    else # Many subclasses -> Filter all of them and flatten their output.
         final = []
         for cls in entity_class.(oc.subclasses)
             search = cls(args...; kwargs...)
@@ -159,9 +159,23 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 ```
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
+    # No kwargs -> return all relationships.
     isempty(kwargs) && return rc.relationships
-    relationships = _find_rels(rc; kwargs...)
-    isempty(relationships) && return _default
+    # Next, parameter value filtering
+    class_kwargs, param_kwargs = _split_relationship_filter_kwargs(rc, kwargs)
+    if !isempty(param_kwargs)
+        relationships = _fix_name_ambiguity.(keys(filter(
+            rel_param_dict_pair -> _parameter_filter(rel_param_dict_pair, param_kwargs),
+            rc.parameter_values
+        )))
+    else
+        relationships = rc.relationships
+    end
+    # Next, class filtering.
+    if !isempty(class_kwargs)
+        relationships = filter(rel -> _class_filter(rel, class_kwargs), relationships)
+    end
+    # Remove filtered dimensions if _compact=true
     if _compact
         relationships = unique(map(rel -> _nt_drop(rel, keys(kwargs)), relationships))
         all(isempty.(relationships)) && return _default # In case `_nt_drop` filters out all dimensions.
@@ -169,49 +183,67 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs
             relationships = only.(values.(relationships))
         end
     end
-    return relationships
+    return isempty(relationships) ? _default : relationships
 end
-
-_find_rels(rc; kwargs...) = _find_rels(rc, _find_rows(rc; kwargs...))
-_find_rels(rc, rows) = (rc.relationships[row] for row in rows)
-_find_rels(rc, ::Anything) = rc.relationships
-
-function _find_rows(rc; kwargs...)
-    lock(rc.row_map_lock) do
-        memoized_rows = get!(rc.row_map, rc.name, Dict())
-        get!(memoized_rows, kwargs) do
-            _do_find_rows(rc; kwargs...)
-        end
-    end
-end
-
-function _do_find_rows(rc; kwargs...)
-    rows = anything
-    for (oc_name, objs) in kwargs
-        oc_row_map = get(rc.row_map, oc_name, nothing)
-        oc_row_map === nothing && return []
-        oc_rows = _oc_rows(rc, oc_row_map, objs)
-        oc_rows === anything && continue
-        if rows === anything
-            rows = collect(oc_rows)
-        else
-            intersect!(rows, oc_rows)
-        end
-        isempty(rows) && return []
-    end
-    rows
-end
-
-_oc_rows(_rc, oc_row_map, objs) = (row for obj in objs for row in get(oc_row_map, obj, ()))
-_oc_rows(rc, _oc_row_map, ::Anything) = anything
-_oc_rows(rc, _oc_row_map, ::Nothing) = []
 
 """
-    _nt_drop(nt::NamedTuple, keys::Tuple)
+    _split_relationship_filter_kwargs(rc::RelationshipClass, kwargs::Base.Pairs)
 
-Return `nt` with `keys` dropped.
+Split `kwargs` into two parts: return `class_kwargs` for class filtering,
+and `param_kwargs` for parameter filtering.
 """
-_nt_drop(nt::NamedTuple, keys::Tuple) = Base.structdiff(nt, NamedTuple{(keys...,)})
+function _split_relationship_filter_kwargs(rc::RelationshipClass, kwargs::Base.Pairs)
+    class_kwargs = pairs(_nt_drop((;kwargs...), (keys(rc.parameter_defaults)...,)))
+    param_kwargs = pairs(_nt_drop((;kwargs...), keys(class_kwargs)))
+    return class_kwargs, param_kwargs
+end
+
+"""
+    _parameter_filter(
+        rel_param_dict_pair::Pair{ObjectTupleLike,Dict{Symbol,ParameterValue}},
+        param_kwargs::Base.Pairs
+    )
+
+Filter parameter value dictionary pairs based on given `param_kwargs`.
+"""
+function _parameter_filter(
+    rel_param_dict_pair::Pair{ObjectTupleLike,Dict{Symbol,ParameterValue}},
+    param_kwargs::Base.Pairs
+)
+    # Can't do the comparison directly due to `ParameterValue` in byent_param_dict_pair
+    param_value_dict = Dict(
+        param_name => param_value.value
+        for (param_name, param_value) in rel_param_dict_pair.second
+    )
+    all([_pv_in(kwarg, param_value_dict) for kwarg in param_kwargs])
+end
+
+_pv_in(kwarg::Pair{Symbol,Anything}, param_value_dict::Dict) = in(kwarg.first, keys(param_value_dict))
+_pv_in(kwarg::Pair, param_value_dict::Dict) = in(kwarg, param_value_dict)
+
+"""
+    _class_filter(rel::RelationshipLike, kwargs::Base.Pairs)
+
+Filter `rel` using `kwargs` order and contents.
+"""
+function _class_filter(rel::RelationshipLike, kwargs::Base.Pairs)
+    # Check that remaining keywords match and are similarly ordered
+    classes = keys(rel)
+    !isempty(setdiff(keys(kwargs), classes)) && return false # Tasku: Filter out if kwargs contains something not in classes.
+    kw_inds = [findfirst(kw .== classes) for (kw, arg) in kwargs]
+    !issorted(kw_inds) && return false # Tasku: Filter out unless keywords are in the desired order.
+    # Only then do actual argument filtering
+    all(_check_class_arg(getfield(rel, kw), arg) for (kw, arg) in kwargs)
+end
+
+_check_class_arg(obj::Object, arg::Anything) = true
+_check_class_arg(obj::Object, arg::Nothing) = false
+_check_class_arg(obj::Object, arg::Symbol) = obj.name == arg
+_check_class_arg(obj::Object, arg::ObjectLike) = obj == arg
+_check_class_arg(obj::Object, arg::Vector{Object}) = obj in arg
+# Tasku: The following is a horrible mess dealing with `indices()` output when given as arguments for `_test_indices()`
+_check_class_arg(obj::Object, arg::Base.Iterators.Flatten) = _check_class_arg(obj, collect(arg))
+_check_class_arg(obj::Object, arg::Vector) = obj in only.(values(arg))
 
 """
     (<p>::Parameter)(;<keyword arguments>)
@@ -612,7 +644,7 @@ Remove from `relationships` everything that's already in `relationship_class`, a
 Return the modified `relationship_class`.
 """
 function add_relationships!(relationship_class::RelationshipClass, object_tuples::Vector{T}) where T<:ObjectTupleLike
-    relationships = [(; zip(relationship_class.object_class_names, obj_tup)...) for obj_tup in object_tuples]
+    relationships = [(; zip(relationship_class.valid_filter_dimensions, obj_tup)...) for obj_tup in object_tuples]
     add_relationships!(relationship_class, relationships)
 end
 function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
@@ -770,20 +802,20 @@ function realize(call, upd=nothing)
 end
 
 function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
-    push!(cls.object_class_names, name)
-    push!(cls.intact_object_class_names, name)
+    push!(cls.valid_filter_dimensions, name)
+    push!(cls.intact_dimension_names, name)
     map!(rel -> (; rel..., Dict(name => obj)...), cls.relationships, cls.relationships)
     for rel in collect(keys(cls.parameter_values))
         new_rel = (rel..., obj)
         cls.parameter_values[new_rel] = pop!(cls.parameter_values, rel)
     end
-    cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
-    delete!(cls.row_map, cls.name)  # delete memoized rows
-    cls._split_kwargs[] = _make_split_kwargs(cls.object_class_names)
+    #cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
+    #delete!(cls.row_map, cls.name)  # delete memoized rows
+    cls._split_kwargs[] = _make_split_kwargs(cls.valid_filter_dimensions)
     nothing
 end
 
-dimensions(cls::RelationshipClass) = cls.object_class_names
+dimensions(cls::RelationshipClass) = cls.valid_filter_dimensions
 
 const __active_env = Ref(:__base__)
 

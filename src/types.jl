@@ -148,30 +148,28 @@ end
 
 struct _RelationshipClass
     name::Symbol
-    intact_object_class_names::Vector{Symbol} # Tasku: Is this useful anymore? With compound superclass relationships, there is no class-level consistency in byentity classes.
-    object_class_names::Vector{Symbol} # Tasku: Is this useful anymore? With compound superclass relationships, there is no class-level consistency in byentity classes.
+    intact_dimension_names::Vector{Symbol}
+    valid_filter_dimensions::Vector{Symbol}
     relationships::Vector{RelationshipLike}
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    row_map::Dict
-    row_map_lock::ReentrantLock
-    _split_kwargs::Ref{Any}
-    function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
-        cls_names = _fix_name_ambiguity(intact_cls_names) # Tasku: This will be obsolete?
-        rc = new(
+    row_map::Dict # Tasku: Obsolete? Not used by new filtering.
+    row_map_lock::ReentrantLock # Tasku: Obsolete? Not used by new filtering.
+    _split_kwargs::Ref{Any} # Tasku: Obsolete? Not necessary with new filtering?
+    function _RelationshipClass(name, intact_dim_names, object_tuples, vals=Dict(), defaults=Dict())
+        rels = [_fix_name_ambiguity(objects) for objects in object_tuples]
+        valid_filter_dims = _valid_dimensions_from_rels(rels)
+        return new(
             name,
-            intact_cls_names, # Tasku: Obsolete?
-            cls_names, # Tasku: Obsolete?
-            [],
+            intact_dim_names,
+            valid_filter_dims,
+            rels,
             vals,
             defaults,
             Dict(),
             ReentrantLock(),
-            _make_split_kwargs(cls_names),
+            _make_split_kwargs(valid_filter_dims),
         )
-        rels = [_fix_name_ambiguity(objects) for objects in object_tuples]
-        _append_relationships!(rc, rels)
-        rc
     end
 end
 

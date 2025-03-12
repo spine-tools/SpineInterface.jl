@@ -40,6 +40,8 @@ end
 """
     _split_parameter_value_kwargs(p; <keyword arguments>)
 
+Return a [`ParameterValue`](@ref) and keyword arguments for it after class filtering.
+
 # Keyword arguments
   - _strict=true: whether to emit a warning if no entity matches the given kwargs
   - _default=nothing: A value to return if the parameter is not specified for the entity matching the kwargs.
@@ -49,7 +51,12 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     _strict &= _default === nothing
     # The search stops when a parameter value is found in a class
     for class in sort(p.classes; by=_dimensionality, rev=true)
-        entity, new_kwargs = Base.invokelatest(class._split_kwargs[]; kwargs...)
+        # Split kwargs into class and parameter kwargs.
+        new_kwargs = _nt_drop((;kwargs...), _object_class_names(class))
+        entity = values(_nt_drop((;kwargs...), keys(new_kwargs)))
+        if length(entity) == 1 # If entity is an object
+            entity = only(entity)
+        end
         parameter_values = _get_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
@@ -59,10 +66,10 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
 end
 
 _object_class_names(x::ObjectClass) = (x.name,)
-_object_class_names(x::RelationshipClass) = x.object_class_names
+_object_class_names(x::RelationshipClass) = (x.valid_filter_dimensions...,)
 
 _dimensionality(x::ObjectClass) = 0
-_dimensionality(x::RelationshipClass) = length(x.object_class_names)
+_dimensionality(x::RelationshipClass) = length(first(x.relationships))
 
 _get_pvals(pvals_by_entity, ::Nothing) = nothing
 _get_pvals(pvals_by_entity, object) = _do_get_pvals(pvals_by_entity, object)
@@ -210,19 +217,20 @@ end
 
 function _append_relationships!(rc, rels)
     isempty(rels) && return
-    delete!(rc.row_map, rc.name)  # delete memoized rows
-    offset = length(rc.relationships)
-    for (row, rel) in enumerate(rels)
-        for (cls_name, obj) in pairs(rel)
-            oc_row_map = get!(rc.row_map, cls_name, Dict())
-            push!(get!(oc_row_map, obj, []), offset + row)
-        end
-    end
+    new_dim_names = setdiff(
+        rc.valid_filter_dimensions, _valid_dimensions_from_rels(rels)
+    )
+    append!(rc.valid_filter_dimensions, new_dim_names)
     append!(rc.relationships, rels)
     nothing
 end
 
-function _make_split_kwargs(name::Symbol)
+function _valid_dimensions_from_rels(rels::Vector{<:RelationshipLike})
+    unique(Iterators.flatten(keys.(rels)))
+end
+_valid_dimensions_from_rels(::Vector{Union{}}) = Vector{Symbol}() # Tasku: Weird unit test case.
+
+function _make_split_kwargs(name::Symbol) # Tasku: Obsolete?
     eval(
         Expr(
             :->,
@@ -231,7 +239,7 @@ function _make_split_kwargs(name::Symbol)
         )
     )
 end
-function _make_split_kwargs(names::Vector{Symbol})
+function _make_split_kwargs(names::Vector{Symbol}) # Tasku: Obsolete?
     eval(
         Expr(
             :->,
@@ -240,3 +248,10 @@ function _make_split_kwargs(names::Vector{Symbol})
         )
     )
 end
+
+"""
+    _nt_drop(nt::NamedTuple, keys::Tuple)
+
+Return `nt` with `keys` dropped.
+"""
+_nt_drop(nt::NamedTuple, keys::Tuple) = Base.structdiff(nt, NamedTuple{(keys...,)})

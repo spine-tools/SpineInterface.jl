@@ -152,7 +152,7 @@ function test_object_class(
         "`$obj_class` not found in module `$m`!",
     )
     @testset "Object class `$obj_class`" begin
-        cond = obj_class.name in rel_class.intact_object_class_names
+        cond = obj_class.name in rel_class.intact_dimension_names
         @test _check(cond, "`$obj_class` not included in `$rel_class`!")
         if cond
             obs_in_rels = getfield.(rel_class.relationships, obj_class.name)
@@ -195,7 +195,7 @@ function test_relationship_class(
 )
     @test _check(rel_class in relationship_classes(m), "`$rel_class` not found in module `$m`!")
     @testset "Relationship class `$(rel_class)`" begin
-        fields = intersect(rel_class.object_class_names, in_rel_class.object_class_names)
+        fields = intersect(rel_class.valid_filter_dimensions, in_rel_class.valid_filter_dimensions)
         cond = !isempty(fields)
         @test _check(cond, "`$rel_class` and `$in_rel_class` have no common `ObjectClasses`!")
         if cond
