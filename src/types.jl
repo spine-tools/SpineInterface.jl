@@ -199,6 +199,7 @@ function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
     name_list
 end
 _fix_name_ambiguity(rl::RelationshipLike) = rl # Tasku: `RelationshipLike`s assumed to be correct.
+_fix_name_ambiguity(o::Object) = o # Tasku: Nothing to fix in an object.
 
 struct _Parameter
     name::Symbol

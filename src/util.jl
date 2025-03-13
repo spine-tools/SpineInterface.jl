@@ -53,8 +53,10 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     for class in sort(p.classes; by=_dimensionality, rev=true)
         # Split kwargs into class and parameter kwargs.
         new_kwargs = _nt_drop((;kwargs...), _dimension_names(class))
-        entity = values(_nt_drop((;kwargs...), keys(new_kwargs)))
-        if length(entity) == 1 # If entity is an object
+        entity = _entity_key(_nt_drop((;kwargs...), keys(new_kwargs)))
+        if isnothing(entity)
+            continue
+        elseif length(entity) == 1 # If entity is an object
             entity = only(entity)
         end
         parameter_values = _get_pvals(class.parameter_values, entity)
@@ -64,6 +66,24 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     _strict && @warn("can't find a value of $p for argument(s) $((; kwargs...))")
     nothing
 end
+
+"""
+    _entity_key(r::RelationshipLike)
+
+Convert a [`RelationshipLike`](@ref) into [`ObjectTupleLike`](@ref).
+
+Checks if the keys are consistent, returns nothing if not.
+"""
+function _entity_key(r::RelationshipLike)
+    if isempty(r) || any(keys(r) .!= getfield.(values(r), :class_name))
+        return nothing
+    else
+        return values(r)
+    end
+end
+_entity_key(r::NamedTuple{}) = nothing # Tasku: Weird case in unit tests.
+_entity_key(otl::ObjectTupleLike) = otl
+_entity_key(o::ObjectLike) = o
 
 _dimension_names(x::ObjectClass) = (x.name,)
 _dimension_names(x::RelationshipClass) = (x.valid_filter_dimensions...,)
