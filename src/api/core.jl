@@ -610,7 +610,7 @@ _entity_tuple(r::RelationshipLike, class) = r
 
 classes(p::Parameter) = p.classes
 
-push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
+push_class!(p::Parameter, class::EntityClass) = push!(p.classes, class)
 
 """
     add_objects!(object_class, objects)

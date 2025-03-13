@@ -706,6 +706,7 @@ function _test_superclasses()
             ["unit", "u2"],
             ["node__unit", ["n1", "u1"]],
             ["node__unit", ["n2", "u2"]],
+            ["node__unit", ["n1", "u2"]],
             ["unit__node", ["u1", "n3"]],
             ["unit__node", ["u2", "n3"]],
             ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"]],
@@ -716,7 +717,7 @@ function _test_superclasses()
         par_defs = [
             ["node__unit", "flow_capacity", 0.0],
             ["unit__node", "flow_capacity", 1.0],
-            ["unit_flow__unit_flow", "ratio", 2.0]
+            ["unit_flow__unit_flow", "ratio", 2.0],
         ]
         par_vals = [
             ["node__unit", ["n1", "u1"], "flow_capacity", 4.0],
@@ -735,7 +736,7 @@ function _test_superclasses()
         )
         using_spinedb(db_url)
         # Tests for `unit_flow` and `flow_capacity`
-        @test length(unit_flow()) == 4
+        @test length(unit_flow()) == 5
         @test unit_flow(unit = unit(:u1)) == [node(:n1), node(:n3)]
         @test collect(unit_flow(unit = unit(:u1); _compact=false)) == [
             (node=node(:n1), unit=unit(:u1)),
@@ -755,11 +756,13 @@ function _test_superclasses()
         @test flow_capacity(node=node(:n2), unit=unit(:u2)) == 6.0
         @test flow_capacity(unit=unit(:u1), node=node(:n3)) == 5.0
         @test flow_capacity(node=node(:n1), unit=unit(:u2)) == 0.0
-        @test flow_capacity(unit=unit(:u2), node=node(:n2)) == 1.0
+        @test flow_capacity(unit=node(:n1), node=unit(:u2)) === nothing
+        @test flow_capacity(unit=unit(:u2), node=node(:n3)) == 1.0
+        @test flow_capacity(unit=unit(:u2), node=node(:n1)) === nothing
         @test collect(indices(flow_capacity)) == [
             (node=node(:n1), unit=unit(:u1)),
-            (unit=unit(:u1), node=node(:n3)),
             (node=node(:n2), unit=unit(:u2)),
+            (unit=unit(:u1), node=node(:n3)),
         ]
         @test collect(indices(flow_capacity; node=anything, unit=anything)) == [
             (node=node(:n1), unit=unit(:u1)),
@@ -776,21 +779,25 @@ function _test_superclasses()
             (unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)),
         ]
         @test unit_flow__unit_flow(unit1=unit(:u1); _compact=false) == [
-            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
             (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
-            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
             (unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)),
+            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
         ]
         @test unit_flow__unit_flow(node1=anything, unit1=unit(:u1); _compact=false) == [
-            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
             (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
         ]
         @test unit_flow__unit_flow(unit1=unit(:u1), node1=anything; _compact=false) == [
-            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
             (unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)),
+            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
+        ]
+        @test unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything, unit2=anything; _compact=false) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2))
         ]
         @test unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything; _compact=false) == [
             (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2))
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3))
         ]
         @test ratio(node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)) == 7.0
         @test ratio(unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)) == 8.0

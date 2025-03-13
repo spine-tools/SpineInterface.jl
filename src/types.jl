@@ -203,7 +203,7 @@ _fix_name_ambiguity(o::Object) = o # Tasku: Nothing to fix in an object.
 
 struct _Parameter
     name::Symbol
-    classes::Vector{Union{ObjectClass,RelationshipClass}}
+    classes::Vector{EntityClass}
     _Parameter(name, classes=[]) = new(name, classes)
 end
 

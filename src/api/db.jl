@@ -497,7 +497,7 @@ d = Dict(
 import_data(url, d, "arf!")
 ```
 """
-function import_data(url, data::Union{ObjectClass,RelationshipClass}, comment::String; upgrade=false)
+function import_data(url, data::EntityClass, comment::String; upgrade=false)
     import_data(url, _to_dict(data), comment; upgrade=upgrade)
 end
 function import_data(url, data::Vector, comment::String; upgrade=false)
