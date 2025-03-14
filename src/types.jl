@@ -155,6 +155,9 @@ struct _RelationshipClass
     function _RelationshipClass(name, intact_dim_names, object_tuples, vals=Dict(), defaults=Dict())
         rels = [_fix_name_ambiguity(objects) for objects in object_tuples]
         valid_filter_dims = _valid_dimensions_from_rels(rels)
+        if isempty(valid_filter_dims) # Tasku: derive filter dims from dim names if necessary.
+            valid_filter_dims = _fix_name_ambiguity(intact_dim_names)
+        end
         return new(
             name,
             intact_dim_names,
