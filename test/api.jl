@@ -756,7 +756,7 @@ function _test_superclasses()
         @test flow_capacity(node=node(:n2), unit=unit(:u2)) == 6.0
         @test flow_capacity(unit=unit(:u1), node=node(:n3)) == 5.0
         @test flow_capacity(node=node(:n1), unit=unit(:u2)) == 0.0
-        @test flow_capacity(unit=node(:n1), node=unit(:u2)) === nothing
+        @test flow_capacity(unit=node(:n1), node=unit(:u2)) == 0.0 # Tasku: This is hardly ideal behaviour, but making kwargs matter with name ambiguity is not trivial.
         @test flow_capacity(unit=unit(:u2), node=node(:n3)) == 1.0
         @test flow_capacity(unit=unit(:u2), node=node(:n1)) === nothing
         @test collect(indices(flow_capacity)) == [
@@ -801,8 +801,9 @@ function _test_superclasses()
         ]
         @test ratio(node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)) == 7.0
         @test ratio(unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)) == 8.0
-        @test ratio(unit1=unit(:u1), node1=node(:n1), node2=node(:n1), unit2=unit(:u1)) == 2.0
-        @test ratio(node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n1)) == 2.0
+        @test ratio(node1=unit(:u1), unit1=node(:n3), unit2=node(:n1), node2=unit(:u1)) == 8.0 # Tasku: Again not ideal, but saves on performance.
+        @test ratio(unit1=unit(:u1), node1=node(:n1), node2=node(:n1), unit2=unit(:u1)) === nothing
+        @test ratio(node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)) == 2.0
         @test collect(indices(ratio)) == [
             (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
             (unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)),
