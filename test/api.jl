@@ -23,7 +23,7 @@ function _test_indices()
     @testset "indices" begin
         object_classes = ["institution", "country"]
         relationship_classes = [["institution__country", ["institution", "country"]]]
-        object_parameters = [["institution", "since_year"]]
+        object_parameters = [["institution", "since_year", 0]]
         relationship_parameters = [["institution__country", "people_count"]]
         institutions = ["KTH", "VTT"]
         countries = ["Sweden", "France"]
@@ -54,6 +54,8 @@ function _test_indices()
             (institution=institution(:KTH), country=country(:Sweden)),
             (institution=institution(:KTH), country=country(:France)),
         ])
+        @test only(institution(since_year=1827)) == institution(:KTH)
+        @test institution(since_year=0) == [institution(:VTT)] # Tasku: An annoying test required for SpineOpt: default values pass parameter value filter.
     end
 end
 
@@ -794,13 +796,19 @@ function _test_superclasses()
         @test flow_capacity(unit=unit(:u2), node=node(:n1)) === nothing
         @test collect(indices(flow_capacity)) == [
             (node=node(:n1), unit=unit(:u1)),
+            (node=node(:n1), unit=unit(:u2)),
             (node=node(:n2), unit=unit(:u2)),
             (unit=unit(:u1), node=node(:n3)),
+            (unit=unit(:u2), node=node(:n3)),
         ]
         @test collect(indices(flow_capacity; node=anything, unit=anything)) == [
             (node=node(:n1), unit=unit(:u1)),
+            (node=node(:n1), unit=unit(:u2)),
             (node=node(:n2), unit=unit(:u2)),
         ]
+        @test unit_flow(flow_capacity=0.0) == [(node=node(:n1), unit=unit(:u2))]
+        @test unit_flow(flow_capacity=4.0) == [(node=node(:n1), unit=unit(:u1))]
+        @test unit_flow(flow_capacity=1.0) == [(unit=unit(:u2), node=node(:n3))]
         # Tests for `unit_flow__unit_flow` and `ratio`
         @test length(unit_flow__unit_flow()) == 4
         @test unit_flow__unit_flow(unit2=unit(:u1)) == [
@@ -838,11 +846,24 @@ function _test_superclasses()
         @test ratio(unit1=unit(:u1), node1=node(:n1), node2=node(:n1), unit2=unit(:u1)) === nothing
         @test ratio(node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)) == 2.0
         @test collect(indices(ratio)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
             (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
             (unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)),
+            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
         ]
         @test collect(indices(ratio; node1=anything, unit1=anything)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
             (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
+        ]
+        @test unit_flow__unit_flow(ratio=2.0) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
+        ]
+        @test unit_flow__unit_flow(node1=anything, unit1=anything, ratio=2.0, _compact=false) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+        ]
+        @test unit_flow__unit_flow(ratio=7.0) == [
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3))
         ]
     end
 end
