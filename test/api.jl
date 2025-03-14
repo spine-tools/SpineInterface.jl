@@ -300,8 +300,14 @@ end
 function _test_add_relationship_parameter_values()
     @testset "add_relationship_parameter_values" begin
         object_classes = ["institution", "country"]
-        relationship_classes = [["institution__country", ["institution", "country"]]]
-        relationship_parameters = [["institution__country", "people_count"]]
+        relationship_classes = [
+            ["institution__country", ["institution", "country"]],
+            ["country__country", ["country", "country"]],
+        ]
+        relationship_parameters = [
+            ["institution__country", "people_count"],
+            ["country__country", "is_different"]
+        ]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
@@ -335,7 +341,7 @@ function _test_add_relationship_parameter_values()
             ERFrance => Dict(:people_count => parameter_value(1)),
             ERIreland => Dict(:people_count => parameter_value(1)),
             ERSweden => Dict(:people_count => parameter_value(1)),
-            KTHFrance => Dict(:people_count => parameter_value(0)),
+            KTHFrance => Dict(:people_count => parameter_value(0))
         )
         add_relationship_parameter_values!(institution__country, pvals)
         @test length(institution__country()) === 8
@@ -347,6 +353,13 @@ function _test_add_relationship_parameter_values()
         @test people_count(; ERIreland...) == 1
         @test people_count(; ERSweden...) == 1
         @test people_count(; KTHFrance...) == 0
+        pvals = Dict(
+            (country1=country(:Sweden), country2=country(:Sweden)) => Dict(:is_different => parameter_value(false)),
+            (country1=country(:Sweden), country2=country(:France)) => Dict(:is_different => parameter_value(true)),
+        )
+        add_relationship_parameter_values!(country__country, pvals)
+        @test is_different(country1=country(:Sweden), country2=country(:Sweden)) == false
+        @test is_different(country1=country(:Sweden), country2=country(:France)) == true
     end
 end
 
