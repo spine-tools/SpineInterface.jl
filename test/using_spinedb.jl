@@ -103,16 +103,21 @@ function _test_parameter()
     @testset "parameter" begin
         obj_classes = ["institution", "country"]
         rel_classes = [["institution__country", ["institution", "country"]]]
-        object_parameters = [["institution", "since_year"]]
-        relationship_parameters = [["institution__country", "people_count"]]
+        object_parameters = [["institution", "since_year"], ["country", "bread", "knackebrod"]]
+        relationship_parameters = [
+            ["institution__country", "people_count"], ["institution__country", "job", "research"]
+        ]
         institutions = ["KTH", "VTT"]
         countries = ["Sweden", "France"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
         relationships = [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]]
-        object_parameter_values = [["institution", "KTH", "since_year", 1827]]
+        object_parameter_values = [
+            ["institution", "KTH", "since_year", 1827], ["country", "France", "bread", "baguette"]
+        ]
         relationship_parameter_values = [
             ["institution__country", ["KTH", "Sweden"], "people_count", 3],
             ["institution__country", ["KTH", "France"], "people_count", 1],
+            ["institution__country", ["KTH", "Sweden"], "job", "teaching"],
         ]    
         import_test_data(
             db_url;
@@ -132,8 +137,14 @@ function _test_parameter()
         @test since_year(institution=institution(:KTH)) === 1827
         @test since_year(institution=institution(:VTT), _strict=false) === nothing
         @test people_count(institution=institution(:VTT), country=country(:France)) === nothing
+        @test bread(country=country(:France)) == :baguette
+        @test bread(country=country(:Sweden)) == :knackebrod
+        @test bread(country=country(:Finland)) === nothing
+        @test job(institution=institution(:KTH), country=country(:Sweden)) == :teaching
+        @test job(institution=institution(:KTH), country=country(:France)) == :research
+        @test job(institution=institution(:VTT), country=country(:Finland)) === nothing
         @test [x.name for x in institution(since_year=1827)] == [:KTH]
-        @test length(parameters()) === 2
+        @test length(parameters()) === 4
         @test all(x isa Parameter for x in parameters())
     end
 end
