@@ -52,8 +52,8 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     # The search stops when a parameter value is found in a class
     for class in sort(p.classes; by=_dimensionality, rev=true)
         # Split kwargs into class and parameter kwargs.
-        pv_kwargs = _nt_drop((;kwargs...), _dimension_names(class))
-        entity = _entity_key(_nt_drop((;kwargs...), keys(pv_kwargs)))
+        class_kwargs, param_kwargs, pv_kwargs = _split_kwargs(class, kwargs)
+        entity = _entity_key(values(class_kwargs))
         if isnothing(entity)
             continue
         elseif length(entity) == 1 # If entity is an object
@@ -65,6 +65,27 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     end
     _strict && @warn("can't find a value of $p for argument(s) $((; kwargs...))")
     nothing
+end
+
+"""
+    _split_kwargs(ec::EntityClass, kwargs::Base.Pairs)
+
+Split `kwargs` into three parts for class, parameter, and parameter value filtering.
+"""
+function _split_kwargs(ec::EntityClass, kwargs::Base.Pairs)
+    class_kwargs = []
+    param_kwargs = []
+    pv_kwargs = []
+    for (kw, arg) in kwargs
+        if kw in _dimension_names(ec)
+            push!(class_kwargs, kw => arg)
+        elseif kw in keys(ec.parameter_defaults)
+            push!(param_kwargs, kw => arg)
+        else
+            push!(pv_kwargs, kw => arg)
+        end
+    end
+    return pairs.([(;class_kwargs...), (;param_kwargs...), (;pv_kwargs...)])
 end
 
 """
@@ -244,10 +265,3 @@ _valid_dimensions_from_rels(::Vector{Union{}}) = Vector{Symbol}() # Tasku: Weird
 _valid_dimensions_from_rels(v::Vector{Any}) = ( # Tasku: Another weird unit test case.
     isempty(v) ? Vector{Symbol}() : error("No valid dimension names for empty relationship vector!") 
 )
-
-"""
-    _nt_drop(nt::NamedTuple, keys::Tuple)
-
-Return `nt` with `keys` dropped.
-"""
-_nt_drop(nt::NamedTuple, keys::Tuple) = Base.structdiff(nt, NamedTuple{(keys...,)})

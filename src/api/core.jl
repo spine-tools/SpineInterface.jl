@@ -105,25 +105,21 @@ See [`ObjectClass`](@ref) and [`RelationshipClass`](@ref) for documentation on t
 function _entity_class_filtering(
     ec::EntityClass; _compact::Bool=true, _default::Any=[], kwargs...
 )
-    # No kwargs -> return all relationships.
-    isempty(kwargs) && return _entities(ec)
-    # Next, parameter value filtering
-    class_kwargs, param_kwargs = _split_entity_filter_kwargs(ec, kwargs)
-    if !isempty(param_kwargs)
-        entities = _fix_name_ambiguity.(keys(filter(
-            ent_param_vals -> _parameter_filter(ent_param_vals, param_kwargs),
-            ec.parameter_values
-        )))
-    else
-        entities = _entities(ec)
-    end
-    # Next, class filtering.
+    entities = copy(_entities(ec)) # Tasku: copy to avoid messing with original entities while filtering.
+    isempty(kwargs) && return entities # No kwargs -> return all relationships.
+    # First, class filtering. Entities are before parameter names in param Dicts anyway.
+    class_kwargs, param_kwargs, pv_kwargs = _split_kwargs(ec, kwargs)
+    !isempty(pv_kwargs) && isempty(param_kwargs) && return _default # Tasku: There cannot be leftover kwargs without parameter filtering.
     if !isempty(class_kwargs)
-        entities = filter(ent -> _class_filter(ent, class_kwargs), entities)
+        filter!(ent -> _class_filter(ent, class_kwargs), entities)
+    end
+    # Next, parameter value filtering
+    if !isempty(param_kwargs)
+        filter!(ent -> _parameter_value_filter(ent, ec, param_kwargs, pv_kwargs), entities)
     end
     # Remove filtered dimensions if _compact=true
     if _compact
-        entities = unique(map(ent -> _nt_drop(ent, keys(class_kwargs)), entities))
+        unique!(map!(ent -> _nt_drop(ent, keys(class_kwargs)), entities, entities))
         all(isempty.(entities)) && return _default # In case `_nt_drop` filters out all dimensions.
         if length(first(entities)) == 1 # Return Objects if only one dimension left
             entities = only.(values.(entities))
@@ -136,40 +132,36 @@ _entities(oc::ObjectClass) = oc.objects
 _entities(rc::RelationshipClass) = rc.relationships
 
 """
-    _split_entity_filter_kwargs(ec::EntityClass, kwargs::Base.Pairs)
-
-Split `kwargs` into two parts: return `class_kwargs` for class filtering,
-and `param_kwargs` for parameter filtering.
-"""
-function _split_entity_filter_kwargs(ec::EntityClass, kwargs::Base.Pairs)
-    class_kwargs = pairs(_nt_drop((;kwargs...), (keys(ec.parameter_defaults)...,)))
-    param_kwargs = pairs(_nt_drop((;kwargs...), keys(class_kwargs)))
-    return class_kwargs, param_kwargs
-end
-
-"""
-    _parameter_filter(
-        ent_param_vals::Pair{<:Union{ObjectLike,ObjectTupleLike},<:Dict{Symbol,ParameterValue}},
-        param_kwargs::Base.Pairs
+    _parameter_value_filter(
+        e::Union{ObjectLike,RelationshipLike},
+        ec::EntityClass,
+        param_kwargs::Base.Pairs,
+        pv_kwargs::Base.Pairs
     )
 
-Filter parameter value dictionary pairs based on given `param_kwargs`.
+Filter entity class based on parameter values and given `param_kwargs` and `pv_kwargs`.
 """
-function _parameter_filter(
-    ent_param_vals::Pair{<:Union{ObjectLike,ObjectTupleLike},<:Dict{Symbol,ParameterValue}},
-    param_kwargs::Base.Pairs
+function _parameter_value_filter(
+    e::Union{ObjectLike,RelationshipLike},
+    ec::EntityClass,
+    param_kwargs::Base.Pairs,
+    pv_kwargs::Base.Pairs
 )
-    # Can't do the comparison directly due to `ParameterValue` in byent_param_dict_pair
-    param_value_dict = Dict(
-        param_name => param_value.value
-        for (param_name, param_value) in ent_param_vals.second
-        if !isnothing(param_value.value)
-    )
-    all([_pv_in(kwarg, param_value_dict) for kwarg in param_kwargs])
+    for (p, v) in param_kwargs
+        pv = get(
+            ec.parameter_values[_entity_key(e)],
+            p,
+            get(ec.parameter_defaults, p, nothing)
+        )
+        pv === nothing && return false
+        _check_pv(pv, pv_kwargs, v) || return false
+    end
+    return true
 end
 
-_pv_in(kwarg::Pair{Symbol,Anything}, param_value_dict::Dict) = in(kwarg.first, keys(param_value_dict))
-_pv_in(kwarg::Pair, param_value_dict::Dict) = in(kwarg, param_value_dict)
+_check_pv(pv::ParameterValue{Nothing}, pv_kwargs::Base.Pairs, v::Anything) = false # Tasku: Nothing parameters 
+_check_pv(pv::ParameterValue, pv_kwargs::Base.Pairs, v::Anything) = true
+_check_pv(pv::ParameterValue, pv_kwargs::Base.Pairs, v) = pv(pv_kwargs...) == v
 
 """
     _class_filter(entity, kwargs::Base.Pairs)
@@ -200,6 +192,13 @@ _check_class_arg(obj::Object, arg::Vector{Object}) = obj in arg
 # Tasku: The following is a horrible mess dealing with `indices()` output when given as arguments for `_test_indices()`
 _check_class_arg(obj::Object, arg::Base.Iterators.Flatten) = _check_class_arg(obj, collect(arg))
 _check_class_arg(obj::Object, arg::Vector) = obj in only.(values(arg))
+
+"""
+    _nt_drop(nt::NamedTuple, keys::Tuple)
+
+Return `nt` with `keys` dropped.
+"""
+_nt_drop(nt::NamedTuple, keys::Tuple) = Base.structdiff(nt, NamedTuple{(keys...,)})
 
 """
     (<rc>::RelationshipClass)(;<keyword arguments>)
