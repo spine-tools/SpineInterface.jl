@@ -187,7 +187,7 @@ end
 Return a `RelationshipLike` with an increasing integer appended to each repeated `class_name` in `otl`.
 """
 function _fix_name_ambiguity(otl::ObjectTupleLike)
-    (; zip(_fix_name_ambiguity(collect(getfield.(otl, :class_name))), otl)...)
+    (; zip(_fix_name_ambiguity(collect(_get_class_name.(otl))), otl)...)
 end
 function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
     name_list = copy(intact_name_list)
@@ -200,6 +200,10 @@ function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
 end
 _fix_name_ambiguity(rl::RelationshipLike) = rl # Tasku: `RelationshipLike`s assumed to be correct.
 _fix_name_ambiguity(o::Object) = o # Tasku: Nothing to fix in an object.
+
+_get_class_name(o::Object) = o.class_name
+_get_class_name(::TimeSlice) = :timeslice
+_get_class_name(::Int64) = :integer
 
 struct _Parameter
     name::Symbol

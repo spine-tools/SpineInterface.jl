@@ -649,15 +649,21 @@ end
 Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
 Return the modified `relationship_class`.
 """
-function add_relationships!(relationship_class::RelationshipClass, object_tuples::Vector{T}) where T<:ObjectTupleLike
-    relationships = [(; zip(relationship_class.valid_filter_dimensions, obj_tup)...) for obj_tup in object_tuples]
-    add_relationships!(relationship_class, relationships)
+function add_relationships!(relationship_class::RelationshipClass, object_tuples::Vector{<:ObjectTupleLike})
+    add_relationships!(relationship_class, _fix_name_ambiguity.(object_tuples))
 end
-function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
+function add_relationships!(relationship_class::RelationshipClass, relationships::Vector{<:RelationshipLike})
     relationships = setdiff(relationships, relationship_class.relationships)
     _append_relationships!(relationship_class, relationships)
     merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
     relationship_class
+end
+function add_relationships!(rc::RelationshipClass, v::Vector)
+    if isempty(v)
+        return nothing
+    else
+        throw(MethodError(add_relationships!, (rc, v)))
+    end
 end
 
 function add_relationship_parameter_values!(
