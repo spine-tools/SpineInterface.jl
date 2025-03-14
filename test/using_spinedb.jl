@@ -102,15 +102,29 @@ end
 function _test_parameter()
     @testset "parameter" begin
         obj_classes = ["institution", "country"]
-        rel_classes = [["institution__country", ["institution", "country"]]]
-        object_parameters = [["institution", "since_year"], ["country", "bread", "knackebrod"]]
+        rel_classes = [
+            ["institution__country", ["institution", "country"]],
+            ["country__country", ["country", "country"]]
+        ]
+        object_parameters = [
+            ["institution", "since_year"],
+            ["country", "bread", "knackebrod"]
+        ]
         relationship_parameters = [
-            ["institution__country", "people_count"], ["institution__country", "job", "research"]
+            ["institution__country", "people_count"],
+            ["institution__country", "job", "research"],
+            ["country__country", "is_different", true],
         ]
         institutions = ["KTH", "VTT"]
         countries = ["Sweden", "France"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
-        relationships = [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]]
+        relationships = [
+            ["institution__country", ["KTH", "Sweden"]],
+            ["institution__country", ["KTH", "France"]],
+            ["country__country", ["Sweden", "Sweden"]],
+            ["country__country", ["Sweden", "France"]],
+            ["country__country", ["France", "France"]],
+        ]
         object_parameter_values = [
             ["institution", "KTH", "since_year", 1827], ["country", "France", "bread", "baguette"]
         ]
@@ -118,6 +132,8 @@ function _test_parameter()
             ["institution__country", ["KTH", "Sweden"], "people_count", 3],
             ["institution__country", ["KTH", "France"], "people_count", 1],
             ["institution__country", ["KTH", "Sweden"], "job", "teaching"],
+            ["country__country", ["Sweden", "Sweden"], "is_different", false],
+            ["country__country", ["Sweden", "France"], "is_different", true],
         ]    
         import_test_data(
             db_url;
@@ -143,8 +159,12 @@ function _test_parameter()
         @test job(institution=institution(:KTH), country=country(:Sweden)) == :teaching
         @test job(institution=institution(:KTH), country=country(:France)) == :research
         @test job(institution=institution(:VTT), country=country(:Finland)) === nothing
+        @test is_different(country1=country(:Sweden), country2=country(:Sweden)) == false
+        @test is_different(country1=country(:Sweden), country2=country(:France)) == true
+        @test is_different(country1=country(:France), country2=country(:France)) == true
+        @test is_different(country1=country(:France), country2=country(:Sweden)) === nothing
         @test [x.name for x in institution(since_year=1827)] == [:KTH]
-        @test length(parameters()) === 4
+        @test length(parameters()) === 5
         @test all(x isa Parameter for x in parameters())
     end
 end
