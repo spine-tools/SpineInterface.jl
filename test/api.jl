@@ -160,7 +160,10 @@ end
 function _test_add_relationships()
     @testset "add_relationships" begin
         object_classes = ["institution", "country"]
-        relationship_classes = [["institution__country", ["institution", "country"]]]
+        relationship_classes = [
+            ["institution__country", ["institution", "country"]],
+            ["country__country", ["country", "country"]],
+        ]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
@@ -189,6 +192,23 @@ function _test_add_relationships()
             [(Symbol(x), Symbol(y)) for (x, y) in object_tuples]
             [(:ER, :France), (:ER, :Ireland)]
         ])
+        @test isempty(country__country())
+        add_relationships!(
+            country__country,
+            [(country1=country(:Sweden), country2=country(:Sweden))]
+        )
+        @test country__country() == [(country1=country(:Sweden), country2=country(:Sweden))]
+        add_relationships!(
+            country__country,
+            [
+                (country1=country(:Sweden), country2=country(:Sweden)),
+                (country1=country(:Finland), country2=country(:Ireland)),
+            ]
+        )
+        @test country__country() == [
+            (country1=country(:Sweden), country2=country(:Sweden)),
+            (country1=country(:Finland), country2=country(:Ireland)),
+        ]
     end
 end
 
