@@ -103,6 +103,7 @@ struct TimeSlice
 end
 
 ObjectLike = Union{Object,TimeSlice,Int64}
+ObjectTuple = Union{Tuple{Object,Object},Tuple{Object,Vararg{Object}}}
 ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
 RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
 
@@ -152,12 +153,38 @@ struct _RelationshipClass
     relationships::Vector{RelationshipLike}
     parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    function _RelationshipClass(name, intact_dim_names, object_tuples, vals=Dict(), defaults=Dict())
+    function _RelationshipClass(
+        name,
+        intact_dim_names,
+        object_tuples::Vector{<:ObjectTuple},
+        vals=Dict(),
+        defaults=Dict()
+    )
         rels = [_fix_name_ambiguity(objects) for objects in object_tuples]
         valid_filter_dims = _valid_dimensions_from_rels(rels)
         if isempty(valid_filter_dims) # Tasku: derive filter dims from dim names if necessary.
             valid_filter_dims = _fix_name_ambiguity(intact_dim_names)
         end
+        return new(
+            name,
+            intact_dim_names,
+            valid_filter_dims,
+            rels,
+            vals,
+            defaults
+        )
+    end
+    # Tasku: Catch-all constructor for SpineOpt timeslice relationships.
+    # This is pretty much identical with the old pre-superclass constructor.
+    function _RelationshipClass(
+        name,
+        intact_dim_names,
+        timeslice_tuples,
+        vals=Dict(),
+        defaults=Dict()
+    )
+        valid_filter_dims = _fix_name_ambiguity(intact_dim_names)
+        rels = [(; zip(valid_filter_dims, ts)...) for ts in timeslice_tuples]
         return new(
             name,
             intact_dim_names,

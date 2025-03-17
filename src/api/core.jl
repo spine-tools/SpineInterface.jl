@@ -184,14 +184,14 @@ function _class_filter(o::ObjectLike, kwargs::Base.Pairs)
     _check_class_arg(o, arg)
 end
 
-_check_class_arg(obj::Object, arg::Anything) = true
-_check_class_arg(obj::Object, arg::Nothing) = false
+_check_class_arg(obj::ObjectLike, arg::Anything) = true
+_check_class_arg(obj::ObjectLike, arg::Nothing) = false
 _check_class_arg(obj::Object, arg::Symbol) = obj.name == arg
-_check_class_arg(obj::Object, arg::ObjectLike) = obj == arg
-_check_class_arg(obj::Object, arg::Vector{Object}) = obj in arg
+_check_class_arg(obj::ObjectLike, arg::ObjectLike) = obj == arg
+_check_class_arg(obj::ObjectLike, arg::Vector{Object}) = obj in arg
 # Tasku: The following is a horrible mess dealing with `indices()` output when given as arguments for `_test_indices()`
-_check_class_arg(obj::Object, arg::Base.Iterators.Flatten) = _check_class_arg(obj, collect(arg))
-_check_class_arg(obj::Object, arg::Vector) = obj in only.(values(arg))
+_check_class_arg(obj::ObjectLike, arg::Base.Iterators.Flatten) = _check_class_arg(obj, collect(arg))
+_check_class_arg(obj::ObjectLike, arg::Vector) = obj in only.(values(arg))
 
 """
     _nt_drop(nt::NamedTuple, keys::Tuple)
