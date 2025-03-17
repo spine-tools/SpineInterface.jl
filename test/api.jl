@@ -142,6 +142,31 @@ function _test_time_slices()
     end
 end
 
+#= Tasku:
+The following tests timeslice relationship class generation,
+which is used quite extensively by SpineOpt. With the new structures
+required by compound classes and superclasses, preserving the backwards
+compatibility of timeslice relationships is challenging.
+Personally, I don't think the timeslice relationships should use
+SpineInterface structures at all, but that's not up to me.
+=#
+function _test_timeslice_relationships()
+    ts01 = TimeSlice(DateTime(0), DateTime(1))
+    ts12 = TimeSlice(DateTime(1), DateTime(2))
+    ts23 = TimeSlice(DateTime(2), DateTime(3))
+    t_before_t = RelationshipClass(
+        :t_before_t,
+        [:t_before, :t_after],
+        [(ts01, ts12), (ts12, ts23)]
+    )
+    @test isempty(t_before_t(t_after=ts01))
+    @test t_before_t(t_before=ts01) == [ts12]
+    @test t_before_t(t_after=ts12) == [ts01]
+    @test t_before_t(t_before=ts12) == [ts23]
+    @test t_before_t(t_after=ts23) == [ts12]
+    @test isempty(t_before_t(t_before=ts23))
+end
+
 function _test_add_objects()
     @testset "add_objects" begin
         object_classes = ["institution"]
@@ -873,6 +898,7 @@ end
     _test_indices_as_tuples()
     _test_object_class_relationship_class_parameter()
     _test_time_slices()
+    _test_timeslice_relationships()
     _test_add_objects()
     _test_add_relationships()
     _test_parse_db_value()
