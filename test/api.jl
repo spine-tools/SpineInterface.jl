@@ -23,7 +23,7 @@ function _test_indices()
     @testset "indices" begin
         object_classes = ["institution", "country"]
         relationship_classes = [["institution__country", ["institution", "country"]]]
-        object_parameters = [["institution", "since_year"]]
+        object_parameters = [["institution", "since_year", 0]]
         relationship_parameters = [["institution__country", "people_count"]]
         institutions = ["KTH", "VTT"]
         countries = ["Sweden", "France"]
@@ -54,6 +54,8 @@ function _test_indices()
             (institution=institution(:KTH), country=country(:Sweden)),
             (institution=institution(:KTH), country=country(:France)),
         ])
+        @test only(institution(since_year=1827)) == institution(:KTH)
+        @test institution(since_year=0) == [institution(:VTT)] # Tasku: Required by SpineOpt: default values pass parameter value filters.
     end
 end
 
@@ -140,6 +142,27 @@ function _test_time_slices()
     end
 end
 
+#= Tasku:
+The following tests timeslice relationship classes,
+which are used quite extensively in SpineOpt.
+=#
+function _test_timeslice_relationships()
+    ts01 = TimeSlice(DateTime(0), DateTime(1))
+    ts12 = TimeSlice(DateTime(1), DateTime(2))
+    ts23 = TimeSlice(DateTime(2), DateTime(3))
+    t_before_t = RelationshipClass(
+        :t_before_t,
+        [:t_before, :t_after],
+        [(ts01, ts12), (ts12, ts23)]
+    )
+    @test isempty(t_before_t(t_after=ts01))
+    @test t_before_t(t_before=ts01) == [ts12]
+    @test t_before_t(t_after=ts12) == [ts01]
+    @test t_before_t(t_before=ts12) == [ts23]
+    @test t_before_t(t_after=ts23) == [ts12]
+    @test isempty(t_before_t(t_before=ts23))
+end
+
 function _test_add_objects()
     @testset "add_objects" begin
         object_classes = ["institution"]
@@ -160,7 +183,10 @@ end
 function _test_add_relationships()
     @testset "add_relationships" begin
         object_classes = ["institution", "country"]
-        relationship_classes = [["institution__country", ["institution", "country"]]]
+        relationship_classes = [
+            ["institution__country", ["institution", "country"]],
+            ["country__country", ["country", "country"]],
+        ]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
@@ -189,6 +215,23 @@ function _test_add_relationships()
             [(Symbol(x), Symbol(y)) for (x, y) in object_tuples]
             [(:ER, :France), (:ER, :Ireland)]
         ])
+        @test isempty(country__country())
+        add_relationships!(
+            country__country,
+            [(country1=country(:Sweden), country2=country(:Sweden))]
+        )
+        @test country__country() == [(country1=country(:Sweden), country2=country(:Sweden))]
+        add_relationships!(
+            country__country,
+            [
+                (country1=country(:Sweden), country2=country(:Sweden)),
+                (country1=country(:Finland), country2=country(:Ireland)),
+            ]
+        )
+        @test country__country() == [
+            (country1=country(:Sweden), country2=country(:Sweden)),
+            (country1=country(:Finland), country2=country(:Ireland)),
+        ]
     end
 end
 
@@ -280,8 +323,14 @@ end
 function _test_add_relationship_parameter_values()
     @testset "add_relationship_parameter_values" begin
         object_classes = ["institution", "country"]
-        relationship_classes = [["institution__country", ["institution", "country"]]]
-        relationship_parameters = [["institution__country", "people_count"]]
+        relationship_classes = [
+            ["institution__country", ["institution", "country"]],
+            ["country__country", ["country", "country"]],
+        ]
+        relationship_parameters = [
+            ["institution__country", "people_count"],
+            ["country__country", "is_different"]
+        ]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
@@ -315,7 +364,7 @@ function _test_add_relationship_parameter_values()
             ERFrance => Dict(:people_count => parameter_value(1)),
             ERIreland => Dict(:people_count => parameter_value(1)),
             ERSweden => Dict(:people_count => parameter_value(1)),
-            KTHFrance => Dict(:people_count => parameter_value(0)),
+            KTHFrance => Dict(:people_count => parameter_value(0))
         )
         add_relationship_parameter_values!(institution__country, pvals)
         @test length(institution__country()) === 8
@@ -327,6 +376,13 @@ function _test_add_relationship_parameter_values()
         @test people_count(; ERIreland...) == 1
         @test people_count(; ERSweden...) == 1
         @test people_count(; KTHFrance...) == 0
+        pvals = Dict(
+            (country1=country(:Sweden), country2=country(:Sweden)) => Dict(:is_different => parameter_value(false)),
+            (country1=country(:Sweden), country2=country(:France)) => Dict(:is_different => parameter_value(true)),
+        )
+        add_relationship_parameter_values!(country__country, pvals)
+        @test is_different(country1=country(:Sweden), country2=country(:Sweden)) == false
+        @test is_different(country1=country(:Sweden), country2=country(:France)) == true
     end
 end
 
@@ -688,6 +744,7 @@ end
     _test_indices_as_tuples()
     _test_object_class_relationship_class_parameter()
     _test_time_slices()
+    _test_timeslice_relationships()
     _test_add_objects()
     _test_add_relationships()
     _test_parse_db_value()
