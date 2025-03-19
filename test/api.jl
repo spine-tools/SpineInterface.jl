@@ -143,12 +143,8 @@ function _test_time_slices()
 end
 
 #= Tasku:
-The following tests timeslice relationship class generation,
-which is used quite extensively by SpineOpt. With the new structures
-required by compound classes and superclasses, preserving the backwards
-compatibility of timeslice relationships is challenging.
-Personally, I don't think the timeslice relationships should use
-SpineInterface structures at all, but that's not up to me.
+The following tests timeslice relationship classes,
+which are used quite extensively in SpineOpt.
 =#
 function _test_timeslice_relationships()
     ts01 = TimeSlice(DateTime(0), DateTime(1))
