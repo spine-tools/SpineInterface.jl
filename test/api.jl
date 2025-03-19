@@ -23,7 +23,7 @@ function _test_indices()
     @testset "indices" begin
         object_classes = ["institution", "country"]
         relationship_classes = [["institution__country", ["institution", "country"]]]
-        object_parameters = [["institution", "since_year"]]
+        object_parameters = [["institution", "since_year", 0]]
         relationship_parameters = [["institution__country", "people_count"]]
         institutions = ["KTH", "VTT"]
         countries = ["Sweden", "France"]
@@ -54,6 +54,8 @@ function _test_indices()
             (institution=institution(:KTH), country=country(:Sweden)),
             (institution=institution(:KTH), country=country(:France)),
         ])
+        @test only(institution(since_year=1827)) == institution(:KTH)
+        @test institution(since_year=0) == [institution(:VTT)] # Tasku: Required by SpineOpt: default values pass parameter value filters.
     end
 end
 
