@@ -253,6 +253,21 @@ function _rel_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs
 end
 
 """
+Pop a new relationship class argument Dict needing to be divided into subclasses.
+"""
+function _pop_superrels!(rel_args_per_class)
+    d = Dict()
+    for (rel_name, rel_class) in rel_args_per_class
+        isempty(rel_class[2]) && continue
+        rel_tuples = [(getfield.(tup, :class_name)...,) for tup in rel_class[2]]
+        if !all([(rel_class[1]...,) == tup for tup in rel_tuples])
+            d[rel_name] = pop!(rel_args_per_class, rel_name)
+        end
+    end
+    return d
+end
+
+"""
 A Dict mapping parameter names to an Array of class names where the parameter is defined.
 The Array of class names is sorted by decreasing number of dimensions in the class.
 Note that for object classes, the number of dimensions is one.
@@ -304,6 +319,7 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
     args_per_rel_cls = _rel_args_per_class(
         relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
     )
+    args_per_superrel = _pop_superrels!(args_per_rel_cls)
     class_names_per_param = _class_names_per_parameter(object_classes, relationship_classes, param_defs_per_cls)
     # Get or create containers
     spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
