@@ -111,9 +111,10 @@ struct _ObjectClass
     objects::Vector{ObjectLike}
     parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
+    subclasses::Vector{Symbol}
     _split_kwargs::Ref{Any}
-    function _ObjectClass(name, objects, vals=Dict(), defaults=Dict())
-        new(name, objects, vals, defaults, _make_split_kwargs(name))
+    function _ObjectClass(name, objects, vals=Dict(), defaults=Dict(), subclasses=[])
+        new(name, objects, vals, defaults, subclasses, _make_split_kwargs(name))
     end
 end
 
