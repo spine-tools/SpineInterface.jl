@@ -102,7 +102,7 @@ _dimension_names(x::ObjectClass) = (x.name,)
 _dimension_names(x::RelationshipClass) = (x.valid_filter_dimensions...,)
 
 _dimensionality(x::ObjectClass) = 0
-_dimensionality(x::RelationshipClass) = length(first(x.relationships))
+_dimensionality(x::RelationshipClass) = length(x.valid_filter_dimensions)
 
 _get_pvals(pvals_by_entity, ::Nothing) = nothing
 _get_pvals(pvals_by_entity, object) = _do_get_pvals(pvals_by_entity, object)
