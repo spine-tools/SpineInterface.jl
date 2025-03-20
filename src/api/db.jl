@@ -77,6 +77,15 @@ function _subclasses_per_superclass(superclass_subclass)
 end
 
 """
+A `Vector` of byobject class names.
+"""
+function _byobject_classes(object_classes, subclasses_per_superclass)
+    return Symbol.(setdiff(
+        getindex.(object_classes, 1), keys(subclasses_per_superclass)
+    ))
+end
+
+"""
 A Dict mapping `Object` names to the corresponding `Object`.
 """
 function _full_objects_per_id(objects, members_per_group, groups_per_member)
@@ -253,21 +262,6 @@ function _rel_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs
 end
 
 """
-Pop a new relationship class argument Dict needing to be divided into subclasses.
-"""
-function _pop_superrels!(rel_args_per_class)
-    d = Dict()
-    for (rel_name, rel_class) in rel_args_per_class
-        isempty(rel_class[2]) && continue
-        rel_tuples = [(getfield.(tup, :class_name)...,) for tup in rel_class[2]]
-        if !all([(rel_class[1]...,) == tup for tup in rel_tuples])
-            d[rel_name] = pop!(rel_args_per_class, rel_name)
-        end
-    end
-    return d
-end
-
-"""
 A Dict mapping parameter names to an Array of class names where the parameter is defined.
 The Array of class names is sorted by decreasing number of dimensions in the class.
 Note that for object classes, the number of dimensions is one.
@@ -291,7 +285,197 @@ function _class_names_per_parameter(object_classes, relationship_classes, param_
     Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
 end
 
+"""
+    _split_superrel_args!(
+        args_per_rel_cls, byobject_classes, subclasses_per_superclass
+    )
+
+Updates `args_per_rel_cls` by splitting compound relationship classes into subclasses.
+
+Returns the updated `args_per_rel_cls` as well as a `Dict` mapping the original
+compound relationship classes to their newly generated subclasses.
+"""
+function _split_superrel_args!(
+    args_per_rel_cls, byobject_classes, subclasses_per_superclass
+)
+    superrel_subrel_map_name = Dict()
+    isempty(args_per_rel_cls) && return args_per_rel_cls, superrel_subrel_map_name
+    # Separate compound relationships that need to be split.
+    args_per_superrel = _pop_superrels!(args_per_rel_cls, byobject_classes)
+    isempty(args_per_superrel) && return args_per_rel_cls, superrel_subrel_map_name
+    # Figure out the necessary dimension permutations for the sub-relationships
+    new_args_per_subrel = Dict()
+    for (name, superrel) in args_per_superrel
+        new_subrels, new_map = _subrel_args(
+            name, superrel, byobject_classes, args_per_rel_cls, subclasses_per_superclass
+        )
+        merge!(new_args_per_subrel, new_subrels)
+        push!(superrel_subrel_map_name, new_map)
+    end
+    # Merge newly splitted subrels back into 
+    return merge!(args_per_rel_cls, new_args_per_subrel), superrel_subrel_map_name
+end
+
+"""
+Pop a new relationship class argument Dict needing to be divided into subclasses.
+"""
+function _pop_superrels!(args_per_rel_cls, byobj_classes)
+    d = Dict()
+    for (rel_name, rel_class) in args_per_rel_cls
+        if all(dim in byobj_classes for dim in rel_class[1])
+            continue
+        else
+            d[rel_name] = pop!(args_per_rel_cls, rel_name)
+        end
+    end
+    return d
+end
+
+"""
+    _subrel_args(
+        name, superrel, byobject_classes, args_per_rel_cls, subclasses_per_superclass
+    )
+
+Return a `Dict` with arguments for subrel creation splitting `superrel`.
+Also returns a pair mapping `superrel` `name` to its subrels' names.
+"""
+function _subrel_args(
+    name, superrel, byobject_classes, args_per_rel_cls, subclasses_per_superclass
+)
+    # Determine all possible permutations of byclasses for the subrels. 
+    subrel_dimensions = _recursive_fetch_dimension_permutations(
+        [superrel[1]],
+        byobject_classes,
+        args_per_rel_cls,
+        subclasses_per_superclass
+    )
+    name_map = name => []
+    subrel_args = Dict()
+    # Loop over subrels-to-be and split superrel constructor arguments among them.
+    for subrel in subrel_dimensions
+        subrel_name = _generate_relationship_class_name(subrel; prefix=name)
+        push!(name_map[2], subrel_name)
+        push!(
+            subrel_args,
+            subrel_name => (
+                subrel,
+                filter(
+                    objtup -> getfield.(objtup, :class_name) == (subrel...,),
+                    superrel[2]
+                ),
+                filter(
+                    key_val -> getfield.(key_val[1], :class_name) == (subrel...,),
+                    superrel[3]
+                ),
+                superrel[4]
+            )
+        )
+    end
+    return subrel_args, name_map
+end
+
+"""
+    _recursive_fetch_dimension_permutations(
+        dim_perms::Vector{Vector{Symbol}},
+        byobj_classes::Vector{Symbol},
+        args_per_rel_cls,
+        subclasses_per_superclass
+    )
+
+Return a `Vector{Vector{Symbol}}` of possible byclass dimension permutations of `dim_perms`.
+
+Essentially recursively navigates `args_per_rel_cls` and `subclasses_per_superclass`
+to find all potential permutations of the `byobj_classes`.
+Used for splitting Spine-Database-API compound relationship classes into flat
+subclasses for [`RelationshipClass`](@ref) constructors.
+"""
+function _recursive_fetch_dimension_permutations(
+    dim_perms::Vector{Vector{Symbol}},
+    byobj_classes::Vector{Symbol},
+    args_per_rel_cls,
+    subclasses_per_superclass
+)
+    # If all dimension permutations only contain byobject class names, return.
+    if all(all(name in byobj_classes for name in dim_names) for dim_names in dim_perms)
+        return dim_perms
+    else
+        new_dim_perms = Vector{Vector{Symbol}}()
+        # Expand superclass permutations
+        for perm in dim_perms
+            new_perm = Vector{Vector{Symbol}}()
+            for dim_name in perm
+                push!(
+                    new_perm,
+                    Symbol.(get(subclasses_per_superclass, string(dim_name), [dim_name]))
+                )
+            end
+            for dims in Iterators.product(new_perm...)
+                push!(new_dim_perms, collect(dims))
+            end
+        end
+        # Expand relationship classes to their elements
+        new_dim_perms = [
+            vcat(
+                [get(args_per_rel_cls, name, [name])[1] for name in perm]...
+            )
+            for perm in new_dim_perms
+        ]
+        # Begin the process anew for the next iteration.
+        return _recursive_fetch_dimension_permutations(
+            new_dim_perms,
+            byobj_classes,
+            args_per_rel_cls,
+            subclasses_per_superclass
+        )
+    end
+end
+
+"""
+Return a single symbol joining the individual dimension names with `__`.
+"""
+function _generate_relationship_class_name(
+    dimension_vector::Vector{Symbol}; prefix=nothing
+)
+    name_to_be = join(string.(dimension_vector), "__")
+    if isnothing(prefix) || string(prefix) == name_to_be # Avoid name duplication!
+        return Symbol(name_to_be)
+    else
+        return Symbol(join([string(prefix), name_to_be], "__"))
+    end
+end
+
+"""
+    _add_pseudo_superclasses!(args_per_obj_cls, superrel_to_subrels_name_map)
+
+Add pseudo-superrel arguments to [`ObjectClass`](@ref) generation.
+"""
+function _add_pseudo_superclasses!(args_per_obj_cls, superrel_to_subrels_name_map)
+    for (superrel, subrels) in superrel_to_subrels_name_map
+        superrel == first(subrels) && continue # If superrel name matches its subrel, skip.
+        push!(args_per_obj_cls, superrel => ([], Dict(), Dict(), subrels))
+    end
+    return args_per_obj_cls
+end
+
+"""
+    _split_superrel_params!(class_names_per_param, superrel_to_subrels_name_map)
+
+Split super-relationship classes to their subrelationship classes for [`Parameter`](@ref) constructors.
+"""
+function _split_superrel_params!(class_names_per_param, superrel_to_subrels_name_map)
+    for (superrel, subrels) in superrel_to_subrels_name_map
+        for (param_name, param_classes) in class_names_per_param
+            ind = findfirst(superrel .== param_classes)
+            isnothing(ind) && continue
+            popat!(param_classes, ind)
+            append!(param_classes, subrels)
+        end
+    end
+    return class_names_per_param
+end
+
 function _generate_convenience_functions(data, mod; filters=Dict(), extend=false)
+    # Split contents of raw `data`.
     object_classes = [x for x in get(data, "entity_classes", []) if isempty(x[2])]
     relationship_classes = [x for x in get(data, "entity_classes", []) if !isempty(x[2])]
     objects = [x for x in get(data, "entities", []) if x[2] isa String]
@@ -300,6 +484,7 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
     param_defs = get(data, "parameter_definitions", [])
     param_vals = get(data, "parameter_values", [])
     superclass_subclass = get(data, "superclass_subclasses", [])
+    # Process arguments for `ObjectClass`, `RelationshipClass`, and `Parameter` creation.
     members_per_group = _members_per_group(object_groups)
     groups_per_member = _groups_per_member(object_groups)
     subclasses_per_superclass = _subclasses_per_superclass(superclass_subclass)
@@ -319,8 +504,16 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
     args_per_rel_cls = _rel_args_per_class(
         relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
     )
-    args_per_superrel = _pop_superrels!(args_per_rel_cls)
     class_names_per_param = _class_names_per_parameter(object_classes, relationship_classes, param_defs_per_cls)
+    # Generate pseudo-compound-superclass structure on top of previous stuff.
+    byobject_classes = _byobject_classes(object_classes, subclasses_per_superclass)
+    args_per_rel_cls, superrel_to_subrels_name_map = _split_superrel_args!(
+        args_per_rel_cls,
+        byobject_classes,
+        subclasses_per_superclass
+    )
+    _add_pseudo_superclasses!(args_per_obj_cls, superrel_to_subrels_name_map)
+    _split_superrel_params!(class_names_per_param, superrel_to_subrels_name_map)
     # Get or create containers
     spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
     spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
