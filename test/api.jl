@@ -739,6 +739,162 @@ function _test_indexed_values()
     end
 end
 
+function _test_superclasses()
+    @testset "superclasses" begin
+        # Tasku: Note that this test uses the v0.8 data structure!
+        ent_clss = [
+            ["node", []],
+            ["unit", []],
+            ["unit_flow", []],
+            ["node__unit", ["node", "unit"]],
+            ["unit__node", ["unit", "node"]],
+            ["unit_flow__unit_flow", ["unit_flow", "unit_flow"]]
+        ]
+        supcls_subclss = [
+            ["unit_flow", "node__unit"],
+            ["unit_flow", "unit__node"]
+        ]
+        ents = [
+            ["node", "n1"],
+            ["node", "n2"],
+            ["node", "n3"],
+            ["unit", "u1"],
+            ["unit", "u2"],
+            ["node__unit", ["n1", "u1"]],
+            ["node__unit", ["n2", "u2"]],
+            ["node__unit", ["n1", "u2"]],
+            ["unit__node", ["u1", "n3"]],
+            ["unit__node", ["u2", "n3"]],
+            ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"]],
+            ["unit_flow__unit_flow", ["n1", "u1", "n2", "u2"]],
+            ["unit_flow__unit_flow", ["u1", "n3", "u2", "n3"]],
+            ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"]],
+        ]
+        par_defs = [
+            ["node__unit", "flow_capacity", 0.0],
+            ["unit__node", "flow_capacity", 1.0],
+            ["unit_flow__unit_flow", "ratio", 2.0],
+        ]
+        par_vals = [
+            ["node__unit", ["n1", "u1"], "flow_capacity", 4.0],
+            ["unit__node", ["u1", "n3"], "flow_capacity", 5.0],
+            ["node__unit", ["n2", "u2"], "flow_capacity", 6.0],
+            ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"], "ratio", 7.0],
+            ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"], "ratio", 8.0],
+        ]
+        import_test_data(
+            db_url;
+            entity_classes=ent_clss,
+            superclass_subclasses=supcls_subclss,
+            entities=ents,
+            parameter_definitions=par_defs,
+            parameter_values=par_vals
+        )
+        using_spinedb(db_url)
+        # Tests for `unit_flow` and `flow_capacity`
+        @test length(unit_flow()) == 5
+        @test unit_flow(unit = unit(:u1)) == [node(:n1), node(:n3)]
+        @test collect(unit_flow(unit = unit(:u1); _compact=false)) == [
+            (node=node(:n1), unit=unit(:u1)),
+            (unit=unit(:u1), node=node(:n3))
+        ]
+        @test unit_flow(node = node(:n2)) == [unit(:u2)]
+        @test collect(unit_flow(node = node(:n2); _compact=false)) == [
+            (node=node(:n2), unit=unit(:u2))
+        ]
+        #= Tasku: True superclass functionality should consider keyword order.
+        @test collect(unit_flow(node = anything, unit = unit(:u1); _compact=false)) == [
+            (node=node(:n1), unit=unit(:u1))
+        ]
+        @test collect(unit_flow(unit = unit(:u1), node = anything; _compact=false)) == [
+            (unit=unit(:u1), node=node(:n3))
+        ]
+        =#
+        @test flow_capacity(node=node(:n1), unit=unit(:u1)) == 4.0
+        @test flow_capacity(node=node(:n2), unit=unit(:u2)) == 6.0
+        @test flow_capacity(unit=unit(:u1), node=node(:n3)) == 5.0
+        @test flow_capacity(node=node(:n1), unit=unit(:u2)) == 0.0
+        @test flow_capacity(unit=unit(:u2), node=node(:n3)) == 1.0
+        @test flow_capacity(unit=unit(:u1), node=node(:n2)) === nothing
+        @test collect(indices(flow_capacity)) == [
+            (node=node(:n1), unit=unit(:u1)),
+            (node=node(:n1), unit=unit(:u2)),
+            (node=node(:n2), unit=unit(:u2)),
+            (unit=unit(:u1), node=node(:n3)),
+            (unit=unit(:u2), node=node(:n3)),
+        ]
+        #= Tasku: True superclass functionality should consider keyword order.
+        @test collect(indices(flow_capacity; node=anything, unit=anything)) == [
+            (node=node(:n1), unit=unit(:u1)),
+            (node=node(:n1), unit=unit(:u2)),
+            (node=node(:n2), unit=unit(:u2)),
+        ] # Tasku: RelationshipClasses have no parameter value filters atm.
+        @test unit_flow(flow_capacity=0.0) == [(node=node(:n1), unit=unit(:u2))]
+        @test unit_flow(flow_capacity=4.0) == [(node=node(:n1), unit=unit(:u1))]
+        @test unit_flow(flow_capacity=1.0) == [(unit=unit(:u2), node=node(:n3))]
+        =#
+        # Tests for `unit_flow__unit_flow` and `ratio`
+        @test length(unit_flow__unit_flow()) == 4
+        @test unit_flow__unit_flow(unit2=unit(:u1)) == [
+            (unit1=unit(:u1), node1=node(:n3), node2=node(:n1)),
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n3)),
+        ]
+        @test collect(unit_flow__unit_flow(unit2=unit(:u1); _compact=false)) == [
+            (unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)),
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
+        ]
+        @test collect(unit_flow__unit_flow(unit1=unit(:u1); _compact=false)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+            (unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)),
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
+            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
+        ]
+        #= Tasku: True superclass functionality should consider keyword order.
+        @test collect(unit_flow__unit_flow(node1=anything, unit1=unit(:u1); _compact=false)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
+        ]
+        @test collect(unit_flow__unit_flow(unit1=unit(:u1), node1=anything; _compact=false)) == [
+            (unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)),
+            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
+        ]
+        @test collect(unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything, unit2=anything; _compact=false)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2))
+        ]
+        @test collect(unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything; _compact=false)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2))
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3))
+        ]
+        =#
+        @test ratio(node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)) == 7.0
+        @test ratio(unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)) == 8.0
+        @test ratio(unit1=unit(:u1), node1=node(:n1), node2=node(:n1), unit2=unit(:u1)) === nothing
+        @test ratio(node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)) == 2.0
+        @test collect(indices(ratio)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+            (unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)),
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
+            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
+        ]
+        #= Tasku: True superclass functionality should consider keyword order. Also parameter value filtering for relationship classes is not a thing atm.
+        @test collect(indices(ratio; node1=anything, unit1=anything)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
+        ]
+        @test unit_flow__unit_flow(ratio=2.0) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
+        ]
+        @test collect(unit_flow__unit_flow(node1=anything, unit1=anything, ratio=2.0, _compact=false)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+        ]
+        @test unit_flow__unit_flow(ratio=7.0) == [
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3))
+        ]
+        =#
+    end
+end
+
 @testset "api" begin
     _test_indices()
     _test_indices_as_tuples()
@@ -756,4 +912,5 @@ end
     _test_import_data()
     _test_difference()
     _test_indexed_values()
+    _test_superclasses()
 end
