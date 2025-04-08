@@ -20,11 +20,10 @@ This package requires Julia 1.6 or later.
 
 ## Installation
 
-You can install SpineInterface from the SpineJuliaRegistry as follows:
+You can install SpineInterface from as follows:
 
 ```julia
 using Pkg
-pkg"registry add https://github.com/Spine-tools/SpineJuliaRegistry"
 pkg"add SpineInterface"
 ```
 
