@@ -1,14 +1,15 @@
 #############################################################################
-# Copyright (C) 2017 - 2018  Spine Project
+# Copyright (C) 2017 - 2021 Spine project consortium
+# Copyright SpineInterface contributors
 #
-# This file is part of SpineOpt.
+# This file is part of SpineInterface.
 #
-# SpineOpt is free software: you can redistribute it and/or modify
+# SpineInterface is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# SpineOpt is distributed in the hope that it will be useful,
+# SpineInterface is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU Lesser General Public License for more details.
