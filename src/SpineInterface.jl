@@ -28,6 +28,7 @@ using Statistics
 using URIs
 using Requires
 using Test
+using PrecompileTools
 
 include("types.jl")
 include("util.jl")
@@ -128,6 +129,28 @@ function __init__()
 		include("update_model.jl")
 		export set_expr_bound
 	end
+end
+
+@setup_workload begin
+	using PyCall
+
+	import_data(db_url::String; kwargs...) = import_data(db_url, Dict(kwargs...), "testing")
+
+	function import_test_data(db_url::String; kwargs...)
+		SpineInterface.close_connection(db_url)
+		SpineInterface.open_connection(db_url)
+		import_data(db_url; kwargs...)
+	end
+
+    @compile_workload begin
+        @testset begin
+			#include("../test/using_spinedb.jl")
+			#include("../test/api.jl")
+			include("../test/constructors.jl")
+			include("../test/base.jl")
+			include("../test/util.jl")
+		end
+    end
 end
 
 end # module
