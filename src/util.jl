@@ -242,3 +242,10 @@ function _make_split_kwargs(names::Vector{Symbol})
         )
     )
 end
+
+"""
+    _find_permutation(a::Vector, b::Vector)
+
+Return which permutation of `b` `a` is.
+"""
+_find_permutation(a::Vector, b::Vector) = [findfirst(x .== b) for x in a]::Vector{Integer}

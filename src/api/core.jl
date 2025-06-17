@@ -782,6 +782,39 @@ function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
     nothing
 end
 
+"""
+    reorder_dimensions(name::Symbol, cls::RelationshipClass, dims::Vector)
+
+Create a new class `name` by reordering the dimensions of `cls`.
+
+`dims` indicates the new desired order for the dimensions,
+and can be either a `Vector{Symbol}` or `Vector{Integer}`.
+Note that `dims` needs to correspond to the `object_class_names`
+field, not the `intact_object_class_names` field!
+
+Returns a new [`RelationshipClass`](@ref) with the reordered dimensions.
+"""
+function reorder_dimensions(name::Symbol, cls::RelationshipClass, dims::Vector)
+    return reorder_dimensions(name, cls.env_dict[_active_env()], dims)::RelationshipClass
+end
+function reorder_dimensions(name::Symbol, cls::_RelationshipClass, dims::Vector{Symbol})
+    perm = _find_permutation(dims, cls.env_dict.object_class_names)
+    return reorder_dimensions(name, new_cls, perm)::RelationshipClass
+end
+function reorder_dimensions(name::Symbol, cls::_RelationshipClass, perm::Vector{Integer})
+    new_intact_cls_names = cls.intact_object_class_names[perm]
+    return RelationshipClass(
+        name,
+        new_intact_cls_names,
+        [Tuple(objtup[i] for i in perm) for objtup in cls.relationships],
+        Dict(
+            Tuple(objtup[i] for i in perm) => val
+            for (objtup, val) in cls.parameter_values
+        ),
+        cls.parameter_defaults
+    )::RelationshipClass
+end
+
 dimensions(cls::RelationshipClass) = cls.object_class_names
 
 const __active_env = Ref(:__base__)
