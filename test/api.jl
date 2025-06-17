@@ -940,16 +940,21 @@ function _test_reorder_dimensions()
             relationship_parameter_values=relationship_parameter_values,
         )
         using_spinedb(db_url)
-        # Reorder some relationship classes
+        # Create some new reordered relationship classes
+        original_names = [:institution, :country1, :country2]
+        reordered_names = [:country1, :institution, :country2]
+        perm = SpineInterface._find_permutation(reordered_names, original_names)
+        @test perm == [2, 1, 3]
+        @test reordered_names == original_names[perm]
         country__institution__country = reorder_dimensions(
             :country__institution__country,
             institution__country__country,
-            [:country1, :institution, :country2]
+            reordered_names,
         )
         country__institution__country_ = reorder_dimensions(
             :country__institution__country,
             institution__country__country,
-            [2, 1, 3]
+            perm,
         )
         ntups = [
             (country1=country(:France), institution=institution(:KTH), country2=country(:Sweden)),
@@ -963,6 +968,22 @@ function _test_reorder_dimensions()
             for key in values.(ntups)
         ]
         @test pvs == [false, true, true]
+        # Reorder the new classes to match the original.
+        iperm = invperm(perm)
+        @test original_names == reordered_names[iperm]
+        reorder_dimensions!(
+            country__institution__country,
+            original_names
+        )
+        reorder_dimensions!(
+            country__institution__country_,
+            original_names
+        )
+        @test country__institution__country() == institution__country__country()
+        @test country__institution__country_() == institution__country__country()
+        pvs = institution__country__country.env_dict[:__base__].parameter_values
+        @test country__institution__country.env_dict[:__base__].parameter_values == pvs
+        @test country__institution__country_.env_dict[:__base__].parameter_values == pvs
     end
 end
 

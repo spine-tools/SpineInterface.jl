@@ -98,6 +98,7 @@ export relationship_classes
 export RelationshipClass
 export RelationshipLike
 export reorder_dimensions
+export reorder_dimensions!
 export roll!
 export run_request
 export set_value_translator
