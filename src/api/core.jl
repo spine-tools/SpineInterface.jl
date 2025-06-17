@@ -795,13 +795,13 @@ field, not the `intact_object_class_names` field!
 Returns a new [`RelationshipClass`](@ref) with the reordered dimensions.
 """
 function reorder_dimensions(name::Symbol, cls::RelationshipClass, dims::Vector)
-    return reorder_dimensions(name, cls.env_dict[_active_env()], dims)::RelationshipClass
+    return reorder_dimensions(name, cls.env_dict[_active_env()], dims)
 end
 function reorder_dimensions(name::Symbol, cls::_RelationshipClass, dims::Vector{Symbol})
-    perm = _find_permutation(dims, cls.env_dict.object_class_names)
-    return reorder_dimensions(name, new_cls, perm)::RelationshipClass
+    perm = _find_permutation(dims, cls.object_class_names)
+    return reorder_dimensions(name, cls, perm)
 end
-function reorder_dimensions(name::Symbol, cls::_RelationshipClass, perm::Vector{Integer})
+function reorder_dimensions(name::Symbol, cls::_RelationshipClass, perm::Vector{<:Integer})
     new_intact_cls_names = cls.intact_object_class_names[perm]
     return RelationshipClass(
         name,
@@ -812,8 +812,10 @@ function reorder_dimensions(name::Symbol, cls::_RelationshipClass, perm::Vector{
             for (objtup, val) in cls.parameter_values
         ),
         cls.parameter_defaults
-    )::RelationshipClass
+    )
 end
+# TODO An in-place version `reorder_dimensions!` would likely be more memory-efficient,
+# but I have no idea how to deal with `row_map`, `row_map_lock`, and `_split_kwargs`.
 
 dimensions(cls::RelationshipClass) = cls.object_class_names
 

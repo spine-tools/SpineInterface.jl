@@ -248,4 +248,4 @@ end
 
 Return which permutation of `b` `a` is.
 """
-_find_permutation(a::Vector, b::Vector) = [findfirst(x .== b) for x in a]::Vector{Integer}
+_find_permutation(a::Vector, b::Vector) = [findfirst(x .== b) for x in a]::Vector{<:Integer}
