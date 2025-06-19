@@ -769,35 +769,46 @@ function realize(call, upd=nothing)
 end
 
 """
-    add_dimension!(cls::RelationshipClass, name::Symbol, obj)
+    add_dimension!(cls::RelationshipClass, name, obj)
 
 Add `obj` as a new dimension at the end of `cls` relationships and parameter values.
+
+`name` and `obj` can also be `Vector`s for adding multiple objects and dimensions at once.
+`name` can be omitted if desired, in which case it will be deduced from `obj.class_name`.
 """
-function add_dimension!(cls::RelationshipClass, obj::Object)
-    add_dimension!(cls, obj.class_name, obj)
-end
 function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
-    push!(cls.intact_object_class_names, name)
+    add_dimension!(cls, [name], [obj])
+end
+function add_dimension!(cls::RelationshipClass, obj::Object)
+    add_dimension!(cls, [obj.class_name], [obj])
+end
+function add_dimension!(cls::RelationshipClass, obj::Vector{Object})
+    add_dimension!(cls, getproperty.(obj, :class_name), obj)
+end
+function add_dimension!(cls::RelationshipClass, names::Vector{Symbol}, objs::Vector)
+    append!(cls.intact_object_class_names, names)
     # We have to rename old class names in the cache if they change due to ambiguity.
     old_cls_names = copy(cls.object_class_names)
-    push!(cls.object_class_names, name)
+    append!(cls.object_class_names, names)
     _fix_name_ambiguity!(cls.object_class_names, cls.intact_object_class_names)
-    old_diff_name = setdiff(old_cls_names, cls.object_class_names)
-    new_diff_name = setdiff(cls.object_class_names[1:end-1], old_cls_names)
+    old_diff_names = setdiff(old_cls_names, cls.object_class_names)
+    new_diff_names = setdiff(cls.object_class_names[1:length(old_cls_names)], old_cls_names)
     # Update relationships and parameter value dict
     map!(
         reltup -> NamedTuple(
-            zip(cls.object_class_names, push!(collect(values(reltup)), obj))
+            zip(cls.object_class_names, tuple(reltup..., objs...))
         ),
         cls.relationships,
         cls.relationships
     )
     for rel in collect(keys(cls.parameter_values))
-        cls.parameter_values[(rel..., obj)] = pop!(cls.parameter_values, rel)
+        cls.parameter_values[(rel..., objs...)] = pop!(cls.parameter_values, rel)
     end
     # Cache manipulation and renew split kwargs
-    cls.row_map[last(cls.object_class_names)] = Dict(obj => collect(1:length(cls.relationships))) # Added object on every row.
-    for (new_name, old_name) in zip(new_diff_name, old_diff_name) # Rename changed class names in cache (if any)
+    for (name, obj) in zip(last(cls.object_class_names, length(names)), objs) # Added objects on every row for new dimensions.
+        cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
+    end
+    for (new_name, old_name) in zip(new_diff_names, old_diff_names) # Rename changed class names in cache (if any)
         cls.row_map[new_name] = pop!(cls.row_map, old_name)
     end
     for cache_name in setdiff(keys(cls.row_map), cls.object_class_names)

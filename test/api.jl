@@ -1039,7 +1039,9 @@ function _test_add_dimension()
         using_spinedb(db_url)
         ic1 = institution__country
         ic2 = deepcopy(institution__country)
+        ic3 = deepcopy(institution__country)
         orig_pvs = deepcopy(ic1.parameter_values)
+        # First testing adding one dimension.
         add_dimension!(ic1, city(:Stockholm))
         add_dimension!(ic2, :city, city(:Stockholm))
         @test ic1.object_class_names == [:institution, :country, :city]
@@ -1065,6 +1067,7 @@ function _test_add_dimension()
             (institution=institution(:KTH), country=country(:France), city=city(:Stockholm)),
             (institution=institution(:KTH), country=country(:Sweden), city=city(:Stockholm)),
         ]
+        # Test adding a second duplicate dimension to ic1
         add_dimension!(ic1, city(:Paris))
         @test ic1.object_class_names == [:institution, :country, :city1, :city2]
         @test ic1.intact_object_class_names == [:institution, :country, :city, :city]
@@ -1102,6 +1105,23 @@ function _test_add_dimension()
             (institution=institution(:KTH), country=country(:France), city1=city(:Stockholm), city2=city(:Paris)),
             (institution=institution(:KTH), country=country(:Sweden), city1=city(:Stockholm), city2=city(:Paris)),
         ]
+        # Test adding two duplicate dimensions at once to ic3 to replicate ic1
+        add_dimension!(ic3, [city(:Stockholm), city(:Paris)])
+        @test ic3.object_class_names == ic1.object_class_names
+        @test ic3.intact_object_class_names == ic1.intact_object_class_names
+        @test ic3.parameter_values == ic1.parameter_values
+        @test ic3() == ic1()
+        @test all(
+            ic3(;args...) == ic1(;args...)
+            for args in [
+                (institution=institution(:KTH),),
+                (country=country(:France),),
+                (city=city(:Stockholm),),
+                (city1=city(:Stockholm),),
+                (city2=city(:Stockholm),),
+                (city2=city(:Paris),),
+            ]
+        )
     end
 end
 
