@@ -861,16 +861,16 @@ function reorder_dimensions!(cls::RelationshipClass, perm::Vector{<:Integer})
     permute!(cls.intact_object_class_names, perm)
     permute!(cls.object_class_names, perm)
     # Reorder relationships list RelationshipLike NamedTuples.
-    relkeys = Tuple(cls.object_class_names)
-    for (i, reltup) in enumerate(cls.relationships)
-        cls.relationships[i] = NamedTuple{relkeys}(reltup)
-    end
+    map!(
+        reltup -> NamedTuple{Tuple(cls.object_class_names)}(reltup),
+        cls.relationships,
+        cls.relationships
+    )
     # Reorder parameter value dict key ObjectTupleLikes.
     for objtup in collect(keys(cls.parameter_values))
         cls.parameter_values[objtup[perm]] = pop!(cls.parameter_values, objtup)
     end
-    # Empty row map and remake split kwargs
-    empty!(cls.row_map)
+    # Remake split kwargs, row map doesn't need to change?
     cls._split_kwargs[] = _make_split_kwargs(cls.object_class_names)
     return cls
 end

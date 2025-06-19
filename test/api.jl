@@ -952,7 +952,7 @@ function _test_reorder_dimensions()
             reordered_names,
         )
         country__institution__country_ = reorder_dimensions(
-            :country__institution__country,
+            :country__institution__country_,
             institution__country__country,
             perm,
         )
@@ -964,23 +964,50 @@ function _test_reorder_dimensions()
         @test country__institution__country() == ntups
         @test country__institution__country() == country__institution__country_()
         pvs = [
-            country__institution__country.env_dict[:__base__].parameter_values[key][:mobility].value
+            country__institution__country.parameter_values[key][:mobility].value
             for key in values.(ntups)
         ]
         @test pvs == [false, true, true]
+        @test country__institution__country(country1=country(:France)) == [
+            (institution=institution(:KTH), country2=country(:Sweden)),
+        ]
+        @test country__institution__country(institution=institution(:KTH)) == [
+            (country1=country(:France), country2=country(:Sweden)),
+            (country1=country(:Sweden), country2=country(:France)),
+        ]
+        @test country__institution__country(country2=country(:Sweden)) == [
+            (country1=country(:France), institution=institution(:KTH)),
+            (country1=country(:Finland), institution=institution(:VTT)),
+        ]
         # Reorder the new classes to match the original.
         iperm = invperm(perm)
         @test original_names == reordered_names[iperm]
-        reorder_dimensions!(
-            country__institution__country,
-            original_names
-        )
-        reorder_dimensions!(
-            country__institution__country_,
-            original_names
-        )
+        reorder_dimensions!(country__institution__country, original_names)
+        reorder_dimensions!(country__institution__country_, iperm)
         @test country__institution__country() == institution__country__country()
         @test country__institution__country_() == institution__country__country()
+        pvs = institution__country__country.parameter_values
+        @test country__institution__country.parameter_values == pvs
+        @test country__institution__country_.parameter_values == pvs
+        @test country__institution__country(country1=country(:Sweden)) == [
+            (institution=institution(:KTH), country2=country(:France)),
+        ]
+        @test country__institution__country(institution=institution(:VTT)) == [
+            (country1=country(:Finland), country2=country(:Sweden)),
+        ]
+        @test country__institution__country(country2=country(:France)) == [
+            (institution=institution(:KTH), country1=country(:Sweden)),
+        ]
+        # Check parameter indices changes after reordering the original
+        orig_ntups = collect(indices(mobility))
+        reorder_dimensions!(institution__country__country, perm)
+        @test collect(indices(mobility)) == ntups
+        @test mobility(country1=country(:Sweden), institution=institution(:KTH), country2=country(:France))
+        reorder_dimensions!(institution__country__country, iperm)
+        @test collect(indices(mobility)) == orig_ntups
+        @test !(mobility(institution=institution(:KTH), country1=country(:France), country2=country(:Sweden)))
+    end
+end
 
 function _test_add_dimension()
     @testset "add_dimension!" begin
