@@ -768,16 +768,41 @@ function realize(call, upd=nothing)
     end
 end
 
+"""
+    add_dimension!(cls::RelationshipClass, name::Symbol, obj)
+
+Add `obj` as a new dimension at the end of `cls` relationships and parameter values.
+"""
+function add_dimension!(cls::RelationshipClass, obj::Object)
+    add_dimension!(cls, obj.class_name, obj)
+end
 function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
-    push!(cls.object_class_names, name)
     push!(cls.intact_object_class_names, name)
-    map!(rel -> (; rel..., Dict(name => obj)...), cls.relationships, cls.relationships)
+    # We have to rename old class names in the cache if they change due to ambiguity.
+    old_cls_names = copy(cls.object_class_names)
+    push!(cls.object_class_names, name)
+    _fix_name_ambiguity!(cls.object_class_names, cls.intact_object_class_names)
+    old_diff_name = setdiff(old_cls_names, cls.object_class_names)
+    new_diff_name = setdiff(cls.object_class_names[1:end-1], old_cls_names)
+    # Update relationships and parameter value dict
+    map!(
+        reltup -> NamedTuple(
+            zip(cls.object_class_names, push!(collect(values(reltup)), obj))
+        ),
+        cls.relationships,
+        cls.relationships
+    )
     for rel in collect(keys(cls.parameter_values))
-        new_rel = (rel..., obj)
-        cls.parameter_values[new_rel] = pop!(cls.parameter_values, rel)
+        cls.parameter_values[(rel..., obj)] = pop!(cls.parameter_values, rel)
     end
-    cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
-    delete!(cls.row_map, cls.name)  # delete memoized rows
+    # Cache manipulation and renew split kwargs
+    cls.row_map[last(cls.object_class_names)] = Dict(obj => collect(1:length(cls.relationships))) # Added object on every row.
+    for (new_name, old_name) in zip(new_diff_name, old_diff_name) # Rename changed class names in cache (if any)
+        cls.row_map[new_name] = pop!(cls.row_map, old_name)
+    end
+    for cache_name in setdiff(keys(cls.row_map), cls.object_class_names)
+        delete!(cls.row_map, cache_name) # Delete superfluous cache?
+    end
     cls._split_kwargs[] = _make_split_kwargs(cls.object_class_names)
     nothing
 end

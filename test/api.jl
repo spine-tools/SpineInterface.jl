@@ -981,9 +981,100 @@ function _test_reorder_dimensions()
         )
         @test country__institution__country() == institution__country__country()
         @test country__institution__country_() == institution__country__country()
-        pvs = institution__country__country.env_dict[:__base__].parameter_values
-        @test country__institution__country.env_dict[:__base__].parameter_values == pvs
-        @test country__institution__country_.env_dict[:__base__].parameter_values == pvs
+
+function _test_add_dimension()
+    @testset "add_dimension!" begin
+        object_classes = ["institution", "country", "city"]
+        relationship_classes = [["institution__country", ["institution", "country"]]]
+        relationship_parameters = [["institution__country", "people_count"]]
+        institutions = ["KTH", "VTT"]
+        countries = ["Sweden", "France"]
+        cities = ["Stockholm", "Paris"]
+        objects = vcat(
+            [["institution", x] for x in institutions],
+            [["country", x] for x in countries],
+            [["city", x] for x in cities],
+        )
+        relationships = [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]]
+        relationship_parameter_values = [
+            ["institution__country", ["KTH", "Sweden"], "people_count", 3],
+            ["institution__country", ["KTH", "France"], "people_count", 1],
+        ]
+        import_test_data(
+            db_url;
+            object_classes=object_classes,
+            relationship_classes=relationship_classes,
+            objects=objects,
+            relationships=relationships,
+            relationship_parameters=relationship_parameters,
+            relationship_parameter_values=relationship_parameter_values,
+        )
+        using_spinedb(db_url)
+        ic1 = institution__country
+        ic2 = deepcopy(institution__country)
+        orig_pvs = deepcopy(ic1.parameter_values)
+        add_dimension!(ic1, city(:Stockholm))
+        add_dimension!(ic2, :city, city(:Stockholm))
+        @test ic1.object_class_names == [:institution, :country, :city]
+        @test ic1.object_class_names == ic1.intact_object_class_names
+        @test ic2.object_class_names == ic2.intact_object_class_names
+        @test ic1.object_class_names == ic2.object_class_names
+        @test ic1.relationships == ic2.relationships
+        @test collect(values(ic1.parameter_values)) == collect(values(orig_pvs))
+        @test ic1.parameter_values == ic2.parameter_values
+        @test ic1(institution=institution(:KTH)) == [
+            (country=country(:France), city=city(:Stockholm)),
+            (country=country(:Sweden), city=city(:Stockholm)),
+        ]
+        @test isempty(ic1(institution=institution(:VTT)))
+        @test ic1(country=country(:Sweden)) == [(institution=institution(:KTH), city=city(:Stockholm))]
+        @test ic1(city=city(:Stockholm)) == [
+            (institution=institution(:KTH), country=country(:France)),
+            (institution=institution(:KTH), country=country(:Sweden)),
+        ]
+        @test people_count(institution=institution(:KTH), country=country(:France), city=city(:Stockholm)) == 1
+        @test people_count(institution=institution(:KTH), country=country(:Sweden), city=city(:Stockholm)) == 3
+        @test collect(indices(people_count)) == [
+            (institution=institution(:KTH), country=country(:France), city=city(:Stockholm)),
+            (institution=institution(:KTH), country=country(:Sweden), city=city(:Stockholm)),
+        ]
+        add_dimension!(ic1, city(:Paris))
+        @test ic1.object_class_names == [:institution, :country, :city1, :city2]
+        @test ic1.intact_object_class_names == [:institution, :country, :city, :city]
+        @test collect(values(ic1.parameter_values)) == collect(values(ic2.parameter_values))
+        @test ic1(institution=institution(:KTH)) == [
+            (country=country(:France), city1=city(:Stockholm), city2=city(:Paris)),
+            (country=country(:Sweden), city1=city(:Stockholm), city2=city(:Paris)),
+        ]
+        @test ic1(country=country(:France)) == [
+            (institution=institution(:KTH), city1=city(:Stockholm), city2=city(:Paris)),
+        ]
+        @test isempty(ic1(city=city(:Stockholm)))
+        @test ic1(city1=city(:Stockholm)) == [
+            (institution=institution(:KTH), country=country(:France), city2=city(:Paris)),
+            (institution=institution(:KTH), country=country(:Sweden), city2=city(:Paris)),
+        ]
+        @test isempty(ic1(city2=city(:Stockholm)))
+        @test ic1(city2=city(:Paris)) == [
+            (institution=institution(:KTH), country=country(:France), city1=city(:Stockholm)),
+            (institution=institution(:KTH), country=country(:Sweden), city1=city(:Stockholm)),
+        ]
+        @test people_count(
+            institution=institution(:KTH),
+            country=country(:France),
+            city1=city(:Stockholm),
+            city2=city(:Paris),
+        ) == 1
+        @test people_count(
+            institution=institution(:KTH),
+            country=country(:Sweden),
+            city1=city(:Stockholm),
+            city2=city(:Paris),
+        ) == 3
+        @test collect(indices(people_count)) == [
+            (institution=institution(:KTH), country=country(:France), city1=city(:Stockholm), city2=city(:Paris)),
+            (institution=institution(:KTH), country=country(:Sweden), city1=city(:Stockholm), city2=city(:Paris)),
+        ]
     end
 end
 
@@ -1006,4 +1097,5 @@ end
     _test_indexed_values()
     _test_superclasses()
     _test_reorder_dimensions()
+    _test_add_dimension()
 end
