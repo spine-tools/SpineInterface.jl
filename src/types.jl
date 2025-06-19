@@ -179,14 +179,33 @@ struct RelationshipClass
 end
 
 """
-Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
+    _fix_name_ambiguity(intact_name_list::Vector{Symbol})
+
+Append an increasing integer to each repeated element in `name_list`, and return a new modified `name_list`.
+
+See also [`_fix_name_ambiguity!`](@ref).
 """
-function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
+function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
     name_list = copy(intact_name_list)
     for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
         for (k, index) in enumerate(findall(name_list .== ambiguous))
             name_list[index] = Symbol(name_list[index], k)
         end
+    end
+    name_list
+end
+
+"""
+    _fix_name_ambiguity!(name_list::Vector{Symbol}, intact_name_list::Vector{Symbol})
+
+Replace `name_list` by `_fix_name_ambiguity(intact_name_list)`.
+
+See also [`_fix_name_ambiguity!`](@ref).
+"""
+function _fix_name_ambiguity!(name_list::Vector{Symbol}, intact_name_list::Vector{Symbol})
+    new_name_list = _fix_name_ambiguity(intact_name_list)
+    for (i, new_name) in enumerate(new_name_list)
+        name_list[i] = new_name
     end
     name_list
 end
