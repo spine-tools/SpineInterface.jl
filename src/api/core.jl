@@ -776,16 +776,19 @@ Add `obj` as a new dimension at the end of `cls` relationships and parameter val
 `name` and `obj` can also be `Vector`s for adding multiple objects and dimensions at once.
 `name` can be omitted if desired, in which case it will be deduced from `obj.class_name`.
 """
-function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
+function add_dimension!(cls::RelationshipClass, name::Symbol, obj::ObjectLike)
     add_dimension!(cls, [name], [obj])
 end
 function add_dimension!(cls::RelationshipClass, obj::Object)
     add_dimension!(cls, [obj.class_name], [obj])
 end
-function add_dimension!(cls::RelationshipClass, obj::Vector{Object})
-    add_dimension!(cls, getproperty.(obj, :class_name), obj)
+function add_dimension!(cls::RelationshipClass, objs::Vector{Object})
+    add_dimension!(cls, getproperty.(objs, :class_name), objs)
 end
-function add_dimension!(cls::RelationshipClass, names::Vector{Symbol}, objs::Vector)
+function add_dimension!(cls::RelationshipClass, names::Vector{Symbol}, objs::Vector{<:ObjectLike})
+    if length(names) != length(objs)
+        throw(ArgumentError("Length of `names` and `objs` must match!"))
+    end
     append!(cls.intact_object_class_names, names)
     # We have to rename old class names in the cache if they change due to ambiguity.
     old_cls_names = copy(cls.object_class_names)
