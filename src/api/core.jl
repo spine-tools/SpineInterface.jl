@@ -65,15 +65,15 @@ function (oc::ObjectClass)(args...; _compact::Bool=true, kwargs...)
     if isempty(oc.subclasses) # No subclasses -> Filter only this one.
         return _object_class_filtering(oc, args...; kwargs...)
     elseif length(oc.subclasses) == 1 # One subclass -> Filter only that one.
-        return entity_class(only(oc.subclasses))(args...; _compact=_compact, kwargs...)
+        return only(oc.subclasses)(args...; _compact=_compact, kwargs...)
     else # Many subclasses -> Filter them all.
         if _compact
             return vcat(
-                [cls(args...; _compact=_compact, kwargs...) for cls in entity_class.(oc.subclasses)]...
+                [cls(args...; _compact=_compact, kwargs...) for cls in oc.subclasses]...
             )
         else # _compact=false sometimes returns iterators.
             return Iterators.flatten(
-                cls(args...; _compact=_compact, kwargs...) for cls in entity_class.(oc.subclasses)
+                cls(args...; _compact=_compact, kwargs...) for cls in oc.subclasses
             )
         end
     end

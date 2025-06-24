@@ -112,7 +112,7 @@ struct _ObjectClass
     objects::Vector{ObjectLike}
     parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    subclasses::Vector{Symbol}
+    subclasses::Vector{Any} # Tasku: This needs to accommodate both Symbols and EntityClasses for now due to how they are resolved in `_generate_convenience_functions`
     _split_kwargs::Ref{Any}
     function _ObjectClass(name, objects, vals=Dict(), defaults=Dict(), subclasses=[])
         new(name, objects, vals, defaults, subclasses, _make_split_kwargs(name))

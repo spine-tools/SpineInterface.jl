@@ -553,6 +553,15 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
             export $name
         end
     end
+    # Resolve superclass subclass names.
+    # Tasku: A better way would be to actually type `_ObjectClass` `subclasses`
+    # field to `Vector{EntityClass}`, but I couldn't get that to work
+    # with the time I had available to me.
+    for obj_cls in [object_class(name, mod) for name in keys(args_per_obj_cls)]
+        for (i, subcls_name) in enumerate(obj_cls.subclasses)
+            obj_cls.subclasses[i] = entity_class(subcls_name, mod)
+        end
+    end
 end
 
 """
