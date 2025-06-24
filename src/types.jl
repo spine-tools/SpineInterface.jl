@@ -106,13 +106,14 @@ end
 ObjectLike = Union{Object,TimeSlice,Int64}
 ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
 RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
+abstract type EntityClass end
 
 struct _ObjectClass
     name::Symbol
     objects::Vector{ObjectLike}
     parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    subclasses::Vector{Any} # Tasku: This is effectively `Vector{EntityClass}`, but needs to accommodate Symbols for now due to how subclasses are resolved in `_generate_convenience_functions`
+    subclasses::Vector{Union{Symbol,EntityClass}} # Tasku: This is effectively `Vector{EntityClass}`, but needs to accommodate Symbols for now due to how subclasses are resolved in `_generate_convenience_functions`
     _split_kwargs::Ref{Any}
     function _ObjectClass(name, objects, vals=Dict(), defaults=Dict(), subclasses=[])
         new(name, objects, vals, defaults, subclasses, _make_split_kwargs(name))
@@ -124,7 +125,7 @@ end
 
 A type for representing an object class from a Spine db.
 """
-struct ObjectClass
+struct ObjectClass <: EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_ObjectClass}
     function ObjectClass(name, args...; mod=@__MODULE__, extend=false)
@@ -168,7 +169,7 @@ end
 
 A type for representing a relationship class from a Spine db.
 """
-struct RelationshipClass
+struct RelationshipClass <: EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_RelationshipClass}
     function RelationshipClass(name, args...; mod=@__MODULE__, extend=false)
@@ -177,10 +178,6 @@ struct RelationshipClass
         _resolve!(spine_relationship_classes, name, new_, extend)
     end
 end
-
-# Tasku: Add `EntityClass` for convenience.
-# This could also be an abstract type for better `_ObjectClass.subclasses` typing?
-EntityClass = Union{ObjectClass,RelationshipClass}
 
 """
     _fix_name_ambiguity(intact_name_list::Vector{Symbol})
