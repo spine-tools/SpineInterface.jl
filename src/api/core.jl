@@ -496,7 +496,7 @@ members(x) = unique(member for obj in x for member in obj.members)
 groups(x) = unique(group for obj in x for group in obj.groups)
 
 """
-    indices(p::Parameter, [c::Union{ObjectClass,RelationshipClass}]; kwargs...)
+    indices(p::Parameter, [c::EntityClass]; kwargs...)
 
 An iterator over all objects and relationships where the value of `p` is different than `nothing`.
 
@@ -536,7 +536,7 @@ julia> collect(indices(demand))
 function indices(p::Parameter; kwargs...)
     (ent for class in p.classes for ent in indices(p, class; kwargs...))
 end
-function indices(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
+function indices(p::Parameter, class::EntityClass; kwargs...)
     (
         ent
         for ent in _entities(class; kwargs...)
@@ -545,14 +545,14 @@ function indices(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwar
 end
 
 """
-    indices_as_tuples(p::Parameter, [c::Union{ObjectClass,RelationshipClass}]; kwargs...)
+    indices_as_tuples(p::Parameter, [c::EntityClass]; kwargs...)
 
 Like `indices` but also yields tuples for single-dimensional entities.
 """
 function indices_as_tuples(p::Parameter; kwargs...)
     (ent for class in p.classes for ent in indices_as_tuples(p, class; kwargs...))
 end
-function indices_as_tuples(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
+function indices_as_tuples(p::Parameter, class::EntityClass; kwargs...)
     (
         _entity_tuple(ent, class)
         for ent in _entities(class; kwargs...)
@@ -571,7 +571,7 @@ _entity_tuple(r::RelationshipLike, class) = r
 
 classes(p::Parameter) = p.classes
 
-push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
+push_class!(p::Parameter, class::EntityClass) = push!(p.classes, class)
 
 """
     add_objects!(object_class, objects)
