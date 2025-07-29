@@ -231,13 +231,13 @@ function _parse_db_value(value::Vector, ::Val{:table})
     dict_encoded = map(i -> occursin("dict_encoded_", i), arr_types)
     run_end_encoded = map(i -> occursin("run_end_", i), arr_types)
 
-    has_ts = (ncols >= 2) && (col_types[end-1] == "date-time") && (col_types[end] in ["integer", "number"])
-    has_tp = (ncols >= 2) && (col_types[end-1] == "time-pattern") && (col_types[end] in ["integer", "number"])
+    has_ts = (ncols >= 2) && (col_types[end - 1] == "date-time") && (col_types[end] in ["integer", "number"])
+    has_tp = (ncols >= 2) && (col_types[end - 1] == "time-pattern") && (col_types[end] in ["integer", "number"])
 
     columns = map(i -> _get_array(i), value)
     blocks = _get_blocks(columns; dict_encoded, run_end_encoded, ncols)
 
-    function value_assert_eq(arr::Union{_RunEndArray, _DictEncodedArray}, start::Int, stop::Int)
+    function value_assert_eq(arr::Union{_RunEndArray,_DictEncodedArray}, start::Int, stop::Int)
         v1, v2 = arr[start], arr[stop]
         @assert v1 == v2 "make_map: multiple values in index: $v1 != $v2"
         v1
@@ -249,10 +249,10 @@ function _parse_db_value(value::Vector, ::Val{:table})
         indices = [value_assert_eq(idx_col, start, stop) for (start, stop) in idx_ranges]
 
         if length(blks) == 1
-            values = _get_values(idx_ranges, columns[level+1:end]...)
+            values = _get_values(idx_ranges, columns[(level + 1):end]...)
         else
             values = [
-                make_map([b[map(p -> start <= p[1] && stop >= p[2], b)] for b in blks[2:end]]; level=level+1)
+                make_map([b[map(p -> start <= p[1] && stop >= p[2], b)] for b in blks[2:end]]; level=level + 1)
                 for (start, stop) in blks[1]
             ]
         end
@@ -260,7 +260,7 @@ function _parse_db_value(value::Vector, ::Val{:table})
     end
 
     trim = has_ts | has_tp ? 2 : 1
-    make_map(blocks[1:end-trim]; level=1)
+    make_map(blocks[1:(end - trim)]; level=1)
 end
 
 function _parse_date_time(data::String)
