@@ -42,44 +42,44 @@ end
 # length
 Base.length(arr::_RunEndArray) = arr.run_end[end]
 Base.length(arr::_DictEncodedArray) = arr.indices |> length
-Base.length(arr::T) where {T <: Union{_Array, _AnyArray}} = arr.values |> length
+Base.length(arr::T) where {T<:Union{_Array,_AnyArray}} = arr.values |> length
 
 # indexing
 Base.getindex(arr::_RunEndArray, idx::Int) = arr.values[idx .<= arr.run_end] |> first
 # NOTE: indices is 0-indexed
-Base.getindex(arr::_DictEncodedArray, idx::Int) = arr.values[arr.indices[idx]+1]
-Base.getindex(arr::T, idx::Int) where {T <: Union{_Array, _AnyArray}} = arr.values[idx]
+Base.getindex(arr::_DictEncodedArray, idx::Int) = arr.values[arr.indices[idx] + 1]
+Base.getindex(arr::T, idx::Int) where {T<:Union{_Array,_AnyArray}} = arr.values[idx]
 
 # NOTE: don't distinguish between *_index and *_array types
-function _get_array(data::Dict{String, Any}, ::Val{:run_end_index})
+function _get_array(data::Dict{String,Any}, ::Val{:run_end_index})
     _RunEndArray(data["name"], data["run_end"], data["values"], data["value_type"])
 end
 
-function _get_array(data::Dict{String, Any}, ::Val{:run_end_array})
+function _get_array(data::Dict{String,Any}, ::Val{:run_end_array})
     _RunEndArray(data["name"], data["run_end"], data["values"], data["value_type"])
 end
 
-function _get_array(data::Dict{String, Any}, ::Val{:dict_encoded_index})
+function _get_array(data::Dict{String,Any}, ::Val{:dict_encoded_index})
     _DictEncodedArray(data["name"], data["indices"], data["values"], data["value_type"])
 end
 
-function _get_array(data::Dict{String, Any}, ::Val{:dict_encoded_array})
+function _get_array(data::Dict{String,Any}, ::Val{:dict_encoded_array})
     _DictEncodedArray(data["name"], data["indices"], data["values"], data["value_type"])
 end
 
-function _get_array(data::Dict{String, Any}, ::Val{:array_index})
+function _get_array(data::Dict{String,Any}, ::Val{:array_index})
     _Array(data["name"], data["values"], data["value_type"])
 end
 
-function _get_array(data::Dict{String, Any}, ::Val{:array})
+function _get_array(data::Dict{String,Any}, ::Val{:array})
     _Array(data["name"], data["values"], data["value_type"])
 end
 
-function _get_array(data::Dict{String, Any}, ::Val{:any_array})
+function _get_array(data::Dict{String,Any}, ::Val{:any_array})
     _AnyArray(data["name"], data["values"])
 end
 
-function _get_array(data::Dict{String, Any})
+function _get_array(data::Dict{String,Any})
     _get_array(data, Val(Symbol(data["type"])))
 end
 
@@ -90,7 +90,8 @@ struct _Ranges
 end
 
 Base.length(r::_Ranges) = r.starts |> length
-Base.iterate(r::_Ranges, state::Int=1) = state > length(r.starts) ? nothing : ((r.starts[state], r.stops[state]), state+1)
+Base.iterate(r::_Ranges, state::Int=1) =
+    state > length(r.starts) ? nothing : ((r.starts[state], r.stops[state]), state + 1)
 Base.getindex(r::_Ranges, idx::Int) = r.starts[idx], r.stops[idx]
 Base.getindex(r::_Ranges, idx::Vector{Bool}) = _Ranges(r.starts[idx], r.stops[idx])
 Base.getindex(r::_Ranges, limit::UnitRange{Int}) = r[map(p -> limit.start <= p[1] && limit.stop >= p[2], r)]
@@ -108,4 +109,4 @@ function _get_contiguous_ranges(col::_RunEndArray)
     _Ranges(starts, stops)
 end
 
-_get_contiguous_ranges(col::Union{_Array, _AnyArray}) = _Ranges([1], [length(col.values)])
+_get_contiguous_ranges(col::Union{_Array,_AnyArray}) = _Ranges([1], [length(col.values)])
