@@ -178,12 +178,10 @@ _parse_db_value(value::TimePattern) = value
 _parse_db_value(value) = value
 
 # table to time-series and time-pattern
-function _table_to_series(datetime_strs::Vector, values::Vector, ::Val{:date_time})
+_table_to_series(datetime_strs::Vector, values::Vector, ::Val{:date_time}) =
     TimeSeries(_parse_date_time.(datetime_strs), values, false, false)
-end
-function _table_to_series(time_period_strs::Vector, values::Vector, ::Val{:time_pattern})
+_table_to_series(time_period_strs::Vector, values::Vector, ::Val{:time_pattern}) =
     Dict(tp => v for (tp, v) in zip(parse_time_period.(time_period_strs), values))
-end
 
 # identify blocks identical values
 function _get_blocks(columns::Vector; dict_encoded::Vector{Bool}, run_end_encoded::Vector{Bool}, ncols::Int64)

@@ -107,8 +107,4 @@ function _get_contiguous_ranges(col::_RunEndArray)
     _Ranges(starts, stops)
 end
 
-function _get_contiguous_ranges(col::Union{_Array, _AnyArray})
-    starts = [1]
-    stops = [length(col.values)]
-    _Ranges(starts, stops)
-end
+_get_contiguous_ranges(col::Union{_Array, _AnyArray}) = _Ranges([1], [length(col.values)])
