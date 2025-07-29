@@ -177,6 +177,94 @@ _parse_db_value(value::Float64) = isinteger(value) ? Int64(value) : value
 _parse_db_value(value::TimePattern) = value
 _parse_db_value(value) = value
 
+# table to time-series and time-pattern
+function _table_to_series(datetime_strs::Vector, values::Vector, ::Val{:date_time})
+    TimeSeries(_parse_date_time.(datetime_strs), values, false, false)
+end
+function _table_to_series(time_period_strs::Vector, values::Vector, ::Val{:time_pattern})
+    Dict(tp => v for (tp, v) in zip(parse_time_period.(time_period_strs), values))
+end
+
+# identify blocks identical values
+function _get_blocks(columns::Vector; dict_encoded::Vector{Bool}, run_end_encoded::Vector{Bool}, ncols::Int64)
+    [
+        begin
+            if (!dict_encoded[i]) && (!run_end_encoded[i]) && (i < (ncols - 2))
+                # i.e. the whole array is a single block
+                error("parameter_value: regular array in column $i, only allowed in the last 2 columns")
+            end
+            _get_contiguous_ranges(col)
+        end for (i, col) in enumerate(columns)
+    ]
+end
+
+# get values to construct Map
+function _get_values(idx_ranges::_Ranges, values::_Array)
+    @info "array:" idx_ranges values
+    [values.values[start:stop] for (start, stop) in idx_ranges]
+end
+function _get_values(idx_ranges::_Ranges, keys::_Array, values::_Array)
+    key_type = replace(keys.value_type, "-" => "_") |> Symbol
+    @info key_type
+    [
+        _table_to_series(keys.values[start:stop], values.values[start:stop], Val(key_type)) for
+        (start, stop) in idx_ranges
+    ]
+end
+
+# parse table to Map
+function _parse_db_value(value::Vector, ::Val{:table})
+    # NOTE: heuristic to detect time series/patterns in a table:
+    #
+    # 1. time series/patterns on their own are just 2-col tables,
+    #    where col[1] is of "value_type" "date-time"/"time-pattern"
+    #
+    # 2. time series/patterns in a map can only be in the _final_
+    #    "data" value, so as a table, they can only be the 2 final
+    #    columns, where col[end-1] is "date-time"/"time-pattern"
+    #
+    # 3. Maps in SpineInterface every value at a higher level is in
+    #    contiguous blocks.  I.e. when dictionary/run-end encoded, it
+    #    looks like: 1, 1, 1, 1, 2, 2, but never 1, 1, 2, 2, 1, 1.
+
+    ncols = length(value)
+    col_types = map(c -> get(c, "value_type", "fail"), value)
+    arr_types = map(c -> get(c, "type", "fail"), value)
+    dict_encoded = map(i -> occursin("dict_encoded_", i), arr_types)
+    run_end_encoded = map(i -> occursin("run_end_", i), arr_types)
+
+    has_ts = (ncols >= 2) && (col_types[end-1] == "date-time") && (col_types[end] in ["integer", "number"])
+    has_tp = (ncols >= 2) && (col_types[end-1] == "time-pattern") && (col_types[end] in ["integer", "number"])
+
+    columns = map(i -> _get_array(i), value)
+    blocks = _get_blocks(columns; dict_encoded, run_end_encoded, ncols)
+
+    function value_assert_eq(arr::Union{_RunEndArray, _DictEncodedArray}, start::Int, stop::Int)
+        v1, v2 = arr[start], arr[stop]
+        @assert v1 == v2 "make_map: multiple values in index: $v1 != $v2"
+        v1
+    end
+
+    function make_map(blks::Vector{_Ranges}; level::Int64)
+        idx_col = columns[level]
+        idx_ranges = blks[1]
+        indices = [value_assert_eq(idx_col, start, stop) for (start, stop) in idx_ranges]
+
+        if length(blks) == 1
+            values = _get_values(idx_ranges, columns[level+1:end]...)
+        else
+            values = [
+                make_map([b[map(p -> start <= p[1] && stop >= p[2], b)] for b in blks[2:end]]; level=level+1)
+                for (start, stop) in blks[1]
+            ]
+        end
+        Map(indices, values)
+    end
+
+    trim = has_ts | has_tp ? 2 : 1
+    make_map(blocks[1:end-trim]; level=1)
+end
+
 function _parse_date_time(data::String)
     try
         DateTime(data, _db_df)
