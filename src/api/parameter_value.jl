@@ -254,7 +254,7 @@ function _parse_db_value(value::Vector, ::Val{:table})
             values = _get_values(idx_ranges, columns[(level + 1):end]...)
         else
             values = [
-                make_map([b[map(p -> start <= p[1] && stop >= p[2], b)] for b in blks[2:end]]; level=level + 1)
+                make_map([b[start:stop] for b in blks[2:end]]; level=level + 1)
                 for (start, stop) in blks[1]
             ]
         end

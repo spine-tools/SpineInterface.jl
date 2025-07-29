@@ -93,6 +93,7 @@ Base.length(r::_Ranges) = r.starts |> length
 Base.iterate(r::_Ranges, state::Int=1) = state > length(r.starts) ? nothing : ((r.starts[state], r.stops[state]), state+1)
 Base.getindex(r::_Ranges, idx::Int) = r.starts[idx], r.stops[idx]
 Base.getindex(r::_Ranges, idx::Vector{Bool}) = _Ranges(r.starts[idx], r.stops[idx])
+Base.getindex(r::_Ranges, limit::UnitRange{Int}) = r[map(p -> limit.start <= p[1] && limit.stop >= p[2], r)]
 
 function _get_contiguous_ranges(col::_DictEncodedArray)
     changes = findall(diff(col.indices) .!= 0)
