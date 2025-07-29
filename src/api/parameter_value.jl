@@ -199,12 +199,10 @@ end
 
 # get values to construct Map
 function _get_values(idx_ranges::_Ranges, values::_Array)
-    @info "array:" idx_ranges values
     [values.values[start:stop] for (start, stop) in idx_ranges]
 end
 function _get_values(idx_ranges::_Ranges, keys::_Array, values::_Array)
     key_type = replace(keys.value_type, "-" => "_") |> Symbol
-    @info key_type
     [
         _table_to_series(keys.values[start:stop], values.values[start:stop], Val(key_type)) for
         (start, stop) in idx_ranges
