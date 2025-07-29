@@ -178,6 +178,7 @@ _parse_db_value(value::TimePattern) = value
 _parse_db_value(value) = value
 
 # table to time-series and time-pattern
+_table_to_series(seq::Vector, values::Vector, ::Val{:integer}) = Map(seq, values)
 _table_to_series(datetime_strs::Vector, values::Vector, ::Val{:date_time}) =
     TimeSeries(_parse_date_time.(datetime_strs), values, false, false)
 _table_to_series(time_period_strs::Vector, values::Vector, ::Val{:time_pattern}) =
@@ -231,6 +232,7 @@ function _parse_db_value(value::Vector, ::Val{:table})
     dict_encoded = map(i -> occursin("dict_encoded_", i), arr_types)
     run_end_encoded = map(i -> occursin("run_end_", i), arr_types)
 
+    has_seq = (ncols >= 2) && (col_types[end - 1] == "integer") && (col_types[end] in ["integer", "number"])
     has_ts = (ncols >= 2) && (col_types[end - 1] == "date-time") && (col_types[end] in ["integer", "number"])
     has_tp = (ncols >= 2) && (col_types[end - 1] == "time-pattern") && (col_types[end] in ["integer", "number"])
 
@@ -259,7 +261,7 @@ function _parse_db_value(value::Vector, ::Val{:table})
         Map(indices, values)
     end
 
-    trim = has_ts | has_tp ? 2 : 1
+    trim = has_ts || has_tp || has_seq ? 2 : 1
     make_map(blocks[1:(end - trim)]; level=1)
 end
 
