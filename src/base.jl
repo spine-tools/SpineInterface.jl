@@ -219,8 +219,7 @@ function _sum_call(args)
     if isempty(non_numerical_args)
         Call(numerical_term)
     else
-        args_count = ((a, count(x -> x === a, non_numerical_args)) for a in unique(non_numerical_args))
-        final_args = [k == 1 ? a : k * a for (a, k) in args_count]
+        final_args = [c == 1 ? a : c * a for (a, c) in _count_unique(non_numerical_args)]
         if !iszero(numerical_term)
             push!(final_args, numerical_term)
         end
@@ -242,6 +241,12 @@ function _sum_call(args)
             end
         end
     end
+end
+
+function _count_unique(a::Vector{T}) where T
+    d = Dict{T, UInt64}()
+    foreach(k -> d[k] = get!(d, k, 0) + 1, a)
+    d
 end
 
 function _split!(f, arr)
