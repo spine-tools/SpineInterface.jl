@@ -247,13 +247,27 @@ function _class_names_per_parameter(object_classes, relationship_classes, param_
 end
 
 function _generate_convenience_functions(data, mod; filters=Dict(), extend=false)
-    object_classes = [x for x in get(data, "entity_classes", []) if isempty(x[2])]
-    relationship_classes = [x for x in get(data, "entity_classes", []) if !isempty(x[2])]
-    objects = [x for x in get(data, "entities", []) if x[2] isa String]
-    relationships = [x for x in get(data, "entities", []) if !(x[2] isa String)]
-    object_groups = get(data, "entity_groups", [])
-    param_defs = get(data, "parameter_definitions", [])
-    param_vals = get(data, "parameter_values", [])
+    object_classes = get(data, "object_classes") do
+        [x for x in get(data, "entity_classes", []) if isempty(x[2])]
+    end
+    relationship_classes = get(data, "relationship_classes") do
+        [x for x in get(data, "entity_classes", []) if !isempty(x[2])]
+    end
+    objects = get(data, "objects") do
+        [x for x in get(data, "entities", []) if x[2] isa String]
+    end
+    relationships = get(data, "relationships") do
+        [x for x in get(data, "entities", []) if !(x[2] isa String)]
+    end
+    object_groups = get(data, "object_groups") do
+        get(data, "entity_groups", [])
+    end
+    param_defs = get(data, "parameter_definitions") do
+        vcat(get(data, "object_parameters", []), get(data, "relationship_parameters", []))
+    end
+    param_vals = get(data, "parameter_values") do
+        vcat(get(data, "object_parameter_values", []), get(data, "relationship_parameter_values", []))
+    end
     members_per_group = _members_per_group(object_groups)
     groups_per_member = _groups_per_member(object_groups)
     full_objs_per_id = _full_objects_per_id(objects, members_per_group, groups_per_member)
