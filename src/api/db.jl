@@ -565,38 +565,7 @@ function _create_db_handler(db_url::String, upgrade::Bool)
 end
 
 const _required_spinedb_api_version = v"0.31.0"
-
 function _import_spinedb_api()
-    indent = repeat(" ", 4)
-
-    _spinedb_api_not_found_error(pyprogramname) = error(
-        "The required Python package `spinedb_api` could not be found in the current Python environment\n\n",
-        "$indent$pyprogramname\n\n",
-        "You can fix this in two different ways:\n",
-        "A. Install `spinedb_api` in the current Python environment; ",
-        "open a terminal (command prompt on Windows) and run\n\n",
-        "$indent$pyprogramname -m pip install --user 'git+https://github.com/Spine-project/Spine-Database-API'\n\n",
-        "B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run\n\n",
-        "$(indent)ENV[\"PYTHON\"] = \"... path of the python executable ...\"\n",
-        "$(indent)Pkg.build(\"PyCall\")\n\n",
-        "And restart Julia.\n",
-    )
-
-    _required_spinedb_api_version_not_found_py_call_error(pyprogramname) = error(
-        "The required version $_required_spinedb_api_version of `spinedb_api` could not be found ",
-        "in the current Python environment\n\n",
-        "$indent$pyprogramname\n\n",
-        "You can fix this in two different ways:\n",
-        "A. Upgrade `spinedb_api` to its latest version in the current Python environment; ",
-        "open a terminal (command prompt on Windows) and run\n\n",
-        "$indent$pyprogramname -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'\n\n",
-        "B. Switch to another Python environment ",
-        "that has `spinedb_api` version $_required_spinedb_api_version installed; from Julia, run\n\n",
-        "$(indent)ENV[\"PYTHON\"] = \"... path of the python executable ...\"\n",
-        "$(indent)Pkg.build(\"PyCall\")\n\n",
-        "And restart Julia.",
-    )
-
     isdefined(@__MODULE__, :db_api) && return
     @eval begin
         using PyCall
@@ -604,14 +573,44 @@ function _import_spinedb_api()
             pyimport("spinedb_api"), pyimport("spinedb_api.spine_db_server")
         catch err
             if err isa PyCall.PyError
-                _spinedb_api_not_found_error(PyCall.pyprogramname)
+                py = PyCall.pyprogramname
+                indent = repeat(" ", 4)
+                error(
+                    "The required Python package `spinedb_api` could not be found ",
+                    "in the current Python environment\n\n",
+                    "$indent$python\n\n",
+                    "You can fix this in two different ways:\n",
+                    "A. Install `spinedb_api` in the current Python environment; ",
+                    "open a terminal (command prompt on Windows) and run\n\n",
+                    "$indent$python -m pip install --user ",
+                    "'git+https://github.com/Spine-project/Spine-Database-API'\n\n",
+                    "B. Switch to another Python environment that has `spinedb_api` installed; from Julia, run\n\n",
+                    "$(indent)ENV[\"PYTHON\"] = \"... path of the python executable ...\"\n",
+                    "$(indent)Pkg.build(\"PyCall\")\n\n",
+                    "And restart Julia.\n",
+                )
             else
                 rethrow()
             end
         end
         spinedb_api_version = _parse_spinedb_api_version(db_api.__version__)
         if spinedb_api_version < _required_spinedb_api_version
-            _required_spinedb_api_version_not_found_py_call_error(PyCall.pyprogramname)
+            python = PyCall.pyprogramname
+            indent = repeat(" ", 4)
+            error(
+                "The required version $_required_spinedb_api_version of `spinedb_api` could not be found ",
+                "in the current Python environment\n\n",
+                "$indent$python\n\n",
+                "You can fix this in two different ways:\n",
+                "A. Upgrade `spinedb_api` to its latest version in the current Python environment; ",
+                "open a terminal (command prompt on Windows) and run\n\n",
+                "$indent$python -m pip upgrade --user 'git+https://github.com/Spine-project/Spine-Database-API'\n\n",
+                "B. Switch to another Python environment ",
+                "that has `spinedb_api` version $_required_spinedb_api_version installed; from Julia, run\n\n",
+                "$(indent)ENV[\"PYTHON\"] = \"... path of the python executable ...\"\n",
+                "$(indent)Pkg.build(\"PyCall\")\n\n",
+                "And restart Julia.",
+            )
         end
     end
 end
