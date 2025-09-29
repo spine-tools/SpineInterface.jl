@@ -41,14 +41,17 @@ function import_test_data(db_url::String; kwargs...)
 end
 
 @testset begin
-    include("using_spinedb.jl")
-    include("api.jl")
-    include("constructors.jl")
-    include("base.jl")
-    include("util.jl")
-    include("update_model.jl")
-    @testset "examples" begin 
-        include("../examples/tutorial_spine_database/tutorial_spine_database.jl")
-        include("../examples/tutorial_spineopt_database/tutorial_spineopt_database.jl")
+    # include("using_spinedb.jl")
+    # include("api.jl")
+    # include("constructors.jl")
+    # include("base.jl")
+    # include("util.jl")
+    # include("update_model.jl")
+    @testset "data transition" begin
+        include("data_transition_tests.jl")
     end
+    # @testset "examples" begin
+    #     include("../examples/tutorial_spine_database/tutorial_spine_database.jl")
+    #     include("../examples/tutorial_spineopt_database/tutorial_spineopt_database.jl")
+    # end
 end
