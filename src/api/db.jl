@@ -707,23 +707,21 @@ function _do_run_server_request(server_uri::URI, full_request::Array; timeout=In
     write(clientside, _encode(full_request))
     write(clientside, UInt8(_EOT))
     io = IOBuffer()
-    elapsed = 0
+    start = now()
     while true
         bytes = readavailable(clientside)
+        @show full_request, length(bytes)
         if !isempty(bytes)
             write(io, bytes)
-            elapsed = 0
             if bytes[end] == UInt8(_EOT)
                 break
             end
             continue
         end
-        if elapsed > timeout
+        if Dates.value(round(now() - start, Second)) > timeout
             close(clientside)
             return
         end
-        sleep(0.02)
-        elapsed += 0.02
     end
     close(clientside)
     answer = _decode(io)
