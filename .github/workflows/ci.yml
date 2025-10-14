@@ -10,8 +10,8 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - "1.8"  # Minimum compatible Release
-          - "1"    # Latest Release
+          - "lts"  # Minimum compatible Release
+          - "1.11"    # Latest Release
         os:
           - ubuntu-latest
           - windows-latest

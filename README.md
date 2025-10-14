@@ -7,7 +7,7 @@ A package to interact with Spine databases from a Julia session.
 
 ## Compatibility
 
-This package requires Julia 1.8 or later.
+This package supports Julia Long-term support (LTS) up to version 1.11.x
 
 
 ## Installation
