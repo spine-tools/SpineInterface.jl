@@ -21,17 +21,6 @@
 # Utility functions that are used in more than one file.
 # (Everything that is used in only one file, we put it in the same file.)
 
-function _getproperty(m::Module, name::Symbol, default)
-    isdefined(m, name) ? getproperty(m, name) : default
-end
-
-function _getproperty!(m::Module, name::Symbol, default)
-    if !isdefined(m, name)
-        @eval m $name = $default
-    end
-    getproperty(m, name)
-end
-
 function _get(d, key, backup, default=nothing)
     get(d, key) do
         default !== nothing ? parameter_value(default) : backup[key]

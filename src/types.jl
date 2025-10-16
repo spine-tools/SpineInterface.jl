@@ -113,7 +113,7 @@ struct _ObjectClass
     parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
     _split_kwargs::Ref{Any}
-    function _ObjectClass(name, objects, vals=Dict(), defaults=Dict())
+    function _ObjectClass(name, objects=[], vals=Dict(), defaults=Dict())
         new(name, objects, vals, defaults, _make_split_kwargs(name))
     end
 end
@@ -126,10 +126,9 @@ A type for representing an object class from a Spine db.
 struct ObjectClass
     name::Symbol
     env_dict::Dict{Symbol,_ObjectClass}
-    function ObjectClass(name, args...; mod=@__MODULE__, extend=false)
-        new_ = new(name, Dict(_active_env() => _ObjectClass(name, args...)))
-        spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
-        _resolve!(spine_object_classes, name, new_, extend)
+    function ObjectClass(name, args...)
+        env_dict = isempty(args) ? Dict() : Dict(_active_env() => _ObjectClass(name, args...))
+        new(name, env_dict)
     end
 end
 
@@ -143,7 +142,7 @@ struct _RelationshipClass
     row_map::Dict
     row_map_lock::ReentrantLock
     _split_kwargs::Ref{Any}
-    function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
+    function _RelationshipClass(name, intact_cls_names, object_tuples=[], vals=Dict(), defaults=Dict())
         cls_names = _fix_name_ambiguity(intact_cls_names)
         rc = new(
             name,
@@ -170,10 +169,9 @@ A type for representing a relationship class from a Spine db.
 struct RelationshipClass
     name::Symbol
     env_dict::Dict{Symbol,_RelationshipClass}
-    function RelationshipClass(name, args...; mod=@__MODULE__, extend=false)
-        new_ = new(name, Dict(_active_env() => _RelationshipClass(name, args...)))
-        spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
-        _resolve!(spine_relationship_classes, name, new_, extend)
+    function RelationshipClass(name, args...)
+        env_dict = isempty(args) ? Dict() : Dict(_active_env() => _RelationshipClass(name, args...))
+        new(name, env_dict)
     end
 end
 
@@ -204,30 +202,10 @@ A type for representing a parameter related to an object class or a relationship
 struct Parameter
     name::Symbol
     env_dict::Dict{Symbol,_Parameter}
-    function Parameter(name, args...; mod=@__MODULE__, extend=false)
-        new_ = new(name, Dict(_active_env() => _Parameter(name, args...)))
-        spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
-        _resolve!(spine_parameters, name, new_, extend)
+    function Parameter(name, args...)
+        env_dict = isempty(args) ? Dict() : Dict(_active_env() => _Parameter(name, args...))
+        new(name, env_dict)
     end
-end
-
-function _resolve!(elements, name, new_, extend)
-    current = get(elements, name, nothing)
-    if current === nothing
-        elements[name] = new_
-    else
-        _env_merge!(current, new_, extend)
-    end
-end
-
-function _env_merge!(current, new, extend)
-    env = _active_env()
-    if haskey(current.env_dict, env) && extend
-        merge!(current, new)
-    else
-        current.env_dict[env] = new.env_dict[env]
-    end
-    current
 end
 
 """
@@ -276,6 +254,13 @@ struct Map{K,V}
         inds, vals = copy(inds), copy(vals)
         _sort_unique!(inds, vals)
         new{K,V}(inds, vals)
+    end
+end
+
+struct Bind
+    d::Dict
+    function Bind()
+        new(Dict())
     end
 end
 

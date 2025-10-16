@@ -282,44 +282,116 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
         relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
     )
     class_names_per_param = _class_names_per_parameter(object_classes, relationship_classes, param_defs_per_cls)
-    # Get or create containers
-    spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
-    spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
-    spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
+    object_classes = _getproperty!(mod, :_spine_object_classes, Dict{Symbol,ObjectClass}())
+    relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict{Symbol,RelationshipClass}())
+    parameters = _getproperty!(mod, :_spine_parameters, Dict{Symbol,Parameter}())
     if !extend
-        env = _active_env()
-        for elements in (spine_object_classes, spine_relationship_classes, spine_parameters)
-            for (name, x) in collect(elements)
-                if isempty(delete!(x.env_dict, env))
-                    pop!(elements, name)
-                    @eval mod $name = nothing
-                end
-            end
-        end
+        empty!(object_classes)
+        empty!(relationship_classes)
+        empty!(parameters)
     end
-    # Create new
     for (name, args) in args_per_obj_cls
-        new = ObjectClass(name, args...; mod=mod, extend=extend)
-        @eval mod begin
-            $name = $new
-            export $name
-        end
+        new = ObjectClass(name, args...)
+        _add_binding!(mod, object_classes, name, new, extend)
     end
     for (name, args) in args_per_rel_cls
-        new = RelationshipClass(name, args...; mod=mod, extend=extend)
-        @eval mod begin
-            $name = $new
-            export $name
-        end
+        new = RelationshipClass(name, args...)
+        _add_binding!(mod, relationship_classes, name, new, extend)
     end
     for (name, class_names) in class_names_per_param
-        classes = [getfield(mod, x) for x in class_names]
-        new = Parameter(name, classes; mod=mod, extend=extend)
-        @eval mod begin
-            $name = $new
-            export $name
-        end
+        classes = [getproperty(mod, x) for x in class_names if hasproperty(mod, x)]
+        new = Parameter(name, classes)
+        _add_binding!(mod, parameters, name, new, extend)
     end
+end
+
+function _add_binding!(mod, dict, name, new, extend)
+    current = try
+        _getproperty!(mod, name, new)
+    catch err
+        err isa UndefVarError || rethrow()
+        @warn "ignoring $name not defined in $mod"
+        return
+    end
+    if !_same_type(current, new)
+        @warn "ignoring $new because there is already a binding with that name in $mod"
+        return
+    end
+    dict[name] = current
+    current === new || _env_merge!(current, new, extend)
+end
+
+function _getproperty!(mod, name, default)
+    _getproperty!(mod, name) do
+        default
+    end
+end
+function _getproperty!(_f::Function, mod::Module, name)
+    getproperty(mod, name)
+end
+function _getproperty!(f::Function, bind::Bind, name)
+    if hasproperty(bind, name)
+        getproperty(bind, name)
+    else
+        setproperty!(bind, name, f())
+    end
+end
+
+_same_type(current::T, new::T) where T = true
+_same_type(current, new) = false
+
+function _env_merge!(current, new, extend)
+    env = _active_env()
+    if haskey(current.env_dict, env) && extend
+        merge!(current, new)
+    else
+        current.env_dict[env] = new.env_dict[env]
+    end
+end
+
+function write_interface(io::IO, template)
+    object_classes = get(template, "object_classes") do
+        [x for x in get(template, "entity_classes", []) if isempty(x[2])]
+    end
+    relationship_classes = get(template, "relationship_classes") do
+        [x for x in get(template, "entity_classes", []) if !isempty(x[2])]
+    end
+    param_defs = get(template, "parameter_definitions") do
+        vcat(get(template, "object_parameters", []), get(template, "relationship_parameters", []))
+    end
+    object_class_names = sort!(first.(object_classes))
+    relationship_class_names = sort!(first.(relationship_classes))
+    parameter_names = sort!(unique!((x -> x[2]).(param_defs)))
+    println(io, "# Convenience functors")
+    println(io, "## Object classes")
+    for name in object_class_names
+        println(io, "const $name = ObjectClass(:$name)")
+    end
+    println(io, "## Relationship classes")
+    for name in relationship_class_names
+        println(io, "const $name = RelationshipClass(:$name)")
+    end
+    println(io, "## Parameters")
+    for name in parameter_names
+        println(io, "const $name = Parameter(:$name)")
+    end
+    println(io, "## Exports")
+    println(io, "## Object classes")
+    for name in object_class_names
+        println(io, "export $name")
+    end
+    println(io, "## Relationship classes")
+    for name in relationship_class_names
+        println(io, "export $name")
+    end
+    println(io, "## Parameters")
+    for name in parameter_names
+        println(io, "export $name")
+    end
+    println(io, "## Lookup dicts")
+    println(io, "const _spine_object_classes = Dict{Symbol,ObjectClass}()")
+    println(io, "const _spine_relationship_classes = Dict{Symbol,RelationshipClass}()")
+    println(io, "const _spine_parameters = Dict{Symbol,Parameter}()")
 end
 
 """
@@ -694,7 +766,8 @@ function _run_server_request(server_uri::URI, request::String, args::Tuple, kwar
 end
 function _run_server_request(dbh, request::String, args::Tuple, kwargs::Dict)
     full_request = [request, args, kwargs, _client_version]
-    request = Base.invokelatest(pybytes, _encode(full_request))
+    pybytes = invokelatest(getproperty, @__MODULE__, :pybytes)
+    request = invokelatest(pybytes, _encode(full_request))
     io = IOBuffer()
     str = Base.invokelatest(_handle_request, dbh, request)
     write(io, str)

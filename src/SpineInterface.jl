@@ -52,6 +52,7 @@ export add_relationships!
 export Anything
 export anything
 export before
+export Bind
 export blocks
 export Call
 export collect_updates
@@ -121,6 +122,7 @@ export using_spinedb
 export with_env
 export without_filters
 export write_parameters
+export write_interface
 export add_roll_hook!
 
 function __init__()

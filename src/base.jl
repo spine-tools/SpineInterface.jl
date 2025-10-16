@@ -535,6 +535,20 @@ function Base.getproperty(pv::ParameterValue, name::Symbol)
         getfield(pv, name)
     end
 end
+function Base.getproperty(bind::Bind, name::Symbol)
+    d = getfield(bind, :d)
+    d[name]
+end
+
+function Base.hasproperty(bind::Bind, name::Symbol)
+    d = getfield(bind, :d)
+    haskey(d, name)
+end
+
+function Base.setproperty!(bind::Bind, name::Symbol, value)
+    d = getfield(bind, :d)
+    d[name] = value
+end
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent
 Base.abs(call::Call) = Call(abs, [call])

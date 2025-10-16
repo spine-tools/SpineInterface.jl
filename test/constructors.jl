@@ -18,9 +18,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-# Initialise an in-memory database to avoid `StackOverflowError` when running this file solo???
-using_spinedb("sqlite://")
-
 @testset "constructors" begin
     ducks = [Object(:Daffy), Object(:Donald)]
     duck = ObjectClass(:duck, ducks)
