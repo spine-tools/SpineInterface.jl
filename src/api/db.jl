@@ -326,7 +326,14 @@ function _getproperty!(mod, name, default)
         default
     end
 end
-function _getproperty!(_f::Function, mod::Module, name)
+function _getproperty!(f::Function, mod::Module, name)
+    if !isdefined(mod, name)
+        value = f()
+        @eval mod begin
+            const $name = $value
+            export $name
+        end
+    end
     getproperty(mod, name)
 end
 function _getproperty!(f::Function, bind::Bind, name)
