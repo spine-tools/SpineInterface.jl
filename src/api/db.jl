@@ -773,8 +773,8 @@ function _run_server_request(server_uri::URI, request::String, args::Tuple, kwar
 end
 function _run_server_request(dbh, request::String, args::Tuple, kwargs::Dict)
     full_request = [request, args, kwargs, _client_version]
-    pybytes = invokelatest(getproperty, @__MODULE__, :pybytes)
-    request = invokelatest(pybytes, _encode(full_request))
+    pybytes = Base.invokelatest(getproperty, @__MODULE__, :pybytes)
+    request = Base.invokelatest(pybytes, _encode(full_request))
     io = IOBuffer()
     str = Base.invokelatest(_handle_request, dbh, request)
     write(io, str)
