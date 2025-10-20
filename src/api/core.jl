@@ -750,7 +750,6 @@ function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
     end
     cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
     delete!(cls.row_map, cls.name)  # delete memoized rows
-    cls._split_kwargs[] = _make_split_kwargs(cls.object_class_names)
     nothing
 end
 
