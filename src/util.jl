@@ -39,13 +39,23 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     _strict &= _default === nothing
     # The search stops when a parameter value is found in a class
     for class in sort(p.classes; by=_dimensionality, rev=true)
-        entity, new_kwargs = Base.invokelatest(class._split_kwargs[]; kwargs...)
+        entity, new_kwargs = _split_kwargs(class; kwargs...)
         parameter_values = _get_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
     end
     _strict && @warn("can't find a value of $p for argument(s) $((; kwargs...))")
     nothing
+end
+
+function _split_kwargs(oc::ObjectClass; kwargs...)
+    get(kwargs, oc.name, missing), (x for x in kwargs if first(x) != oc.name)
+end
+function _split_kwargs(rc::RelationshipClass; kwargs...)
+    (
+        Tuple(get(kwargs, n, missing) for n in rc.object_class_names),
+        (x for x in kwargs if !(first(x) in rc.object_class_names)),
+    )
 end
 
 _object_class_names(x::ObjectClass) = (x.name,)
@@ -211,23 +221,4 @@ function _append_relationships!(rc, rels)
     end
     append!(rc.relationships, rels)
     nothing
-end
-
-function _make_split_kwargs(name::Symbol)
-    eval(
-        Expr(
-            :->,
-            Expr(:tuple, Expr(:parameters, Expr(:kw, name, :missing), :(kwargs...))),
-            Expr(:block, Expr(:tuple, name, :kwargs)),
-        )
-    )
-end
-function _make_split_kwargs(names::Vector{Symbol})
-    eval(
-        Expr(
-            :->,
-            Expr(:tuple, Expr(:parameters, (Expr(:kw, n, :missing) for n in names)..., :(kwargs...))),
-            Expr(:block, Expr(:tuple, Expr(:tuple, names...), :kwargs)),
-        )
-    )
 end
