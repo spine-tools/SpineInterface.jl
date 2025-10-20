@@ -24,7 +24,7 @@
 The singleton instance of type [`Anything`](@ref), used to specify *all-pass* filters
 in calls to [`RelationshipClass()`](@ref).
 """
-anything = Anything()
+const anything = Anything()
 
 """
     (<oc>::ObjectClass)(;<keyword arguments>)
@@ -136,9 +136,9 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 :nogas
 ```
 """
-function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs...)
+function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=EntityLike[], kwargs...)
     isempty(kwargs) && return rc.relationships
-    relationships = if !_compact
+    relationships::Vector{EntityLike} = if !_compact
         _find_rels(rc; kwargs...)
     else
         object_class_names = setdiff(rc.object_class_names, keys(kwargs))
@@ -161,7 +161,7 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=[], kwargs
 end
 
 _find_rels(rc; kwargs...) = _find_rels(rc, _find_rows(rc; kwargs...))
-_find_rels(rc, rows) = (rc.relationships[row] for row in rows)
+_find_rels(rc, rows) = @view rc.relationships[rows]
 _find_rels(rc, ::Anything) = rc.relationships
 
 function _find_rows(rc; kwargs...)

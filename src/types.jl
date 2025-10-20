@@ -103,9 +103,10 @@ struct TimeSlice
     end
 end
 
-ObjectLike = Union{Object,TimeSlice,Int64}
-ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
-RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
+const ObjectLike = Union{Object,TimeSlice,Int64}
+const ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
+const RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
+const EntityLike = Union{ObjectLike,RelationshipLike}
 
 struct _ObjectClass
     name::Symbol
