@@ -39,7 +39,7 @@ end
 struct Call
     func::Union{Nothing,ParameterValue,Function}
     args::Vector
-    kwargs::Union{Base.Generator,NamedTuple}
+    kwargs::NamedTuple
     caller
     root_node::Ref{Any}
     function Call(func, args, kwargs, caller)

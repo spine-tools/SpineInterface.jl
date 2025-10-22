@@ -49,12 +49,12 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
 end
 
 function _split_kwargs(oc::ObjectClass; kwargs...)
-    get(kwargs, oc.name, missing), (x for x in kwargs if first(x) != oc.name)
+    get(kwargs, oc.name, missing), (; (x for x in kwargs if first(x) != oc.name)...)
 end
 function _split_kwargs(rc::RelationshipClass; kwargs...)
     (
         Tuple(get(kwargs, n, missing) for n in rc.object_class_names),
-        (x for x in kwargs if !(first(x) in rc.object_class_names)),
+        (; (x for x in kwargs if !(first(x) in rc.object_class_names))...),
     )
 end
 
