@@ -497,8 +497,8 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
     param_vals = get(data, "parameter_values") do
         vcat(get(data, "object_parameter_values", []), get(data, "relationship_parameter_values", []))
     end
-    superclass_subclass = get(data, "superclass_subclass") do
-        [x for x in get(data, "superclass_subclasses", [])]
+    superclass_subclass = get(data, "superclass_subclasses") do
+        get(data, "superclass_subclasses", [])
     end
     members_per_group = _members_per_group(object_groups)
     groups_per_member = _groups_per_member(object_groups)
@@ -544,36 +544,43 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
             end
         end
     end
-    # Create new
-    for (name, args) in args_per_obj_cls
-        new = ObjectClass(name, args...; mod=mod, extend=extend)
-        @eval mod begin
-            $name = $new
-            export $name
-        end
-    end
-    for (name, args) in args_per_rel_cls
-        new = RelationshipClass(name, args...; mod=mod, extend=extend)
-        @eval mod begin
-            $name = $new
-            export $name
-        end
-    end
-    for (name, class_names) in class_names_per_param
-        classes = [getfield(mod, x) for x in class_names]
-        new = Parameter(name, classes; mod=mod, extend=extend)
-        @eval mod begin
-            $name = $new
-            export $name
-        end
-    end
+    # Create entity classes
+    ent_classes_by_name = merge(
+        Dict( # Object classes
+            name => ObjectClass(name, args...; mod=mod, extend=extend)
+            for (name, args) in args_per_obj_cls
+        ),
+        Dict( # Relationship classes
+            name => RelationshipClass(name, args...; mod=mod, extend=extend)
+            for (name, args) in args_per_rel_cls
+        )
+    )
+    # Create parameters
+    params_by_name = Dict(
+        name => Parameter(
+            name,
+            [ent_classes_by_name[class_name] for class_name in class_names]; # Parameters map to final entity classes, not their names.
+            mod=mod,
+            extend=extend
+        )
+        for (name, class_names) in class_names_per_param
+    )
     # Resolve superclass subclass names.
     # Tasku: A better way would be to actually type `_ObjectClass` `subclasses`
     # field to `Vector{EntityClass}`, but I couldn't get that to work
     # with the time I had available to me.
-    for obj_cls in [object_class(name, mod) for name in keys(args_per_obj_cls)]
-        for (i, subcls_name) in enumerate(obj_cls.subclasses)
-            obj_cls.subclasses[i] = entity_class(subcls_name, mod)
+    for (name, cls) in ent_classes_by_name
+        if cls isa ObjectClass
+            for (i, subcls_name) in enumerate(cls.subclasses)
+                cls.subclasses[i] = ent_classes_by_name[subcls_name]
+            end
+        end
+    end
+    # Eval classes
+    for (name, class) in merge(ent_classes_by_name, params_by_name)
+        @eval mod begin
+            $name = $class
+            export $name
         end
     end
 end
@@ -844,7 +851,7 @@ function _import_spinedb_api()
         catch err
             if err isa PyCall.PyError
                 py = PyCall.pyprogramname
-                indent = repeat(" ", 4)
+                local indent = repeat(" ", 4)
                 error(
                     "The required Python package `spinedb_api` could not be found ",
                     "in the current Python environment\n\n",
@@ -866,7 +873,7 @@ function _import_spinedb_api()
         spinedb_api_version = _parse_spinedb_api_version(db_api.__version__)
         if spinedb_api_version < _required_spinedb_api_version
             python = PyCall.pyprogramname
-            indent = repeat(" ", 4)
+            local indent = repeat(" ", 4)
             error(
                 "The required version $_required_spinedb_api_version of `spinedb_api` could not be found ",
                 "in the current Python environment\n\n",
