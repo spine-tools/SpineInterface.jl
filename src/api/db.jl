@@ -497,6 +497,9 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
     param_vals = get(data, "parameter_values") do
         vcat(get(data, "object_parameter_values", []), get(data, "relationship_parameter_values", []))
     end
+    superclass_subclass = get(data, "superclass_subclass") do
+        [x for x in get(data, "superclass_subclasses", [])]
+    end
     members_per_group = _members_per_group(object_groups)
     groups_per_member = _groups_per_member(object_groups)
     subclasses_per_superclass = _subclasses_per_superclass(superclass_subclass)
