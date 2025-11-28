@@ -905,6 +905,8 @@ function _test_superclasses()
         @test unit_flow__unit_flow__unit__node__unit__node() == [
             (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
         ]
+        # Test superclass database extension
+        using_spinedb(db_url; extend=true)
     end
 end
 
