@@ -185,7 +185,7 @@ _find_rels(rc, ::Anything) = rc.relationships
 function _find_rows(rc; kwargs...)
     lock(rc.row_map_lock) do
         memoized_rows = get!(rc.row_map, rc.name, Dict())
-        get!(memoized_rows, kwargs) do
+        get!(memoized_rows, collect(kwargs)) do # Tasku: Enforce kwargs class order, without `collect` the `kwargs` behave like `Set`s.
             _do_find_rows(rc; kwargs...)
         end
     end
@@ -193,9 +193,15 @@ end
 
 function _do_find_rows(rc; kwargs...)
     rows = anything
+    last_class_index = 0
     for (oc_name, objs) in kwargs
         oc_row_map = get(rc.row_map, oc_name, nothing)
         oc_row_map === nothing && return []
+        i = findfirst(oc_name .== rc.object_class_names)
+        if !isnothing(i)
+            i <= last_class_index && return [] # Tasku: Enforce kwargs class order
+            last_class_index = i
+        end
         oc_rows = _oc_rows(rc, oc_row_map, objs)
         oc_rows === anything && continue
         if rows === anything
@@ -817,7 +823,6 @@ function add_dimension!(cls::RelationshipClass, names::Vector{Symbol}, objs::Vec
     for cache_name in setdiff(keys(cls.row_map), cls.object_class_names)
         delete!(cls.row_map, cache_name) # Delete superfluous cache?
     end
-    cls._split_kwargs[] = _make_split_kwargs(cls.object_class_names)
     nothing
 end
 
@@ -884,8 +889,6 @@ function reorder_dimensions!(cls::RelationshipClass, perm::Vector{<:Integer})
     for objtup in collect(keys(cls.parameter_values))
         cls.parameter_values[objtup[perm]] = pop!(cls.parameter_values, objtup)
     end
-    # Remake split kwargs, row map doesn't need to change?
-    cls._split_kwargs[] = _make_split_kwargs(cls.object_class_names)
     return cls
 end
 

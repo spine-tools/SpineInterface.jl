@@ -114,9 +114,8 @@ struct _ObjectClass
     parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
     subclasses::Vector{Union{Symbol,EntityClass}} # Tasku: This is effectively `Vector{EntityClass}`, but needs to accommodate Symbols for now due to how subclasses are resolved in `_generate_convenience_functions`
-    _split_kwargs::Ref{Any}
     function _ObjectClass(name, objects, vals=Dict(), defaults=Dict(), subclasses=[])
-        new(name, objects, vals, defaults, subclasses, _make_split_kwargs(name))
+        new(name, objects, vals, defaults, subclasses)
     end
 end
 
@@ -144,7 +143,6 @@ struct _RelationshipClass
     parameter_defaults::Dict{Symbol,ParameterValue}
     row_map::Dict
     row_map_lock::ReentrantLock
-    _split_kwargs::Ref{Any}
     function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
         cls_names = _fix_name_ambiguity(intact_cls_names)
         rc = new(
@@ -156,7 +154,6 @@ struct _RelationshipClass
             defaults,
             Dict(),
             ReentrantLock(),
-            _make_split_kwargs(cls_names),
         )
         rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
         _append_relationships!(rc, rels)

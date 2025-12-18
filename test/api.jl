@@ -495,7 +495,7 @@ function _test_write_parameters()
             write_parameters(parameters, url; report="report_x")
             M = Module()
             using_spinedb(url, M)
-            @test M.apero_time(country=M.country(:France), report=M.report(:report_x)) === Symbol("later...")
+            @test M.apero_time(report=M.report(:report_x), country=M.country(:France)) === Symbol("later...") # Tasku: Keyword order needs to match now.
         end
     end
 end
@@ -764,6 +764,7 @@ function _test_superclasses()
             ["node__unit", ["n1", "u1"]],
             ["node__unit", ["n2", "u2"]],
             ["node__unit", ["n1", "u2"]],
+            ["unit__node", ["u1", "n1"]],
             ["unit__node", ["u1", "n3"]],
             ["unit__node", ["u2", "n3"]],
             ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"]],
@@ -778,6 +779,7 @@ function _test_superclasses()
         ]
         par_vals = [
             ["node__unit", ["n1", "u1"], "flow_capacity", 4.0],
+            ["unit__node", ["u1", "n1"], "flow_capacity", 4.1],
             ["unit__node", ["u1", "n3"], "flow_capacity", 5.0],
             ["node__unit", ["n2", "u2"], "flow_capacity", 6.0],
             ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"], "ratio", 7.0],
@@ -793,25 +795,28 @@ function _test_superclasses()
         )
         using_spinedb(db_url)
         # Tests for `unit_flow` and `flow_capacity`
-        @test length(unit_flow()) == 5
-        @test unit_flow(unit = unit(:u1)) == [node(:n1), node(:n3)]
+        @test length(unit_flow()) == 6
+        @test unit_flow(unit = unit(:u1)) == [
+            node(:n1), node(:n1), node(:n3) # Tasku: TODO: IS THIS THE BEHAVIOUR WE WANT?!?
+        ]
         @test collect(unit_flow(unit = unit(:u1); _compact=false)) == [
             (node=node(:n1), unit=unit(:u1)),
+            (unit=unit(:u1), node=node(:n1)),
             (unit=unit(:u1), node=node(:n3))
         ]
         @test unit_flow(node = node(:n2)) == [unit(:u2)]
         @test collect(unit_flow(node = node(:n2); _compact=false)) == [
             (node=node(:n2), unit=unit(:u2))
         ]
-        #= Tasku: True superclass functionality should consider keyword order.
         @test collect(unit_flow(node = anything, unit = unit(:u1); _compact=false)) == [
             (node=node(:n1), unit=unit(:u1))
         ]
         @test collect(unit_flow(unit = unit(:u1), node = anything; _compact=false)) == [
+            (unit=unit(:u1), node=node(:n1))
             (unit=unit(:u1), node=node(:n3))
         ]
-        =#
         @test flow_capacity(node=node(:n1), unit=unit(:u1)) == 4.0
+        @test flow_capacity(unit=unit(:u1), node=node(:n1)) == 4.1
         @test flow_capacity(node=node(:n2), unit=unit(:u2)) == 6.0
         @test flow_capacity(unit=unit(:u1), node=node(:n3)) == 5.0
         @test flow_capacity(node=node(:n1), unit=unit(:u2)) == 0.0
@@ -821,15 +826,16 @@ function _test_superclasses()
             (node=node(:n1), unit=unit(:u1)),
             (node=node(:n1), unit=unit(:u2)),
             (node=node(:n2), unit=unit(:u2)),
+            (unit=unit(:u1), node=node(:n1)),
             (unit=unit(:u1), node=node(:n3)),
             (unit=unit(:u2), node=node(:n3)),
         ]
-        #= Tasku: True superclass functionality should consider keyword order.
         @test collect(indices(flow_capacity; node=anything, unit=anything)) == [
             (node=node(:n1), unit=unit(:u1)),
             (node=node(:n1), unit=unit(:u2)),
             (node=node(:n2), unit=unit(:u2)),
-        ] # Tasku: RelationshipClasses have no parameter value filters atm.
+        ]
+        #= Tasku: RelationshipClasses have no parameter value filters.
         @test unit_flow(flow_capacity=0.0) == [(node=node(:n1), unit=unit(:u2))]
         @test unit_flow(flow_capacity=4.0) == [(node=node(:n1), unit=unit(:u1))]
         @test unit_flow(flow_capacity=1.0) == [(unit=unit(:u2), node=node(:n3))]
@@ -850,7 +856,6 @@ function _test_superclasses()
             (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
             (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
         ]
-        #= Tasku: True superclass functionality should consider keyword order.
         @test collect(unit_flow__unit_flow(node1=anything, unit1=unit(:u1); _compact=false)) == [
             (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
             (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
@@ -866,7 +871,6 @@ function _test_superclasses()
             (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2))
             (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3))
         ]
-        =#
         @test ratio(node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)) == 7.0
         @test ratio(unit1=unit(:u1), node1=node(:n3), node2=node(:n1), unit2=unit(:u1)) == 8.0
         @test ratio(unit1=unit(:u1), node1=node(:n1), node2=node(:n1), unit2=unit(:u1)) === nothing
@@ -877,11 +881,11 @@ function _test_superclasses()
             (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
             (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
         ]
-        #= Tasku: True superclass functionality should consider keyword order. Also parameter value filtering for relationship classes is not a thing atm.
         @test collect(indices(ratio; node1=anything, unit1=anything)) == [
             (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
             (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3)),
         ]
+        #= Tasku: Parameter value filtering for relationship classes is not a thing atm.
         @test unit_flow__unit_flow(ratio=2.0) == [
             (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
             (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
