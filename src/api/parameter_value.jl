@@ -122,11 +122,11 @@ const _db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
 const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
 
 """
-    parse_db!(data::Dict)
+    parse_db_dict!(data::Dict)
 
 Parse the contents of a database in its Dict format.
 """
-function parse_db!(data::Dict)
+function parse_db_dict!(data::Dict)
     map!(
         vec -> Any[parse_db_value.(vals) for vals in vec],
         values(data)

@@ -1131,7 +1131,7 @@ function _test_add_dimension()
     end
 end
 
-function _test_parse_db()
+function _test_parse_db_dict()
     @testset "parse_db!" begin
         url = "sqlite://"
         data = Dict(
@@ -1147,7 +1147,7 @@ function _test_parse_db()
         )
         import_test_data(url; data...)
         parsed_data = export_data(url)
-        parsed_data = SpineInterface.parse_db!(parsed_data)
+        parsed_data = SpineInterface.parse_db_dict!(parsed_data)
         for (k, v) in data
             @test get(parsed_data, string(k), nothing) == v
         end
@@ -1174,5 +1174,5 @@ end
     _test_superclasses()
     _test_reorder_dimensions()
     _test_add_dimension()
-    _test_parse_db()
+    _test_parse_db_dict()
 end
