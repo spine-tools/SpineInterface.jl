@@ -1131,6 +1131,29 @@ function _test_add_dimension()
     end
 end
 
+function _test_parse_db()
+    @testset "parse_db!" begin
+        url = "sqlite://"
+        data = Dict(
+            :entity_classes => [
+                ["country", [], nothing, nothing, true],
+                ["country__country", ["country", "country"], nothing, nothing, true]
+            ],
+            :entities => [["country", "Finland", nothing]],
+            :parameter_definitions => [["country", "exists", "boolean", nothing, nothing]],
+            :parameter_values => [["country", "Finland", "exists", true, "Base"]],
+            :parameter_value_lists => [["boolean", true]],
+            :alternatives => [["Base", "Base alternative"]],
+        )
+        import_test_data(url; data...)
+        parsed_data = export_data(url)
+        parsed_data = SpineInterface.parse_db!(parsed_data)
+        for (k, v) in data
+            @test get(parsed_data, string(k), nothing) == v
+        end
+    end
+end
+
 @testset "api" begin
     _test_indices()
     _test_indices_as_tuples()
@@ -1151,4 +1174,5 @@ end
     _test_superclasses()
     _test_reorder_dimensions()
     _test_add_dimension()
+    _test_parse_db()
 end
