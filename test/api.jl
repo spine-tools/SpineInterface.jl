@@ -1140,8 +1140,14 @@ function _test_parse_db_dict()
                 ["country__country", ["country", "country"], nothing, nothing, true]
             ],
             :entities => [["country", "Finland", nothing]],
-            :parameter_definitions => [["country", "exists", "boolean", nothing, nothing]],
-            :parameter_values => [["country", "Finland", "exists", true, "Base"]],
+            :parameter_definitions => [
+                ["country", "array", "array", nothing, nothing],
+                ["country", "exists", "boolean", nothing, nothing],
+            ],
+            :parameter_values => [
+                ["country", "Finland", "array", Dict("type" => "array", "value_type" => "float", "data" => [1.0,2.0]), "Base"],
+                ["country", "Finland", "exists", true, "Base"],
+            ],
             :parameter_value_lists => [["boolean", true]],
             :alternatives => [["Base", "Base alternative"]],
         )

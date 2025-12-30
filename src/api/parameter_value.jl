@@ -127,10 +127,17 @@ const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
 Parse the contents of a database in its Dict format.
 """
 function parse_db_dict!(data::Dict)
-    map!(
-        vec -> Any[parse_db_value.(vals) for vals in vec],
-        values(data)
+    for (key, index) in ( # Unfortunately, hard-coding what needs parsing seems easiest.
+        "parameter_value_lists" => 2,
+        "parameter_definitions" => 3,
+        "parameter_values" => 4,
+        "entity_alternatives" => 4
     )
+        entries = get!(data, key, [])
+        for vec in entries
+            vec[index] = db_value_and_type(parse_db_value(vec[index]))
+        end
+    end
     return data
 end
 
@@ -141,13 +148,7 @@ A parsed value (TimeSeries, TimePattern, Map, etc.) from given DB value and type
 
 Note that parsing is skipped for already parsed DB values.
 """
-function parse_db_value(value_and_type::Vector{Any})
-    if isempty(value_and_type) || all(isa.(value_and_type, String)) # Handle empty and entity vectors for database JSON parsing. Cannot be handled via typing since all subvectors are `Any[]`...
-        return value_and_type
-    else
-        return parse_db_value(value_and_type...)
-    end
-end
+parse_db_value(value_and_type::Vector{Any}) = parse_db_value(value_and_type...)
 function parse_db_value(value::Vector{UInt8}, type::Union{String,Nothing})
     isempty(value) && return nothing
     _parse_db_value(JSON.parse(String(value)), type)
