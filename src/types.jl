@@ -106,15 +106,16 @@ end
 ObjectLike = Union{Object,TimeSlice,Int64}
 ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
 RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
+abstract type EntityClass end
 
 struct _ObjectClass
     name::Symbol
     objects::Vector{ObjectLike}
     parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    _split_kwargs::Ref{Any}
-    function _ObjectClass(name, objects, vals=Dict(), defaults=Dict())
-        new(name, objects, vals, defaults, _make_split_kwargs(name))
+    subclasses::Vector{Union{Symbol,EntityClass}} # Tasku: This is effectively `Vector{EntityClass}`, but needs to accommodate Symbols for now due to how subclasses are resolved in `_generate_convenience_functions`
+    function _ObjectClass(name, objects, vals=Dict(), defaults=Dict(), subclasses=[])
+        new(name, objects, vals, defaults, subclasses)
     end
 end
 
@@ -123,7 +124,7 @@ end
 
 A type for representing an object class from a Spine db.
 """
-struct ObjectClass
+struct ObjectClass <: EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_ObjectClass}
     function ObjectClass(name, args...; mod=@__MODULE__, extend=false)
@@ -142,7 +143,6 @@ struct _RelationshipClass
     parameter_defaults::Dict{Symbol,ParameterValue}
     row_map::Dict
     row_map_lock::ReentrantLock
-    _split_kwargs::Ref{Any}
     function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
         cls_names = _fix_name_ambiguity(intact_cls_names)
         rc = new(
@@ -154,7 +154,6 @@ struct _RelationshipClass
             defaults,
             Dict(),
             ReentrantLock(),
-            _make_split_kwargs(cls_names),
         )
         rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
         _append_relationships!(rc, rels)
@@ -167,7 +166,7 @@ end
 
 A type for representing a relationship class from a Spine db.
 """
-struct RelationshipClass
+struct RelationshipClass <: EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_RelationshipClass}
     function RelationshipClass(name, args...; mod=@__MODULE__, extend=false)
@@ -178,9 +177,13 @@ struct RelationshipClass
 end
 
 """
-Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
+    _fix_name_ambiguity(intact_name_list::Vector{Symbol})
+
+Append an increasing integer to each repeated element in `name_list`, and return a new modified `name_list`.
+
+See also [`_fix_name_ambiguity!`](@ref).
 """
-function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
+function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
     name_list = copy(intact_name_list)
     for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
         for (k, index) in enumerate(findall(name_list .== ambiguous))
@@ -190,9 +193,24 @@ function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
     name_list
 end
 
+"""
+    _fix_name_ambiguity!(name_list::Vector{Symbol}, intact_name_list::Vector{Symbol})
+
+Replace `name_list` by `_fix_name_ambiguity(intact_name_list)`.
+
+See also [`_fix_name_ambiguity!`](@ref).
+"""
+function _fix_name_ambiguity!(name_list::Vector{Symbol}, intact_name_list::Vector{Symbol})
+    new_name_list = _fix_name_ambiguity(intact_name_list)
+    for (i, new_name) in enumerate(new_name_list)
+        name_list[i] = new_name
+    end
+    name_list
+end
+
 struct _Parameter
     name::Symbol
-    classes::Vector{Union{ObjectClass,RelationshipClass}}
+    classes::Vector{EntityClass}
     _Parameter(name, classes=[]) = new(name, classes)
 end
 
