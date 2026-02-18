@@ -1080,7 +1080,7 @@ function _test_add_dimension()
             (country=Y.country(:Sweden), city=Y.city(:Stockholm)),
         ]
         @test isempty(ic1(institution=Y.institution(:VTT)))
-        @test ic1(country=Y.country(:Sweden)) == [(institution=Y.institution(:KTH), city=city(:Stockholm))]
+        @test ic1(country=Y.country(:Sweden)) == [(institution=Y.institution(:KTH), city=Y.city(:Stockholm))]
         @test ic1(city=Y.city(:Stockholm)) == [
             (institution=Y.institution(:KTH), country=Y.country(:France)),
             (institution=Y.institution(:KTH), country=Y.country(:Sweden)),
