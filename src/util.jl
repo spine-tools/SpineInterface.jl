@@ -21,17 +21,6 @@
 # Utility functions that are used in more than one file.
 # (Everything that is used in only one file, we put it in the same file.)
 
-function _getproperty(m::Module, name::Symbol, default)
-    isdefined(m, name) ? getproperty(m, name) : default
-end
-
-function _getproperty!(m::Module, name::Symbol, default)
-    if !isdefined(m, name)
-        @eval m $name = $default
-    end
-    getproperty(m, name)
-end
-
 function _get(d, key, backup, default=nothing)
     get(d, key) do
         default !== nothing ? parameter_value(default) : backup[key]
@@ -74,7 +63,7 @@ function _split_kwargs(oc::ObjectClass, kwargs::Base.Pairs)
             push!(new_kwargs, kw => arg)
         end
     end
-    return only(ent), pairs((;new_kwargs...))
+    return only(ent), (; new_kwargs...)
 end
 function _split_kwargs(rc::RelationshipClass, kwargs::Base.Pairs)
     entity_objs = Vector{Any}(missing, length(rc.object_class_names))
@@ -91,7 +80,7 @@ function _split_kwargs(rc::RelationshipClass, kwargs::Base.Pairs)
         last_class_index = i
         entity_objs[i] = arg
     end
-    return Tuple(entity_objs), pairs((;new_kwargs...))
+    return Tuple(entity_objs), (; new_kwargs...)
 end
 
 _object_class_names(x::ObjectClass) = (x.name,)

@@ -71,7 +71,7 @@ function Base.isequal(x::Call, y::Call)
     isequal(x.func, y.func) && _isequal(x.func, x.args, y.args) && pairs(x.kwargs) == pairs(y.kwargs)
 end
 
-_isequal(::Union{typeof(+),typeof(*)}, x, y) = length(x) == length(y) && all(z in y for z in x)
+_isequal(::Union{typeof(+),typeof(*)}, x, y) = Set(x) == Set(y)
 _isequal(op, x, y) = x == y
 
 Base.:(<=)(scalar::Number, ts::TimeSeries) = all(scalar <= v for v in ts.values)
@@ -534,6 +534,20 @@ function Base.getproperty(pv::ParameterValue, name::Symbol)
     else
         getfield(pv, name)
     end
+end
+function Base.getproperty(bind::Bind, name::Symbol)
+    d = getfield(bind, :d)
+    d[name]
+end
+
+function Base.hasproperty(bind::Bind, name::Symbol)
+    d = getfield(bind, :d)
+    haskey(d, name)
+end
+
+function Base.setproperty!(bind::Bind, name::Symbol, value)
+    d = getfield(bind, :d)
+    d[name] = value
 end
 
 # Patches: these just work-around `MethodError`s, but we should try something more consistent

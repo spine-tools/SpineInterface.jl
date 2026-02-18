@@ -2,6 +2,8 @@
 
 using SpineInterface
 
+const Y = Bind()
+
 # initialize database
 # either use an existing database
 url = "sqlite:///$(@__DIR__)/quick_start_from_Spine_Toolbox.sqlite"
@@ -13,9 +15,9 @@ url = "sqlite:///$path"
 commit_message = "initial commit message for the new database with the objects actor and film"
 import_data(url, commit_message; object_classes=["actor", "film"])
 
-using_spinedb(url)
-@show actor()
-@show film()
+using_spinedb(url, Y)
+@show Y.actor()
+@show Y.film()
 
 # Add objects
 object_list = [
@@ -27,12 +29,12 @@ object_list = [
 
 import_data(url, "add objects"; objects=object_list)
 
-using_spinedb(url)
+using_spinedb(url, Y)
 
-@show actor()
-@show film()
-@show film(:Her)
-@show typeof(film(:Her))
+@show Y.actor()
+@show Y.film()
+@show Y.film(:Her)
+@show typeof(Y.film(:Her))
 
 # Add relationships
 relationship_class_list = [["actor__film", ["actor", "film"]]]
@@ -47,11 +49,11 @@ import_data(
 	url, "add relationships"; relationship_classes=relationship_class_list, relationships=relationship_list
 )
 
-using_spinedb(url)
+using_spinedb(url, Y)
 
-@show actor__film()
-@show actor__film(actor=actor(:Johansson))
-@show actor__film(film=film(:Her))
+@show Y.actor__film()
+@show Y.actor__film(actor=Y.actor(:Johansson))
+@show Y.actor__film(film=Y.film(:Her))
 
 # Add parameters
 object_parameter_list = [["film", "release_year"]]
@@ -78,14 +80,14 @@ import_data(
 	relationship_parameter_values=relationship_parameter_value_list
 )
 
-using_spinedb(url)
+using_spinedb(url, Y)
 
-@show release_year(film=film(:Joker))
-@show release_year(film=film(:Her))
-@show character_name(film=film(:Joker), actor=actor(:Phoenix))
-@show character_name(actor=actor(:Johansson), film=film(:Her))
+@show Y.release_year(film=Y.film(:Joker))
+@show Y.release_year(film=Y.film(:Her))
+@show Y.character_name(film=Y.film(:Joker), actor=Y.actor(:Phoenix))
+@show Y.character_name(actor=Y.actor(:Johansson), film=Y.film(:Her))
 try
-    character_name(actor=actor(:Johansson), film=film(:Joker))
+    Y.character_name(actor=Y.actor(:Johansson), film=Y.film(:Joker))
 catch
     println("This produces an error because Johansson is not in Joker.")
 end
