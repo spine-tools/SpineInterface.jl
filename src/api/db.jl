@@ -615,11 +615,21 @@ function _env_merge!(current, new, extend)
 end
 
 function write_interface(io::IO, template)
+    # RelationshipClasses with superclasses as dimensions are
+    # automatically processed into ObjectClasses!
+    superclasses = Set(first.(get(template, "superclass_subclasses", [])))
+    function is_objclss(jsonrow, superclasses)
+        if isempty(jsonrow[2])
+            return true
+        else
+            return any([cls in superclasses for cls in jsonrow[2]])
+        end
+    end
     object_classes = get(template, "object_classes") do
-        [x for x in get(template, "entity_classes", []) if isempty(x[2])]
+        [x for x in get(template, "entity_classes", []) if is_objclss(x, superclasses)]
     end
     relationship_classes = get(template, "relationship_classes") do
-        [x for x in get(template, "entity_classes", []) if !isempty(x[2])]
+        [x for x in get(template, "entity_classes", []) if !is_objclss(x, superclasses)]
     end
     param_defs = get(template, "parameter_definitions") do
         vcat(get(template, "object_parameters", []), get(template, "relationship_parameters", []))
