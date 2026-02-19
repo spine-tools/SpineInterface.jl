@@ -925,7 +925,7 @@ function _import_spinedb_api()
         catch err
             if err isa PyCall.PyError
                 py = PyCall.pyprogramname
-                indent = repeat(" ", 4)
+                local indent = repeat(" ", 4)
                 error(
                     "The required Python package `spinedb_api` could not be found ",
                     "in the current Python environment\n\n",
@@ -947,7 +947,7 @@ function _import_spinedb_api()
         spinedb_api_version = _parse_spinedb_api_version(db_api.__version__)
         if spinedb_api_version < _required_spinedb_api_version
             python = PyCall.pyprogramname
-            indent = repeat(" ", 4)
+            local indent = repeat(" ", 4)
             error(
                 "The required version $_required_spinedb_api_version of `spinedb_api` could not be found ",
                 "in the current Python environment\n\n",
