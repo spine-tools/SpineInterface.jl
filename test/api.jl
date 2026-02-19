@@ -926,7 +926,7 @@ function _test_superclasses()
             (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
         ]
         # Test superclass database extension (to see if it errors)
-        using_spinedb(db_url; extend=true)
+        using_spinedb(db_url, Y; extend=true)
     end
 end
 
