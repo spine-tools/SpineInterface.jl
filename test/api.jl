@@ -1158,9 +1158,9 @@ function _test_parse_db_dict()
                 ["country__country", ["country", "country"], nothing, nothing, true]
             ],
             :entities => [["country", "Finland", nothing]],
-            :parameter_definitions => [
-                ["country", "array", "array", nothing, nothing],
-                ["country", "exists", "boolean", nothing, nothing],
+            :parameter_definitions => [ # NOTE! This structure was introduced in Spine-DB-API v0.36.4 or newer!
+                ["country", "array", "array", nothing, nothing, nothing],
+                ["country", "exists", "boolean", nothing, nothing, nothing],
             ],
             :parameter_values => [
                 ["country", "Finland", "array", Dict("type" => "array", "value_type" => "float", "data" => [1.0,2.0]), "Base"],
