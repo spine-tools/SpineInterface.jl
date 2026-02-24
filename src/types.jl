@@ -39,7 +39,7 @@ end
 struct Call
     func::Union{Nothing,ParameterValue,Function}
     args::Vector
-    kwargs::Union{Iterators.Pairs,NamedTuple}
+    kwargs::NamedTuple
     caller
     root_node::Ref{Any}
     function Call(func, args, kwargs, caller)
@@ -103,18 +103,20 @@ struct TimeSlice
     end
 end
 
-ObjectLike = Union{Object,TimeSlice,Int64}
-ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
-RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
+const ObjectLike = Union{Object,TimeSlice,Int64}
+const ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
+const RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
+abstract type EntityClass end
+const EntityLike = Union{ObjectLike,RelationshipLike}
 
 struct _ObjectClass
     name::Symbol
     objects::Vector{ObjectLike}
     parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
     parameter_defaults::Dict{Symbol,ParameterValue}
-    _split_kwargs::Ref{Any}
-    function _ObjectClass(name, objects, vals=Dict(), defaults=Dict())
-        new(name, objects, vals, defaults, _make_split_kwargs(name))
+    subclasses::Vector{Union{Symbol,EntityClass}} # Tasku: This is effectively `Vector{EntityClass}`, but needs to accommodate Symbols for now due to how subclasses are resolved in `_generate_convenience_functions`
+    function _ObjectClass(name, objects, vals=Dict(), defaults=Dict(), subclasses=[])
+        new(name, objects, vals, defaults, subclasses)
     end
 end
 
@@ -123,13 +125,12 @@ end
 
 A type for representing an object class from a Spine db.
 """
-struct ObjectClass
+struct ObjectClass <: EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_ObjectClass}
-    function ObjectClass(name, args...; mod=@__MODULE__, extend=false)
-        new_ = new(name, Dict(_active_env() => _ObjectClass(name, args...)))
-        spine_object_classes = _getproperty!(mod, :_spine_object_classes, Dict())
-        _resolve!(spine_object_classes, name, new_, extend)
+    function ObjectClass(name, args...)
+        env_dict = isempty(args) ? Dict() : Dict(_active_env() => _ObjectClass(name, args...))
+        new(name, env_dict)
     end
 end
 
@@ -142,7 +143,6 @@ struct _RelationshipClass
     parameter_defaults::Dict{Symbol,ParameterValue}
     row_map::Dict
     row_map_lock::ReentrantLock
-    _split_kwargs::Ref{Any}
     function _RelationshipClass(name, intact_cls_names, object_tuples, vals=Dict(), defaults=Dict())
         cls_names = _fix_name_ambiguity(intact_cls_names)
         rc = new(
@@ -154,7 +154,6 @@ struct _RelationshipClass
             defaults,
             Dict(),
             ReentrantLock(),
-            _make_split_kwargs(cls_names),
         )
         rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
         _append_relationships!(rc, rels)
@@ -167,20 +166,23 @@ end
 
 A type for representing a relationship class from a Spine db.
 """
-struct RelationshipClass
+struct RelationshipClass <: EntityClass
     name::Symbol
     env_dict::Dict{Symbol,_RelationshipClass}
-    function RelationshipClass(name, args...; mod=@__MODULE__, extend=false)
-        new_ = new(name, Dict(_active_env() => _RelationshipClass(name, args...)))
-        spine_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict())
-        _resolve!(spine_relationship_classes, name, new_, extend)
+    function RelationshipClass(name, args...)
+        env_dict = isempty(args) ? Dict() : Dict(_active_env() => _RelationshipClass(name, args...))
+        new(name, env_dict)
     end
 end
 
 """
-Append an increasing integer to each repeated element in `name_list`, and return the modified `name_list`.
+    _fix_name_ambiguity(intact_name_list::Vector{Symbol})
+
+Append an increasing integer to each repeated element in `name_list`, and return a new modified `name_list`.
+
+See also [`_fix_name_ambiguity!`](@ref).
 """
-function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
+function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
     name_list = copy(intact_name_list)
     for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
         for (k, index) in enumerate(findall(name_list .== ambiguous))
@@ -190,9 +192,24 @@ function _fix_name_ambiguity(intact_name_list::Array{Symbol,1})
     name_list
 end
 
+"""
+    _fix_name_ambiguity!(name_list::Vector{Symbol}, intact_name_list::Vector{Symbol})
+
+Replace `name_list` by `_fix_name_ambiguity(intact_name_list)`.
+
+See also [`_fix_name_ambiguity!`](@ref).
+"""
+function _fix_name_ambiguity!(name_list::Vector{Symbol}, intact_name_list::Vector{Symbol})
+    new_name_list = _fix_name_ambiguity(intact_name_list)
+    for (i, new_name) in enumerate(new_name_list)
+        name_list[i] = new_name
+    end
+    name_list
+end
+
 struct _Parameter
     name::Symbol
-    classes::Vector{Union{ObjectClass,RelationshipClass}}
+    classes::Vector{EntityClass}
     _Parameter(name, classes=[]) = new(name, classes)
 end
 
@@ -204,30 +221,10 @@ A type for representing a parameter related to an object class or a relationship
 struct Parameter
     name::Symbol
     env_dict::Dict{Symbol,_Parameter}
-    function Parameter(name, args...; mod=@__MODULE__, extend=false)
-        new_ = new(name, Dict(_active_env() => _Parameter(name, args...)))
-        spine_parameters = _getproperty!(mod, :_spine_parameters, Dict())
-        _resolve!(spine_parameters, name, new_, extend)
+    function Parameter(name, args...)
+        env_dict = isempty(args) ? Dict() : Dict(_active_env() => _Parameter(name, args...))
+        new(name, env_dict)
     end
-end
-
-function _resolve!(elements, name, new_, extend)
-    current = get(elements, name, nothing)
-    if current === nothing
-        elements[name] = new_
-    else
-        _env_merge!(current, new_, extend)
-    end
-end
-
-function _env_merge!(current, new, extend)
-    env = _active_env()
-    if haskey(current.env_dict, env) && extend
-        merge!(current, new)
-    else
-        current.env_dict[env] = new.env_dict[env]
-    end
-    current
 end
 
 """
@@ -276,6 +273,13 @@ struct Map{K,V}
         inds, vals = copy(inds), copy(vals)
         _sort_unique!(inds, vals)
         new{K,V}(inds, vals)
+    end
+end
+
+struct Bind
+    d::Dict
+    function Bind()
+        new(Dict())
     end
 end
 

@@ -52,6 +52,7 @@ export add_relationships!
 export Anything
 export anything
 export before
+export Bind
 export blocks
 export Call
 export collect_updates
@@ -97,6 +98,8 @@ export relationship_class
 export relationship_classes
 export RelationshipClass
 export RelationshipLike
+export reorder_dimensions
+export reorder_dimensions!
 export roll!
 export run_request
 export set_value_translator
@@ -121,6 +124,7 @@ export using_spinedb
 export with_env
 export without_filters
 export write_parameters
+export write_interface
 export add_roll_hook!
 
 function __init__()
