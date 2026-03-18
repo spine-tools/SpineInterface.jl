@@ -755,6 +755,170 @@ function _test_indexed_values()
     end
 end
 
+function _test_bind()
+    @testset "Bind" begin
+        bind = Bind()
+        @test bind isa Bind
+        # Initially no properties defined
+        @test !hasproperty(bind, :foo)
+        @test !hasproperty(bind, :bar)
+        # Setting a property via setproperty!
+        bind.foo = 42
+        @test hasproperty(bind, :foo)
+        @test bind.foo == 42
+        # Setting another property of a different type
+        bind.bar = "hello"
+        @test hasproperty(bind, :bar)
+        @test bind.bar == "hello"
+        # Accessing an undefined property raises KeyError
+        @test_throws KeyError bind.undefined_key
+        # Overwriting a property replaces its value
+        bind.foo = 99
+        @test bind.foo == 99
+        # Storing an ObjectClass in a Bind
+        oc = ObjectClass(:test_node)
+        bind.test_node = oc
+        @test hasproperty(bind, :test_node)
+        @test bind.test_node isa ObjectClass
+        @test bind.test_node.name === :test_node
+    end
+end
+
+function _test_write_interface()
+    @testset "write_interface" begin
+        @testset "explicit object_classes / relationship_classes / parameter_definitions" begin
+            template = Dict(
+                "object_classes" => [["commodity"], ["node"]],
+                "relationship_classes" => [["node__commodity", ["node", "commodity"]]],
+                "parameter_definitions" => [["node", "demand"], ["node__commodity", "flow"]],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            # Header comment
+            @test startswith(output, "# Convenience functors\n")
+            # ObjectClass declarations
+            @test occursin("const commodity = ObjectClass(:commodity)\n", output)
+            @test occursin("const node = ObjectClass(:node)\n", output)
+            # RelationshipClass declaration
+            @test occursin("const node__commodity = RelationshipClass(:node__commodity)\n", output)
+            # Parameter declarations
+            @test occursin("const demand = Parameter(:demand)\n", output)
+            @test occursin("const flow = Parameter(:flow)\n", output)
+            # Exports
+            @test occursin("export commodity\n", output)
+            @test occursin("export node\n", output)
+            @test occursin("export node__commodity\n", output)
+            @test occursin("export demand\n", output)
+            @test occursin("export flow\n", output)
+            # Lookup dict declarations
+            @test occursin("const _spine_object_classes = Dict{Symbol,ObjectClass}()\n", output)
+            @test occursin("const _spine_relationship_classes = Dict{Symbol,RelationshipClass}()\n", output)
+            @test occursin("const _spine_parameters = Dict{Symbol,Parameter}()\n", output)
+        end
+        @testset "entity_classes / object_parameters / relationship_parameters format" begin
+            template = Dict(
+                "entity_classes" => [
+                    ["commodity", []],
+                    ["node", []],
+                    ["node__commodity", ["node", "commodity"]],
+                ],
+                "object_parameters" => [["node", "demand"]],
+                "relationship_parameters" => [["node__commodity", "flow"]],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            @test occursin("const commodity = ObjectClass(:commodity)\n", output)
+            @test occursin("const node = ObjectClass(:node)\n", output)
+            @test occursin("const node__commodity = RelationshipClass(:node__commodity)\n", output)
+            @test occursin("const demand = Parameter(:demand)\n", output)
+            @test occursin("const flow = Parameter(:flow)\n", output)
+            @test occursin("export commodity\n", output)
+            @test occursin("export node\n", output)
+            @test occursin("export node__commodity\n", output)
+            @test occursin("export demand\n", output)
+            @test occursin("export flow\n", output)
+        end
+        @testset "empty template produces only lookup dicts" begin
+            template = Dict{String,Any}()
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            @test occursin("const _spine_object_classes = Dict{Symbol,ObjectClass}()\n", output)
+            @test occursin("const _spine_relationship_classes = Dict{Symbol,RelationshipClass}()\n", output)
+            @test occursin("const _spine_parameters = Dict{Symbol,Parameter}()\n", output)
+            @test !occursin("ObjectClass(:", output)
+            @test !occursin("RelationshipClass(:", output)
+            @test !occursin("Parameter(:", output)
+        end
+        @testset "names are sorted alphabetically" begin
+            template = Dict(
+                "object_classes" => [["zoo"], ["apple"], ["mango"]],
+                "relationship_classes" => [
+                    ["zoo__apple", ["zoo", "apple"]], ["apple__mango", ["apple", "mango"]]
+                ],
+                "parameter_definitions" => [["zoo", "zzz_param"], ["apple", "aaa_param"]],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            lines = split(output, '\n')
+            apple_pos = findfirst(l -> occursin("const apple =", l), lines)
+            mango_pos = findfirst(l -> occursin("const mango =", l), lines)
+            zoo_pos = findfirst(l -> occursin("const zoo =", l), lines)
+            @test apple_pos < mango_pos < zoo_pos
+            apple_mango_pos = findfirst(l -> occursin("const apple__mango =", l), lines)
+            zoo_apple_pos = findfirst(l -> occursin("const zoo__apple =", l), lines)
+            @test apple_mango_pos < zoo_apple_pos
+            aaa_pos = findfirst(l -> occursin("const aaa_param =", l), lines)
+            zzz_pos = findfirst(l -> occursin("const zzz_param =", l), lines)
+            @test aaa_pos < zzz_pos
+        end
+        @testset "duplicate parameter names across classes are deduplicated" begin
+            template = Dict(
+                "object_classes" => [["institution"], ["country"]],
+                "relationship_classes" => [["institution__country", ["institution", "country"]]],
+                "parameter_definitions" => [
+                    ["institution", "people_count"],
+                    ["institution__country", "people_count"],
+                ],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            @test count("const people_count = Parameter(:people_count)", output) == 1
+            @test count("export people_count", output) == 1
+        end
+        @testset "object class only, no relationships or parameters" begin
+            template = Dict(
+                "object_classes" => [["node"]],
+                "relationship_classes" => [],
+                "parameter_definitions" => [],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            @test occursin("const node = ObjectClass(:node)\n", output)
+            @test occursin("export node\n", output)
+            @test !occursin("RelationshipClass(:", output)
+            @test !occursin("Parameter(:", output)
+        end
+        @testset "generated code is valid Julia syntax" begin
+            template = Dict(
+                "object_classes" => [["node"], ["commodity"]],
+                "relationship_classes" => [["node__commodity", ["node", "commodity"]]],
+                "parameter_definitions" => [["node", "demand"]],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            # The full output should parse as a valid Julia block
+            @test Meta.parseall(output) isa Expr
+        end
+    end
+end
+
 @testset "api" begin
     _test_indices()
     _test_indices_as_tuples()
@@ -772,4 +936,6 @@ end
     _test_import_data()
     _test_difference()
     _test_indexed_values()
+    _test_bind()
+    _test_write_interface()
 end
