@@ -1,5 +1,7 @@
 using SpineInterface
 
+const Y = Bind()
+
 # requires PyCall
 input_file_path = joinpath(@__DIR__, "example_spineopt_database.json")
 input_data = JSON.parsefile(input_file_path, use_mmap=false) 
@@ -7,44 +9,44 @@ url_path = joinpath(@__DIR__, "example_spineopt_database.sqlite")
 rm(url_path; force=true)
 url = "sqlite:///$url_path"
 import_data(url, input_data, "Import data from $input_file_path")
-using_spinedb(url)
+using_spinedb(url, Y)
 
-node()
+Y.node()
 
-unit__to_node()
+Y.unit__to_node()
 
-@show unit__to_node()
-@show unit__to_node(unit=unit(:ccgt))
-@show unit__to_node(node=node(:elec_finland))
+@show Y.unit__to_node()
+@show Y.unit__to_node(unit=Y.unit(:ccgt))
+@show Y.unit__to_node(node=Y.node(:elec_finland))
 
-for u in unit()
+for u in Y.unit()
     @show u
 end
 
-for n in node()
-    @show n,unit__to_node(node=n)
+for n in Y.node()
+    @show n, Y.unit__to_node(node=n)
 end
 
-for n in node()
-    @show n,connection__from_node(node=n)
+for n in Y.node()
+    @show n, Y.connection__from_node(node=n)
 end
 
-for conn in connection()
-    @show conn, connection__from_node(connection=conn)
+for conn in Y.connection()
+    @show conn, Y.connection__from_node(connection=conn)
 end
 
-for n in node()
-    @show n, demand(node=n)
+for n in Y.node()
+    @show n, Y.demand(node=n)
 end
 
-indices(demand)
-collect(indices(demand)) # makes it more readable
+indices(Y.demand)
+collect(indices(Y.demand)) # makes it more readable
 
 using Dates
-demand(
-    node=node(:elec_finland),
+Y.demand(
+    node=Y.node(:elec_finland),
     t0=DateTime(2000, 1, 1, 12),
-    s=stochastic_scenario(:scen2),
+    s=Y.stochastic_scenario(:scen2),
     t=DateTime(2000, 1, 1, 1)
 )
 # The time seems to go backwards but that is because the time in the database has accidentally been set backwards.
@@ -74,23 +76,19 @@ Creates and exports a parameter called is_isolated defined over node, with the v
 function generate_is_isolated()
     isolated_nodes = (
         n
-        for n in node()
+        for n in Y.node()
         if (
-            isempty(unit__from_node(node=n))
-            && isempty(unit__to_node(node=n))
-            && isempty(connection__from_node(node=n))
-            && isempty(connection__to_node(node=n))
+            isempty(Y.unit__from_node(node=n))
+            && isempty(Y.unit__to_node(node=n))
+            && isempty(Y.connection__from_node(node=n))
+            && isempty(Y.connection__to_node(node=n))
         )
     )
-    is_isolated = Parameter(:is_isolated, [node])
-    add_object_parameter_defaults!(node, :is_isolated => parameter_value(false))
+    Y.is_isolated = Parameter(:is_isolated, [Y.node])
+    add_object_parameter_defaults!(Y.node, :is_isolated => parameter_value(false))
     add_object_parameter_values!(
-        node, Dict(n => Dict(:is_isolated => parameter_value(true)) for n in isolated_nodes)
+        Y.node, Dict(n => Dict(:is_isolated => parameter_value(true)) for n in isolated_nodes)
     )
-    @eval begin
-        is_isolated = $is_isolated
-        export is_isolated
-    end
 end    
 
 """
@@ -108,7 +106,7 @@ function generate_t_out_of_t(m)
         if start(t1) > end_(t2) || start(t2) > end_(t1)
     ]
     # Is the above optimal?
-    RelationshipClass(:t_out_of_t, [:t1, :t2], t_out_of_t_tuples)
+    Y.t_out_of_t = RelationshipClass(:t_out_of_t, [:t1, :t2], t_out_of_t_tuples)
 end
     
 """
@@ -121,9 +119,9 @@ function node_spin_indices(
 )
     unique(
         (node=n, stochastic_scenario=s, t=t)
-        for (n, tb) in node__temporal_block(node=node, temporal_block=temporal_block, _compact=false)
-        if is_isolated(node=n)
-        for (n, s, t) in node_stochastic_time_indices(m; node=n, stochastic_scenario=stochastic_scenario, temporal_block=tb, t=t)
+        for (n, tb) in Y.node__temporal_block(node=node, temporal_block=temporal_block, _compact=false)
+        if Y.is_isolated(node=n)
+        for (n, s, t) in Y.node_stochastic_time_indices(m; node=n, stochastic_scenario=stochastic_scenario, temporal_block=tb, t=t)
     )
 end
 
