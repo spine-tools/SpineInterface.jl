@@ -457,6 +457,71 @@ function _test_using_spinedb_extend()
     end
 end
 
+function _test_using_spinedb_with_module()
+    @testset "using_spinedb_with_module" begin
+        db_url = _temp_db_url()
+        institutions = ["KTH", "VTT"]
+        countries = ["Sweden", "France"]
+        template = Dict(
+            :object_classes => [["institution"], ["country"]],
+            :relationship_classes => [["institution__country", ["institution", "country"]]],
+            :object_parameters => [["institution", "since_year"]],
+            :objects => vcat(
+                [["institution", x] for x in institutions],
+                [["country", x] for x in countries],
+            ),
+            :relationships => [["institution__country", ["KTH", "Sweden"]]],
+            :object_parameter_values => [["institution", "KTH", "since_year", 1827]],
+        )
+        import_test_data(db_url; template...)
+        ModuleUnderTest = Module(:ModuleUnderTest)
+        using_spinedb(db_url, ModuleUnderTest)
+        @test ModuleUnderTest.institution isa ObjectClass
+        @test ModuleUnderTest.country isa ObjectClass
+        @test ModuleUnderTest.institution__country isa RelationshipClass
+        @test ModuleUnderTest.since_year isa Parameter
+        @test length(ModuleUnderTest.institution()) === 2
+        @test Set(x.name for x in ModuleUnderTest.institution()) == Set(Symbol.(institutions))
+        @test ModuleUnderTest.institution(:KTH) isa Object
+        @test ModuleUnderTest.since_year(institution=ModuleUnderTest.institution(:KTH)) === 1827
+        @test length(ModuleUnderTest.institution__country()) === 1
+        # Second call on same module updates bindings via _env_merge!
+        updated = Dict(
+            :object_classes => [["institution"], ["country"]],
+            :relationship_classes => [["institution__country", ["institution", "country"]]],
+            :object_parameters => [["institution", "since_year"]],
+            :objects => vcat(
+                [["institution", x] for x in institutions],
+                [["country", x] for x in countries],
+            ),
+            :relationships => [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]],
+            :object_parameter_values => [["institution", "KTH", "since_year", 1827]],
+        )
+        import_test_data(db_url; updated...)
+        using_spinedb(db_url, ModuleUnderTest)
+        @test length(ModuleUnderTest.institution__country()) === 2
+        @test ModuleUnderTest.since_year(institution=ModuleUnderTest.institution(:KTH)) === 1827
+    end
+end
+
+function _test_add_binding_type_mismatch()
+    @testset "add_binding_type_mismatch" begin
+        db_url = _temp_db_url()
+        import_test_data(
+            db_url;
+            object_classes=[["institution"]],
+            objects=[["institution", "KTH"]],
+        )
+        # Create a module that pre-defines 'institution' as a non-ObjectClass type
+        MismatchMod = Module(:MismatchMod)
+        @eval MismatchMod const institution = 42
+        # using_spinedb should warn and skip the conflicting binding
+        @test_logs (:warn, r"ignoring.*institution.*already a binding") using_spinedb(db_url, MismatchMod)
+        # The original binding should remain untouched
+        @test MismatchMod.institution === 42
+    end
+end
+
 function _test_using_spinedb_with_env()
     @testset "using_spinedb_with_env" begin
         db_url = _temp_db_url()
@@ -512,4 +577,6 @@ end
     _test_using_spinedb_in_a_loop()
     _test_using_spinedb_extend()
     _test_using_spinedb_with_env()
+    _test_using_spinedb_with_module()
+    _test_add_binding_type_mismatch()
 end
