@@ -80,12 +80,10 @@ function _test_relationship_class()
         @test all(x isa RelationshipLike for x in Y.institution__country())
         @test Set(x.name for x in Y.institution__country(country=Y.country(:France))) == Set([:KTH, :ER])
         @test Set(x.name for x in Y.institution__country(institution=Y.institution(:KTH))) == Set([:Sweden, :France])
-        @test Set(
-            (x.name, y.name) for (x, y) in Y.institution__country(country=Y.country(:France), _compact=false)
-        ) == Set([(:KTH, :France), (:ER, :France)])
-        @test Set((x.name, y.name) for (x, y) in Y.institution__country()) == Set(
-            (Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples
-        )
+        @test Set((x.name, y.name) for (x, y) in Y.institution__country(country=Y.country(:France), _compact=false)) ==
+              Set([(:KTH, :France), (:ER, :France)])
+        @test Set((x.name, y.name) for (x, y) in Y.institution__country()) ==
+              Set((Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples)
         @test isempty(Y.institution__country(country=Y.country(:France), institution=Y.institution(:KTH)))
         @test Y.institution__country(
             country=Y.country(:France),
@@ -105,14 +103,9 @@ end
 function _test_parameter()
     @testset "parameter" begin
         obj_classes = ["institution", "country"]
-        rel_classes = [
-            ["institution__country", ["institution", "country"]],
-            ["country__country", ["country", "country"]]
-        ]
-        object_parameters = [
-            ["institution", "since_year"],
-            ["country", "bread", "knackebrod"]
-        ]
+        rel_classes =
+            [["institution__country", ["institution", "country"]], ["country__country", ["country", "country"]]]
+        object_parameters = [["institution", "since_year"], ["country", "bread", "knackebrod"]]
         relationship_parameters = [
             ["institution__country", "people_count"],
             ["institution__country", "job", "research"],
@@ -128,16 +121,15 @@ function _test_parameter()
             ["country__country", ["Sweden", "France"]],
             ["country__country", ["France", "France"]],
         ]
-        object_parameter_values = [
-            ["institution", "KTH", "since_year", 1827], ["country", "France", "bread", "baguette"]
-        ]
+        object_parameter_values =
+            [["institution", "KTH", "since_year", 1827], ["country", "France", "bread", "baguette"]]
         relationship_parameter_values = [
             ["institution__country", ["KTH", "Sweden"], "people_count", 3],
             ["institution__country", ["KTH", "France"], "people_count", 1],
             ["institution__country", ["KTH", "Sweden"], "job", "teaching"],
             ["country__country", ["Sweden", "Sweden"], "is_different", false],
             ["country__country", ["Sweden", "France"], "is_different", true],
-        ]    
+        ]
         import_test_data(
             db_url;
             object_classes=obj_classes,
@@ -364,7 +356,7 @@ function _test_pv_type_map()
             object_classes=object_classes,
             objects=objects,
             object_parameter_values=object_parameter_values,
-            on_conflict="replace"
+            on_conflict="replace",
         )
         Y = Bind()
         using_spinedb(db_url, Y)
@@ -443,10 +435,7 @@ function _test_using_spinedb_extend()
             :relationship_classes => [["fish__dog", ["fish", "dog"]]],
             :object_parameters => [["fish", "color", "red"]],
         )
-        user_data = Dict(
-            :object_classes => [["fish"]],
-            :objects => [["fish", "nemo"]],
-        )
+        user_data = Dict(:object_classes => [["fish"]], :objects => [["fish", "nemo"]])
         Extend = Bind()
         import_test_data(db_url; template...)
         using_spinedb(db_url, Extend)
@@ -466,10 +455,7 @@ function _test_using_spinedb_with_module()
             :object_classes => [["institution"], ["country"]],
             :relationship_classes => [["institution__country", ["institution", "country"]]],
             :object_parameters => [["institution", "since_year"]],
-            :objects => vcat(
-                [["institution", x] for x in institutions],
-                [["country", x] for x in countries],
-            ),
+            :objects => vcat([["institution", x] for x in institutions], [["country", x] for x in countries]),
             :relationships => [["institution__country", ["KTH", "Sweden"]]],
             :object_parameter_values => [["institution", "KTH", "since_year", 1827]],
         )
@@ -490,11 +476,9 @@ function _test_using_spinedb_with_module()
             :object_classes => [["institution"], ["country"]],
             :relationship_classes => [["institution__country", ["institution", "country"]]],
             :object_parameters => [["institution", "since_year"]],
-            :objects => vcat(
-                [["institution", x] for x in institutions],
-                [["country", x] for x in countries],
-            ),
-            :relationships => [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]],
+            :objects => vcat([["institution", x] for x in institutions], [["country", x] for x in countries]),
+            :relationships =>
+                [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]],
             :object_parameter_values => [["institution", "KTH", "since_year", 1827]],
         )
         import_test_data(db_url; updated...)
@@ -507,11 +491,7 @@ end
 function _test_add_binding_type_mismatch()
     @testset "add_binding_type_mismatch" begin
         db_url = _temp_db_url()
-        import_test_data(
-            db_url;
-            object_classes=[["institution"]],
-            objects=[["institution", "KTH"]],
-        )
+        import_test_data(db_url; object_classes=[["institution"]], objects=[["institution", "KTH"]])
         # Create a module that pre-defines 'institution' as a non-ObjectClass type
         MismatchMod = Module(:MismatchMod)
         @eval MismatchMod const institution = 42
