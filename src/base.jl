@@ -524,7 +524,7 @@ function Base.getproperty(x::Union{ObjectClass,RelationshipClass,Parameter}, nam
     env = _active_env()
     real_x = get(getfield(x, :env_dict), env, nothing)
     real_x === nothing && error("`$(getfield(x, :name))` is not defined in environment `$env`")
-    getproperty(real_x, name)
+    Base.invokelatest(getproperty, real_x, name)
 end
 function Base.getproperty(pv::ParameterValue, name::Symbol)
     if name === :value
