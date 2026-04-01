@@ -163,7 +163,9 @@ function _parse_db_value(index::Dict, data::Union{OrderedDict,Dict}, ::Val{:time
     vals = _parse_float.(values(data))
     TimeSeries(inds, vals, ignore_year, get(index, "repeat", false))
 end
-_parse_db_value(value::Dict, type::Val{:array}) = _parse_inner_value.(value["data"], Val(Symbol(value["value_type"])))
+function _parse_db_value(value::Dict, type::Val{:array})
+    _parse_inner_value.(value["data"], Val(Symbol(get(value, "value_type", "float"))))
+end
 function _parse_db_value(::Nothing, data::Array{T,1}, ::Val{:array}) where {T}
     _parse_inner_value.(data, Val(Symbol(_inner_type_str(T))))
 end
