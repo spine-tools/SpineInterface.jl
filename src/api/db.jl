@@ -554,7 +554,7 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
     # Tasku: A better way would be to actually type `_ObjectClass` `subclasses`
     # field to `Vector{EntityClass}`, but I couldn't get that to work
     # with the time I had available to me.
-    for obj_cls in [object_class(name, mod) for name in keys(args_per_obj_cls)]
+    for obj_cls in SpineInterface.object_classes(mod) # Need to SpineInterface. due to name conflict.
         for (i, subcls) in enumerate(obj_cls.subclasses)
             if subcls isa Symbol # Tasku: Only resolve `Symbol`s, `EntityClass` might already exist if `extend=true`
                 obj_cls.subclasses[i] = entity_class(subcls, mod)
