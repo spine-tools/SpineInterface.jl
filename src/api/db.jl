@@ -592,7 +592,7 @@ function _getproperty!(f::Function, mod::Module, name)
             export $name
         end
     end
-    getproperty(mod, name)
+    Base.invokelatest(getproperty, mod, name)
 end
 function _getproperty!(f::Function, bind::Bind, name)
     if hasproperty(bind, name)

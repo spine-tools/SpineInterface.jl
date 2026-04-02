@@ -67,9 +67,8 @@ function _test_indices_as_tuples()
         object_parameters = [["institution", "since_year"]]
         institutions = ["KTH", "ER"]
         objects = [["institution", x] for x in institutions]
-        object_parameter_values = [
-            ["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]
-        ]
+        object_parameter_values =
+            [["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]]
         import_test_data(
             db_url;
             object_classes=object_classes,
@@ -79,18 +78,16 @@ function _test_indices_as_tuples()
         )
         Y = Bind()
         using_spinedb(db_url, Y)
-        @test Set(indices_as_tuples(Y.since_year)) == Set([
-            (institution=Y.institution(:KTH),), (institution=Y.institution(:ER),)
-        ])
+        @test Set(indices_as_tuples(Y.since_year)) ==
+              Set([(institution=Y.institution(:KTH),), (institution=Y.institution(:ER),)])
     end
 end
 
 function _test_object_class_relationship_class_parameter()
     @testset "object_class, relationship_class, parameter" begin
         object_classes = ["institution", "country"]
-        relationship_classes = [
-            ["institution__country", ["institution", "country"]], ["country__institution", ["country", "institution"]]
-        ]
+        relationship_classes =
+            [["institution__country", ["institution", "country"]], ["country__institution", ["country", "institution"]]]
         object_parameters = [["institution", "since_year"]]
         relationship_parameters = [["institution__country", "people_count"], ["country__institution", "animal_count"]]
         import_test_data(
@@ -154,11 +151,7 @@ function _test_timeslice_relationships()
     ts01 = TimeSlice(DateTime(0), DateTime(1))
     ts12 = TimeSlice(DateTime(1), DateTime(2))
     ts23 = TimeSlice(DateTime(2), DateTime(3))
-    t_before_t = RelationshipClass(
-        :t_before_t,
-        [:t_before, :t_after],
-        [(ts01, ts12), (ts12, ts23)]
-    )
+    t_before_t = RelationshipClass(:t_before_t, [:t_before, :t_after], [(ts01, ts12), (ts12, ts23)])
     @test isempty(t_before_t(t_after=ts01))
     @test t_before_t(t_before=ts01) == [ts12]
     @test t_before_t(t_after=ts12) == [ts01]
@@ -188,10 +181,8 @@ end
 function _test_add_relationships()
     @testset "add_relationships" begin
         object_classes = ["institution", "country"]
-        relationship_classes = [
-            ["institution__country", ["institution", "country"]],
-            ["country__country", ["country", "country"]],
-        ]
+        relationship_classes =
+            [["institution__country", ["institution", "country"]], ["country__country", ["country", "country"]]]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
@@ -222,17 +213,14 @@ function _test_add_relationships()
             [(:ER, :France), (:ER, :Ireland)]
         ])
         @test isempty(Y.country__country())
-        add_relationships!(
-            Y.country__country,
-            [(country1=Y.country(:Sweden), country2=Y.country(:Sweden))]
-        )
+        add_relationships!(Y.country__country, [(country1=Y.country(:Sweden), country2=Y.country(:Sweden))])
         @test Y.country__country() == [(country1=Y.country(:Sweden), country2=Y.country(:Sweden))]
         add_relationships!(
             Y.country__country,
             [
                 (country1=Y.country(:Sweden), country2=Y.country(:Sweden)),
                 (country1=Y.country(:Finland), country2=Y.country(:Ireland)),
-            ]
+            ],
         )
         @test Y.country__country() == [
             (country1=Y.country(:Sweden), country2=Y.country(:Sweden)),
@@ -250,13 +238,13 @@ function _test_parse_db_value()
         string_value = "asd"
         array_data = [4, 8, 7]
         array_value = Dict("type" => "array", "value_type" => "float", "data" => array_data)
+        array_value_with_default_type = Dict("type" => "array", "data" => array_data)
         time_pattern_data = Dict("M1-4,M9-10" => 300, "M5-8" => 221.5)
         time_pattern_value = Dict("type" => "time_pattern", "data" => time_pattern_data)
         time_series_data = [1.0, 4.0, 5.0, -2.0, 7.0]
         time_series_index =
             Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
-        time_series_value =
-            Dict("type" => "time_series", "data" => time_series_data, "index" => time_series_index)
+        time_series_value = Dict("type" => "time_series", "data" => time_series_data, "index" => time_series_index)
         map_value = Dict(
             "type" => "map",
             "index_type" => "str",
@@ -284,6 +272,8 @@ function _test_parse_db_value()
         @test parse_db_value(parse_db_value(bool_value)) == parse_db_value(bool_value)::Bool
         @test parse_db_value(parse_db_value(string_value)) == parse_db_value(string_value)::String
         @test parse_db_value(parse_db_value(array_value)) == parse_db_value(array_value)::Array
+        @test parse_db_value(parse_db_value(array_value_with_default_type)) ==
+              parse_db_value(array_value_with_default_type)::Array
         @test parse_db_value(parse_db_value(time_pattern_value)) == parse_db_value(time_pattern_value)::TimePattern
         @test parse_db_value(parse_db_value(time_series_value)) == parse_db_value(time_series_value)::TimeSeries
         @test parse_db_value(parse_db_value(map_value)) == parse_db_value(map_value)::Map
@@ -296,15 +286,14 @@ function _test_add_object_parameter_values()
         institutions = ["ER", "KTH"]
         objects = [["institution", x] for x in institutions]
         object_parameters = [["institution", "since_year"]]
-        object_parameter_values = [
-            ["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]
-        ]
+        object_parameter_values =
+            [["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]]
         import_test_data(
             db_url;
             object_classes=object_classes,
             objects=objects,
             object_parameters=object_parameters,
-            object_parameter_values=object_parameter_values
+            object_parameter_values=object_parameter_values,
         )
         Y = Bind()
         using_spinedb(db_url, Y)
@@ -314,9 +303,8 @@ function _test_add_object_parameter_values()
         @test Y.since_year(institution=ER) == 2010
         pvals = Dict(
             Object(:ER, :institution) => Dict(:since_year => parameter_value(2011)),
-            Object(:CORRE_LABS, :institution) => Dict(
-                :since_year => parameter_value(2022), :people_count => parameter_value(3)
-            ),
+            Object(:CORRE_LABS, :institution) =>
+                Dict(:since_year => parameter_value(2022), :people_count => parameter_value(3)),
         )
         add_object_parameter_values!(Y.institution, pvals)
         CORRE_LABS = Object(:CORRE_LABS, :institution)
@@ -330,26 +318,18 @@ end
 function _test_add_relationship_parameter_values()
     @testset "add_relationship_parameter_values" begin
         object_classes = ["institution", "country"]
-        relationship_classes = [
-            ["institution__country", ["institution", "country"]],
-            ["country__country", ["country", "country"]],
-        ]
-        relationship_parameters = [
-            ["institution__country", "people_count"],
-            ["country__country", "is_different"]
-        ]
+        relationship_classes =
+            [["institution__country", ["institution", "country"]], ["country__country", ["country", "country"]]]
+        relationship_parameters = [["institution__country", "people_count"], ["country__country", "is_different"]]
         institutions = ["VTT", "KTH", "KUL", "ER", "UCD"]
         countries = ["Sweden", "France", "Finland", "Ireland", "Belgium"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
-        institution_country_tuples =[
-            ["VTT", "Finland"], ["KTH", "Sweden"], ["KTH", "France"], ["KUL", "Belgium"], ["UCD", "Ireland"]
-        ]
-        relationships = [
-            ["institution__country", [inst, country]] for (inst, country) in institution_country_tuples
-        ]
+        institution_country_tuples =
+            [["VTT", "Finland"], ["KTH", "Sweden"], ["KTH", "France"], ["KUL", "Belgium"], ["UCD", "Ireland"]]
+        relationships = [["institution__country", [inst, country]] for (inst, country) in institution_country_tuples]
         relationship_parameter_values = [
-            ["institution__country", [inst, country], "people_count", k]
-            for (k, (inst, country)) in enumerate(institution_country_tuples)
+            ["institution__country", [inst, country], "people_count", k] for
+            (k, (inst, country)) in enumerate(institution_country_tuples)
         ]
         import_test_data(
             db_url;
@@ -372,21 +352,25 @@ function _test_add_relationship_parameter_values()
             ERFrance => Dict(:people_count => parameter_value(1)),
             ERIreland => Dict(:people_count => parameter_value(1)),
             ERSweden => Dict(:people_count => parameter_value(1)),
-            KTHFrance => Dict(:people_count => parameter_value(0))
+            KTHFrance => Dict(:people_count => parameter_value(0)),
         )
         add_relationship_parameter_values!(Y.institution__country, pvals)
         @test length(Y.institution__country()) === 8
-        @test Set((x.name, y.name) for (x, y) in Y.institution__country()) == Set([
-            [(Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples]
-            [(:ER, :France), (:ER, :Ireland), (:ER, :Sweden)]
-        ])
+        @test Set((x.name, y.name) for (x, y) in Y.institution__country()) == Set(
+            [
+                [(Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples]
+                [(:ER, :France), (:ER, :Ireland), (:ER, :Sweden)]
+            ],
+        )
         @test Y.people_count(; ERFrance...) == 1
         @test Y.people_count(; ERIreland...) == 1
         @test Y.people_count(; ERSweden...) == 1
         @test Y.people_count(; KTHFrance...) == 0
         pvals = Dict(
-            (country1=Y.country(:Sweden), country2=Y.country(:Sweden)) => Dict(:is_different => parameter_value(false)),
-            (country1=Y.country(:Sweden), country2=Y.country(:France)) => Dict(:is_different => parameter_value(true)),
+            (country1=Y.country(:Sweden), country2=Y.country(:Sweden)) =>
+                Dict(:is_different => parameter_value(false)),
+            (country1=Y.country(:Sweden), country2=Y.country(:France)) =>
+                Dict(:is_different => parameter_value(true)),
         )
         add_relationship_parameter_values!(Y.country__country, pvals)
         @test Y.is_different(country1=Y.country(:Sweden), country2=Y.country(:Sweden)) == false
@@ -409,12 +393,8 @@ function _test_write_parameters()
         end
         @testset "date_time & duration" begin
             isfile(path) && rm(path)
-            parameters = Dict(
-                :apero_time => Dict(
-                    (country=:France,) => DateTime(1),
-                    (country=:Sweden, drink=:vodka) => Hour(1),
-                ),
-            )
+            parameters =
+                Dict(:apero_time => Dict((country=:France,) => DateTime(1), (country=:Sweden, drink=:vodka) => Hour(1)))
             write_parameters(parameters, url)
             Y = Bind()
             using_spinedb(url, Y)
@@ -431,9 +411,8 @@ function _test_write_parameters()
         end
         @testset "time_pattern" begin
             isfile(path) && rm(path)
-            val = Dict(
-                SpineInterface.parse_time_period("D2-5") => 30.5, SpineInterface.parse_time_period("D6-7") => 24.7
-            )
+            val =
+                Dict(SpineInterface.parse_time_period("D2-5") => 30.5, SpineInterface.parse_time_period("D6-7") => 24.7)
             @test val isa SpineInterface.TimePattern
             parameters = Dict(:apero_time => Dict((country=:France,) => val))
             write_parameters(parameters, url)
@@ -444,8 +423,10 @@ function _test_write_parameters()
             @test Y.apero_time(country=Y.country(:France), t=TimeSlice(DateTime(0, 1, 1), DateTime(0, 1, 5))) == 30.5
             @test Y.apero_time(country=Y.country(:France), t=DateTime(0, 1, 2)) == 30.5
             @test Y.apero_time(country=Y.country(:France), t=DateTime(0, 1, 5)) == 30.5
-            @test Y.apero_time(country=Y.country(:France), t=TimeSlice(DateTime(0, 1, 5), DateTime(0, 1, 6, 1))) == (30.5 + 24.7) / 2.
-            @test Y.apero_time(country=Y.country(:France), t=TimeSlice(DateTime(0, 1, 6), DateTime(0, 1, 6, 10))) == 24.7
+            @test Y.apero_time(country=Y.country(:France), t=TimeSlice(DateTime(0, 1, 5), DateTime(0, 1, 6, 1))) ==
+                  (30.5 + 24.7) / 2.0
+            @test Y.apero_time(country=Y.country(:France), t=TimeSlice(DateTime(0, 1, 6), DateTime(0, 1, 6, 10))) ==
+                  24.7
             @test Y.apero_time(country=Y.country(:France), t=DateTime(0, 1, 6)) == 24.7
             @test Y.apero_time(country=Y.country(:France), t=TimeSlice(DateTime(0, 1, 7), DateTime(0, 1, 8))) == 24.7
             @test Y.apero_time(country=Y.country(:France), t=DateTime(0, 1, 7)) == 24.7
@@ -479,7 +460,10 @@ function _test_write_parameters()
             # NOTE: Repeating time series should always end with the same value as it started!
             # NOTE: Needs to include a 4-year span to avoid 1-day mismatches caused by leap years.
             val = TimeSeries(
-                [DateTime(1), DateTime(2), DateTime(3), DateTime(4), DateTime(5)], [4, 5, 6, 7, 4], false, true
+                [DateTime(1), DateTime(2), DateTime(3), DateTime(4), DateTime(5)],
+                [4, 5, 6, 7, 4],
+                false,
+                true,
             )
             parameters = Dict(:apero_time => Dict((country=:France,) => val))
             write_parameters(parameters, url)
@@ -556,8 +540,7 @@ function _test_maximum_parameter_value()
         time_series_data = [1.0, 4.0, 5.0, NaN, 7.0]
         time_series_index =
             Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
-        time_series_value =
-            Dict("type" => "time_series", "data" => time_series_data, "index" => time_series_index)
+        time_series_value = Dict("type" => "time_series", "data" => time_series_data, "index" => time_series_index)
         map_value = Dict(
             "type" => "map",
             "index_type" => "str",
@@ -625,15 +608,14 @@ function _test_import_data()
             :array_parameter => parameter_value(ar),
             :timepattern_parameter => parameter_value(tp),
             :timeseries_parameter => parameter_value(ts),
-            :map_parameter => parameter_value(map)
+            :map_parameter => parameter_value(map),
         )
         # Create objects and object class for testing
         to1 = Object(:test_object_1)
         to2 = Object(:test_object_2)
         original_oc = ObjectClass(:test_oc, [to1, to2], Dict(to1 => pv_dict), pv_dict)
-        original_rc = RelationshipClass(
-            :test_rc, [:test_oc, :test_oc], [(to1, to2)], Dict((to1, to2) => pv_dict), pv_dict
-        )
+        original_rc =
+            RelationshipClass(:test_rc, [:test_oc, :test_oc], [(to1, to2)], Dict((to1, to2) => pv_dict), pv_dict)
         # Import the newly created `ObjectClass` and `RelationshipClass`
         @test import_data(db_url, original_oc, "Import test object class.") == [21, []]
         @test import_data(db_url, original_rc, "Import test relationship class.") == [20, []]
@@ -668,15 +650,11 @@ function _test_difference()
         right = export_data(db_url)
         left_diff = difference(left, right)
         left_parts = [split(strip(x), "  ") for x in split(left_diff, '\n') if !isempty(x)]
-        left_expected = [
-            ["entity classes", "country"], ["institution__country"], ["parameters", "people_count"]
-        ]
+        left_expected = [["entity classes", "country"], ["institution__country"], ["parameters", "people_count"]]
         @test left_parts == left_expected
         right_diff = difference(right, left)
         right_parts = [split(strip(x), "  ") for x in split(right_diff, '\n') if !isempty(x)]
-        right_expected = [
-            ["entity classes", "idea"], ["institution__idea"], ["parameters", "creator"]
-        ]
+        right_expected = [["entity classes", "idea"], ["institution__idea"], ["parameters", "creator"]]
         @test right_parts == right_expected
     end
 end
@@ -696,8 +674,7 @@ function _test_indexed_values()
         time_series_data = [1.0, 4.0, 5.0, -100.0, 7.0]
         time_series_index =
             Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
-        time_series_value =
-            Dict("type" => "time_series", "data" => time_series_data, "index" => time_series_index)
+        time_series_value = Dict("type" => "time_series", "data" => time_series_data, "index" => time_series_index)
         map_value = Dict(
             "type" => "map",
             "index_type" => "str",
@@ -741,7 +718,7 @@ function _test_indexed_values()
         # @show collect(indexed_values(people_count(country=country(:Sweden))))
         @test indexed_values(Y.people_count(country=Y.country(:Finland))) == Dict(
             (:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-01-01T00:00:00"))) => 4.0,
-            (:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-02-01T00:00:00"))) => 5.6
+            (:drunk, (DateTime("1999-12-01T00:00:00"), DateTime("0000-02-01T00:00:00"))) => 5.6,
         )
         @test indexed_values(Y.people_count(country=Y.country(:Ireland))) == Dict(1 => 4.0, 2 => 8.0, 3 => 7.0)
         @test (indexed_values(Y.people_count(country=Y.country(:Netherlands)))) == Dict(
@@ -749,9 +726,161 @@ function _test_indexed_values()
             DateTime("0000-02-01T00:00:00") => 4.0,
             DateTime("0000-03-01T00:00:00") => 5.0,
             DateTime("0000-04-01T00:00:00") => -100.0,
-            DateTime("0000-05-01T00:00:00") => 7.0
+            DateTime("0000-05-01T00:00:00") => 7.0,
         )
         @test indexed_values(Y.people_count(country=Y.country(:Denmark))) == Dict(nothing => nothing)
+    end
+end
+
+function _test_bind()
+    @testset "Bind" begin
+        bind = Bind()
+        @test bind isa Bind
+        # Initially no properties defined
+        @test !hasproperty(bind, :foo)
+        @test !hasproperty(bind, :bar)
+        # Setting a property via setproperty!
+        bind.foo = 42
+        @test hasproperty(bind, :foo)
+        @test bind.foo == 42
+        # Setting another property of a different type
+        bind.bar = "hello"
+        @test hasproperty(bind, :bar)
+        @test bind.bar == "hello"
+        # Accessing an undefined property raises KeyError
+        @test_throws KeyError bind.undefined_key
+        # Overwriting a property replaces its value
+        bind.foo = 99
+        @test bind.foo == 99
+        # Storing an ObjectClass in a Bind
+        oc = ObjectClass(:test_node)
+        bind.test_node = oc
+        @test hasproperty(bind, :test_node)
+        @test bind.test_node isa ObjectClass
+        @test bind.test_node.name === :test_node
+    end
+end
+
+function _test_write_interface()
+    @testset "write_interface" begin
+        @testset "explicit object_classes / relationship_classes / parameter_definitions" begin
+            template = Dict(
+                "object_classes" => [["commodity"], ["node"]],
+                "relationship_classes" => [["node__commodity", ["node", "commodity"]]],
+                "parameter_definitions" => [["node", "demand"], ["node__commodity", "flow"]],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            # Header comment
+            @test startswith(output, "# Convenience functors\n")
+            # ObjectClass declarations
+            @test occursin("const commodity = ObjectClass(:commodity)\n", output)
+            @test occursin("const node = ObjectClass(:node)\n", output)
+            # RelationshipClass declaration
+            @test occursin("const node__commodity = RelationshipClass(:node__commodity)\n", output)
+            # Parameter declarations
+            @test occursin("const demand = Parameter(:demand)\n", output)
+            @test occursin("const flow = Parameter(:flow)\n", output)
+            # Exports
+            @test occursin("export commodity\n", output)
+            @test occursin("export node\n", output)
+            @test occursin("export node__commodity\n", output)
+            @test occursin("export demand\n", output)
+            @test occursin("export flow\n", output)
+            # Lookup dict declarations
+            @test occursin("const _spine_object_classes = Dict{Symbol,ObjectClass}()\n", output)
+            @test occursin("const _spine_relationship_classes = Dict{Symbol,RelationshipClass}()\n", output)
+            @test occursin("const _spine_parameters = Dict{Symbol,Parameter}()\n", output)
+        end
+        @testset "entity_classes / object_parameters / relationship_parameters format" begin
+            template = Dict(
+                "entity_classes" => [["commodity", []], ["node", []], ["node__commodity", ["node", "commodity"]]],
+                "object_parameters" => [["node", "demand"]],
+                "relationship_parameters" => [["node__commodity", "flow"]],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            @test occursin("const commodity = ObjectClass(:commodity)\n", output)
+            @test occursin("const node = ObjectClass(:node)\n", output)
+            @test occursin("const node__commodity = RelationshipClass(:node__commodity)\n", output)
+            @test occursin("const demand = Parameter(:demand)\n", output)
+            @test occursin("const flow = Parameter(:flow)\n", output)
+            @test occursin("export commodity\n", output)
+            @test occursin("export node\n", output)
+            @test occursin("export node__commodity\n", output)
+            @test occursin("export demand\n", output)
+            @test occursin("export flow\n", output)
+        end
+        @testset "empty template produces only lookup dicts" begin
+            template = Dict{String,Any}()
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            @test occursin("const _spine_object_classes = Dict{Symbol,ObjectClass}()\n", output)
+            @test occursin("const _spine_relationship_classes = Dict{Symbol,RelationshipClass}()\n", output)
+            @test occursin("const _spine_parameters = Dict{Symbol,Parameter}()\n", output)
+            @test !occursin("ObjectClass(:", output)
+            @test !occursin("RelationshipClass(:", output)
+            @test !occursin("Parameter(:", output)
+        end
+        @testset "names are sorted alphabetically" begin
+            template = Dict(
+                "object_classes" => [["zoo"], ["apple"], ["mango"]],
+                "relationship_classes" => [["zoo__apple", ["zoo", "apple"]], ["apple__mango", ["apple", "mango"]]],
+                "parameter_definitions" => [["zoo", "zzz_param"], ["apple", "aaa_param"]],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            lines = split(output, '\n')
+            apple_pos = findfirst(l -> occursin("const apple =", l), lines)
+            mango_pos = findfirst(l -> occursin("const mango =", l), lines)
+            zoo_pos = findfirst(l -> occursin("const zoo =", l), lines)
+            @test apple_pos < mango_pos < zoo_pos
+            apple_mango_pos = findfirst(l -> occursin("const apple__mango =", l), lines)
+            zoo_apple_pos = findfirst(l -> occursin("const zoo__apple =", l), lines)
+            @test apple_mango_pos < zoo_apple_pos
+            aaa_pos = findfirst(l -> occursin("const aaa_param =", l), lines)
+            zzz_pos = findfirst(l -> occursin("const zzz_param =", l), lines)
+            @test aaa_pos < zzz_pos
+        end
+        @testset "duplicate parameter names across classes are deduplicated" begin
+            template = Dict(
+                "object_classes" => [["institution"], ["country"]],
+                "relationship_classes" => [["institution__country", ["institution", "country"]]],
+                "parameter_definitions" =>
+                    [["institution", "people_count"], ["institution__country", "people_count"]],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            @test count("const people_count = Parameter(:people_count)", output) == 1
+            @test count("export people_count", output) == 1
+        end
+        @testset "object class only, no relationships or parameters" begin
+            template = Dict("object_classes" => [["node"]], "relationship_classes" => [], "parameter_definitions" => [])
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            @test occursin("const node = ObjectClass(:node)\n", output)
+            @test occursin("export node\n", output)
+            @test !occursin("RelationshipClass(:", output)
+            @test !occursin("Parameter(:", output)
+        end
+        @testset "generated code is valid Julia syntax" begin
+            template = Dict(
+                "object_classes" => [["node"], ["commodity"]],
+                "relationship_classes" => [["node__commodity", ["node", "commodity"]]],
+                "parameter_definitions" => [["node", "demand"]],
+            )
+            io = IOBuffer()
+            write_interface(io, template)
+            output = String(take!(io))
+            # The full output should parse as a valid Julia block
+            @test Meta.parseall(output) isa Expr
+        end
     end
 end
 
@@ -1195,6 +1324,8 @@ end
     _test_import_data()
     _test_difference()
     _test_indexed_values()
+    _test_bind()
+    _test_write_interface()
     _test_superclasses()
     _test_reorder_dimensions()
     _test_add_dimension()

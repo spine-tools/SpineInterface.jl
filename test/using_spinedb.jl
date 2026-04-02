@@ -80,12 +80,10 @@ function _test_relationship_class()
         @test all(x isa RelationshipLike for x in Y.institution__country())
         @test Set(x.name for x in Y.institution__country(country=Y.country(:France))) == Set([:KTH, :ER])
         @test Set(x.name for x in Y.institution__country(institution=Y.institution(:KTH))) == Set([:Sweden, :France])
-        @test Set(
-            (x.name, y.name) for (x, y) in Y.institution__country(country=Y.country(:France), _compact=false)
-        ) == Set([(:KTH, :France), (:ER, :France)])
-        @test Set((x.name, y.name) for (x, y) in Y.institution__country()) == Set(
-            (Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples
-        )
+        @test Set((x.name, y.name) for (x, y) in Y.institution__country(country=Y.country(:France), _compact=false)) ==
+              Set([(:KTH, :France), (:ER, :France)])
+        @test Set((x.name, y.name) for (x, y) in Y.institution__country()) ==
+              Set((Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples)
         @test isempty(Y.institution__country(country=Y.country(:France), institution=Y.institution(:KTH)))
         @test Y.institution__country(
             country=Y.country(:France),
@@ -105,14 +103,9 @@ end
 function _test_parameter()
     @testset "parameter" begin
         obj_classes = ["institution", "country"]
-        rel_classes = [
-            ["institution__country", ["institution", "country"]],
-            ["country__country", ["country", "country"]]
-        ]
-        object_parameters = [
-            ["institution", "since_year"],
-            ["country", "bread", "knackebrod"]
-        ]
+        rel_classes =
+            [["institution__country", ["institution", "country"]], ["country__country", ["country", "country"]]]
+        object_parameters = [["institution", "since_year"], ["country", "bread", "knackebrod"]]
         relationship_parameters = [
             ["institution__country", "people_count"],
             ["institution__country", "job", "research"],
@@ -128,16 +121,15 @@ function _test_parameter()
             ["country__country", ["Sweden", "France"]],
             ["country__country", ["France", "France"]],
         ]
-        object_parameter_values = [
-            ["institution", "KTH", "since_year", 1827], ["country", "France", "bread", "baguette"]
-        ]
+        object_parameter_values =
+            [["institution", "KTH", "since_year", 1827], ["country", "France", "bread", "baguette"]]
         relationship_parameter_values = [
             ["institution__country", ["KTH", "Sweden"], "people_count", 3],
             ["institution__country", ["KTH", "France"], "people_count", 1],
             ["institution__country", ["KTH", "Sweden"], "job", "teaching"],
             ["country__country", ["Sweden", "Sweden"], "is_different", false],
             ["country__country", ["Sweden", "France"], "is_different", true],
-        ]    
+        ]
         import_test_data(
             db_url;
             object_classes=obj_classes,
@@ -364,7 +356,7 @@ function _test_pv_type_map()
             object_classes=object_classes,
             objects=objects,
             object_parameter_values=object_parameter_values,
-            on_conflict="replace"
+            on_conflict="replace",
         )
         Y = Bind()
         using_spinedb(db_url, Y)
@@ -430,11 +422,6 @@ function _test_using_spinedb_in_a_loop()
     end
 end
 
-function _temp_db_url()
-    fp = tempname()
-    "sqlite:///$fp"
-end
-
 function _test_using_spinedb_extend()
     @testset "using_spinedb_extend" begin
         db_url = _temp_db_url()
@@ -443,10 +430,7 @@ function _test_using_spinedb_extend()
             :relationship_classes => [["fish__dog", ["fish", "dog"]]],
             :object_parameters => [["fish", "color", "red"]],
         )
-        user_data = Dict(
-            :object_classes => [["fish"]],
-            :objects => [["fish", "nemo"]],
-        )
+        user_data = Dict(:object_classes => [["fish"]], :objects => [["fish", "nemo"]])
         Extend = Bind()
         import_test_data(db_url; template...)
         using_spinedb(db_url, Extend)
@@ -454,6 +438,62 @@ function _test_using_spinedb_extend()
         using_spinedb(db_url, Extend; extend=true)
         # Test that default values of missing parameters are found in the template
         @test Extend.color(fish=Extend.fish("nemo")) == :red
+    end
+end
+
+function _test_using_spinedb_with_module()
+    @testset "using_spinedb_with_module" begin
+        db_url = _temp_db_url()
+        institutions = ["KTH", "VTT"]
+        countries = ["Sweden", "France"]
+        template = Dict(
+            :object_classes => [["institution"], ["country"]],
+            :relationship_classes => [["institution__country", ["institution", "country"]]],
+            :object_parameters => [["institution", "since_year"]],
+            :objects => vcat([["institution", x] for x in institutions], [["country", x] for x in countries]),
+            :relationships => [["institution__country", ["KTH", "Sweden"]]],
+            :object_parameter_values => [["institution", "KTH", "since_year", 1827]],
+        )
+        import_test_data(db_url; template...)
+        ModuleUnderTest = Module(:ModuleUnderTest)
+        using_spinedb(db_url, ModuleUnderTest)
+        @test ModuleUnderTest.institution isa ObjectClass
+        @test ModuleUnderTest.country isa ObjectClass
+        @test ModuleUnderTest.institution__country isa RelationshipClass
+        @test ModuleUnderTest.since_year isa Parameter
+        @test length(ModuleUnderTest.institution()) === 2
+        @test Set(x.name for x in ModuleUnderTest.institution()) == Set(Symbol.(institutions))
+        @test ModuleUnderTest.institution(:KTH) isa Object
+        @test ModuleUnderTest.since_year(institution=ModuleUnderTest.institution(:KTH)) === 1827
+        @test length(ModuleUnderTest.institution__country()) === 1
+        # Second call on same module updates bindings via _env_merge!
+        updated = Dict(
+            :object_classes => [["institution"], ["country"]],
+            :relationship_classes => [["institution__country", ["institution", "country"]]],
+            :object_parameters => [["institution", "since_year"]],
+            :objects => vcat([["institution", x] for x in institutions], [["country", x] for x in countries]),
+            :relationships =>
+                [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]],
+            :object_parameter_values => [["institution", "KTH", "since_year", 1827]],
+        )
+        import_test_data(db_url; updated...)
+        using_spinedb(db_url, ModuleUnderTest)
+        @test length(ModuleUnderTest.institution__country()) === 2
+        @test ModuleUnderTest.since_year(institution=ModuleUnderTest.institution(:KTH)) === 1827
+    end
+end
+
+function _test_add_binding_type_mismatch()
+    @testset "add_binding_type_mismatch" begin
+        db_url = _temp_db_url()
+        import_test_data(db_url; object_classes=[["institution"]], objects=[["institution", "KTH"]])
+        # Create a module that pre-defines 'institution' as a non-ObjectClass type
+        MismatchMod = Module(:MismatchMod)
+        @eval MismatchMod const institution = 42
+        # using_spinedb should warn and skip the conflicting binding
+        @test_logs (:warn, r"ignoring.*institution.*already a binding") using_spinedb(db_url, MismatchMod)
+        # The original binding should remain untouched
+        @test MismatchMod.institution === 42
     end
 end
 
@@ -512,4 +552,6 @@ end
     _test_using_spinedb_in_a_loop()
     _test_using_spinedb_extend()
     _test_using_spinedb_with_env()
+    _test_using_spinedb_with_module()
+    _test_add_binding_type_mismatch()
 end
