@@ -45,6 +45,7 @@ end
     include("api.jl")
     include("constructors.jl")
     include("base.jl")
+    include("types.jl")
     include("util.jl")
     include("update_model.jl")
     @testset "examples" begin 
