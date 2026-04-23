@@ -30,7 +30,7 @@ duration(t::TimeSlice) = t.duration
 
 The start of time slice or time slice map `t` as the referenced `DateTime`.
 """
-start(t::TimeSlice) = t.start[]
+start(t::TimeSlice)::DateTime = t.start[]
 
 """
     startref(t::TimeSlice)
@@ -44,7 +44,7 @@ startref(t::TimeSlice) = t.start
 
 The end of time slice or time slice map `t`.
 """
-end_(t::TimeSlice) = t.end_[]
+end_(t::TimeSlice)::DateTime = t.end_[]
 
 """
     blocks(t::TimeSlice)
