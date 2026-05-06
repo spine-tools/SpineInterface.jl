@@ -580,32 +580,73 @@ classes(p::Parameter) = p.classes
 push_class!(p::Parameter, class::EntityClass) = push!(p.classes, class)
 
 """
-    add_objects!(object_class, objects)
+    add_objects!(object_class::ObjectClass, objects::Array)
 
 Remove from `objects` everything that's already in `object_class`, and append the rest.
 Return the modified `object_class`.
+
+Note that objects cannot be added to superclasses!
 """
 function add_objects!(object_class::ObjectClass, objects::Array)
+    isempty(objects) && return object_class
+    if !isempty(object_class.subclasses)
+        error("`Object`s cannot be added to superclasses! Add them to the underlying classes instead.")
+    end
     setdiff!(objects, object_class.objects)
     append!(object_class.objects, objects)
     merge!(object_class.parameter_values, Dict(obj => Dict() for obj in objects))
     object_class
 end
 
+"""
+    add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
+
+Add both the objects and their parameter values from `parameter_values` to `object_class`.
+
+Setting `merge_values=true` attempts to merge parameter values together if values already exist.
+By default, new values will overwrite existing ones. 
+
+Note that parameter values cannot be added to superclasses!
+"""
 function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
+    isempty(parameter_values) && return object_class
+    if !isempty(object_class.subclasses)
+        error("`Object`s and parameter values cannot be added to superclasses! Add them to the underlying classes instead.")
+    end
     add_objects!(object_class, only.(keys(parameter_values)))
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     for (obj, vals) in parameter_values
         obj = only(obj)
         do_merge!(object_class.parameter_values[obj], vals)
     end
+    return object_class
 end
 
+"""
+    add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
+
+Add `parameter_defaults` to the `object_class`.
+
+Setting `merge_values=true` attempts to merge parameter defaults together if values already exist.
+By default, new values will overwrite existing ones.
+
+Note that parameter defaults cannot be added to superclasses!
+"""
 function add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
+    isempty(parameter_defaults) && return object_class
+    if !isempty(object_class.subclasses)
+        error("`Parameter defaults cannot be added to superclasses! Add them to the underlying classes instead.")
+    end
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     do_merge!(object_class.parameter_defaults, parameter_defaults)
+    return object_class
 end
 
+"""
+    add_object!(object_class::ObjectClass, object::ObjectLike)
+
+Adds a single `object` to `object_class`.
+"""
 function add_object!(object_class::ObjectClass, object::ObjectLike)
     add_objects!(object_class, [object])
 end
@@ -615,6 +656,8 @@ end
 
 Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
 Return the modified `relationship_class`.
+
+Supports adding relationships through `ObjectClass` IF it is a pseudo-compound-superclass.
 """
 function add_relationships!(relationship_class::RelationshipClass, object_tuples::Vector{T}) where T<:ObjectTupleLike
     relationships = [(; zip(relationship_class.object_class_names, obj_tup)...) for obj_tup in object_tuples]
@@ -624,9 +667,43 @@ function add_relationships!(relationship_class::RelationshipClass, relationships
     relationships = setdiff(relationships, relationship_class.relationships)
     _append_relationships!(relationship_class, relationships)
     merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
-    relationship_class
+    return relationship_class
+end
+function add_relationships!(superclass::ObjectClass, rels)
+    isempty(rels) && return superclass
+    if isempty(superclass.subclasses)
+        error("Relationships cannot be added to non-superclass `ObjectClass`es!")
+    end
+    cls_names_to_subrel_cls_mapping = Dict(
+        subcls.object_class_names => subcls for subcls in superclass.subclasses
+    )
+    return _add_subrels!(superclass, rels, cls_names_to_subrel_cls_mapping)
 end
 
+function _add_subrels!(superclass::ObjectClass, object_tuples::Vector{T}, mapping::Dict) where T<:ObjectTupleLike
+    for objtup in object_tuples
+        classes = _fix_name_ambiguity([obj.class_name for obj in objtup])
+        add_relationship!(mapping[classes], (; zip(classes, objtup)...))
+    end
+    return superclass
+end
+function _add_subrels!(superclass::ObjectClass, relationships::Vector{RelationshipLike}, mapping::Dict)
+    for rel in relationships
+        add_relationship!(mapping[collect(keys(rel))], rel)
+    end
+    return superclass
+end
+
+"""
+    add_relationship_parameter_values!(relationship_class, parameter_values::Dict; merge_values=false)
+
+Add the relationships and parameter values in `parameter_values` to `relationship_class`.
+
+Setting `merge_values=true` attempts to merge parameter defaults together if values already exist.
+By default, new values will overwrite existing ones.
+
+Supports adding parameter values to `ObjectClass` IF it is a pseudo-compound-superclass.
+"""
 function add_relationship_parameter_values!(
     relationship_class::RelationshipClass, parameter_values::Dict; merge_values=false
 )
@@ -637,18 +714,68 @@ function add_relationship_parameter_values!(
         do_merge!(relationship_class.parameter_values[obj_tup], vals)
     end
 end
+function add_relationship_parameter_values!(
+    superclass::ObjectClass, parameter_values::Dict; merge_values=false
+)
+    isempty(parameter_values) && return superclass
+    if isempty(superclass.subclasses)
+        error("Relationship parameter values cannot be added to non-superclass `ObjectClass`es!")
+    end
+    cls_names_to_subrel_cls_mapping = Dict(
+        subcls.object_class_names => subcls for subcls in superclass.subclasses
+    )
+    for (rel, pval) in parameter_values
+        add_relationship_parameter_values!(
+            cls_names_to_subrel_cls_mapping[collect(keys(rel))],
+            Dict(rel => pval);
+            merge_values=merge_values
+        )
+    end
+end
 
+"""
+    function add_relationship_parameter_defaults!(relationship_class, parameter_defaults::Dict; merge_values=false)
+
+Add `parameter_defaults` to `relationship_class`.
+
+Setting `merge_values=true` attempts to merge parameter defaults together if values already exist.
+By default, new values will overwrite existing ones.
+
+Supports adding parameter defaults to `ObjectClass` IF it is a pseudo-compound-superclass.
+"""
 function add_relationship_parameter_defaults!(
     relationship_class::RelationshipClass, parameter_defaults::Dict; merge_values=false
 )
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     do_merge!(relationship_class.parameter_defaults, parameter_defaults)
 end
+function add_relationship_parameter_defaults!(
+    superclass::ObjectClass, parameter_defaults::Dict; merge_values=false
+)
+    if isempty(superclass.subclasses)
+        error("Relationship parameter defaults cannot be added to non-superclass `ObjectClass`es!")
+    end
+    for subcls in superclass.subclasses
+        add_relationship_parameter_defaults!(
+            subcls, parameter_defaults; merge_values=merge_values
+        )
+    end
+end
 
-function add_relationship!(relationship_class::RelationshipClass, relationship::RelationshipLike)
+"""
+    add_relationship!(relationship_class, relationship::RelationshipLike)
+
+Adds a single `relatioship` to `relationship_class`.
+"""
+function add_relationship!(relationship_class::EntityClass, relationship::RelationshipLike)
     add_relationships!(relationship_class, [relationship])
 end
 
+"""
+    add_parameter_values!(cls::EntityClass, vals; kwargs...)
+
+Convenience wrapper around `add_object_parameter_values!` and `add_relationship_parameter_values!`.
+"""
 function add_parameter_values!(cls::ObjectClass, vals; kwargs...)
     add_object_parameter_values!(cls, vals; kwargs...)
 end

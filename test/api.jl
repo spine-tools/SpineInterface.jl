@@ -1065,7 +1065,7 @@ function _test_superclasses()
 end
 
 function _test_writing_superclasses()
-    @testset "writing superclasses" begin
+    @testset "writing_superclasses" begin
         # Tasku: Note that this test uses the v0.8 data structure!
         # Read original data to Y.
         _import_superclass_test_data(db_url)
@@ -1095,6 +1095,43 @@ function _test_writing_superclasses()
         # Test that X and Y are distinct by adding : u3 to Y.
         add_object!(Y.unit, Object(:u3, :unit))
         @test Y.unit() != X.unit()
+    end
+end
+
+function _test_manipulating_superclasses()
+    @testset "manipulating_superclasses" begin
+        # Tasku: Note that this test uses the v0.8 data structure!
+        # Read original data to Y.
+        _import_superclass_test_data(db_url)
+        Y = Bind()
+        using_spinedb(db_url, Y)
+        # Test adding new `unit_flow__unit_flow`s
+        nunu = (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n1), unit2=Y.unit(:u1))
+        unun = (unit1=Y.unit(:u1), node1=Y.node(:n1), unit2=Y.unit(:u1), node2=Y.node(:n1))
+        @test isempty(Y.unit_flow__unit_flow(;nunu..., _compact=false))
+        @test isempty(Y.unit_flow__unit_flow(;unun..., _compact=false))
+        add_relationships!(Y.unit_flow__unit_flow, [values(nunu), values(unun)])
+        @test first(Y.unit_flow__unit_flow(;nunu..., _compact=false)) == nunu
+        @test first(Y.unit_flow__unit_flow(;unun..., _compact=false)) == unun
+        # Test adding new `unit_flow__unit_flow` parameter values
+        unnu = (unit1=Y.unit(:u1), node1=Y.node(:n1), node2=Y.node(:n1), unit2=Y.unit(:u1))
+        nuun = (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n1))
+        @test Y.ratio(; unnu...) == Y.ratio(; nuun...) == nothing
+        pvs = Dict(
+            unnu => Dict(:ratio => parameter_value(:unnu)),
+            nuun => Dict(:ratio => parameter_value(:nuun))
+        )
+        add_relationship_parameter_values!(Y.unit_flow__unit_flow, pvs)
+        @test Y.ratio(; unnu...) == :unnu
+        @test Y.ratio(; nuun...) == :nuun
+        # Test changing the default
+        inds = (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
+        @test Y.ratio(; inds...) == 2.0
+        add_relationship_parameter_defaults!(
+            Y.unit_flow__unit_flow,
+            Dict(:ratio => parameter_value(3.0))
+        )
+        @test Y.ratio(; inds...) == 3.0
     end
 end
 
@@ -1367,6 +1404,7 @@ end
     _test_write_interface()
     _test_superclasses()
     _test_writing_superclasses()
+    _test_manipulating_superclasses()
     _test_reorder_dimensions()
     _test_add_dimension()
     _test_parse_db_dict()
