@@ -884,59 +884,64 @@ function _test_write_interface()
     end
 end
 
+function _import_superclass_test_data(db_url::String)
+    # Tasku: Note that this uses the v0.8 data structure!
+    ent_clss = [
+        ["node", []],
+        ["unit", []],
+        ["unit_flow", []],
+        ["node__unit", ["node", "unit"]],
+        ["unit__node", ["unit", "node"]],
+        ["unit_flow__unit_flow", ["unit_flow", "unit_flow"]]
+    ]
+    supcls_subclss = [
+        ["unit_flow", "node__unit"],
+        ["unit_flow", "unit__node"]
+    ]
+    ents = [
+        ["node", "n1"],
+        ["node", "n2"],
+        ["node", "n3"],
+        ["unit", "u1"],
+        ["unit", "u2"],
+        ["node__unit", ["n1", "u1"]],
+        ["node__unit", ["n2", "u2"]],
+        ["node__unit", ["n1", "u2"]],
+        ["unit__node", ["u1", "n1"]],
+        ["unit__node", ["u1", "n3"]],
+        ["unit__node", ["u2", "n3"]],
+        ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"]],
+        ["unit_flow__unit_flow", ["n1", "u1", "n2", "u2"]],
+        ["unit_flow__unit_flow", ["u1", "n3", "u2", "n3"]],
+        ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"]],
+    ]
+    par_defs = [
+        ["node__unit", "flow_capacity", 0.0],
+        ["unit__node", "flow_capacity", 1.0],
+        ["unit_flow__unit_flow", "ratio", 2.0],
+    ]
+    par_vals = [
+        ["node__unit", ["n1", "u1"], "flow_capacity", 4.0],
+        ["unit__node", ["u1", "n1"], "flow_capacity", 4.1],
+        ["unit__node", ["u1", "n3"], "flow_capacity", 5.0],
+        ["node__unit", ["n2", "u2"], "flow_capacity", 6.0],
+        ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"], "ratio", 7.0],
+        ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"], "ratio", 8.0],
+    ]
+    return import_test_data(
+        db_url;
+        entity_classes=ent_clss,
+        superclass_subclasses=supcls_subclss,
+        entities=ents,
+        parameter_definitions=par_defs,
+        parameter_values=par_vals
+    )
+end
+
 function _test_superclasses()
     @testset "superclasses" begin
         # Tasku: Note that this test uses the v0.8 data structure!
-        ent_clss = [
-            ["node", []],
-            ["unit", []],
-            ["unit_flow", []],
-            ["node__unit", ["node", "unit"]],
-            ["unit__node", ["unit", "node"]],
-            ["unit_flow__unit_flow", ["unit_flow", "unit_flow"]]
-        ]
-        supcls_subclss = [
-            ["unit_flow", "node__unit"],
-            ["unit_flow", "unit__node"]
-        ]
-        ents = [
-            ["node", "n1"],
-            ["node", "n2"],
-            ["node", "n3"],
-            ["unit", "u1"],
-            ["unit", "u2"],
-            ["node__unit", ["n1", "u1"]],
-            ["node__unit", ["n2", "u2"]],
-            ["node__unit", ["n1", "u2"]],
-            ["unit__node", ["u1", "n1"]],
-            ["unit__node", ["u1", "n3"]],
-            ["unit__node", ["u2", "n3"]],
-            ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"]],
-            ["unit_flow__unit_flow", ["n1", "u1", "n2", "u2"]],
-            ["unit_flow__unit_flow", ["u1", "n3", "u2", "n3"]],
-            ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"]],
-        ]
-        par_defs = [
-            ["node__unit", "flow_capacity", 0.0],
-            ["unit__node", "flow_capacity", 1.0],
-            ["unit_flow__unit_flow", "ratio", 2.0],
-        ]
-        par_vals = [
-            ["node__unit", ["n1", "u1"], "flow_capacity", 4.0],
-            ["unit__node", ["u1", "n1"], "flow_capacity", 4.1],
-            ["unit__node", ["u1", "n3"], "flow_capacity", 5.0],
-            ["node__unit", ["n2", "u2"], "flow_capacity", 6.0],
-            ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"], "ratio", 7.0],
-            ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"], "ratio", 8.0],
-        ]
-        import_test_data(
-            db_url;
-            entity_classes=ent_clss,
-            superclass_subclasses=supcls_subclss,
-            entities=ents,
-            parameter_definitions=par_defs,
-            parameter_values=par_vals
-        )
+        _import_superclass_test_data(db_url)
         Y = Bind()
         using_spinedb(db_url, Y)
         # Tests for `unit_flow` and `flow_capacity`
@@ -1056,6 +1061,40 @@ function _test_superclasses()
         ]
         # Test superclass database extension (to see if it errors)
         using_spinedb(db_url, Y; extend=true)
+    end
+end
+
+function _test_writing_superclasses()
+    @testset "writing superclasses" begin
+        # Tasku: Note that this test uses the v0.8 data structure!
+        # Read original data to Y.
+        _import_superclass_test_data(db_url)
+        orig_data = SpineInterface.parse_db_dict!(export_data(db_url))
+        Y = Bind()
+        using_spinedb(db_url, Y)
+        # Reset database contents
+        SpineInterface.close_connection(db_url)
+        SpineInterface.open_connection(db_url)
+        no_data = export_data(db_url)
+        @test length(no_data) == 1 # Test that data is indeed gone, only "alternatives" remain.
+        # Read Y back into the fresh db
+        import_data(db_url, Y, "testing")
+        # Re-read database into X
+        new_data = SpineInterface.parse_db_dict!(export_data(db_url))
+        X = Bind()
+        using_spinedb(db_url, X)
+        # Test if original and re-read data are identical in X and Y.
+        @test orig_data == new_data
+        @test keys(getfield(Y, :d)) == keys(getfield(X, :d))
+        for ((yname, yvalue), (xname, xvalue)) in zip(getfield(Y, :d), getfield(X, :d))
+            @test yname == xname
+            if isa(yvalue, SpineInterface.EntityClass)
+                @test yvalue() == xvalue()
+            end
+        end
+        # Test that X and Y are distinct by adding : u3 to Y.
+        add_object!(Y.unit, Object(:u3, :unit))
+        @test Y.unit() != X.unit()
     end
 end
 
@@ -1327,6 +1366,7 @@ end
     _test_bind()
     _test_write_interface()
     _test_superclasses()
+    _test_writing_superclasses()
     _test_reorder_dimensions()
     _test_add_dimension()
     _test_parse_db_dict()
