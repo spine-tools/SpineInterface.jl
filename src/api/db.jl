@@ -468,9 +468,9 @@ end
 Split super-relationship classes to their subrelationship classes for [`Parameter`](@ref) constructors.
 """
 function _split_superrel_params!(class_names_per_param, superrel_to_subrels_name_map)
-    for (superrel, subrels) in superrel_to_subrels_name_map
+    for ((superrel_name, superrel_orig_dims), subrels) in superrel_to_subrels_name_map
         for (param_name, param_classes) in class_names_per_param
-            ind = findfirst(superrel .== param_classes)
+            ind = findfirst(superrel_name .== param_classes)
             isnothing(ind) && continue
             popat!(param_classes, ind)
             append!(param_classes, subrels)
