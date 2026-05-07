@@ -40,6 +40,12 @@ function import_test_data(db_url::String; kwargs...)
     import_data(db_url; kwargs...)
 end
 
+# Convenience for temporary DB-urls
+function _temp_db_url()
+    fp = tempname()
+    "sqlite:///$fp"
+end
+
 @testset begin
     include("using_spinedb.jl")
     include("api.jl")
@@ -51,4 +57,4 @@ end
         include("../examples/tutorial_spine_database/tutorial_spine_database.jl")
         include("../examples/tutorial_spineopt_database/tutorial_spineopt_database.jl")
     end
-end
+end;

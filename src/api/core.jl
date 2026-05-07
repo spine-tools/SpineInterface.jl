@@ -61,7 +61,25 @@ julia> commodity(state_of_matter=:gas)
  wind
 ```
 """
-function (oc::ObjectClass)(; kwargs...)
+function (oc::ObjectClass)(args...; _compact::Bool=true, kwargs...)
+    if isempty(oc.subclasses) # No subclasses -> Filter only this one.
+        return _object_class_filtering(oc, args...; kwargs...)
+    elseif length(oc.subclasses) == 1 # One subclass -> Filter only that one.
+        return only(oc.subclasses)(args...; _compact=_compact, kwargs...)
+    else # Many subclasses -> Filter them all.
+        if _compact
+            return vcat(
+                [cls(args...; _compact=_compact, kwargs...) for cls in oc.subclasses]...
+            )
+        else # _compact=false sometimes returns iterators.
+            return Iterators.flatten(
+                cls(args...; _compact=_compact, kwargs...) for cls in oc.subclasses
+            )
+        end
+    end
+end
+
+function _object_class_filtering(oc::ObjectClass; kwargs...)
     isempty(kwargs) && return oc.objects
     function cond(o)
         for (p, v) in kwargs
@@ -72,12 +90,12 @@ function (oc::ObjectClass)(; kwargs...)
     end
     filter(cond, oc.objects)
 end
-function (oc::ObjectClass)(name::Symbol)
+function _object_class_filtering(oc::ObjectClass, name::Symbol)
     i = findfirst(o -> o.name == name, oc.objects)
     !isnothing(i) && return oc.objects[i]
     nothing
 end
-(oc::ObjectClass)(name::String) = oc(Symbol(name))
+_object_class_filtering(oc::ObjectClass, name::String) = oc(Symbol(name))
 
 """
     (<rc>::RelationshipClass)(;<keyword arguments>)
@@ -167,7 +185,7 @@ _find_rels(rc, ::Anything) = rc.relationships
 function _find_rows(rc; kwargs...)
     lock(rc.row_map_lock) do
         memoized_rows = get!(rc.row_map, rc.name, Dict())
-        get!(memoized_rows, kwargs) do
+        get!(memoized_rows, collect(kwargs)) do # Tasku: Enforce kwargs class order, without `collect` the `kwargs` behave like `Set`s.
             _do_find_rows(rc; kwargs...)
         end
     end
@@ -175,9 +193,15 @@ end
 
 function _do_find_rows(rc; kwargs...)
     rows = anything
+    last_class_index = 0
     for (oc_name, objs) in kwargs
         oc_row_map = get(rc.row_map, oc_name, nothing)
         oc_row_map === nothing && return []
+        i = findfirst(oc_name .== rc.object_class_names)
+        if !isnothing(i)
+            i <= last_class_index && return [] # Tasku: Enforce kwargs class order
+            last_class_index = i
+        end
         oc_rows = _oc_rows(rc, oc_row_map, objs)
         oc_rows === anything && continue
         if rows === anything
@@ -478,7 +502,7 @@ members(x) = unique(member for obj in x for member in obj.members)
 groups(x) = unique(group for obj in x for group in obj.groups)
 
 """
-    indices(p::Parameter, [c::Union{ObjectClass,RelationshipClass}]; kwargs...)
+    indices(p::Parameter, [c::EntityClass]; kwargs...)
 
 An iterator over all objects and relationships where the value of `p` is different than `nothing`.
 
@@ -518,7 +542,7 @@ julia> collect(indices(demand))
 function indices(p::Parameter; kwargs...)
     (ent for class in p.classes for ent in indices(p, class; kwargs...))
 end
-function indices(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
+function indices(p::Parameter, class::EntityClass; kwargs...)
     (
         ent
         for ent in _entities(class; kwargs...)
@@ -527,14 +551,14 @@ function indices(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwar
 end
 
 """
-    indices_as_tuples(p::Parameter, [c::Union{ObjectClass,RelationshipClass}]; kwargs...)
+    indices_as_tuples(p::Parameter, [c::EntityClass]; kwargs...)
 
 Like `indices` but also yields tuples for single-dimensional entities.
 """
 function indices_as_tuples(p::Parameter; kwargs...)
     (ent for class in p.classes for ent in indices_as_tuples(p, class; kwargs...))
 end
-function indices_as_tuples(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
+function indices_as_tuples(p::Parameter, class::EntityClass; kwargs...)
     (
         _entity_tuple(ent, class)
         for ent in _entities(class; kwargs...)
@@ -553,35 +577,76 @@ _entity_tuple(r::RelationshipLike, class) = r
 
 classes(p::Parameter) = p.classes
 
-push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
+push_class!(p::Parameter, class::EntityClass) = push!(p.classes, class)
 
 """
-    add_objects!(object_class, objects)
+    add_objects!(object_class::ObjectClass, objects::Array)
 
 Remove from `objects` everything that's already in `object_class`, and append the rest.
 Return the modified `object_class`.
+
+Note that objects cannot be added to superclasses!
 """
 function add_objects!(object_class::ObjectClass, objects::Array)
+    isempty(objects) && return object_class
+    if !isempty(object_class.subclasses)
+        error("`Object`s cannot be added to superclasses! Add them to the underlying classes instead.")
+    end
     setdiff!(objects, object_class.objects)
     append!(object_class.objects, objects)
     merge!(object_class.parameter_values, Dict(obj => Dict() for obj in objects))
     object_class
 end
 
+"""
+    add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
+
+Add both the objects and their parameter values from `parameter_values` to `object_class`.
+
+Setting `merge_values=true` attempts to merge parameter values together if values already exist.
+By default, new values will overwrite existing ones. 
+
+Note that parameter values cannot be added to superclasses!
+"""
 function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
+    isempty(parameter_values) && return object_class
+    if !isempty(object_class.subclasses)
+        error("`Object`s and parameter values cannot be added to superclasses! Add them to the underlying classes instead.")
+    end
     add_objects!(object_class, only.(keys(parameter_values)))
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     for (obj, vals) in parameter_values
         obj = only(obj)
         do_merge!(object_class.parameter_values[obj], vals)
     end
+    return object_class
 end
 
+"""
+    add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
+
+Add `parameter_defaults` to the `object_class`.
+
+Setting `merge_values=true` attempts to merge parameter defaults together if values already exist.
+By default, new values will overwrite existing ones.
+
+Note that parameter defaults cannot be added to superclasses!
+"""
 function add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
+    isempty(parameter_defaults) && return object_class
+    if !isempty(object_class.subclasses)
+        error("`Parameter defaults cannot be added to superclasses! Add them to the underlying classes instead.")
+    end
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     do_merge!(object_class.parameter_defaults, parameter_defaults)
+    return object_class
 end
 
+"""
+    add_object!(object_class::ObjectClass, object::ObjectLike)
+
+Adds a single `object` to `object_class`.
+"""
 function add_object!(object_class::ObjectClass, object::ObjectLike)
     add_objects!(object_class, [object])
 end
@@ -591,6 +656,8 @@ end
 
 Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
 Return the modified `relationship_class`.
+
+Supports adding relationships through `ObjectClass` IF it is a pseudo-compound-superclass.
 """
 function add_relationships!(relationship_class::RelationshipClass, object_tuples::Vector{T}) where T<:ObjectTupleLike
     relationships = [(; zip(relationship_class.object_class_names, obj_tup)...) for obj_tup in object_tuples]
@@ -600,9 +667,43 @@ function add_relationships!(relationship_class::RelationshipClass, relationships
     relationships = setdiff(relationships, relationship_class.relationships)
     _append_relationships!(relationship_class, relationships)
     merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
-    relationship_class
+    return relationship_class
+end
+function add_relationships!(superclass::ObjectClass, rels)
+    isempty(rels) && return superclass
+    if isempty(superclass.subclasses)
+        error("Relationships cannot be added to non-superclass `ObjectClass`es!")
+    end
+    cls_names_to_subrel_cls_mapping = Dict(
+        subcls.object_class_names => subcls for subcls in superclass.subclasses
+    )
+    return _add_subrels!(superclass, rels, cls_names_to_subrel_cls_mapping)
 end
 
+function _add_subrels!(superclass::ObjectClass, object_tuples::Vector{T}, mapping::Dict) where T<:ObjectTupleLike
+    for objtup in object_tuples
+        classes = _fix_name_ambiguity([obj.class_name for obj in objtup])
+        add_relationship!(mapping[classes], (; zip(classes, objtup)...))
+    end
+    return superclass
+end
+function _add_subrels!(superclass::ObjectClass, relationships::Vector{RelationshipLike}, mapping::Dict)
+    for rel in relationships
+        add_relationship!(mapping[collect(keys(rel))], rel)
+    end
+    return superclass
+end
+
+"""
+    add_relationship_parameter_values!(relationship_class, parameter_values::Dict; merge_values=false)
+
+Add the relationships and parameter values in `parameter_values` to `relationship_class`.
+
+Setting `merge_values=true` attempts to merge parameter defaults together if values already exist.
+By default, new values will overwrite existing ones.
+
+Supports adding parameter values to `ObjectClass` IF it is a pseudo-compound-superclass.
+"""
 function add_relationship_parameter_values!(
     relationship_class::RelationshipClass, parameter_values::Dict; merge_values=false
 )
@@ -613,18 +714,68 @@ function add_relationship_parameter_values!(
         do_merge!(relationship_class.parameter_values[obj_tup], vals)
     end
 end
+function add_relationship_parameter_values!(
+    superclass::ObjectClass, parameter_values::Dict; merge_values=false
+)
+    isempty(parameter_values) && return superclass
+    if isempty(superclass.subclasses)
+        error("Relationship parameter values cannot be added to non-superclass `ObjectClass`es!")
+    end
+    cls_names_to_subrel_cls_mapping = Dict(
+        subcls.object_class_names => subcls for subcls in superclass.subclasses
+    )
+    for (rel, pval) in parameter_values
+        add_relationship_parameter_values!(
+            cls_names_to_subrel_cls_mapping[collect(keys(rel))],
+            Dict(rel => pval);
+            merge_values=merge_values
+        )
+    end
+end
 
+"""
+    function add_relationship_parameter_defaults!(relationship_class, parameter_defaults::Dict; merge_values=false)
+
+Add `parameter_defaults` to `relationship_class`.
+
+Setting `merge_values=true` attempts to merge parameter defaults together if values already exist.
+By default, new values will overwrite existing ones.
+
+Supports adding parameter defaults to `ObjectClass` IF it is a pseudo-compound-superclass.
+"""
 function add_relationship_parameter_defaults!(
     relationship_class::RelationshipClass, parameter_defaults::Dict; merge_values=false
 )
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     do_merge!(relationship_class.parameter_defaults, parameter_defaults)
 end
+function add_relationship_parameter_defaults!(
+    superclass::ObjectClass, parameter_defaults::Dict; merge_values=false
+)
+    if isempty(superclass.subclasses)
+        error("Relationship parameter defaults cannot be added to non-superclass `ObjectClass`es!")
+    end
+    for subcls in superclass.subclasses
+        add_relationship_parameter_defaults!(
+            subcls, parameter_defaults; merge_values=merge_values
+        )
+    end
+end
 
-function add_relationship!(relationship_class::RelationshipClass, relationship::RelationshipLike)
+"""
+    add_relationship!(relationship_class, relationship::RelationshipLike)
+
+Adds a single `relatioship` to `relationship_class`.
+"""
+function add_relationship!(relationship_class::EntityClass, relationship::RelationshipLike)
     add_relationships!(relationship_class, [relationship])
 end
 
+"""
+    add_parameter_values!(cls::EntityClass, vals; kwargs...)
+
+Convenience wrapper around `add_object_parameter_values!` and `add_relationship_parameter_values!`.
+"""
 function add_parameter_values!(cls::ObjectClass, vals; kwargs...)
     add_object_parameter_values!(cls, vals; kwargs...)
 end
@@ -666,6 +817,16 @@ object_class(name, m=@__MODULE__) = _active_value(m, :_spine_object_classes, nam
 The `RelationshipClass` of given name, generated by `using_spinedb` in the given module.
 """
 relationship_class(name, m=@__MODULE__) = _active_value(m, :_spine_relationship_classes, name)
+
+"""
+    entity_class(name, m=@__MODULE__)
+
+The `ObjectClass` or `RelationshipClass` of given name, generated by `using_spinedb` in the given module.
+"""
+function entity_class(name, m=@__MODULE__)
+    oc = object_class(name, m)
+    isnothing(oc) ? relationship_class(name, m) : oc
+end
 
 """
     parameter(name, m=@__MODULE__)
@@ -740,17 +901,122 @@ function realize(call, upd=nothing)
     end
 end
 
-function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
-    push!(cls.object_class_names, name)
-    push!(cls.intact_object_class_names, name)
-    map!(rel -> (; rel..., Dict(name => obj)...), cls.relationships, cls.relationships)
-    for rel in collect(keys(cls.parameter_values))
-        new_rel = (rel..., obj)
-        cls.parameter_values[new_rel] = pop!(cls.parameter_values, rel)
+"""
+    add_dimension!(cls::RelationshipClass, name, obj)
+
+Add `obj` as a new dimension at the end of `cls` relationships and parameter values.
+
+`name` and `obj` can also be `Vector`s for adding multiple objects and dimensions at once.
+`name` can be omitted if desired, in which case it will be deduced from `obj.class_name`.
+"""
+function add_dimension!(cls::RelationshipClass, name::Symbol, obj::ObjectLike)
+    add_dimension!(cls, [name], [obj])
+end
+function add_dimension!(cls::RelationshipClass, obj::Object)
+    add_dimension!(cls, [obj.class_name], [obj])
+end
+function add_dimension!(cls::RelationshipClass, objs::Vector{Object})
+    add_dimension!(cls, getproperty.(objs, :class_name), objs)
+end
+function add_dimension!(cls::RelationshipClass, names::Vector{Symbol}, objs::Vector{<:ObjectLike})
+    if length(names) != length(objs)
+        throw(ArgumentError("Length of `names` and `objs` must match!"))
     end
-    cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
-    delete!(cls.row_map, cls.name)  # delete memoized rows
+    append!(cls.intact_object_class_names, names)
+    # We have to rename old class names in the cache if they change due to ambiguity.
+    old_cls_names = copy(cls.object_class_names)
+    append!(cls.object_class_names, names)
+    _fix_name_ambiguity!(cls.object_class_names, cls.intact_object_class_names)
+    old_diff_names = setdiff(old_cls_names, cls.object_class_names)
+    new_diff_names = setdiff(cls.object_class_names[1:length(old_cls_names)], old_cls_names)
+    # Update relationships and parameter value dict
+    map!(
+        reltup -> NamedTuple(
+            zip(cls.object_class_names, tuple(reltup..., objs...))
+        ),
+        cls.relationships,
+        cls.relationships
+    )
+    for rel in collect(keys(cls.parameter_values))
+        cls.parameter_values[(rel..., objs...)] = pop!(cls.parameter_values, rel)
+    end
+    # Cache manipulation and renew split kwargs
+    for (name, obj) in zip(last(cls.object_class_names, length(names)), objs) # Added objects on every row for new dimensions.
+        cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
+    end
+    for (new_name, old_name) in zip(new_diff_names, old_diff_names) # Rename changed class names in cache (if any)
+        cls.row_map[new_name] = pop!(cls.row_map, old_name)
+    end
+    for cache_name in setdiff(keys(cls.row_map), cls.object_class_names)
+        delete!(cls.row_map, cache_name) # Delete superfluous cache?
+    end
     nothing
+end
+
+"""
+    reorder_dimensions(name::Symbol, cls::RelationshipClass, dims::Vector)
+
+Create a new class `name` by reordering the dimensions of `cls`.
+
+`dims` indicates the new desired order for the dimensions,
+and can be either a `Vector{Symbol}` or `Vector{Integer}`.
+Note that `dims` needs to correspond to the `object_class_names`
+field, not the `intact_object_class_names` field!
+
+Returns a new [`RelationshipClass`](@ref) with the reordered dimensions.
+
+See also [`reorder_dimensions!`](@ref).
+"""
+function reorder_dimensions(name::Symbol, cls::RelationshipClass, dims::Vector{Symbol})
+    perm = _find_permutation(dims, cls.object_class_names)
+    return reorder_dimensions(name, cls, perm)
+end
+function reorder_dimensions(name::Symbol, cls::RelationshipClass, perm::Vector{<:Integer})
+    new_intact_cls_names = cls.intact_object_class_names[perm]
+    return RelationshipClass(
+        name,
+        new_intact_cls_names,
+        [Tuple(objtup[i] for i in perm) for objtup in cls.relationships],
+        Dict(
+            Tuple(objtup[i] for i in perm) => val
+            for (objtup, val) in cls.parameter_values
+        ),
+        cls.parameter_defaults
+    )
+end
+
+"""
+    reorder_dimensions!(cls::RelationshipClass, dims::Vector)
+
+Reordering the dimensions of `cls` in-place according to `dims`.
+
+`dims` indicates the new desired order for the dimensions,
+and can be either a `Vector{Symbol}` or `Vector{Integer}`.
+Note that `dims` needs to correspond to the `object_class_names`
+field, not the `intact_object_class_names` field!
+
+Returns the [`RelationshipClass`](@ref) with the reordered dimensions.
+
+See also [`reorderder_dimensions`](@ref).
+"""
+function reorder_dimensions!(cls::RelationshipClass, dims::Vector{Symbol})
+    perm = _find_permutation(dims, cls.object_class_names)
+    return reorder_dimensions!(cls, perm)
+end
+function reorder_dimensions!(cls::RelationshipClass, perm::Vector{<:Integer})
+    permute!(cls.intact_object_class_names, perm)
+    permute!(cls.object_class_names, perm)
+    # Reorder relationships list RelationshipLike NamedTuples.
+    map!(
+        reltup -> NamedTuple{Tuple(cls.object_class_names)}(reltup),
+        cls.relationships,
+        cls.relationships
+    )
+    # Reorder parameter value dict key ObjectTupleLikes.
+    for objtup in collect(keys(cls.parameter_values))
+        cls.parameter_values[objtup[perm]] = pop!(cls.parameter_values, objtup)
+    end
+    return cls
 end
 
 dimensions(cls::RelationshipClass) = cls.object_class_names

@@ -492,7 +492,7 @@ function _test_write_parameters()
             write_parameters(parameters, url; report="report_x")
             M = Bind()
             using_spinedb(url, M)
-            @test M.apero_time(country=M.country(:France), report=M.report(:report_x)) === Symbol("later...")
+            @test M.apero_time(report=M.report(:report_x), country=M.country(:France)) === Symbol("later...") # Tasku: Keyword order needs to match now.
         end
     end
 end
@@ -884,6 +884,505 @@ function _test_write_interface()
     end
 end
 
+function _import_superclass_test_data(db_url::String)
+    # Tasku: Note that this uses the v0.8 data structure!
+    ent_clss = [
+        ["node", []],
+        ["unit", []],
+        ["unit_flow", []],
+        ["node__unit", ["node", "unit"]],
+        ["unit__node", ["unit", "node"]],
+        ["unit_flow__unit_flow", ["unit_flow", "unit_flow"]]
+    ]
+    supcls_subclss = [
+        ["unit_flow", "node__unit"],
+        ["unit_flow", "unit__node"]
+    ]
+    ents = [
+        ["node", "n1"],
+        ["node", "n2"],
+        ["node", "n3"],
+        ["unit", "u1"],
+        ["unit", "u2"],
+        ["node__unit", ["n1", "u1"]],
+        ["node__unit", ["n2", "u2"]],
+        ["node__unit", ["n1", "u2"]],
+        ["unit__node", ["u1", "n1"]],
+        ["unit__node", ["u1", "n3"]],
+        ["unit__node", ["u2", "n3"]],
+        ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"]],
+        ["unit_flow__unit_flow", ["n1", "u1", "n2", "u2"]],
+        ["unit_flow__unit_flow", ["u1", "n3", "u2", "n3"]],
+        ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"]],
+    ]
+    par_defs = [
+        ["node__unit", "flow_capacity", 0.0],
+        ["unit__node", "flow_capacity", 1.0],
+        ["unit_flow__unit_flow", "ratio", 2.0],
+    ]
+    par_vals = [
+        ["node__unit", ["n1", "u1"], "flow_capacity", 4.0],
+        ["unit__node", ["u1", "n1"], "flow_capacity", 4.1],
+        ["unit__node", ["u1", "n3"], "flow_capacity", 5.0],
+        ["node__unit", ["n2", "u2"], "flow_capacity", 6.0],
+        ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"], "ratio", 7.0],
+        ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"], "ratio", 8.0],
+    ]
+    return import_test_data(
+        db_url;
+        entity_classes=ent_clss,
+        superclass_subclasses=supcls_subclss,
+        entities=ents,
+        parameter_definitions=par_defs,
+        parameter_values=par_vals
+    )
+end
+
+function _test_superclasses()
+    @testset "superclasses" begin
+        # Tasku: Note that this test uses the v0.8 data structure!
+        _import_superclass_test_data(db_url)
+        Y = Bind()
+        using_spinedb(db_url, Y)
+        # Tests for `unit_flow` and `flow_capacity`
+        @test length(Y.unit_flow()) == 6
+        @test Y.unit_flow(unit = Y.unit(:u1)) == [
+            Y.node(:n1), Y.node(:n1), Y.node(:n3) # Tasku: TODO: IS THIS THE BEHAVIOUR WE WANT?!?
+        ]
+        @test collect(Y.unit_flow(unit = Y.unit(:u1); _compact=false)) == [
+            (node=Y.node(:n1), unit=Y.unit(:u1)),
+            (unit=Y.unit(:u1), node=Y.node(:n1)),
+            (unit=Y.unit(:u1), node=Y.node(:n3))
+        ]
+        @test Y.unit_flow(node = Y.node(:n2)) == [Y.unit(:u2)]
+        @test collect(Y.unit_flow(node = Y.node(:n2); _compact=false)) == [
+            (node=Y.node(:n2), unit=Y.unit(:u2))
+        ]
+        @test collect(Y.unit_flow(node = anything, unit = Y.unit(:u1); _compact=false)) == [
+            (node=Y.node(:n1), unit=Y.unit(:u1))
+        ]
+        @test collect(Y.unit_flow(unit = Y.unit(:u1), node = anything; _compact=false)) == [
+            (unit=Y.unit(:u1), node=Y.node(:n1))
+            (unit=Y.unit(:u1), node=Y.node(:n3))
+        ]
+        @test Y.flow_capacity(node=Y.node(:n1), unit=Y.unit(:u1)) == 4.0
+        @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n1)) == 4.1
+        @test Y.flow_capacity(node=Y.node(:n2), unit=Y.unit(:u2)) == 6.0
+        @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n3)) == 5.0
+        @test Y.flow_capacity(node=Y.node(:n1), unit=Y.unit(:u2)) == 0.0
+        @test Y.flow_capacity(unit=Y.unit(:u2), node=Y.node(:n3)) == 1.0
+        @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n2)) === nothing
+        @test collect(indices(Y.flow_capacity)) == [
+            (node=Y.node(:n1), unit=Y.unit(:u1)),
+            (node=Y.node(:n1), unit=Y.unit(:u2)),
+            (node=Y.node(:n2), unit=Y.unit(:u2)),
+            (unit=Y.unit(:u1), node=Y.node(:n1)),
+            (unit=Y.unit(:u1), node=Y.node(:n3)),
+            (unit=Y.unit(:u2), node=Y.node(:n3)),
+        ]
+        @test collect(indices(Y.flow_capacity; node=anything, unit=anything)) == [
+            (node=Y.node(:n1), unit=Y.unit(:u1)),
+            (node=Y.node(:n1), unit=Y.unit(:u2)),
+            (node=Y.node(:n2), unit=Y.unit(:u2)),
+        ]
+        #= Tasku: RelationshipClasses have no parameter value filters.
+        @test unit_flow(flow_capacity=0.0) == [(node=node(:n1), unit=unit(:u2))]
+        @test unit_flow(flow_capacity=4.0) == [(node=node(:n1), unit=unit(:u1))]
+        @test unit_flow(flow_capacity=1.0) == [(unit=unit(:u2), node=node(:n3))]
+        =#
+        # Tests for `unit_flow__unit_flow` and `ratio`
+        @test length(Y.unit_flow__unit_flow()) == 4
+        @test Y.unit_flow__unit_flow(unit2=Y.unit(:u1)) == [
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n3)),
+        ]
+        @test collect(Y.unit_flow__unit_flow(unit2=Y.unit(:u1); _compact=false)) == [
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+        ]
+        @test collect(Y.unit_flow__unit_flow(unit1=Y.unit(:u1); _compact=false)) == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+        ]
+        @test collect(Y.unit_flow__unit_flow(node1=anything, unit1=Y.unit(:u1); _compact=false)) == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+        ]
+        @test collect(Y.unit_flow__unit_flow(unit1=Y.unit(:u1), node1=anything; _compact=false)) == [
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+        ]
+        @test collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything, unit2=anything; _compact=false)) == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
+        ]
+        @test collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything; _compact=false)) == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3))
+        ]
+        @test Y.ratio(node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)) == 7.0
+        @test Y.ratio(unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)) == 8.0
+        @test Y.ratio(unit1=Y.unit(:u1), node1=Y.node(:n1), node2=Y.node(:n1), unit2=Y.unit(:u1)) === nothing
+        @test Y.ratio(node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)) == 2.0
+        @test collect(indices(Y.ratio)) == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+        ]
+        @test collect(indices(Y.ratio; node1=anything, unit1=anything)) == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+        ]
+        #= Tasku: Parameter value filtering for relationship classes is not a thing atm.
+        @test unit_flow__unit_flow(ratio=2.0) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
+        ]
+        @test collect(unit_flow__unit_flow(node1=anything, unit1=anything, ratio=2.0, _compact=false)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+        ]
+        @test unit_flow__unit_flow(ratio=7.0) == [
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3))
+        ]
+        =#
+        @test Y.unit_flow__unit_flow__node__unit__node__unit() == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+        ]
+        @test Y.unit_flow__unit_flow__unit__node__node__unit() == [
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+        ]
+        @test Y.unit_flow__unit_flow__node__unit__unit__node() == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+        ]
+        @test Y.unit_flow__unit_flow__unit__node__unit__node() == [
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+        ]
+        # Test superclass database extension (to see if it errors)
+        using_spinedb(db_url, Y; extend=true)
+    end
+end
+
+function _test_writing_superclasses()
+    @testset "writing_superclasses" begin
+        # Tasku: Note that this test uses the v0.8 data structure!
+        # Read original data to Y.
+        _import_superclass_test_data(db_url)
+        orig_data = SpineInterface.parse_db_dict!(export_data(db_url))
+        Y = Bind()
+        using_spinedb(db_url, Y)
+        # Reset database contents
+        SpineInterface.close_connection(db_url)
+        SpineInterface.open_connection(db_url)
+        no_data = export_data(db_url)
+        @test length(no_data) == 1 # Test that data is indeed gone, only "alternatives" remain.
+        # Read Y back into the fresh db
+        import_data(db_url, Y, "testing")
+        # Re-read database into X
+        new_data = SpineInterface.parse_db_dict!(export_data(db_url))
+        X = Bind()
+        using_spinedb(db_url, X)
+        # Test if original and re-read data are identical in X and Y.
+        @test orig_data == new_data
+        @test keys(getfield(Y, :d)) == keys(getfield(X, :d))
+        for ((yname, yvalue), (xname, xvalue)) in zip(getfield(Y, :d), getfield(X, :d))
+            @test yname == xname
+            if isa(yvalue, SpineInterface.EntityClass)
+                @test yvalue() == xvalue()
+            end
+        end
+        # Test that X and Y are distinct by adding : u3 to Y.
+        add_object!(Y.unit, Object(:u3, :unit))
+        @test Y.unit() != X.unit()
+    end
+end
+
+function _test_manipulating_superclasses()
+    @testset "manipulating_superclasses" begin
+        # Tasku: Note that this test uses the v0.8 data structure!
+        # Read original data to Y.
+        _import_superclass_test_data(db_url)
+        Y = Bind()
+        using_spinedb(db_url, Y)
+        # Test adding new `unit_flow__unit_flow`s
+        nunu = (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n1), unit2=Y.unit(:u1))
+        unun = (unit1=Y.unit(:u1), node1=Y.node(:n1), unit2=Y.unit(:u1), node2=Y.node(:n1))
+        @test isempty(Y.unit_flow__unit_flow(;nunu..., _compact=false))
+        @test isempty(Y.unit_flow__unit_flow(;unun..., _compact=false))
+        add_relationships!(Y.unit_flow__unit_flow, [values(nunu), values(unun)])
+        @test first(Y.unit_flow__unit_flow(;nunu..., _compact=false)) == nunu
+        @test first(Y.unit_flow__unit_flow(;unun..., _compact=false)) == unun
+        # Test adding new `unit_flow__unit_flow` parameter values
+        unnu = (unit1=Y.unit(:u1), node1=Y.node(:n1), node2=Y.node(:n1), unit2=Y.unit(:u1))
+        nuun = (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n1))
+        @test Y.ratio(; unnu...) == Y.ratio(; nuun...) == nothing
+        pvs = Dict(
+            unnu => Dict(:ratio => parameter_value(:unnu)),
+            nuun => Dict(:ratio => parameter_value(:nuun))
+        )
+        add_relationship_parameter_values!(Y.unit_flow__unit_flow, pvs)
+        @test Y.ratio(; unnu...) == :unnu
+        @test Y.ratio(; nuun...) == :nuun
+        # Test changing the default
+        inds = (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
+        @test Y.ratio(; inds...) == 2.0
+        add_relationship_parameter_defaults!(
+            Y.unit_flow__unit_flow,
+            Dict(:ratio => parameter_value(3.0))
+        )
+        @test Y.ratio(; inds...) == 3.0
+    end
+end
+
+function _test_reorder_dimensions()
+    @testset "reorder_dimensions" begin
+        object_classes = ["institution", "country"]
+        relationship_classes = [
+            ["institution__country__country", ["institution", "country", "country"]]
+        ]
+        relationship_parameters = [
+            ["institution__country__country", "mobility"],
+        ]
+        institutions = ["KTH", "VTT"]
+        countries = ["Sweden", "France", "Finland"]
+        objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
+        relationships = [
+            ["institution__country__country", ["KTH", "Sweden", "France"]],
+            ["institution__country__country", ["KTH", "France", "Sweden"]],
+            ["institution__country__country", ["VTT", "Finland", "Sweden"]]
+        ]
+        relationship_parameter_values = [
+            ["institution__country__country", ["KTH", "Sweden", "France"], "mobility", true],
+            ["institution__country__country", ["KTH", "France", "Sweden"], "mobility", false],
+            ["institution__country__country", ["VTT", "Finland", "Sweden"], "mobility", true],
+        ]
+        import_test_data(
+            db_url;
+            object_classes=object_classes,
+            relationship_classes=relationship_classes,
+            objects=objects,
+            relationships=relationships,
+            relationship_parameters=relationship_parameters,
+            relationship_parameter_values=relationship_parameter_values,
+        )
+        Y = Bind()
+        using_spinedb(db_url, Y)
+        # Create some new reordered relationship classes
+        original_names = [:institution, :country1, :country2]
+        reordered_names = [:country1, :institution, :country2]
+        perm = SpineInterface._find_permutation(reordered_names, original_names)
+        @test perm == [2, 1, 3]
+        @test reordered_names == original_names[perm]
+        country__institution__country = reorder_dimensions(
+            :country__institution__country,
+            Y.institution__country__country,
+            reordered_names,
+        )
+        country__institution__country_ = reorder_dimensions(
+            :country__institution__country_,
+            Y.institution__country__country,
+            perm,
+        )
+        ntups = [
+            (country1=Y.country(:France), institution=Y.institution(:KTH), country2=Y.country(:Sweden)),
+            (country1=Y.country(:Sweden), institution=Y.institution(:KTH), country2=Y.country(:France)),
+            (country1=Y.country(:Finland), institution=Y.institution(:VTT), country2=Y.country(:Sweden)),
+        ]
+        @test country__institution__country() == ntups
+        @test country__institution__country() == country__institution__country_()
+        pvs = [
+            country__institution__country.parameter_values[key][:mobility].value
+            for key in values.(ntups)
+        ]
+        @test pvs == [false, true, true]
+        @test country__institution__country(country1=Y.country(:France)) == [
+            (institution=Y.institution(:KTH), country2=Y.country(:Sweden)),
+        ]
+        @test country__institution__country(institution=Y.institution(:KTH)) == [
+            (country1=Y.country(:France), country2=Y.country(:Sweden)),
+            (country1=Y.country(:Sweden), country2=Y.country(:France)),
+        ]
+        @test country__institution__country(country2=Y.country(:Sweden)) == [
+            (country1=Y.country(:France), institution=Y.institution(:KTH)),
+            (country1=Y.country(:Finland), institution=Y.institution(:VTT)),
+        ]
+        # Reorder the new classes to match the original.
+        iperm = invperm(perm)
+        @test original_names == reordered_names[iperm]
+        reorder_dimensions!(country__institution__country, original_names)
+        reorder_dimensions!(country__institution__country_, iperm)
+        @test country__institution__country() == Y.institution__country__country()
+        @test country__institution__country_() == Y.institution__country__country()
+        pvs = Y.institution__country__country.parameter_values
+        @test country__institution__country.parameter_values == pvs
+        @test country__institution__country_.parameter_values == pvs
+        @test country__institution__country(country1=Y.country(:Sweden)) == [
+            (institution=Y.institution(:KTH), country2=Y.country(:France)),
+        ]
+        @test country__institution__country(institution=Y.institution(:VTT)) == [
+            (country1=Y.country(:Finland), country2=Y.country(:Sweden)),
+        ]
+        @test country__institution__country(country2=Y.country(:France)) == [
+            (institution=Y.institution(:KTH), country1=Y.country(:Sweden)),
+        ]
+        # Check parameter indices changes after reordering the original
+        orig_ntups = collect(indices(Y.mobility))
+        reorder_dimensions!(Y.institution__country__country, perm)
+        @test collect(indices(Y.mobility)) == ntups
+        @test Y.mobility(country1=Y.country(:Sweden), institution=Y.institution(:KTH), country2=Y.country(:France))
+        reorder_dimensions!(Y.institution__country__country, iperm)
+        @test collect(indices(Y.mobility)) == orig_ntups
+        @test !(Y.mobility(institution=Y.institution(:KTH), country1=Y.country(:France), country2=Y.country(:Sweden)))
+    end
+end
+
+function _test_add_dimension()
+    @testset "add_dimension!" begin
+        object_classes = ["institution", "country", "city"]
+        relationship_classes = [["institution__country", ["institution", "country"]]]
+        relationship_parameters = [["institution__country", "people_count"]]
+        institutions = ["KTH", "VTT"]
+        countries = ["Sweden", "France"]
+        cities = ["Stockholm", "Paris"]
+        objects = vcat(
+            [["institution", x] for x in institutions],
+            [["country", x] for x in countries],
+            [["city", x] for x in cities],
+        )
+        relationships = [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]]
+        relationship_parameter_values = [
+            ["institution__country", ["KTH", "Sweden"], "people_count", 3],
+            ["institution__country", ["KTH", "France"], "people_count", 1],
+        ]
+        import_test_data(
+            db_url;
+            object_classes=object_classes,
+            relationship_classes=relationship_classes,
+            objects=objects,
+            relationships=relationships,
+            relationship_parameters=relationship_parameters,
+            relationship_parameter_values=relationship_parameter_values,
+        )
+        Y = Bind()
+        using_spinedb(db_url, Y)
+        ic1 = Y.institution__country
+        ic2 = deepcopy(ic1)
+        ic3 = deepcopy(ic1)
+        orig_pvs = deepcopy(ic1.parameter_values)
+        # First testing adding one dimension.
+        add_dimension!(ic1, Y.city(:Stockholm))
+        add_dimension!(ic2, :city, Y.city(:Stockholm))
+        @test ic1.object_class_names == [:institution, :country, :city]
+        @test ic1.object_class_names == ic1.intact_object_class_names
+        @test ic2.object_class_names == ic2.intact_object_class_names
+        @test ic1.object_class_names == ic2.object_class_names
+        @test ic1.relationships == ic2.relationships
+        @test collect(values(ic1.parameter_values)) == collect(values(orig_pvs))
+        @test ic1.parameter_values == ic2.parameter_values
+        @test ic1(institution=Y.institution(:KTH)) == [
+            (country=Y.country(:France), city=Y.city(:Stockholm)),
+            (country=Y.country(:Sweden), city=Y.city(:Stockholm)),
+        ]
+        @test isempty(ic1(institution=Y.institution(:VTT)))
+        @test ic1(country=Y.country(:Sweden)) == [(institution=Y.institution(:KTH), city=Y.city(:Stockholm))]
+        @test ic1(city=Y.city(:Stockholm)) == [
+            (institution=Y.institution(:KTH), country=Y.country(:France)),
+            (institution=Y.institution(:KTH), country=Y.country(:Sweden)),
+        ]
+        @test Y.people_count(institution=Y.institution(:KTH), country=Y.country(:France), city=Y.city(:Stockholm)) == 1
+        @test Y.people_count(institution=Y.institution(:KTH), country=Y.country(:Sweden), city=Y.city(:Stockholm)) == 3
+        @test collect(indices(Y.people_count)) == [
+            (institution=Y.institution(:KTH), country=Y.country(:France), city=Y.city(:Stockholm)),
+            (institution=Y.institution(:KTH), country=Y.country(:Sweden), city=Y.city(:Stockholm)),
+        ]
+        # Test adding a second duplicate dimension to ic1
+        add_dimension!(ic1, Y.city(:Paris))
+        @test ic1.object_class_names == [:institution, :country, :city1, :city2]
+        @test ic1.intact_object_class_names == [:institution, :country, :city, :city]
+        @test collect(values(ic1.parameter_values)) == collect(values(ic2.parameter_values))
+        @test ic1(institution=Y.institution(:KTH)) == [
+            (country=Y.country(:France), city1=Y.city(:Stockholm), city2=Y.city(:Paris)),
+            (country=Y.country(:Sweden), city1=Y.city(:Stockholm), city2=Y.city(:Paris)),
+        ]
+        @test ic1(country=Y.country(:France)) == [
+            (institution=Y.institution(:KTH), city1=Y.city(:Stockholm), city2=Y.city(:Paris)),
+        ]
+        @test isempty(ic1(city=Y.city(:Stockholm)))
+        @test ic1(city1=Y.city(:Stockholm)) == [
+            (institution=Y.institution(:KTH), country=Y.country(:France), city2=Y.city(:Paris)),
+            (institution=Y.institution(:KTH), country=Y.country(:Sweden), city2=Y.city(:Paris)),
+        ]
+        @test isempty(ic1(city2=Y.city(:Stockholm)))
+        @test ic1(city2=Y.city(:Paris)) == [
+            (institution=Y.institution(:KTH), country=Y.country(:France), city1=Y.city(:Stockholm)),
+            (institution=Y.institution(:KTH), country=Y.country(:Sweden), city1=Y.city(:Stockholm)),
+        ]
+        @test Y.people_count(
+            institution=Y.institution(:KTH),
+            country=Y.country(:France),
+            city1=Y.city(:Stockholm),
+            city2=Y.city(:Paris),
+        ) == 1
+        @test Y.people_count(
+            institution=Y.institution(:KTH),
+            country=Y.country(:Sweden),
+            city1=Y.city(:Stockholm),
+            city2=Y.city(:Paris),
+        ) == 3
+        @test collect(indices(Y.people_count)) == [
+            (institution=Y.institution(:KTH), country=Y.country(:France), city1=Y.city(:Stockholm), city2=Y.city(:Paris)),
+            (institution=Y.institution(:KTH), country=Y.country(:Sweden), city1=Y.city(:Stockholm), city2=Y.city(:Paris)),
+        ]
+        # Test adding two duplicate dimensions at once to ic3 to replicate ic1
+        add_dimension!(ic3, [Y.city(:Stockholm), Y.city(:Paris)])
+        @test ic3.object_class_names == ic1.object_class_names
+        @test ic3.intact_object_class_names == ic1.intact_object_class_names
+        @test ic3.parameter_values == ic1.parameter_values
+        @test ic3() == ic1()
+        @test all(
+            ic3(;args...) == ic1(;args...)
+            for args in [
+                (institution=Y.institution(:KTH),),
+                (country=Y.country(:France),),
+                (city=Y.city(:Stockholm),),
+                (city1=Y.city(:Stockholm),),
+                (city2=Y.city(:Stockholm),),
+                (city2=Y.city(:Paris),),
+            ]
+        )
+    end
+end
+
+function _test_parse_db_dict()
+    @testset "parse_db!" begin
+        url = "sqlite://"
+        data = Dict(
+            :entity_classes => [
+                ["country", [], nothing, nothing, true],
+                ["country__country", ["country", "country"], nothing, nothing, true]
+            ],
+            :entities => [["country", "Finland", nothing]],
+            :parameter_definitions => [ # NOTE! This structure was introduced in Spine-DB-API v0.36.4 or newer!
+                ["country", "array", "array", nothing, nothing, nothing],
+                ["country", "exists", "boolean", nothing, nothing, nothing],
+            ],
+            :parameter_values => [
+                ["country", "Finland", "array", Dict("type" => "array", "value_type" => "float", "data" => [1.0,2.0]), "Base"],
+                ["country", "Finland", "exists", true, "Base"],
+            ],
+            :parameter_value_lists => [["boolean", true]],
+            :alternatives => [["Base", "Base alternative"]],
+        )
+        import_test_data(url; data...)
+        parsed_data = export_data(url)
+        parsed_data = SpineInterface.parse_db_dict!(parsed_data)
+        for (k, v) in data
+            @test get(parsed_data, string(k), nothing) == v
+        end
+    end
+end
+
 @testset "api" begin
     _test_indices()
     _test_indices_as_tuples()
@@ -903,4 +1402,10 @@ end
     _test_indexed_values()
     _test_bind()
     _test_write_interface()
+    _test_superclasses()
+    _test_writing_superclasses()
+    _test_manipulating_superclasses()
+    _test_reorder_dimensions()
+    _test_add_dimension()
+    _test_parse_db_dict()
 end
