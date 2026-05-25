@@ -20,12 +20,14 @@
 
 using SpineInterface
 import SpineInterface.parse_time_period
-using Test
-using PyCall
 using Dates
+import Graphs
+using HiGHS
+import MetaGraphsNext
+using PyCall
 using JSON
 using JuMP
-using HiGHS
+using Test
 
 # Handle JuMP and SpineInterface `Parameter` and `parameter_value` conflicts.
 import SpineInterface: Parameter, parameter_value
@@ -43,12 +45,13 @@ end
 @testset begin
     include("using_spinedb.jl")
     include("api.jl")
+    include("api/graphs.jl")
     include("constructors.jl")
     include("base.jl")
     include("types.jl")
     include("util.jl")
     include("update_model.jl")
-    @testset "examples" begin 
+    @testset "examples" begin
         include("../examples/tutorial_spine_database/tutorial_spine_database.jl")
         include("../examples/tutorial_spineopt_database/tutorial_spineopt_database.jl")
     end

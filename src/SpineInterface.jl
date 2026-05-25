@@ -35,20 +35,28 @@ include("base.jl")
 include("constructors.jl")
 include("api/db.jl")
 include("api/core.jl")
+include("api/graphs.jl")
 include("api/parameter_value.jl")
 include("api/time_slice.jl")
 include("api/tests.jl")
 
 export add_dimension!
+export add_entity!
+export add_entity_group_member!
+export add_object_class!
 export add_object_parameter_values!
 export add_object_parameter_defaults!
 export add_object!
 export add_objects!
+export add_parameter_definition!
+export add_parameter_value!
 export add_parameter_values!
+export add_relationship_class!
 export add_relationship_parameter_values!
 export add_relationship_parameter_defaults!
 export add_relationship!
 export add_relationships!
+export add_superclass!
 export Anything
 export anything
 export before
@@ -63,6 +71,7 @@ export db_value_and_type
 export difference
 export dimensions
 export duration
+export empty_entity_class_graph
 export end_
 export export_data
 export fixer
