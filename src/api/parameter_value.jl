@@ -122,6 +122,26 @@ const _db_df = dateformat"yyyy-mm-ddTHH:MM:SS.s"
 const _alt_db_df = dateformat"yyyy-mm-dd HH:MM:SS.s"
 
 """
+    parse_db_dict!(data::Dict)
+
+Parse the contents of a database in its Dict format.
+"""
+function parse_db_dict!(data::Dict)
+    for (key, index) in ( # Unfortunately, hard-coding what needs parsing seems easiest.
+        "parameter_value_lists" => 2,
+        "parameter_definitions" => 3,
+        "parameter_values" => 4,
+        "entity_alternatives" => 4
+    )
+        entries = get!(data, key, [])
+        for vec in entries
+            vec[index] = db_value_and_type(parse_db_value(vec[index]))
+        end
+    end
+    return data
+end
+
+"""
     parse_db_value(value, type)
 
 A parsed value (TimeSeries, TimePattern, Map, etc.) from given DB value and type.

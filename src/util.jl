@@ -39,7 +39,7 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     _strict &= _default === nothing
     # The search stops when a parameter value is found in a class
     for class in sort(p.classes; by=_dimensionality, rev=true)
-        entity, new_kwargs = _split_kwargs(class; kwargs...)
+        entity, new_kwargs = _split_kwargs(class, kwargs)
         parameter_values = _get_pvals(class.parameter_values, entity)
         parameter_values === nothing && continue
         return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
@@ -48,14 +48,39 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     nothing
 end
 
-function _split_kwargs(oc::ObjectClass; kwargs...)
-    get(kwargs, oc.name, missing), (; (x for x in kwargs if first(x) != oc.name)...)
+"""
+    _split_kwargs(ec::EntityClass, kwargs::Base.Pairs)
+
+Splits `entity` off from the remaining `kwargs` to be passed separately.
+"""
+function _split_kwargs(oc::ObjectClass, kwargs::Base.Pairs)
+    ent = Vector{Any}(nothing, 1)
+    new_kwargs = []
+    for (kw, arg) in kwargs
+        if kw == oc.name
+            ent[1] = arg
+        else
+            push!(new_kwargs, kw => arg)
+        end
+    end
+    return only(ent), (; new_kwargs...)
 end
-function _split_kwargs(rc::RelationshipClass; kwargs...)
-    (
-        Tuple(get(kwargs, n, missing) for n in rc.object_class_names),
-        (; (x for x in kwargs if !(first(x) in rc.object_class_names))...),
-    )
+function _split_kwargs(rc::RelationshipClass, kwargs::Base.Pairs)
+    entity_objs = Vector{Any}(missing, length(rc.object_class_names))
+    new_kwargs = []
+    last_class_index = 0
+    for (kw, arg) in kwargs
+        i = findfirst(kw .== rc.object_class_names)
+        if isnothing(i)
+            push!(new_kwargs, kw => arg)
+            continue
+        elseif i <= last_class_index
+            return nothing, pairs(new_kwargs) # Enforce kwargs class order
+        end
+        last_class_index = i
+        entity_objs[i] = arg
+    end
+    return Tuple(entity_objs), (; new_kwargs...)
 end
 
 _object_class_names(x::ObjectClass) = (x.name,)
@@ -222,3 +247,10 @@ function _append_relationships!(rc, rels)
     append!(rc.relationships, rels)
     nothing
 end
+
+"""
+    _find_permutation(a::Vector, b::Vector)
+
+Return which permutation of `b` `a` is.
+"""
+_find_permutation(a::Vector, b::Vector) = [findfirst(x .== b) for x in a]::Vector{<:Integer}

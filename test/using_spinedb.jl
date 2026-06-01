@@ -422,11 +422,6 @@ function _test_using_spinedb_in_a_loop()
     end
 end
 
-function _temp_db_url()
-    fp = tempname()
-    "sqlite:///$fp"
-end
-
 function _test_using_spinedb_extend()
     @testset "using_spinedb_extend" begin
         db_url = _temp_db_url()
