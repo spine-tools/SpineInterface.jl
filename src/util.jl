@@ -40,9 +40,9 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     # The search stops when a parameter value is found in a class
     for class in sort(p.classes; by=_dimensionality, rev=true)
         entity, new_kwargs = _split_kwargs(class; kwargs...)
-        parameter_values = _get_pvals(class.parameter_values, entity)
+        parameter_values = _get_pvals(class.vertex.parameter_values, entity)
         parameter_values === nothing && continue
-        return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
+        return _get(parameter_values, p.name, class.vertex.parameter_defaults, _default), new_kwargs
     end
     _strict && @warn("can't find a value of $p for argument(s) $((; kwargs...))")
     nothing
@@ -206,19 +206,4 @@ end
 
 function _add_update!(t::TimeSlice, timeout, upd)
     t.updates[upd] = timeout
-end
-
-function _append_relationships!(rc, rels)
-    isempty(rels) && return
-    delete!(rc.row_map, rc.name)  # delete memoized rows
-    offset = length(rc.relationships)
-    for cls_name in rc.object_class_names
-        oc_row_map = get!(rc.row_map, cls_name, Dict())
-        for (row, rel) in enumerate(rels)
-            obj = getproperty(rel, cls_name)
-            push!(get!(oc_row_map, obj, []), offset + row)
-        end
-    end
-    append!(rc.relationships, rels)
-    nothing
 end

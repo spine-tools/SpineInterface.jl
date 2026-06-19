@@ -405,19 +405,36 @@ Base.keys(m::Map) = m.indexes
 Base.keys(pv::ParameterValue{T}) where {T<:_Indexed} = keys(pv.value)
 
 function Base.merge!(a::ObjectClass, b::ObjectClass)
-    add_objects!(a, b.objects)
-    add_object_parameter_values!(a, b.parameter_values)
-    add_object_parameter_defaults!(a, b.parameter_defaults)
+    for label in keys(a.objects)
+        delete!(b.objects, label)
+        remove_entity!(b.vertex, label)
+    end
+    for object in values(b.objects)
+        add_object!(a, object)
+    end
+    merge_object_parameter_values!(a.vertex, b.vertex)
+    add_object_parameter_defaults!(a, b.vertex.parameter_defaults)
     a
 end
 function Base.merge!(a::RelationshipClass, b::RelationshipClass)
-    add_relationships!(a, b.relationships)
-    add_relationship_parameter_values!(a, b.parameter_values)
-    add_relationship_parameter_defaults!(a, b.parameter_defaults)
+    relationship_labels_to_remove = Vector{Symbol}()
+    sizehint!(relationship_labels_to_remove, length(b.vertex.entities))
+    for label in b.vertex.entities
+        atoms = Tuple(RelationshipAtoms(b.vertex.relationship_graph, label)...)
+        if !has_relationship(a.vertex.relationship_graph, atoms...)
+            add_entity!(a.vertex, atoms...)
+        end
+    end
+    merge_relationship_parameter_values!(a.vertex, b.vertex)
+    add_relationship_parameter_defaults!(a, b.vertex.parameter_defaults)
     a
 end
 function Base.merge!(a::Parameter, b::Parameter)
-    unique!(append!(a.classes, b.classes))
+    for class in b.classes
+        if all(a_class -> class.name != a_class.name, a.classes)
+            push!(a.classes, class)
+        end
+    end
     a
 end
 function Base.merge!(a::TimeSeries, b::TimeSeries)
@@ -486,14 +503,22 @@ end
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 Base.getindex(p::Parameter, inds::Union{Iterators.Pairs,NamedTuple}) = _getindex(p; inds...)
 function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
-    pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
-    if pv_new_kwargs !== nothing
-        parameter_value, new_inds = pv_new_kwargs
-        caller = (p, kwargs)
-        Call(parameter_value, new_inds, caller)
-    else
-        Call(nothing, p)
+    entity_selectors = modernize_entity_selector(p.classes, kwargs)
+    if !isempty(entity_selectors)
+        unique_class_label, entity_selector = pick_class_with_most_dimensions(p, entity_selectors)
+        if !isnothing(unique_class_label)
+            selected_value = value_instance(p.name, p.classes, unique_class_label, entity_selector, _default)
+            if !isnothing(selected_value)
+                value_kwargs = separate_value_kwargs(entity_selector, kwargs)
+                caller = (p, kwargs)
+                return Call(selected_value, value_kwargs, caller)
+            end
+        end
     end
+    if _strict
+        @warn("can't find a value of $p for argument(s) $((; kwargs...))")
+    end
+    Call(nothing, p)
 end
 
 function Base.get!(x::Union{TimeSeries,Map}, key, default)

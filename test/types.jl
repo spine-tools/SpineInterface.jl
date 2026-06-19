@@ -18,24 +18,66 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-function _relationship_class()
-    @testset "RelationshipClass" begin
-        @testset "construction with default arguments" begin
-            relationship_class = SpineInterface.RelationshipClass(:bond)
-            @test relationship_class.name == :bond
-            @test isempty(relationship_class.env_dict)
+function _test_object_class()
+    @testset "ObjectClass" begin
+        @testset "construction with objects" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :unit)
+            add_entity!(graph, :unit, :flower_plant)
+            add_entity!(graph, :unit, :lava_plant)
+            objects = Dict([
+                :flower_plant => Object(:flower_plant, :unit),
+                :lava_plant => Object(:lava_plant, :unit)
+            ])
+            unit = ObjectClass(:unit, graph, objects)
+            @test unit.name == :unit
+            env_dict = unit.env_dict[SpineInterface._active_env()]
+            @test env_dict.entity_class_graph === graph
+            @test env_dict.vertex === graph[:unit]
+            @test env_dict.objects == Dict(
+                [
+                    :flower_plant => Object(:flower_plant, :unit),
+                    :lava_plant => Object(:lava_plant, :unit)
+                ]
+            )
         end
-        @testset "construction with single relationship" begin
-            object_tuples = [(SpineInterface.Object(:foo, :Widget, [], []), SpineInterface.Object(:bar, :Gadget, [], []))]
-            relationship_class = SpineInterface.RelationshipClass(:bond, [:Widget, :Gadget], object_tuples)
+    end
+end
+
+function _test_relationship_class()
+    @testset "RelationshipClass" begin
+        @testset "normal construction" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :bondable)
+            add_relationship_class!(graph, :bond, :bondable)
+            bondable = ObjectClass(:bondable, graph)
+            object_classes = Dict([:bondable => bondable])
+            relationship_class = SpineInterface.RelationshipClass(:bond, graph, object_classes)
             @test relationship_class.name == :bond
             env_dict = relationship_class.env_dict[SpineInterface._active_env()]
-            @test env_dict.name == :bond
-            @test env_dict.relationships == [(Widget=object_tuples[1][1], Gadget=object_tuples[1][2]),]
+            @test env_dict.entity_class_graph === graph
+            @test env_dict.vertex === graph[:bond]
+            @test env_dict.object_classes === object_classes
+            @test env_dict.legacy_dimension_map == Dict([:bondable => [1]])
+        end
+        @testset "degenerate dimensions" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :bondable)
+            add_relationship_class!(graph, :bond, :bondable, :bondable)
+            bondable = ObjectClass(:bondable, graph)
+            object_classes = Dict([:bondable => bondable])
+            relationship_class = SpineInterface.RelationshipClass(:bond, graph, object_classes)
+            @test relationship_class.name == :bond
+            env_dict = relationship_class.env_dict[SpineInterface._active_env()]
+            @test env_dict.entity_class_graph === graph
+            @test env_dict.vertex === graph[:bond]
+            @test env_dict.object_classes === object_classes
+            @test env_dict.legacy_dimension_map == Dict([:bondable => [1, 2]])
         end
     end
 end
 
 @testset "type" begin
-    _relationship_class()
+    _test_object_class()
+    _test_relationship_class()
 end

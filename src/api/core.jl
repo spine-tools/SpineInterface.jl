@@ -62,22 +62,18 @@ julia> commodity(state_of_matter=:gas)
 ```
 """
 function (oc::ObjectClass)(; kwargs...)
-    isempty(kwargs) && return oc.objects
-    function cond(o)
-        for (p, v) in kwargs
-            value = get(oc.parameter_values[o], p, get(oc.parameter_defaults, p, nothing))
-            (value !== nothing && value() === v) || return false
-        end
-        true
-    end
-    filter(cond, oc.objects)
+    isempty(kwargs) && return collect(values(oc.objects))
+    collect(Iterators.filter(o -> value_filter_condition(oc.vertex, o.name, kwargs), values(oc.objects)))
 end
 function (oc::ObjectClass)(name::Symbol)
-    i = findfirst(o -> o.name == name, oc.objects)
-    !isnothing(i) && return oc.objects[i]
-    nothing
+    get(oc.objects, name, nothing)
 end
 (oc::ObjectClass)(name::String) = oc(Symbol(name))
+
+function as_object(atom::Atom, object_classes)
+    class = object_classes[atom.first]
+    class.objects[atom.second]
+end
 
 """
     (<rc>::RelationshipClass)(;<keyword arguments>)
@@ -137,27 +133,101 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 ```
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=EntityLike[], kwargs...)
-    isempty(kwargs) && return rc.relationships
-    relationships::Vector{EntityLike} = if !_compact
-        _find_rels(rc; kwargs...)
-    else
-        object_class_names = setdiff(rc.object_class_names, keys(kwargs))
-        if isempty(object_class_names)
-            []
-        elseif length(object_class_names) == 1
-            unique(rel[object_class_names[1]] for rel in _find_rels(rc; kwargs...))
+    if isempty(kwargs)
+        return collect(
+            NamedTuple(AtomsAsObjects(rc.object_classes, atoms))
+            for atoms in all_atom_tuples(rc.vertex.relationship_graph, rc.vertex.entities)
+        )
+    end
+    selector = entity_selector_from(rc, kwargs)
+    relationships = Vector{Union{Object, RelationshipLike}}()
+    for atoms in find_relationships(rc.vertex, selector...)
+        object_tuple = NamedTuple(AtomsAsObjects(rc.object_classes, atoms))
+        if _compact
+            object_tuple = (; (class_name => object for (class_name, object) in pairs(object_tuple) if !in(class_name, keys(kwargs)))...)
+        end
+        if length(object_tuple) == 0
+            break
+        elseif length(object_tuple) == 1
+            push!(relationships, object_tuple[1])
         else
-            unique(
-                (; zip(object_class_names, (rel[k] for k in object_class_names))...)
-                for rel in _find_rels(rc; kwargs...)
-            )
+            push!(relationships, object_tuple)
         end
     end
-    if !isempty(relationships)
-        relationships
-    else
-        _default
+    if isempty(relationships)
+        return _default
     end
+    relationships
+end
+
+function objects_to_selector(class_label::Symbol, ::Anything)
+    class_label => anything
+end
+function objects_to_selector(class_label::Symbol, object::Object)
+    class_label => object.name
+end
+function objects_to_selector(class_label::Symbol, objects)
+    Tuple(class_label => o.name for o in objects)
+end
+
+function entity_selector_from(class::RelationshipClass, legacy_selector)
+    selector::Vector{Union{Atom, AnyAtomInClass, MultiAtomSelector, Anything}} = [anything for _ in 1:atomic_dimensionality(class.vertex)]
+    for (class_label, objects) in legacy_selector
+        dimension_indexes = get(class.legacy_dimension_map, class_label, nothing)
+        if !isnothing(dimension_indexes)
+            selector[dimension_indexes[1]] = objects_to_selector(class_label, objects)
+        else
+            class_name = String(class_label)
+            intact_label = Symbol(class_name[1:end-1])
+            mapped_index = parse(Int, class_name[end])
+            selector[class.legacy_dimension_map[intact_label][mapped_index]] = objects_to_selector(Symbol(intact_label), objects)
+        end
+    end
+    selector
+end
+
+function occurrences_before(v, x, i)
+    count(e -> e.first == x, v[1:i - 1])
+end
+
+function occurrences_after(v, x, i)
+    count(e -> e.first == x, v[i + 1: end])
+end
+
+struct AtomsAsObjects
+    object_classes::Dict{Symbol, ObjectClass}
+    atoms::AtomTuple
+    unambiguous_class_names::Vector{Symbol}
+    function AtomsAsObjects(object_classes, atoms)
+        class_names = Vector{Symbol}(undef, length(atoms))
+        for (i, atom) in enumerate(atoms)
+            prior_n = occurrences_before(atoms, atom.first, i)
+            post_n = occurrences_after(atoms, atom.first, i)
+            if prior_n + post_n > 0
+                unambiguous_name = Symbol("$(atom.first)$(1 + prior_n)")
+            else
+                unambiguous_name = atom.first
+            end
+            class_names[i] = unambiguous_name
+        end
+        new(object_classes, atoms, class_names)
+    end
+end
+
+function Base.eltype(::Type{AtomsAsObjects})
+    Pair{Symbol, Object}
+end
+
+function Base.length(iter::AtomsAsObjects)
+    length(iter.atoms)
+end
+
+function Base.iterate(iter::AtomsAsObjects, state=1)
+    if state > length(iter.atoms)
+        return nothing
+    end
+    atom = iter.atoms[state]
+    iter.unambiguous_class_names[state] => as_object(atom, iter.object_classes), state + 1
 end
 
 _find_rels(rc; kwargs...) = _find_rels(rc, _find_rows(rc; kwargs...))
@@ -193,6 +263,124 @@ end
 _oc_rows(_rc, oc_row_map, objs) = (row for obj in objs for row in get(oc_row_map, obj, ()))
 _oc_rows(rc, _oc_row_map, ::Anything) = anything
 _oc_rows(rc, _oc_row_map, ::Nothing) = []
+
+const LegacySelector = Pair{Symbol, Union{Object, Nothing}}
+
+function fix_legacy_class_selector(class::ObjectClass, legacy_selector)
+    object = get(legacy_selector, class.name, nothing)
+    if !isnothing(object)
+        [class.name => object]
+    else
+        nothing
+    end
+end
+function fix_legacy_class_selector(class::RelationshipClass, legacy_selector)
+    selector = Vector{LegacySelector}(undef, atomic_dimensionality(class.vertex))
+    is_set = [false for _ in 1:length(selector)]
+    for (class_label, object) in legacy_selector
+        dimension_indexes = get(class.legacy_dimension_map, class_label, nothing)
+        if !isnothing(dimension_indexes)
+            i = dimension_indexes[1]
+            if i > length(selector)
+                return nothing
+            end
+            selector[i] = class_label => object
+            is_set[i] = true
+        else
+            class_name = String(class_label)
+            intact_label = Symbol(class_name[1:end-1])
+            dimension_indexes = get(class.legacy_dimension_map, intact_label, nothing)
+            if isnothing(dimension_indexes)
+                continue
+            end
+            mapped_index = parse(Int, class_name[end])
+            i = dimension_indexes[mapped_index]
+            if i > length(selector)
+                return nothing
+            end
+            selector[i] = Symbol(intact_label) => object
+            is_set[i] = true
+        end
+    end
+    all(is_set) ? selector : nothing
+end
+
+function modernize_entity_selector(classes, kwargs)
+    entity_selectors = Vector{Pair{Symbol, Vector{LegacySelector}}}()
+    for class in classes
+        selector = fix_legacy_class_selector(class, kwargs)
+        if !isnothing(selector)
+            push!(entity_selectors, class.name => selector)
+        end
+    end
+    entity_selectors
+end
+
+function pick_class_with_most_dimensions(parameter, entity_selectors)
+    if length(entity_selectors) == 1
+        return first(entity_selectors)
+    end
+    unique_class_label = nothing
+    entity_selector = nothing
+    max_dimensionality = 0
+    for (class_label, selector) in entity_selectors
+        class_i = findfirst(c -> c.name == class_label, parameter.classes)
+        current_dimensionality = dimensionality(parameter.classes[class_i].entity_class_graph, class_label)
+        if current_dimensionality > max_dimensionality
+            max_dimensionality = current_dimensionality
+            unique_class_label = class_label
+            entity_selector = selector
+        elseif current_dimensionality == max_dimensionality
+            unique_class_label = nothing
+            entity_selector = nothing
+        end
+    end
+    unique_class_label => entity_selector
+end
+
+function clean_extra_index(class_label)
+    Symbol(String(class_label)[1:end-1])
+end
+
+function separate_value_kwargs(entity_selector, kwargs)
+    value_kwargs = Vector{Pair{Symbol, Any}}()
+    for (key, value) in kwargs
+        if !any(selector.first == key || clean_extra_index(selector.first) == key for selector in entity_selector)
+            push!(value_kwargs, key => value)
+        end
+    end
+    (; value_kwargs...)
+end
+
+function parameter_entity_label(vertex::ObjectClassVertex, selector)
+    object = selector[1].second
+    !isnothing(object) ? object.name : nothing
+end
+function parameter_entity_label(vertex::RelationshipClassVertex, selector)
+    if any(isnothing(s.second) for s in selector)
+        return nothing
+    end
+    atoms = (class_label => object.name for (class_label, object) in selector)
+    relationship_label(vertex.relationship_graph, atoms...)
+end
+
+function value_instance(parameter_name, classes, class_label, entity_selector, _default)
+    class = classes[findfirst(c -> c.name == class_label, classes)]
+    entity_label = parameter_entity_label(class.vertex, entity_selector)
+    values = get(class.vertex.parameter_values, entity_label, nothing)
+    if !isnothing(values)
+        value = get(values, parameter_name, nothing)
+        if !isnothing(value)
+            value
+        elseif isnothing(_default)
+            class.vertex.parameter_defaults[parameter_name]
+        else
+            parameter_value(_default)
+        end
+    else
+        nothing
+    end
+end
 
 """
     (<p>::Parameter)(;<keyword arguments>)
@@ -236,13 +424,21 @@ julia> demand(node=node(:Sthlm), i=2)
 ```
 """
 function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
-    pv_new_kwargs = _split_parameter_value_kwargs(p; _strict=_strict, _default=_default, kwargs...)
-    if !isnothing(pv_new_kwargs)
-        pv, new_kwargs = pv_new_kwargs
-        pv(; new_kwargs...)
-    else
-        _default
+    entity_selectors = modernize_entity_selector(p.classes, kwargs)
+    if !isempty(entity_selectors)
+        unique_class_label, entity_selector = pick_class_with_most_dimensions(p, entity_selectors)
+        if !isnothing(unique_class_label)
+            selected_value = value_instance(p.name, p.classes, unique_class_label, entity_selector, _default)
+            if !isnothing(selected_value)
+                value_kwargs = separate_value_kwargs(entity_selector, kwargs)
+                return selected_value(; value_kwargs...)
+            end
+        end
     end
+    if _strict
+        @warn("can't find a value of $p for argument(s) $((; kwargs...))")
+    end
+    return _default
 end
 
 const __value_translator = Ref{Union{Nothing,Function}}(nothing)
@@ -473,9 +669,54 @@ function _timeout(val::TimeSeries, t_start, t_end, a, b)
 end
 
 members(::Anything) = anything
-members(x) = unique(member for obj in x for member in obj.members)
+function members(objects)
+    unique_members = Set{Object}()
+    for object in objects
+        if isempty(object.members)
+            push!(unique_members, object)
+        else
+            union!(unique_members, object.members)
+        end
+    end
+    collect(unique_members)
+end
 
 groups(x) = unique(group for obj in x for group in obj.groups)
+
+function object_tuple_to_atoms(object_tuple, class::RelationshipClass)
+    atoms = Vector{Atom}(undef, length(object_tuple))
+    for (class_label, object) in pairs(object_tuple)
+        dimension_indexes = get(class.legacy_dimension_map, class_label, nothing)
+        if !isnothing(dimension_indexes)
+            i = dimension_indexes[1]
+            atoms[i] = class_label => object.name
+        else
+            class_name = String(class_label)
+            intact_label = Symbol(class_name[1:end-1])
+            mapped_index = parse(Int, class_name[end])
+            i = class.legacy_dimension_map[intact_label][mapped_index]
+            atoms[i] = Symbol(intact_label) => object.name
+        end
+    end
+    atoms
+end
+
+function relationship_label(class::RelationshipClass, object_tuple::NamedTuple)
+    atoms = object_tuple_to_atoms(object_tuple, class)
+    relationship_label(class.vertex.relationship_graph, atoms...)
+end
+
+function (slice_relationships::TimeSliceRelationships)(; kwargs...)
+    slice = get(kwargs, slice_relationships.preceding, nothing)
+    if !isnothing(slice)
+        return collect(MetaGraphsNext.outneighbor_labels(slice_relationships.time_slice_graph, slice))
+    end
+    slice = get(kwargs, slice_relationships.succeeding, nothing)
+    if !isnothing(slice)
+        return collect(MetaGraphsNext.inneighbor_labels(slice_relationships.time_slice_graph, slice))
+    end
+    nothing
+end
 
 """
     indices(p::Parameter, [c::Union{ObjectClass,RelationshipClass}]; kwargs...)
@@ -518,11 +759,18 @@ julia> collect(indices(demand))
 function indices(p::Parameter; kwargs...)
     (ent for class in p.classes for ent in indices(p, class; kwargs...))
 end
-function indices(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
+function indices(p::Parameter, class::ObjectClass; kwargs...)
     (
         ent
-        for ent in _entities(class; kwargs...)
-        if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
+        for ent in values(class.objects)
+        if _get(class.vertex.parameter_values[ent.name], p.name, class.vertex.parameter_defaults)() !== nothing
+    )
+end
+function indices(p::Parameter, class::RelationshipClass; kwargs...)
+    (
+        ent
+        for ent in class(; _compact=false, kwargs...)
+        if _get(class.vertex.parameter_values[relationship_label(class, ent)], p.name, class.vertex.parameter_defaults)() !== nothing
     )
 end
 
@@ -534,83 +782,145 @@ Like `indices` but also yields tuples for single-dimensional entities.
 function indices_as_tuples(p::Parameter; kwargs...)
     (ent for class in p.classes for ent in indices_as_tuples(p, class; kwargs...))
 end
-function indices_as_tuples(p::Parameter, class::Union{ObjectClass,RelationshipClass}; kwargs...)
+function indices_as_tuples(p::Parameter, class::ObjectClass; kwargs...)
     (
-        _entity_tuple(ent, class)
-        for ent in _entities(class; kwargs...)
-        if _get(class.parameter_values[_entity_key(ent)], p.name, class.parameter_defaults)() !== nothing
+        (; class.name => ent)
+        for ent in values(class.objects)
+        if _get(class.vertex.parameter_values[ent.name], p.name, class.vertex.parameter_defaults)() !== nothing
     )
 end
-
-_entities(class::ObjectClass; kwargs...) = class()
-_entities(class::RelationshipClass; kwargs...) = class(; _compact=false, kwargs...)
-
-_entity_key(o::ObjectLike) = o
-_entity_key(r::RelationshipLike) = tuple(r...)
-
-_entity_tuple(o::ObjectLike, class) = (; (class.name => o,)...)
-_entity_tuple(r::RelationshipLike, class) = r
+function indices_as_tuples(p::Parameter, class::RelationshipClass; kwargs...)
+    indices(p, class; kwargs...)
+end
 
 classes(p::Parameter) = p.classes
 
-push_class!(p::Parameter, class::Union{ObjectClass,RelationshipClass}) = push!(p.classes, class)
+push_class!(p::Parameter, class::EntityClass) = push!(p.classes, class)
 
 """
     add_objects!(object_class, objects)
 
-Remove from `objects` everything that's already in `object_class`, and append the rest.
+Add everything from `objects` that's not already in `object_class` into `object_class`.
 Return the modified `object_class`.
 """
-function add_objects!(object_class::ObjectClass, objects::Array)
-    setdiff!(objects, object_class.objects)
-    append!(object_class.objects, objects)
-    merge!(object_class.parameter_values, Dict(obj => Dict() for obj in objects))
+function add_objects!(object_class::ObjectClass, objects::AbstractArray)
+    for object in objects
+        if !in(object.name, keys(object_class.objects))
+            add_object!(object_class, object)
+        end
+    end
     object_class
 end
 
-function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict; merge_values=false)
+function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict{Object, Dict{Symbol, ParameterValue{T}}}; merge_values=false) where T
     add_objects!(object_class, only.(keys(parameter_values)))
     do_merge! = merge_values ? mergewith!(merge!) : merge!
+    target_values = object_class.vertex.parameter_values
     for (obj, vals) in parameter_values
         obj = only(obj)
-        do_merge!(object_class.parameter_values[obj], vals)
+        do_merge!(target_values[obj.name], vals)
+    end
+end
+function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict{Symbol, Dict{Symbol, ParameterValue{T}}}; merge_values=false) where T
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
+    target_values = object_class.vertex.parameter_values
+    for (object_label, values) in parameter_values
+        do_merge!(target_values[object_label], values)
+    end
+end
+
+function merge_object_parameter_values!(target_vertex::ObjectClassVertex, source_vertex::ObjectClassVertex; merge_values=false)
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
+    for (source_label, values) in source_vertex.parameter_values
+        do_merge!(target_vertex.parameter_values[source_label], values)
     end
 end
 
 function add_object_parameter_defaults!(object_class::ObjectClass, parameter_defaults::Dict; merge_values=false)
     do_merge! = merge_values ? mergewith!(merge!) : merge!
-    do_merge!(object_class.parameter_defaults, parameter_defaults)
+    do_merge!(object_class.vertex.parameter_defaults, parameter_defaults)
 end
 
-function add_object!(object_class::ObjectClass, object::ObjectLike)
-    add_objects!(object_class, [object])
+function add_object!(object_class::ObjectClass, object::Object)
+    add_entity!(object_class.vertex, object.name)
+    object_class.objects[object.name] = object
+    group_graph = object_class.vertex.entity_group_graph
+    for group in object.groups
+        add_entity_group_member!(group_graph, group, object.name)
+    end
+    for member in object.members
+        add_entity_group_member!(group_graph, object.name, member)
+    end
 end
 
 """
     add_relationships!(relationship_class, relationships)
 
-Remove from `relationships` everything that's already in `relationship_class`, and append the rest.
+Add everything from `relationships` to `relationship_class` that is not already there.
 Return the modified `relationship_class`.
 """
-function add_relationships!(relationship_class::RelationshipClass, object_tuples::Vector{T}) where T<:ObjectTupleLike
-    relationships = [(; zip(relationship_class.object_class_names, obj_tup)...) for obj_tup in object_tuples]
-    add_relationships!(relationship_class, relationships)
+function add_relationships!(relationship_class::RelationshipClass, object_tuples::AbstractVector{T}) where T<:ObjectTupleLike
+    atoms = Vector{Atom}(undef, atomic_dimensionality(relationship_class.vertex))
+    for object_tuple in object_tuples
+        for (i, object) in enumerate(object_tuple)
+            class = object.class
+            if isnothing(class)
+                class = class_for_object(relationship_class.vertex, object.name, i)
+            end
+            atoms[i] = class => object.name
+        end
+        if !has_relationship(relationship_class.vertex.relationship_graph, atoms...)
+            add_entity!(relationship_class.vertex, atoms...)
+        end
+    end
+    relationship_class
 end
-function add_relationships!(relationship_class::RelationshipClass, relationships::Vector)
-    relationships = setdiff(relationships, relationship_class.relationships)
-    _append_relationships!(relationship_class, relationships)
-    merge!(relationship_class.parameter_values, Dict(values(rel) => Dict() for rel in relationships))
+function add_relationships!(relationship_class::RelationshipClass, objects::AbstractVector)
+    atoms = Vector{Atom}(undef, atomic_dimensionality(relationship_class.vertex))
+    for elements in objects
+        for (i, (class_label, object)) in enumerate(pairs(elements))
+            if !in(class_label, keys(relationship_class.legacy_dimension_map))
+                class_label = Symbol(String(class_label)[1:end-1])
+            end
+            atoms[i] = class_label => object.name
+        end
+        if !has_relationship(relationship_class.vertex.relationship_graph, atoms...)
+            add_entity!(relationship_class.vertex, atoms...)
+        end
+    end
     relationship_class
 end
 
 function add_relationship_parameter_values!(
-    relationship_class::RelationshipClass, parameter_values::Dict; merge_values=false
+    target::RelationshipClass, source::RelationshipClass; merge_values=false
 )
-    add_relationships!(relationship_class, collect(keys(parameter_values)))
+    for label in keys(source.vertex.parameter_values)
+        add_entity!(target.vertex, RelationshipAtoms(source.vertex.relationship_graph, label)...)
+    end
     do_merge! = merge_values ? mergewith!(merge!) : merge!
-    for (rel, vals) in parameter_values
-        obj_tup = values(rel)
-        do_merge!(relationship_class.parameter_values[obj_tup], vals)
+    for (rel, vals) in source.vertex.parameter_values
+        label = values(rel)
+        do_merge!(target.vertex.parameter_values[label], vals)
+    end
+end
+function add_relationship_parameter_values!(
+    target::RelationshipClass, source::Dict; merge_values=false
+)
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
+    for (object_tuple, values) in source
+        atoms = object_tuple_to_atoms(object_tuple, target)
+        label = relationship_label(target.vertex.relationship_graph, atoms...)
+        if isnothing(label)
+            label = add_entity!(target.vertex, atoms...)
+        end
+        do_merge!(target.vertex.parameter_values[label], values)
+    end
+end
+function merge_relationship_parameter_values!(target_vertex::RelationshipClassVertex, source_vertex::RelationshipClassVertex; merge_values=false)
+    do_merge! = merge_values ? mergewith!(merge!) : merge!
+    for (source_label, values) in source_vertex.parameter_values
+        target_label = relationship_label(target_vertex.relationship_graph, RelationshipAtoms(source_vertex.relationship_graph, source_label)...)
+        do_merge!(target_vertex.parameter_values[target_label], values)
     end
 end
 
@@ -618,11 +928,11 @@ function add_relationship_parameter_defaults!(
     relationship_class::RelationshipClass, parameter_defaults::Dict; merge_values=false
 )
     do_merge! = merge_values ? mergewith!(merge!) : merge!
-    do_merge!(relationship_class.parameter_defaults, parameter_defaults)
+    do_merge!(relationship_class.vertex.parameter_defaults, parameter_defaults)
 end
 
-function add_relationship!(relationship_class::RelationshipClass, relationship::RelationshipLike)
-    add_relationships!(relationship_class, [relationship])
+function add_relationship!(relationship_class::RelationshipClass, relationship::NamedTuple)
+    add_entity!(relationship_class.vertex, object_tuple_to_atoms(relationship, relationship_class)...)
 end
 
 function add_parameter_values!(cls::ObjectClass, vals; kwargs...)

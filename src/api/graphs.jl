@@ -20,39 +20,6 @@
 import Graphs
 import MetaGraphsNext
 
-const Atom = Pair{Symbol, Symbol}
-const AtomTuple = Tuple{Atom, Vararg{Atom}}
-
-abstract type ClassVertexWithEntities end
-
-struct ObjectClassVertex <: ClassVertexWithEntities
-    entities::Set{Symbol}
-    entity_group_graph::MetaGraphsNext.MetaGraph
-    parameter_values::Dict{Symbol, Dict{Symbol, ParameterValue}}
-    parameter_defaults::Dict{Symbol, ParameterValue}
-    function ObjectClassVertex()
-        new(Set(), empty_entity_group_graph(),Dict(), Dict())
-    end
-end
-
-struct RelationshipClassVertex <: ClassVertexWithEntities
-    entities::Set{Symbol}
-    atomic_dimension_choices::Vector{Vector{Symbol}}
-    relationship_graph::MetaGraphsNext.MetaGraph
-    parameter_values::Dict{Symbol, Dict{Symbol, ParameterValue}}
-    parameter_defaults::Dict{Symbol, ParameterValue}
-    function RelationshipClassVertex(atomic_dimension_choices)
-        new(Set(), atomic_dimension_choices, empty_relationship_graph(length(atomic_dimension_choices)), Dict(), Dict())
-    end
-end
-
-struct SuperclassVertex
-    parameter_defaults::Dict{Symbol, ParameterValue}
-    function SuperclassVertex()
-        new(Dict())
-    end
-end
-
 function empty_entity_class_graph()
     MetaGraphsNext.MetaGraph(
         Graphs.DiGraph(),
@@ -85,6 +52,12 @@ function add_superclass!(entity_class_graph::MetaGraphsNext.MetaGraph, class_lab
     end
 end
 
+function dimensionality(vertex::Union{RelationshipClassVertex, SuperclassVertex})
+    dimensionality(vertex.entity_class_graph, vertex.name)
+end
+function dimensionality(vertex::ObjectClassVertex)
+    0
+end
 function dimensionality(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
     n_dimensions = 0
     for predecessor_label in MetaGraphsNext.inneighbor_labels(entity_class_graph, class_label)
@@ -111,7 +84,7 @@ struct Dimensions
     end
 end
 
-function Base.eltype(iter::Dimensions)
+function Base.eltype(::Type{Dimensions})
     Symbol
 end
 
@@ -173,6 +146,21 @@ function append_atomic_dimension_choices!(dimension_choices, entity_class_graph,
     append!(dimension_choices, subclass_dimensions)
 end
 
+function atomic_dimensionality(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
+    class_vertex = entity_class_graph[class_label]
+    if class_vertex isa SuperclassVertex
+        subclass_label = first(MetaGraphsNext.inneighbor_labels(entity_class_graph, class_label))
+        return atomic_dimensionality(entity_class_graph, subclass_label)
+    end
+    atomic_dimensionality(class_vertex)
+end
+function atomic_dimensionality(::ObjectClassVertex)
+    0
+end
+function atomic_dimensionality(vertex::RelationshipClassVertex)
+    length(vertex.atomic_dimension_choices)
+end
+
 function has_entity(vertex::ObjectClassVertex, entity_label::Symbol)
     entity_label in vertex.entities
 end
@@ -180,18 +168,24 @@ function has_entity(vertex::RelationshipClassVertex, atoms...)
     has_relationship(vertex.relationship_graph, atoms...)
 end
 
+function finalize_add_entity!(class_vertex::ClassVertexWithEntities, entity_label::Symbol)
+    push!(class_vertex.entities, entity_label)
+    class_vertex.parameter_values[entity_label] = Dict()
+    entity_label
+end
+
 function add_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_label::Symbol)
     add_entity!(entity_class_graph[class_label], entity_label)
 end
 function add_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, atoms...)
-    class_vertex = entity_class_graph[class_label]
-    relationship_label = add_relationship!(class_vertex.relationship_graph, atoms...)
-    add_entity!(class_vertex, relationship_label)
+    add_entity!(entity_class_graph[class_label], atoms...)
 end
-function add_entity!(class_vertex::ClassVertexWithEntities, entity_label::Symbol)
-    push!(class_vertex.entities, entity_label)
-    class_vertex.parameter_values[entity_label] = Dict()
-    entity_label
+function add_entity!(vertex::ObjectClassVertex, entity_label::Symbol)
+    finalize_add_entity!(vertex, entity_label)
+end
+function add_entity!(vertex::RelationshipClassVertex, atoms...)
+    relationship_label = add_relationship!(vertex.relationship_graph, atoms...)
+    finalize_add_entity!(vertex, relationship_label)
 end
 
 function add_entity_group_member!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, group_label::Symbol, member_label::Symbol)
@@ -235,8 +229,11 @@ end
 const AnyAtomInClass = Pair{Symbol, Anything}
 const MultiAtomSelector = Tuple{Union{Atom, AnyAtomInClass}, Vararg{Union{Atom, AnyAtomInClass}}}
 
-function find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; _compact::Bool, parameter_filters...)
+function find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
     class_vertex = entity_class_graph[class_label]
+    find_relationships(class_vertex, entity_selector...; parameter_filters...)
+end
+function find_relationships(class_vertex::RelationshipClassVertex, entity_selector...; parameter_filters...)
     relationship_graph = class_vertex.relationship_graph
     first_compact_selector_i = findfirst(is_compact, entity_selector)
     if !isnothing(first_compact_selector_i)
@@ -256,12 +253,6 @@ function find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_
         selection = SelectedRelationships(relationship_graph, relationship_labels, entity_selector)
     else
         selection = (Tuple(RelationshipAtoms(relationship_graph, label)) for label in relationship_labels)
-    end
-    if _compact
-        compact_atomic_dimensions = Tuple(i for (i, selector) in enumerate(entity_selector) if is_compact(selector))
-        if length(compact_atomic_dimensions) != relationship_graph[].atomic_dimensionality
-            selection = Iterators.map(atoms -> Tuple(CompactDimensions(atoms, compact_atomic_dimensions)), selection)
-        end
     end
     selection
 end
@@ -296,7 +287,7 @@ struct CompactDimensions
     compact_atomic_dimensions::Tuple{Vararg{Int}}
 end
 
-function Base.eltype(iter::CompactDimensions)
+function Base.eltype(::Type{CompactDimensions})
     Atom
 end
 
@@ -330,6 +321,40 @@ function Base.iterate(iter::CompactDimensions, state=1 => 1)
     nothing
 end
 
+function find_relationships_compact(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
+    class_vertex = entity_class_graph[class_label]
+    find_relationships_compact(class_vertex, entity_selector...; parameter_filters...)
+end
+function find_relationships_compact(class_vertex::RelationshipClassVertex, entity_selector...; parameter_filters...)
+    relationship_graph = class_vertex.relationship_graph
+    compact_atomic_dimensions = Tuple(i for (i, selector) in enumerate(entity_selector) if is_compact(selector))
+    if length(compact_atomic_dimensions) == relationship_graph[].atomic_dimensionality
+        return ()
+    end
+    selection = find_relationships(class_vertex, entity_selector...; parameter_filters...)
+    Iterators.map(atoms -> Tuple(CompactDimensions(atoms, compact_atomic_dimensions)), selection)
+end
+
+function class_for_object(vertex::RelationshipClassVertex, label::Symbol, dimension_i::Int)
+    for dimension in vertex.atomic_dimension_choices[dimension_i]
+        object_class_vertex = vertex.entity_class_graph[dimension]
+        if label in object_class_vertex.entities
+            return dimension
+        end
+    end
+    error("no such dimension $label at $dimension_i in relationship class")
+end
+
+function remove_entity!(vertex::ObjectClassVertex, label::Symbol)
+    delete!(vertex.entities, label)
+    delete!(vertex.parameter_values, label)
+end
+function remove_entity!(vertex::RelationshipClassVertex, label::Symbol)
+    delete!(vertex.entities, label)
+    delete!(vertex.relationship_graph, label)
+    delete!(vertex.parameter_values, label)
+end
+
 mutable struct RelationshipGraphData
     const atomic_dimensionality::Int
     next_relationship_label::Int
@@ -354,8 +379,8 @@ function empty_relationship_graph(atomic_dimensionality)
     )
 end
 
-is_relationship = label::Symbol -> true
-is_relationship = label::Atom -> false
+is_relationship(::Symbol) = true
+is_relationship(::Atom) = false
 
 function has_relationship(relationship_graph::MetaGraphsNext.MetaGraph, atom::Atom)
     MetaGraphsNext.MetaGraph.haskey(relationship_graph, atom)
@@ -419,7 +444,7 @@ struct RelationshipAtoms
     relationship_label::Symbol
 end
 
-function Base.eltype(iter::RelationshipAtoms)
+function Base.eltype(::Type{RelationshipAtoms})
     Atom
 end
 
@@ -434,6 +459,10 @@ function Base.iterate(iter::RelationshipAtoms, state::Int=1)
         end
     end
     nothing
+end
+
+function all_atom_tuples(relationship_graph::MetaGraphsNext.MetaGraph, relationship_label_iterator)
+    (Tuple(RelationshipAtoms(relationship_graph, label)) for label in relationship_label_iterator)
 end
 
 function atom_passes_selection(atom::Atom, atom_selector::Anything)
@@ -455,16 +484,15 @@ struct SelectedRelationships
     entity_selector
 end
 
-function Base.eltype(iter::SelectedRelationships)
+function Base.eltype(::Type{SelectedRelationships})
     AtomTuple
 end
 
-function Base.IteratorSize(iter::SelectedRelationships)
+function Base.IteratorSize(::Type{SelectedRelationships})
     Base.SizeUnknown()
 end
 
-function Base.iterate(iter::SelectedRelationships, state)
-    current = state
+function Base.iterate(iter::SelectedRelationships, current)
     while !isnothing(current)
         (current_label, label_iterator_state) = current
         atoms = Tuple(RelationshipAtoms(iter.relationship_graph, current_label))
@@ -490,10 +518,10 @@ function empty_time_slice_graph()
     )
 end
 
-function add_time_slice_pair!(time_slice_graph::MetaGraphsNext.MetaGraph, backward::TimeSlice, forward::TimeSlice)
-    time_slice_graph[backward] = nothing
-    time_slice_graph[forward] = nothing
-    time_slice_graph[backward, forward] = nothing
+function add_time_slice_pair!(time_slice_graph::MetaGraphsNext.MetaGraph, preceding::TimeSlice, succeeding::TimeSlice)
+    time_slice_graph[preceding] = nothing
+    time_slice_graph[succeeding] = nothing
+    time_slice_graph[preceding, succeeding] = nothing
 end
 
 function empty_entity_group_graph()

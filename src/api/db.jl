@@ -44,80 +44,152 @@ function using_spinedb(template::Dict{String,T}, mod=@__MODULE__; filters=nothin
     _generate_convenience_functions(template, mod; filters=filters, extend=extend)
 end
 
-"""
-A Dict mapping entity group ids to an Array of member ids.
-"""
-function _members_per_group(groups)
-    d = Dict()
-    for (class_name, group_name, member_name) in groups
-        push!(get!(d, (class_name, group_name), []), (class_name, member_name))
+function label_and_dimensions(class_data)
+    if length(class_data) > 1
+        dimension_data = class_data[2]
+        dimensions = !isempty(dimension_data) ? Tuple(Symbol(dimension) for dimension in dimension_data) : nothing
+    else
+        dimensions = nothing
     end
-    d
+    Symbol(class_data[1]), dimensions
+end
+function label_and_dimensions(class_data::String)
+    Symbol(class_data), nothing
 end
 
-"""
-A Dict mapping member ids to an Array of entity group ids.
-"""
-function _groups_per_member(groups)
-    d = Dict()
-    for (class_name, group_name, member_name) in groups
-        push!(get!(d, (class_name, member_name), []), (class_name, group_name))
+function try_add_superclass!(superclasses, label, entity_class_graph, subclasses_by_superclass)
+    if !in(label, keys(subclasses_by_superclass))
+        return false
     end
-    d
+    subclasses = subclasses_by_superclass[label]
+    if !all(MetaGraphsNext.haskey(entity_class_graph, subclass_label) for subclass_label in subclasses)
+        return false
+    end
+    add_superclass!(entity_class_graph, label, subclasses...)
+    push!(superclasses, Superclass(label, entity_class_graph))
+    true
 end
 
-"""
-A Dict mapping `Int64` ids to the corresponding `Object`.
-"""
-function _full_objects_per_id(objects, members_per_group, groups_per_member)
-    objects_per_id = Dict(
-        (class_name, name) => Object(name, class_name) for (class_name, name) in objects
-    )
-    # Specify `members` for each group
-    for (id, object) in objects_per_id
-        member_ids = get(members_per_group, id, ())
-        members = isempty(member_ids) ? [object] : [objects_per_id[member_id] for member_id in member_ids]
-        append!(object.members, members)
+function make_entity_classes!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_class_data, superclass_subclass_data)
+    object_classes = Dict{Symbol, ObjectClass}()
+    relationship_classes::Vector{RelationshipClass} = []
+    superclasses::Vector{Superclass} = []
+    pending = [label_and_dimensions(class_data) for class_data in entity_class_data]
+    subclasses_by_superclass = Dict()
+    for (superclass_name, subclass_name) in superclass_subclass_data
+        subclasses_by_superclass[Symbol(superclass_name)] = Symbol(subclass_name)
     end
-    # Specify `groups` for each member
-    for (id, object) in objects_per_id
-        group_ids = get(groups_per_member, id, ())
-        groups = [objects_per_id[group_id] for group_id in group_ids]
-        append!(object.groups, groups)
+    object_class_map = Dict{Symbol, ObjectClass}()
+    while !isempty(pending)
+        classes_missing_dimensions = []
+        for class_data in pending
+            (label, dimensions) = class_data
+            if try_add_superclass!(superclasses, label, entity_class_graph, subclasses_by_superclass)
+                continue
+            elseif isnothing(dimensions)
+                add_object_class!(entity_class_graph, label)
+                object_classes[label] = ObjectClass(label, entity_class_graph, Dict())
+            elseif all(MetaGraphsNext.haskey(entity_class_graph, dimension_label) for dimension_label in dimensions)
+                add_relationship_class!(entity_class_graph, label, dimensions...)
+                push!(relationship_classes, RelationshipClass(label, entity_class_graph, object_classes))
+            else
+                push!(classes_missing_dimensions, class_data)
+            end
+        end
+        if length(classes_missing_dimensions) == length(pending)
+            error("some entity dimension is missing or misnamed")
+        end
+        pending = classes_missing_dimensions
     end
-    objects_per_id
+    object_classes, relationship_classes, superclasses
 end
 
-"""
-A Dict mapping class ids to an Array of entities in that class.
-"""
-function _entities_per_class(entities)
-    d = Dict()
-    for ent in entities
-        push!(get!(d, ent[1], []), ent)
+function make_entities!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_data)
+    nd_entities = Int[]
+    sizehint!(nd_entities, length(entity_data) - 1)
+    for (i, (class_name, name_data)) in enumerate(entity_data)
+        if !isa(name_data, String)
+            push!(nd_entities, i)
+            continue
+        end
+        add_entity!(entity_class_graph, Symbol(class_name), Symbol(name_data))
     end
-    d
+    for i in nd_entities
+        (class_name, byname) = entity_data[i]
+        class_label = Symbol(class_name)
+        atomic_dimension_choices = entity_class_graph[class_label].atomic_dimension_choices
+        atoms = Vector{Atom}(undef, length(atomic_dimension_choices))
+        for (j, (dimension_choices, atom_name)) in enumerate(zip(atomic_dimension_choices, byname))
+            atom_label = Symbol(atom_name)
+            if length(dimension_choices) == 1
+                atoms[j] = dimension_choices[1] => atom_label
+            else
+                found = false
+                for dimension_label in dimension_choices
+                    if atom_label in entity_class_graph[dimension_label].entities
+                        atoms[j] = dimension_label => atom_label
+                        found = true
+                        break
+                    end
+                end
+                if !found
+                    error("no dimension found for $atom_label in $class_label")
+                end
+            end
+        end
+        add_entity!(entity_class_graph, class_label, atoms...)
+    end
 end
 
-"""
-A Dict mapping entity class ids to an Array of parameter definitions associated to that class.
-"""
-function _parameter_definitions_per_class(param_defs)
-    d = Dict()
-    for param_def in param_defs
-        push!(get!(d, param_def[1], []), param_def)
+function make_entity_groups!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_group_data)
+    for (class_name, group_name, member_name) in entity_group_data
+        add_entity_group_member!(entity_class_graph, Symbol(class_name), Symbol(group_name), Symbol(member_name))
     end
-    d
 end
 
-"""
-A Dict mapping tuples of parameter definition and entity ids, to an Array of corresponding parameter values.
-"""
-function _parameter_values_per_entity(param_values)
-    Dict(
-        (class_name, entity_name, param_name) => value
-        for (class_name, entity_name, param_name, value) in param_values
-    )
+function make_parameter_definitions!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_classes, parameter_definition_data)
+    parameters = Dict{Symbol, Parameter}()
+    for (class_name, parameter_name, default_value_bytes) in parameter_definition_data
+        class_label = Symbol(class_name)
+        parameter_label = Symbol(parameter_name)
+        default_value = _try_parameter_value_from_db(
+            default_value_bytes, "unable to parse default value of `$(parameter_label)` in $class_label"
+        )
+        add_parameter_definition!(entity_class_graph, class_label, parameter_label, default_value)
+        parameter = get!(parameters, parameter_label) do
+            Parameter(parameter_label)
+        end
+        push_class!(parameter, entity_classes[class_label])
+    end
+    values(parameters)
+end
+
+function resolve_relationship_label(vertex::RelationshipClassVertex, entity_byname)
+    for relationship_label in vertex.entities
+        atoms = RelationshipAtoms(vertex.relationship_graph, relationship_label)
+        if all(atom.second == Symbol(byname) for (atom, byname) in zip(atoms, entity_byname))
+            return relationship_label
+        end
+    end
+    error("can't find relationship label for byname $entity_byname")
+end
+
+function target_entity_label(::ObjectClassVertex, entity_name::AbstractString)
+    Symbol(entity_name)
+end
+function target_entity_label(class_vertex::RelationshipClassVertex, entity_byname)
+    resolve_relationship_label(class_vertex, entity_byname)
+end
+
+function make_parameter_values!(entity_class_graph::MetaGraphsNext.MetaGraph, parameter_value_data)
+    for (class_name, entity_data, parameter_name, value_bytes) in parameter_value_data
+        class_label = Symbol(class_name)
+        class_vertex = entity_class_graph[class_label]
+        entity_label = target_entity_label(class_vertex, entity_data)
+        get!(class_vertex.parameter_values, entity_label, Dict())[Symbol(parameter_name)] = _try_parameter_value_from_db(
+            value_bytes, "unable to parse the value of `$(parameter_name)` for $entity_data in $class_name"
+        )
+    end
 end
 
 function _try_parameter_value_from_db(db_value, err_msg)
@@ -128,180 +200,82 @@ function _try_parameter_value_from_db(db_value, err_msg)
     end
 end
 
-"""
-A Dict mapping parameter names to their default values.
-"""
-function _default_parameter_values(param_defs)
-    Dict(
-        Symbol(param_name) => _try_parameter_value_from_db(
-            default_val, "unable to parse default value of `$(param_name)`"
-        )
-        for (class_name, param_name, default_val) in param_defs
-    )
+function make_entity_class_map(object_classes, relationship_classes, superclasses)
+    entity_classes::Dict{Symbol, EntityClass} = copy(object_classes)
+    for class in relationship_classes
+        entity_classes[class.name] = class
+    end
+    for class in superclasses
+        entity_classes[class.name] = class
+    end
+    entity_classes
 end
 
-"""
-A Dict mapping parameter names to their values for a given entity.
-"""
-function _parameter_values(entity_name, param_defs, param_vals_per_ent)
-    Dict(
-        Symbol(param_name) => _try_parameter_value_from_db(
-            value, "unable to parse value of `$param_name` for `$entity_name`"
-        )
-        for (param_name, value) in (
-            (param_name, get(param_vals_per_ent, (class_name, entity_name, param_name), nothing))
-            for (class_name, param_name) in param_defs
-        )
-        if value !== nothing
-    )
-end
-
-function _obj_class_args(class, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    class_name, = class
-    objects = get(objs_per_cls, class_name, ())
-    param_defs = get(param_defs_per_cls, class_name, ())
-    (
-        _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)...,
-        _default_parameter_values(param_defs),
-    )
-end
-
-function _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)
-    objects = [full_objs_per_id[class_name, obj_name] for (class_name, obj_name) in objects]
-    param_vals = Dict(obj => _parameter_values(string(obj.name), param_defs, param_vals_per_ent) for obj in objects)
-    objects, param_vals
-end
-
-function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    class_name, object_class_name_list = class
-    relationships = get(rels_per_cls, class_name, ())
-    param_defs = get(param_defs_per_cls, class_name, ())
-    (
-        Symbol.(object_class_name_list),
-        _rels_and_vals(object_class_name_list, relationships, full_objs_per_id, param_defs, param_vals_per_ent)...,
-        _default_parameter_values(param_defs),
-    )
-end
-
-function _rels_and_vals(object_class_name_list, relationships, full_objs_per_id, param_defs, param_vals_per_ent)
-    object_tuples = [
-        Tuple(
-            full_objs_per_id[cls_name, obj_name]
-            for (cls_name, obj_name) in zip(object_class_name_list, object_name_list)
-        )
-        for (rel_cls_name, object_name_list) in relationships
-    ]
-    param_vals = Dict(
-        object_tuple => _parameter_values(string.(obj.name for obj in object_tuple), param_defs, param_vals_per_ent)
-        for object_tuple in object_tuples
-    )
-    object_tuples, param_vals
-end
-
-"""
-A Dict mapping object class names to arguments.
-"""
-function _obj_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    Dict(
-        Symbol(class[1]) => _obj_class_args(
-            class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-        )
-        for class in classes
-    )
-end
-
-"""
-A Dict mapping relationship class names to arguments.
-"""
-function _rel_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    Dict(
-        Symbol(class[1]) => _rel_class_args(
-            class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-        )
-        for class in classes
-    )
-end
-
-"""
-A Dict mapping parameter names to an Array of class names where the parameter is defined.
-The Array of class names is sorted by decreasing number of dimensions in the class.
-Note that for object classes, the number of dimensions is one.
-"""
-function _class_names_per_parameter(object_classes, relationship_classes, param_defs)
-    d = Dict()
-    for (class_name,) in object_classes
-        class_param_defs = get(param_defs, class_name, ())
-        dim_count = 1
-        for (class_name, parameter_name) in class_param_defs
-            push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), dim_count))
+function make_legacy_objects!(class::ObjectClass)
+    for entity_label in class.vertex.entities
+        class.objects[entity_label] = Object(entity_label, class.name)
+    end
+    for entity_label in MetaGraphsNext.labels(class.vertex.entity_group_graph)
+        object = class.objects[entity_label]
+        for group_label in groups(class.vertex.entity_group_graph, entity_label)
+            push!(object.groups, class.objects[group_label])
+        end
+        for member_label in members(class.vertex.entity_group_graph, entity_label)
+            push!(object.members, class.objects[member_label])
         end
     end
-    for (class_name, object_class_name_list) in relationship_classes
-        class_param_defs = get(param_defs, class_name, ())
-        dim_count = length(object_class_name_list)
-        for (class_name, parameter_name) in class_param_defs
-            push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), dim_count))
-        end
-    end
-    Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
 end
 
 function _generate_convenience_functions(data, mod; filters=Dict(), extend=false)
-    object_classes = get(data, "object_classes") do
-        [x for x in get(data, "entity_classes", []) if isempty(x[2])]
+    entity_class_data = get(data, "entity_classes") do
+        vcat(get(data, "object_classes", []), get("relationship_classes", []))
     end
-    relationship_classes = get(data, "relationship_classes") do
-        [x for x in get(data, "entity_classes", []) if !isempty(x[2])]
+    superclass_subclass_data = get(data, "superclass_subclasses", [])
+    entity_data = get(data, "entities") do
+        vcat(get(data, "objects", []), get(data, "relationships", []))
     end
-    objects = get(data, "objects") do
-        [x for x in get(data, "entities", []) if x[2] isa String]
+    entity_group_data = get(data, "entity_groups") do
+        get(data, "object_groups", [])
     end
-    relationships = get(data, "relationships") do
-        [x for x in get(data, "entities", []) if !(x[2] isa String)]
-    end
-    object_groups = get(data, "object_groups") do
-        get(data, "entity_groups", [])
-    end
-    param_defs = get(data, "parameter_definitions") do
+    parameter_definition_data = get(data, "parameter_definitions") do
         vcat(get(data, "object_parameters", []), get(data, "relationship_parameters", []))
     end
-    param_vals = get(data, "parameter_values") do
+    parameter_value_data = get(data, "parameter_values") do
         vcat(get(data, "object_parameter_values", []), get(data, "relationship_parameter_values", []))
     end
-    members_per_group = _members_per_group(object_groups)
-    groups_per_member = _groups_per_member(object_groups)
-    full_objs_per_id = _full_objects_per_id(objects, members_per_group, groups_per_member)
-    objs_per_cls = _entities_per_class(objects)
-    rels_per_cls = _entities_per_class(relationships)
-    param_defs_per_cls = _parameter_definitions_per_class(param_defs)
-    param_vals_per_ent = _parameter_values_per_entity(param_vals)
-    args_per_obj_cls = _obj_args_per_class(
-        object_classes, objs_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-    )
-    args_per_rel_cls = _rel_args_per_class(
-        relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-    )
-    class_names_per_param = _class_names_per_parameter(object_classes, relationship_classes, param_defs_per_cls)
-    object_classes = _getproperty!(mod, :_spine_object_classes, Dict{Symbol,ObjectClass}())
-    relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict{Symbol,RelationshipClass}())
-    parameters = _getproperty!(mod, :_spine_parameters, Dict{Symbol,Parameter}())
+    entity_class_graph = empty_entity_class_graph()
+    (object_classes, relationship_classes, superclasses) = make_entity_classes!(
+        entity_class_graph,
+        entity_class_data,
+        superclass_subclass_data
+        )
+    make_entities!(entity_class_graph, entity_data)
+    make_entity_groups!(entity_class_graph, entity_group_data)
+    entity_classes = make_entity_class_map(object_classes, relationship_classes, superclasses)
+    parameters = make_parameter_definitions!(entity_class_graph, entity_classes, parameter_definition_data)
+    make_parameter_values!(entity_class_graph, parameter_value_data)
+    existing_object_classes = _getproperty!(mod, :_spine_object_classes, Dict{Symbol,ObjectClass}())
+    existing_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict{Symbol,RelationshipClass}())
+    existing_superclasses = _getproperty!(mod, :_spine_superclasses, Dict{Symbol, Superclass}())
+    existing_parameters = _getproperty!(mod, :_spine_parameters, Dict{Symbol,Parameter}())
     if !extend
-        empty!(object_classes)
-        empty!(relationship_classes)
-        empty!(parameters)
+        empty!(existing_object_classes)
+        empty!(existing_relationship_classes)
+        empty!(existing_superclasses)
+        empty!(existing_parameters)
     end
-    for (name, args) in args_per_obj_cls
-        new = ObjectClass(name, args...)
-        _add_binding!(mod, object_classes, name, new, extend)
+    for object_class in values(object_classes)
+        make_legacy_objects!(object_class)
+        _add_binding!(mod, existing_object_classes, object_class.name, object_class, extend)
     end
-    for (name, args) in args_per_rel_cls
-        new = RelationshipClass(name, args...)
-        _add_binding!(mod, relationship_classes, name, new, extend)
+    for relationship_class in relationship_classes
+        _add_binding!(mod, existing_relationship_classes, relationship_class.name, relationship_class, extend)
     end
-    for (name, class_names) in class_names_per_param
-        classes = [getproperty(mod, x) for x in class_names if hasproperty(mod, x)]
-        new = Parameter(name, classes)
-        _add_binding!(mod, parameters, name, new, extend)
+    for superclass in superclasses
+        _add_binding!(mod, existing_superclasses, superclass.name, superclass, extend)
+    end
+    for parameter in parameters
+        _add_binding!(mod, existing_parameters, parameter.name, parameter, extend)
     end
 end
 
@@ -886,35 +860,34 @@ function _to_dict(obj_cls::ObjectClass)
         :object_classes => [obj_cls.name],
         :object_parameters => [
             [obj_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
-            for (parameter_name, parameter_default_value) in obj_cls.parameter_defaults
+            for (parameter_name, parameter_default_value) in obj_cls.vertex.parameter_defaults
         ],
-        :objects => [[obj_cls.name, object.name] for object in obj_cls.objects],
+        :objects => [[obj_cls.name, entity_label] for entity_label in obj_cls.vertex.entities],
         :object_parameter_values => [
-            [obj_cls.name, object.name, parameter_name, unparse_db_value(parameter_value)]
-            for (object, parameter_values) in obj_cls.parameter_values
+            [obj_cls.name, entity_label, parameter_name, unparse_db_value(parameter_value)]
+            for (entity_label, parameter_values) in obj_cls.vertex.parameter_values
             for (parameter_name, parameter_value) in parameter_values
         ]
     )
 end
 function _to_dict(rel_cls::RelationshipClass)
+    object_classes = Iterators.flatten(rel_cls.vertex.atomic_dimension_choices)
+    relationship_graph = rel_cls.vertex.relationship_graph
+    objects = [[label.first, label.second] for label in MetaGraphsNext.labels(relationship_graph) if label isa Pair]
     Dict(
-        :object_classes => unique(rel_cls.intact_object_class_names),
-        :objects => unique(
-            [obj_cls_name, obj.name]
-            for relationship in rel_cls.relationships
-            for (obj_cls_name, obj) in zip(rel_cls.intact_object_class_names, relationship)
-        ),
-        :relationship_classes => [[rel_cls.name, rel_cls.intact_object_class_names]],
+        :object_classes => unique(object_classes),
+        :objects => objects,
+        :relationship_classes => [[rel_cls.name, [label for label in Dimensions(rel_cls.entity_class_graph, rel_cls.name)]]],
         :relationship_parameters => [
             [rel_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
-            for (parameter_name, parameter_default_value) in rel_cls.parameter_defaults
+            for (parameter_name, parameter_default_value) in rel_cls.vertex.parameter_defaults
         ],
         :relationships => [
-            [rel_cls.name, [obj.name for obj in relationship]] for relationship in rel_cls.relationships
+            [rel_cls.name, [atom.second for atom in RelationshipAtoms(relationship_graph, entity_label)]] for entity_label in rel_cls.vertex.entities
         ],
         :relationship_parameter_values => [
-            [rel_cls.name, [obj.name for obj in relationship], parameter_name, unparse_db_value(parameter_value)]
-            for (relationship, parameter_values) in rel_cls.parameter_values
+            [rel_cls.name, [atom.second for atom in RelationshipAtoms(relationship_graph, entity_label)], parameter_name, unparse_db_value(parameter_value)]
+            for (entity_label, parameter_values) in rel_cls.vertex.parameter_values
             for (parameter_name, parameter_value) in parameter_values
         ]
     )

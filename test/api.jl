@@ -20,6 +20,54 @@
 
 db_url = "sqlite://"
 
+function _test_entity_selector_from()
+    @testset "entity_selector_from" begin
+        @testset "1D relationship" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :D1)
+            add_relationship_class!(graph, :D1__, :D1)
+            class = RelationshipClass(:D1__, graph, Dict([:D1 => ObjectClass(:D1, graph)]))
+            @test SpineInterface.entity_selector_from(class, ()) == [anything]
+            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => anything])) == [:D1 => anything]
+            o1 = Object(:o1, :D1)
+            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => o1])) == [:D1 => :o1]
+            o2 = Object(:o2, :D1)
+            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => [o1, o2]])) == [(:D1 => :o1, :D1 => :o2)]
+        end
+        @testset "2D relationship" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :D1)
+            add_object_class!(graph, :D2)
+            add_relationship_class!(graph, :D1__D2, :D1, :D2)
+            class = RelationshipClass(:D1__D2, graph, Dict([:D1 => ObjectClass(:D1, graph), :D2 => ObjectClass(:D2, graph)]))
+            @test SpineInterface.entity_selector_from(class, ()) == [anything, anything]
+            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => anything, :D2 => anything])) == [:D1 => anything, :D2 => anything]
+            @test SpineInterface.entity_selector_from(class, Tuple([:D2 => anything, :D1 => anything])) == [:D1 => anything, :D2 => anything]
+            o11 = Object(:o11, :D1)
+            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => o11])) == [:D1 => :o11, anything]
+            o21 = Object(:o21, :D2)
+            @test SpineInterface.entity_selector_from(class, Tuple([:D2 => o21])) == [anything, :D2 => :o21]
+            o12 = Object(:o12, :D1)
+            o22 = Object(:o22, :D2)
+            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => [o11, o12], :D2 => [o21, o22]])) == [(:D1 => :o11, :D1 => :o12), (:D2 => :o21, :D2 => :o22)]
+            @test SpineInterface.entity_selector_from(class, Tuple([:D2 => [o21, o22], :D1 => [o11, o12]])) == [(:D1 => :o11, :D1 => :o12), (:D2 => :o21, :D2 => :o22)]
+        end
+        @testset "2D relationship with same dimensions" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :D1)
+            add_relationship_class!(graph, :D1__D1, :D1, :D1)
+            class = RelationshipClass(:D1__D1, graph, Dict([:D1 => ObjectClass(:D1, graph)]))
+            @test SpineInterface.entity_selector_from(class, ()) == [anything, anything]
+            @test SpineInterface.entity_selector_from(class, Tuple([:D11 => anything, :D12 => anything])) == [:D1 => anything, :D1 => anything]
+            o1 = Object(:o1, :D1)
+            @test SpineInterface.entity_selector_from(class, Tuple([:D11 => o1, :D12 => anything])) == [:D1 => :o1, :D1 => anything]
+            @test SpineInterface.entity_selector_from(class, Tuple([:D11 => anything, :D12 => o1])) == [:D1 => anything, :D1 => :o1]
+            o2 = Object(:o2, :D1)
+            @test SpineInterface.entity_selector_from(class, Tuple([:D11 => [o1, o2], :D12 => [o2, o1]])) == [(:D1 => :o1, :D1 => :o2), (:D1 => :o2, :D1 => :o1)]
+        end
+    end
+end
+
 function _test_indices()
     @testset "indices" begin
         object_classes = ["institution", "country"]
@@ -174,7 +222,7 @@ function _test_add_objects()
         @test Set(x.name for x in Y.institution()) == Set([Symbol.(institutions); [:KUL, :ER]])
         add_object!(Y.institution, Object(:UCD))
         @test length(Y.institution()) === 5
-        @test last(Y.institution()).name === :UCD
+        @test :UCD in Set(o.name for o in Y.institution())
     end
 end
 
@@ -506,7 +554,12 @@ function _test_call()
         @test realize(call) == 7
         France = Object(:France)
         ts = TimeSeries([DateTime(0), DateTime(1)], [40, 70], false, false)
-        country = ObjectClass(:country, [France], Dict(France => Dict(:apero_time => parameter_value(ts))))
+        graph = empty_entity_class_graph()
+        add_object_class!(graph, :country)
+        add_entity!(graph, :country, :France)
+        add_parameter_definition!(graph, :country, :apero_time, parameter_value(nothing))
+        add_parameter_value!(graph, :country, :apero_time, parameter_value(ts), :France)
+        country = ObjectClass(:country, graph)
         apero_time = Parameter(:apero_time, [country])
         call = apero_time[(; country=France, t=TimeSlice(DateTime(0), DateTime(1)))]
         @test realize(call) == 40
@@ -611,11 +664,20 @@ function _test_import_data()
             :map_parameter => parameter_value(map),
         )
         # Create objects and object class for testing
-        to1 = Object(:test_object_1)
-        to2 = Object(:test_object_2)
-        original_oc = ObjectClass(:test_oc, [to1, to2], Dict(to1 => pv_dict), pv_dict)
-        original_rc =
-            RelationshipClass(:test_rc, [:test_oc, :test_oc], [(to1, to2)], Dict((to1, to2) => pv_dict), pv_dict)
+        graph = empty_entity_class_graph()
+        add_object_class!(graph, :test_oc)
+        add_entity!(graph, :test_oc, :test_object_1)
+        add_entity!(graph, :test_oc, :test_object_2)
+        add_relationship_class!(graph, :test_rc, :test_oc, :test_oc)
+        add_entity!(graph, :test_rc, :test_oc => :test_object_1, :test_oc => :test_object_2)
+        for (name, value) in pv_dict
+            add_parameter_definition!(graph, :test_oc, name, value)
+            add_parameter_value!(graph, :test_oc, name, value, :test_object_1)
+            add_parameter_definition!(graph, :test_rc, name, value)
+            add_parameter_value!(graph, :test_rc, name, value, :test_oc => :test_object_1, :test_oc => :test_object_2)
+        end
+        original_oc = ObjectClass(:test_oc, graph)
+        original_rc = RelationshipClass(:test_rc, graph, Dict([:test_oc => original_oc]))
         # Import the newly created `ObjectClass` and `RelationshipClass`
         @test import_data(db_url, original_oc, "Import test object class.") == [21, []]
         @test import_data(db_url, original_rc, "Import test relationship class.") == [20, []]
@@ -753,7 +815,9 @@ function _test_bind()
         bind.foo = 99
         @test bind.foo == 99
         # Storing an ObjectClass in a Bind
-        oc = ObjectClass(:test_node)
+        graph = empty_entity_class_graph()
+        add_object_class!(graph, :test_node)
+        oc = ObjectClass(:test_node, graph)
         bind.test_node = oc
         @test hasproperty(bind, :test_node)
         @test bind.test_node isa ObjectClass
@@ -884,7 +948,52 @@ function _test_write_interface()
     end
 end
 
+function _test_make_legacy_objects()
+    @testset "make_legacy_objects!" begin
+        @testset "plain objects" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :Class)
+            add_entity!(graph, :Class, :a)
+            add_entity!(graph, :Class, :b)
+            class = ObjectClass(:Class, graph)
+            SpineInterface.make_legacy_objects!(class)
+            @test class.objects == Dict(:a => Object(:a, :Class), :b => Object(:b, :Class))
+        end
+        @testset "with groups" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :Class)
+            add_entity!(graph, :Class, :group)
+            add_entity!(graph, :Class, :member_a)
+            add_entity!(graph, :Class, :member_b)
+            add_entity!(graph, :Class, :non_member)
+            add_entity_group_member!(graph, :Class, :group, :member_a)
+            add_entity_group_member!(graph, :Class, :group, :member_b)
+            class = ObjectClass(:Class, graph)
+            SpineInterface.make_legacy_objects!(class)
+            @test length(class.objects) == 4
+            object_group = class.objects[:group]
+            member_a = class.objects[:member_a]
+            member_b = class.objects[:member_b]
+            non_member = class.objects[:non_member]
+            @test object_group.name == :group
+            @test object_group.class_name == :Class
+            @test sort(object_group.members) == sort([member_a, member_b])
+            @test isempty(object_group.groups)
+            @test member_a.name == :member_a
+            @test member_a.class_name == :Class
+            @test isempty(member_a.members)
+            @test member_a.groups == [object_group]
+            @test member_b.name == :member_b
+            @test member_b.class_name == :Class
+            @test isempty(member_b.members)
+            @test member_b.groups == [object_group]
+            @test non_member == Object(:non_member, :Class)
+        end
+    end
+end
+
 @testset "api" begin
+    _test_entity_selector_from()
     _test_indices()
     _test_indices_as_tuples()
     _test_object_class_relationship_class_parameter()
@@ -903,4 +1012,5 @@ end
     _test_indexed_values()
     _test_bind()
     _test_write_interface()
+    _test_make_legacy_objects()
 end

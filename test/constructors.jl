@@ -19,23 +19,42 @@
 #############################################################################
 
 @testset "constructors" begin
+    graph = empty_entity_class_graph()
+    add_object_class!(graph, :duck)
     ducks = [Object(:Daffy), Object(:Donald)]
-    duck = ObjectClass(:duck, ducks)
+    for d in ducks
+        add_entity!(graph, :duck, d.name)
+    end
+    duck = ObjectClass(:duck, graph)
     @test duck isa ObjectClass
-    @test duck() == ducks
+    @test sort([o.name for o in duck()]) == sort([o.name for o in ducks])
+    add_object_class!(graph, :studio)
     studios = [Object(:WB), Object(:Disney)]
-    studio = ObjectClass(:studio, studios)
+    for s in studios
+        add_entity!(graph, :studio, s.name)
+    end
+    studio = ObjectClass(:studio, graph)
     studio_duck_rels = [(studio=s, duck=d) for (s, d) in zip(studios, ducks)]
-    studio__duck = RelationshipClass(:studio__duck, [:studio, :duck], studio_duck_rels)
+    add_relationship_class!(graph, :studio__duck, :studio, :duck)
+    for (s, d) in studio_duck_rels
+        add_entity!(graph, :studio__duck, studio.name => s.name, duck.name => d.name)
+    end
+    object_classes = Dict(c.name => c for c in (duck, studio))
+    studio__duck = RelationshipClass(:studio__duck, graph, object_classes)
     @test studio__duck isa RelationshipClass
-    @test studio__duck() == studio_duck_rels
+    @test sort(studio__duck()) == sort([(studio=studio(:WB), duck=duck(:Daffy)), (studio=studio(:Disney), duck=duck(:Donald))])
     color_vals = ("black", "white")
     uses_pants_vals = (false, TimeSeries([DateTime(0)], [1.0], false, false))
     studio_duck_param_vals = Dict(
         (s, d) => Dict(:color => parameter_value(c), :uses_pants => parameter_value(up))
         for (s, d, c, up) in zip(studios, ducks, color_vals, uses_pants_vals)
     )
-    studio__duck = RelationshipClass(:studio__duck, [:studio, :duck], studio_duck_rels, studio_duck_param_vals)
+    add_parameter_definition!(graph, :studio__duck, :color, parameter_value(nothing))
+    add_parameter_definition!(graph, :studio__duck, :uses_pants, parameter_value(nothing))
+    for (s, d, c, up) in zip(studios, ducks, color_vals, uses_pants_vals)
+        add_parameter_value!(graph, :studio__duck, :color, parameter_value(c), :studio => s.name, :duck => d.name)
+        add_parameter_value!(graph, :studio__duck, :uses_pants, parameter_value(up), :studio =>s.name, :duck => d.name)
+    end
     color = Parameter(:color, [studio__duck])
     uses_pants = Parameter(:uses_pants, [studio__duck])
     t = TimeSlice(DateTime(0), DateTime(1))

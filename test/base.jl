@@ -58,8 +58,12 @@
     @test string(anything) === "anything"
     @test string(t1) === "0000-01-01T00:00~(52 weeks, 2 days)~>0001-01-01T00:00"
     @test string(p5) === "ParameterValue(5)"
-    duck = ObjectClass(:duck, [])
-    studio_duck = RelationshipClass(:studio_duck, [:studio, :duck], [])
+    graph = empty_entity_class_graph()
+    add_object_class!(graph, :duck)
+    duck = ObjectClass(:duck, graph)
+    object_classes = Dict(c.name => c for c in (duck,))
+    add_relationship_class!(graph, :studio_duck, :duck)
+    studio_duck = RelationshipClass(:studio_duck, graph, object_classes)
     @test string(duck) === "duck"
     @test string(studio_duck) === "studio_duck"
     id_call = Call(13)
