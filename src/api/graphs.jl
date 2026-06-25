@@ -52,12 +52,6 @@ function add_superclass!(entity_class_graph::MetaGraphsNext.MetaGraph, class_lab
     end
 end
 
-function dimensionality(vertex::Union{RelationshipClassVertex, SuperclassVertex})
-    dimensionality(vertex.entity_class_graph, vertex.name)
-end
-function dimensionality(vertex::ObjectClassVertex)
-    0
-end
 function dimensionality(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
     n_dimensions = 0
     for predecessor_label in MetaGraphsNext.inneighbor_labels(entity_class_graph, class_label)
@@ -102,6 +96,40 @@ function Base.iterate(iter::Dimensions, state=1)
         end
     end
     error("this code should be unreachable")
+end
+
+function atomic_dimensions(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
+    combinations::Vector{Vector{Symbol}} = [[]]
+    vertex = entity_class_graph[class_label]
+    atomic_combinations!(combinations, entity_class_graph, class_label, vertex)
+    combinations
+end
+function atomic_combinations!(combinations, ::MetaGraphsNext.MetaGraph, class_label::Symbol, ::ObjectClassVertex)
+    for dimensions in combinations
+        push!(dimensions, class_label)
+    end
+end
+function atomic_combinations!(combinations, entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, ::RelationshipClassVertex)
+    for dimension_label in Dimensions(entity_class_graph, class_label)
+        vertex = entity_class_graph[dimension_label]
+        sub_dimensions = atomic_combinations!(combinations, entity_class_graph, dimension_label, vertex)
+    end
+end
+function atomic_combinations!(combinations, entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, ::SuperclassVertex)
+    new_combinations::Vector{Vector{Symbol}} = []
+    for dimensions in combinations
+        for subclass_label in MetaGraphsNext.inneighbor_labels(entity_class_graph, class_label)
+            sub_combinations::Vector{Vector{Symbol}} = [copy(dimensions)]
+            vertex = entity_class_graph[subclass_label]
+            atomic_combinations!(sub_combinations, entity_class_graph, subclass_label, vertex)
+            append!(new_combinations, sub_combinations)
+        end
+    end
+    empty!(combinations)
+    sizehint!(combinations, length(new_combinations))
+    for dimensions in new_combinations
+        push!(combinations, dimensions)
+    end
 end
 
 function resolve_atomic_dimension_choices(entity_class_graph::MetaGraphsNext.MetaGraph, dimensions...)
@@ -218,6 +246,59 @@ function add_parameter_value!(class_vertex::ClassVertexWithEntities, parameter_l
     class_vertex.parameter_values[entity_label][parameter_label] = value
 end
 
+struct ConcreteSubclassLabels
+    entity_class_graph::MetaGraphsNext.MetaGraph
+    superclass_label::Symbol
+end
+
+function Base.eltype(::Type{ConcreteSubclassLabels})
+    Symbol
+end
+
+function Base.IteratorSize(::Type{ConcreteSubclassLabels})
+    Base.SizeUnknown()
+end
+
+mutable struct ConcreteSubclassLabelsState
+    const subclass_iter
+    subclass_iter_state
+    previous_state::Union{ConcreteSubclassLabelsState, Nothing}
+end
+
+function Base.iterate(iter::ConcreteSubclassLabels)
+    subclass_iter = MetaGraphsNext.inneighbor_labels(iter.entity_class_graph, iter.superclass_label)
+    subclass_label, subclass_iter_state = iterate(subclass_iter)
+    state = ConcreteSubclassLabelsState(subclass_iter, subclass_iter_state, nothing)
+    subclass_vertex = iter.entity_class_graph[subclass_label]
+    if subclass_vertex isa ClassVertexWithEntities
+        return subclass_label, state
+    end
+    sub_iter = ConcreteSubclassLabels(iter.entity_class_graph, subclass_label)
+    sub_sub_class_label, sub_iter_state = iterate(sub_iter)
+    sub_iter_state.previous_state = state
+    return sub_sub_class_label, sub_iter_state
+end
+function Base.iterate(iter::ConcreteSubclassLabels, state::ConcreteSubclassLabelsState)
+    current = iterate(state.subclass_iter, state.subclass_iter_state)
+    if !isnothing(current)
+        subclass_label, new_subclass_iter_state = current
+        state.subclass_iter_state = new_subclass_iter_state
+        subclass_vertex = iter.entity_class_graph[subclass_label]
+        if subclass_vertex isa ClassVertexWithEntities
+            return subclass_label, state
+        end
+        sub_iter = ConcreteSubclassLabels(iter.entity_class_graph, subclass_label)
+        sub_sub_class_label, sub_iter_state = iterate(sub_iter)
+        sub_iter_state.previous_state = state
+        return sub_sub_class_label, sub_iter_state
+    end
+    state = state.previous_state
+    if !isnothing(state)
+        return iterate(iter, state)
+    end
+    nothing
+end
+
 function find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol; parameter_filters...)
     class_vertex = entity_class_graph[class_label]
     if isempty(parameter_filters)
@@ -225,9 +306,6 @@ function find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label:
     end
     filter(label -> value_filter_condition(class_vertex, label, parameter_filters), class_vertex.entities)
 end
-
-const AnyAtomInClass = Pair{Symbol, Anything}
-const MultiAtomSelector = Tuple{Union{Atom, AnyAtomInClass}, Vararg{Union{Atom, AnyAtomInClass}}}
 
 function find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
     class_vertex = entity_class_graph[class_label]

@@ -57,41 +57,42 @@ function label_and_dimensions(class_data::String)
     Symbol(class_data), nothing
 end
 
-function try_add_superclass!(superclasses, label, entity_class_graph, subclasses_by_superclass)
-    if !in(label, keys(subclasses_by_superclass))
-        return false
-    end
+function try_add_superclass!(superclasses, label, entity_class_graph, subclasses_by_superclass, object_classes, relationship_classes)
     subclasses = subclasses_by_superclass[label]
     if !all(MetaGraphsNext.haskey(entity_class_graph, subclass_label) for subclass_label in subclasses)
         return false
     end
     add_superclass!(entity_class_graph, label, subclasses...)
-    push!(superclasses, Superclass(label, entity_class_graph))
+    push!(superclasses, Superclass(label, entity_class_graph, object_classes, relationship_classes))
     true
 end
 
 function make_entity_classes!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_class_data, superclass_subclass_data)
     object_classes = Dict{Symbol, ObjectClass}()
-    relationship_classes::Vector{RelationshipClass} = []
+    relationship_classes = Dict{Symbol, RelationshipClass}()
     superclasses::Vector{Superclass} = []
     pending = [label_and_dimensions(class_data) for class_data in entity_class_data]
-    subclasses_by_superclass = Dict()
+    subclasses_by_superclass = Dict{Symbol, Vector{Symbol}}()
     for (superclass_name, subclass_name) in superclass_subclass_data
-        subclasses_by_superclass[Symbol(superclass_name)] = Symbol(subclass_name)
+        subclasses = get!(subclasses_by_superclass, Symbol(superclass_name)) do
+            Vector{Symbol}()
+        end
+        push!(subclasses, Symbol(subclass_name))
     end
-    object_class_map = Dict{Symbol, ObjectClass}()
     while !isempty(pending)
         classes_missing_dimensions = []
         for class_data in pending
             (label, dimensions) = class_data
-            if try_add_superclass!(superclasses, label, entity_class_graph, subclasses_by_superclass)
-                continue
+            if label in keys(subclasses_by_superclass)
+                if !try_add_superclass!(superclasses, label, entity_class_graph, subclasses_by_superclass, object_classes, relationship_classes)
+                    push!(classes_missing_dimensions, class_data)
+                end
             elseif isnothing(dimensions)
                 add_object_class!(entity_class_graph, label)
                 object_classes[label] = ObjectClass(label, entity_class_graph, Dict())
             elseif all(MetaGraphsNext.haskey(entity_class_graph, dimension_label) for dimension_label in dimensions)
                 add_relationship_class!(entity_class_graph, label, dimensions...)
-                push!(relationship_classes, RelationshipClass(label, entity_class_graph, object_classes))
+                relationship_classes[label] = RelationshipClass(label, entity_class_graph, object_classes)
             else
                 push!(classes_missing_dimensions, class_data)
             end
@@ -157,7 +158,7 @@ function make_parameter_definitions!(entity_class_graph::MetaGraphsNext.MetaGrap
         )
         add_parameter_definition!(entity_class_graph, class_label, parameter_label, default_value)
         parameter = get!(parameters, parameter_label) do
-            Parameter(parameter_label)
+            Parameter(parameter_label, entity_class_graph)
         end
         push_class!(parameter, entity_classes[class_label])
     end
@@ -202,9 +203,7 @@ end
 
 function make_entity_class_map(object_classes, relationship_classes, superclasses)
     entity_classes::Dict{Symbol, EntityClass} = copy(object_classes)
-    for class in relationship_classes
-        entity_classes[class.name] = class
-    end
+    merge!(entity_classes, relationship_classes)
     for class in superclasses
         entity_classes[class.name] = class
     end
@@ -268,7 +267,7 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
         make_legacy_objects!(object_class)
         _add_binding!(mod, existing_object_classes, object_class.name, object_class, extend)
     end
-    for relationship_class in relationship_classes
+    for relationship_class in values(relationship_classes)
         _add_binding!(mod, existing_relationship_classes, relationship_class.name, relationship_class, extend)
     end
     for superclass in superclasses

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-function _test_object_class()
+function _test_object_class_construction()
     @testset "ObjectClass" begin
         @testset "construction with objects" begin
             graph = empty_entity_class_graph()
@@ -44,7 +44,7 @@ function _test_object_class()
     end
 end
 
-function _test_relationship_class()
+function _test_relationship_class_construction()
     @testset "RelationshipClass" begin
         @testset "normal construction" begin
             graph = empty_entity_class_graph()
@@ -58,7 +58,8 @@ function _test_relationship_class()
             @test env_dict.entity_class_graph === graph
             @test env_dict.vertex === graph[:bond]
             @test env_dict.object_classes === object_classes
-            @test env_dict.legacy_dimension_map == Dict([:bondable => [1]])
+            @test env_dict.intact_dimension_combinations == [[:bondable]]
+            @test env_dict.dimension_combinations == [[:bondable]]
         end
         @testset "degenerate dimensions" begin
             graph = empty_entity_class_graph()
@@ -72,12 +73,21 @@ function _test_relationship_class()
             @test env_dict.entity_class_graph === graph
             @test env_dict.vertex === graph[:bond]
             @test env_dict.object_classes === object_classes
-            @test env_dict.legacy_dimension_map == Dict([:bondable => [1, 2]])
+            @test env_dict.intact_dimension_combinations == [[:bondable, :bondable]]
+            @test env_dict.dimension_combinations == [[:bondable1, :bondable2]]
         end
     end
 end
 
+function _test_uniquefy_elements()
+    @test SpineInterface.uniquefy_elements(Symbol[]) == []
+    @test SpineInterface.uniquefy_elements([:a, :b]) == [:a, :b]
+    @test SpineInterface.uniquefy_elements([:a, :a]) == [:a1, :a2]
+    @test SpineInterface.uniquefy_elements([:a, :b, :c, :a, :b]) == [:a1, :b1, :c, :a2, :b2]
+end
+
 @testset "type" begin
-    _test_object_class()
-    _test_relationship_class()
+    _test_object_class_construction()
+    _test_relationship_class_construction()
+    _test_uniquefy_elements()
 end

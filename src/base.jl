@@ -420,7 +420,7 @@ function Base.merge!(a::RelationshipClass, b::RelationshipClass)
     relationship_labels_to_remove = Vector{Symbol}()
     sizehint!(relationship_labels_to_remove, length(b.vertex.entities))
     for label in b.vertex.entities
-        atoms = Tuple(RelationshipAtoms(b.vertex.relationship_graph, label)...)
+        atoms = Tuple(RelationshipAtoms(b.vertex.relationship_graph, label))
         if !has_relationship(a.vertex.relationship_graph, atoms...)
             add_entity!(a.vertex, atoms...)
         end
@@ -429,9 +429,12 @@ function Base.merge!(a::RelationshipClass, b::RelationshipClass)
     add_relationship_parameter_defaults!(a, b.vertex.parameter_defaults)
     a
 end
+function Base.merge!(a::Superclass, b::Superclass)
+    merge_parameter_defaults!(a, b.vertex.parameter_defaults)
+end
 function Base.merge!(a::Parameter, b::Parameter)
-    for class in b.classes
-        if all(a_class -> class.name != a_class.name, a.classes)
+    for class in classes(b)
+        if all(a_class -> class.name != a_class.name, classes(a))
             push!(a.classes, class)
         end
     end
@@ -503,22 +506,19 @@ end
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 Base.getindex(p::Parameter, inds::Union{Iterators.Pairs,NamedTuple}) = _getindex(p; inds...)
 function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
-    entity_selectors = modernize_entity_selector(p.classes, kwargs)
-    if !isempty(entity_selectors)
-        unique_class_label, entity_selector = pick_class_with_most_dimensions(p, entity_selectors)
-        if !isnothing(unique_class_label)
-            selected_value = value_instance(p.name, p.classes, unique_class_label, entity_selector, _default)
-            if !isnothing(selected_value)
-                value_kwargs = separate_value_kwargs(entity_selector, kwargs)
-                caller = (p, kwargs)
-                return Call(selected_value, value_kwargs, caller)
-            end
+    value = nothing
+    if !any(isnothing, values(kwargs))
+        value, value_kwargs = unique_value_instance(p.name, classes(p), _default, kwargs)
+    end
+    if !isnothing(value)
+        caller = (p, kwargs)
+        Call(value, NamedTuple(value_kwargs), caller)
+    else
+        if _strict
+            @warn("can't find a value of $p for argument(s) $((; kwargs...))")
         end
+        Call(nothing, p)
     end
-    if _strict
-        @warn("can't find a value of $p for argument(s) $((; kwargs...))")
-    end
-    Call(nothing, p)
 end
 
 function Base.get!(x::Union{TimeSeries,Map}, key, default)
@@ -544,7 +544,7 @@ Base.iszero(x::Union{TimeSeries,TimePattern}) = iszero(values(x))
 Base.isapprox(x::Union{TimeSeries,TimePattern}, y; kwargs...) = all(isapprox(v, y; kwargs...) for v in values(x))
 Base.isapprox(x::ParameterValue, y; kwargs...) = isapprox(x(), y; kwargs...)
 
-function Base.getproperty(x::Union{ObjectClass,RelationshipClass,Parameter}, name::Symbol)
+function Base.getproperty(x::Union{ObjectClass, RelationshipClass, Superclass, Parameter}, name::Symbol)
     name in (:name, :env_dict) && return getfield(x, name)
     env = _active_env()
     real_x = get(getfield(x, :env_dict), env, nothing)

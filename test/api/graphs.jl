@@ -169,6 +169,50 @@ function _test_dimensions_iterator()
     end
 end
 
+function _test_atomic_dimensions()
+    @testset "atomic_dimensions" begin
+        @testset "just an object" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :O)
+            @test SpineInterface.atomic_dimensions(graph, :O) == [[:O]]
+        end
+        @testset "simple relationship class" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :O)
+            add_object_class!(graph, :P)
+            add_relationship_class!(graph, :O__P, :O, :P)
+            @test SpineInterface.atomic_dimensions(graph, :O__P) == [[:O, :P]]
+        end
+        @testset "nested relationship classes" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :O)
+            add_object_class!(graph, :P)
+            add_object_class!(graph, :Q)
+            add_relationship_class!(graph, :O__P, :O, :P)
+            add_relationship_class!(graph, :P__Q, :P, :Q)
+            add_relationship_class!(graph, :O__P__P__Q, :O__P, :P__Q)
+            @test SpineInterface.atomic_dimensions(graph, :O__P__P__Q) == [[:O, :P, :P, :Q]]
+        end
+        @testset "superclass" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :O)
+            add_object_class!(graph, :P)
+            add_superclass!(graph, :S, :O, :P)
+            @test SpineInterface.atomic_dimensions(graph, :S) == [[:O], [:P]]
+        end
+        @testset "relationships and superclasses" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :O)
+            add_object_class!(graph, :P)
+            add_relationship_class!(graph, :O__P, :O, :P)
+            add_relationship_class!(graph, :P__O, :P, :O)
+            add_superclass!(graph, :S, :O__P, :P__O)
+            add_relationship_class!(graph, :S__S, :S, :S)
+            @test sort(SpineInterface.atomic_dimensions(graph, :S__S)) == sort([[:O, :P, :O, :P], [:O, :P, :P, :O], [:P, :O, :O, :P], [:P, :O, :P, :O]])
+        end
+    end
+end
+
 function _test_resolve_atomic_dimension_choices()
     @testset "resolve_atomic_dimension_choices" begin
         @testset "simple relationship class" begin
@@ -355,6 +399,53 @@ function _test_add_parameter_value()
             add_parameter_value!(graph, :Class__, :Parameter, ParameterValue(3.2), :Class => :Object)
             vertex = graph[:Class__]
             @test vertex.parameter_values == Dict(relationship_label => Dict(:Parameter => ParameterValue(3.2)))
+        end
+    end
+end
+
+function _test_concrete_subclass_labels_iterator()
+    @testset "ConcreteSubclassLabels" begin
+        @testset "simple superclass" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :O)
+            add_superclass!(graph, :S, :O)
+            iter = SpineInterface.ConcreteSubclassLabels(graph, :S)
+            @test collect(iter) == [:O]
+        end
+        @testset "superclass of two object classes" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :O1)
+            add_object_class!(graph, :O2)
+            add_superclass!(graph, :S, :O1, :O2)
+            iter = SpineInterface.ConcreteSubclassLabels(graph, :S)
+            @test sort(collect(iter)) == sort([:O1, :O2])
+        end
+        @testset "relationship class as subclass" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :O)
+            add_relationship_class!(graph, :R1, :O)
+            add_relationship_class!(graph, :R2, :O)
+            add_superclass!(graph, :S, :R1, :R2)
+            iter = SpineInterface.ConcreteSubclassLabels(graph, :S)
+            @test sort(collect(iter)) == sort([:R1, :R2])
+        end
+        @testset "superclass of superclass" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :O)
+            add_superclass!(graph, :S1, :O)
+            add_superclass!(graph, :S2, :S1)
+            iter = SpineInterface.ConcreteSubclassLabels(graph, :S2)
+            @test collect(iter) == [:O]
+        end
+        @testset "multiple superclasses of superclasses" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :O1)
+            add_object_class!(graph, :O2)
+            add_superclass!(graph, :S11, :O1)
+            add_superclass!(graph, :S12, :O2)
+            add_superclass!(graph, :S, :S11, :S12)
+            iter = SpineInterface.ConcreteSubclassLabels(graph, :S)
+            @test sort(collect(iter)) == sort([:O1, :O2])
         end
     end
 end
@@ -799,11 +890,13 @@ end
     _test_add_superclass()
     _test_dimensionality()
     _test_dimensions_iterator()
+    _test_atomic_dimensions()
     _test_resolve_atomic_dimension_choices()
     _test_has_entity()
     _test_add_entity()
     _test_add_parameter_definition()
     _test_add_parameter_value()
+    _test_concrete_subclass_labels_iterator()
     _test_find_objects()
     _test_find_relationships()
     _test_find_relationships_compact()

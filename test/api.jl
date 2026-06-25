@@ -20,54 +20,6 @@
 
 db_url = "sqlite://"
 
-function _test_entity_selector_from()
-    @testset "entity_selector_from" begin
-        @testset "1D relationship" begin
-            graph = empty_entity_class_graph()
-            add_object_class!(graph, :D1)
-            add_relationship_class!(graph, :D1__, :D1)
-            class = RelationshipClass(:D1__, graph, Dict([:D1 => ObjectClass(:D1, graph)]))
-            @test SpineInterface.entity_selector_from(class, ()) == [anything]
-            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => anything])) == [:D1 => anything]
-            o1 = Object(:o1, :D1)
-            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => o1])) == [:D1 => :o1]
-            o2 = Object(:o2, :D1)
-            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => [o1, o2]])) == [(:D1 => :o1, :D1 => :o2)]
-        end
-        @testset "2D relationship" begin
-            graph = empty_entity_class_graph()
-            add_object_class!(graph, :D1)
-            add_object_class!(graph, :D2)
-            add_relationship_class!(graph, :D1__D2, :D1, :D2)
-            class = RelationshipClass(:D1__D2, graph, Dict([:D1 => ObjectClass(:D1, graph), :D2 => ObjectClass(:D2, graph)]))
-            @test SpineInterface.entity_selector_from(class, ()) == [anything, anything]
-            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => anything, :D2 => anything])) == [:D1 => anything, :D2 => anything]
-            @test SpineInterface.entity_selector_from(class, Tuple([:D2 => anything, :D1 => anything])) == [:D1 => anything, :D2 => anything]
-            o11 = Object(:o11, :D1)
-            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => o11])) == [:D1 => :o11, anything]
-            o21 = Object(:o21, :D2)
-            @test SpineInterface.entity_selector_from(class, Tuple([:D2 => o21])) == [anything, :D2 => :o21]
-            o12 = Object(:o12, :D1)
-            o22 = Object(:o22, :D2)
-            @test SpineInterface.entity_selector_from(class, Tuple([:D1 => [o11, o12], :D2 => [o21, o22]])) == [(:D1 => :o11, :D1 => :o12), (:D2 => :o21, :D2 => :o22)]
-            @test SpineInterface.entity_selector_from(class, Tuple([:D2 => [o21, o22], :D1 => [o11, o12]])) == [(:D1 => :o11, :D1 => :o12), (:D2 => :o21, :D2 => :o22)]
-        end
-        @testset "2D relationship with same dimensions" begin
-            graph = empty_entity_class_graph()
-            add_object_class!(graph, :D1)
-            add_relationship_class!(graph, :D1__D1, :D1, :D1)
-            class = RelationshipClass(:D1__D1, graph, Dict([:D1 => ObjectClass(:D1, graph)]))
-            @test SpineInterface.entity_selector_from(class, ()) == [anything, anything]
-            @test SpineInterface.entity_selector_from(class, Tuple([:D11 => anything, :D12 => anything])) == [:D1 => anything, :D1 => anything]
-            o1 = Object(:o1, :D1)
-            @test SpineInterface.entity_selector_from(class, Tuple([:D11 => o1, :D12 => anything])) == [:D1 => :o1, :D1 => anything]
-            @test SpineInterface.entity_selector_from(class, Tuple([:D11 => anything, :D12 => o1])) == [:D1 => anything, :D1 => :o1]
-            o2 = Object(:o2, :D1)
-            @test SpineInterface.entity_selector_from(class, Tuple([:D11 => [o1, o2], :D12 => [o2, o1]])) == [(:D1 => :o1, :D1 => :o2), (:D1 => :o2, :D1 => :o1)]
-        end
-    end
-end
-
 function _test_indices()
     @testset "indices" begin
         object_classes = ["institution", "country"]
@@ -159,6 +111,196 @@ function _test_object_class_relationship_class_parameter()
         @test parameter(:people_count, Y).name == :people_count
         @test parameter(:animal_count, Y) isa Parameter
         @test parameter(:animal_count, Y).name == :animal_count
+    end
+end
+
+function _test_superclasses()
+    @testset "superclasses" begin
+        # Tasku: Note that this test uses the v0.8 data structure!
+        ent_clss = [
+            ["node", []],
+            ["unit", []],
+            ["unit_flow", []],
+            ["node__unit", ["node", "unit"]],
+            ["unit__node", ["unit", "node"]],
+            ["unit_flow__unit_flow", ["unit_flow", "unit_flow"]]
+        ]
+        supcls_subclss = [
+            ["unit_flow", "node__unit"],
+            ["unit_flow", "unit__node"]
+        ]
+        ents = [
+            ["node", "n1"],
+            ["node", "n2"],
+            ["node", "n3"],
+            ["unit", "u1"],
+            ["unit", "u2"],
+            ["node__unit", ["n1", "u1"]],
+            ["node__unit", ["n2", "u2"]],
+            ["node__unit", ["n1", "u2"]],
+            ["unit__node", ["u1", "n1"]],
+            ["unit__node", ["u1", "n3"]],
+            ["unit__node", ["u2", "n3"]],
+            ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"]],
+            ["unit_flow__unit_flow", ["n1", "u1", "n2", "u2"]],
+            ["unit_flow__unit_flow", ["u1", "n3", "u2", "n3"]],
+            ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"]],
+        ]
+        par_defs = [
+            ["node__unit", "flow_capacity", 0.0],
+            ["unit__node", "flow_capacity", 1.0],
+            ["unit_flow__unit_flow", "ratio", 2.0],
+        ]
+        par_vals = [
+            ["node__unit", ["n1", "u1"], "flow_capacity", 4.0],
+            ["unit__node", ["u1", "n1"], "flow_capacity", 4.1],
+            ["unit__node", ["u1", "n3"], "flow_capacity", 5.0],
+            ["node__unit", ["n2", "u2"], "flow_capacity", 6.0],
+            ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"], "ratio", 7.0],
+            ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"], "ratio", 8.0],
+        ]
+        import_test_data(
+            db_url;
+            entity_classes=ent_clss,
+            superclass_subclasses=supcls_subclss,
+            entities=ents,
+            parameter_definitions=par_defs,
+            parameter_values=par_vals
+        )
+        Y = Bind()
+        using_spinedb(db_url, Y)
+        # Tests for `unit_flow` and `flow_capacity`
+        @test length(Y.unit_flow()) == 6
+        @test Y.unit_flow(unit = Y.unit(:u1)) == [
+            Y.node(:n1), Y.node(:n1), Y.node(:n3)
+        ]
+        @test collect(Y.unit_flow(unit = Y.unit(:u1); _compact=false)) == [
+            (node=Y.node(:n1), unit=Y.unit(:u1)),
+            (unit=Y.unit(:u1), node=Y.node(:n1)),
+            (unit=Y.unit(:u1), node=Y.node(:n3))
+        ]
+        @test Y.unit_flow(node = Y.node(:n2)) == [Y.unit(:u2)]
+        @test collect(Y.unit_flow(node = Y.node(:n2); _compact=false)) == [
+            (node=Y.node(:n2), unit=Y.unit(:u2))
+        ]
+        @test collect(Y.unit_flow(node = anything, unit = Y.unit(:u1); _compact=false)) == [
+            (node=Y.node(:n1), unit=Y.unit(:u1))
+        ]
+        @test collect(Y.unit_flow(unit = Y.unit(:u1), node = anything; _compact=false)) == [
+            (unit=Y.unit(:u1), node=Y.node(:n1))
+            (unit=Y.unit(:u1), node=Y.node(:n3))
+        ]
+        @test Y.flow_capacity(node=Y.node(:n1), unit=Y.unit(:u1)) == 4.0
+        @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n1)) == 4.1
+        @test Y.flow_capacity(node=Y.node(:n2), unit=Y.unit(:u2)) == 6.0
+        @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n3)) == 5.0
+        @test Y.flow_capacity(node=Y.node(:n1), unit=Y.unit(:u2)) == 0.0
+        @test Y.flow_capacity(unit=Y.unit(:u2), node=Y.node(:n3)) == 1.0
+        @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n2)) === nothing
+        @test collect(indices(Y.flow_capacity)) == [
+            (node=Y.node(:n1), unit=Y.unit(:u1)),
+            (node=Y.node(:n1), unit=Y.unit(:u2)),
+            (node=Y.node(:n2), unit=Y.unit(:u2)),
+            (unit=Y.unit(:u1), node=Y.node(:n1)),
+            (unit=Y.unit(:u1), node=Y.node(:n3)),
+            (unit=Y.unit(:u2), node=Y.node(:n3)),
+        ]
+        @test collect(indices(Y.flow_capacity; node=anything, unit=anything)) == [
+            (node=Y.node(:n1), unit=Y.unit(:u1)),
+            (node=Y.node(:n1), unit=Y.unit(:u2)),
+            (node=Y.node(:n2), unit=Y.unit(:u2)),
+        ]
+        #= Tasku: RelationshipClasses have no parameter value filters.
+        @test unit_flow(flow_capacity=0.0) == [(node=node(:n1), unit=unit(:u2))]
+        @test unit_flow(flow_capacity=4.0) == [(node=node(:n1), unit=unit(:u1))]
+        @test unit_flow(flow_capacity=1.0) == [(unit=unit(:u2), node=node(:n3))]
+        =#
+        # Tests for `unit_flow__unit_flow` and `ratio`
+        @test length(Y.unit_flow__unit_flow()) == 4
+        expected = [
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n3)),
+        ]
+        collected = Y.unit_flow__unit_flow(unit2=Y.unit(:u1))
+        @test length(collected) == length(expected)
+        @test all(c in expected for c in collected)
+        expected = [
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+        ]
+        collected = collect(Y.unit_flow__unit_flow(unit2=Y.unit(:u1); _compact=false))
+        @test length(collected) == length(expected)
+        @test all(c in expected for c in collected)
+        expected = [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+        ]
+        collected = collect(Y.unit_flow__unit_flow(unit1=Y.unit(:u1); _compact=false))
+        @test length(collected) == length(expected)
+        @test all(c in expected for c in collected)
+        @test collect(Y.unit_flow__unit_flow(node1=anything, unit1=Y.unit(:u1); _compact=false)) == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+        ]
+        @test collect(Y.unit_flow__unit_flow(unit1=Y.unit(:u1), node1=anything; _compact=false)) == [
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+        ]
+        @test collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything, unit2=anything; _compact=false)) == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
+        ]
+        expected = [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3))
+        ]
+        collected = collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything; _compact=false))
+        @test length(collected) == length(expected)
+        @test all(c in expected for c in collected)
+        @test Y.ratio(node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)) == 7.0
+        @test Y.ratio(unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)) == 8.0
+        @test Y.ratio(unit1=Y.unit(:u1), node1=Y.node(:n1), node2=Y.node(:n1), unit2=Y.unit(:u1)) === nothing
+        @test Y.ratio(node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)) == 2.0
+        expected = [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+            (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+        ]
+        collected = collect(indices(Y.ratio))
+        @test length(collected) == length(expected)
+        @test all(c in expected for c in collected)
+        @test collect(indices(Y.ratio; node1=anything, unit1=anything)) == [
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+            (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+        ]
+        #= Tasku: Parameter value filtering for relationship classes is not a thing atm.
+        @test unit_flow__unit_flow(ratio=2.0) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+            (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
+        ]
+        @test collect(unit_flow__unit_flow(node1=anything, unit1=anything, ratio=2.0, _compact=false)) == [
+            (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+        ]
+        @test unit_flow__unit_flow(ratio=7.0) == [
+            (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3))
+        ]
+        =#
+        # @test Y.unit_flow__unit_flow__node__unit__node__unit() == [
+        #     (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+        # ]
+        # @test Y.unit_flow__unit_flow__unit__node__node__unit() == [
+        #     (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+        # ]
+        # @test Y.unit_flow__unit_flow__node__unit__unit__node() == [
+        #     (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+        # ]
+        # @test Y.unit_flow__unit_flow__unit__node__unit__node() == [
+        #     (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+        # ]
+        # Test superclass database extension (to see if it errors)
+        using_spinedb(db_url, Y; extend=true)
     end
 end
 
@@ -540,7 +682,7 @@ function _test_write_parameters()
             write_parameters(parameters, url; report="report_x")
             M = Bind()
             using_spinedb(url, M)
-            @test M.apero_time(country=M.country(:France), report=M.report(:report_x)) === Symbol("later...")
+            @test M.apero_time(report=M.report(:report_x), country=M.country(:France)) === Symbol("later...")
         end
     end
 end
@@ -560,7 +702,7 @@ function _test_call()
         add_parameter_definition!(graph, :country, :apero_time, parameter_value(nothing))
         add_parameter_value!(graph, :country, :apero_time, parameter_value(ts), :France)
         country = ObjectClass(:country, graph)
-        apero_time = Parameter(:apero_time, [country])
+        apero_time = Parameter(:apero_time, graph, [country])
         call = apero_time[(; country=France, t=TimeSlice(DateTime(0), DateTime(1)))]
         @test realize(call) == 40
         another_call = Call(*, 3, call)
@@ -993,10 +1135,10 @@ function _test_make_legacy_objects()
 end
 
 @testset "api" begin
-    _test_entity_selector_from()
     _test_indices()
     _test_indices_as_tuples()
     _test_object_class_relationship_class_parameter()
+    _test_superclasses()
     _test_time_slices()
     _test_timeslice_relationships()
     _test_add_objects()

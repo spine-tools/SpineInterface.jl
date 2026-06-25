@@ -124,6 +124,8 @@ end
 
 const Atom = Pair{Symbol, Symbol}
 const AtomTuple = Tuple{Atom, Vararg{Atom}}
+const AnyAtomInClass = Pair{Symbol, Anything}
+const MultiAtomSelector = Tuple{Union{Atom, AnyAtomInClass}, Vararg{Union{Atom, AnyAtomInClass}}}
 
 abstract type ClassVertexWithEntities end
 
@@ -181,28 +183,30 @@ struct ObjectClass <: EntityClass
     end
 end
 
-function compute_legacy_dimension_map(atomic_dimension_choices)
-    dimension_map = Dict()
-    for (i, choices) in enumerate(atomic_dimension_choices)
-        for choice in choices
-            if !in(choice, keys(dimension_map))
-                dimension_map[choice] = [i]
-            else
-                push!(dimension_map[choice], i)
-            end
+function uniquefy_elements(elements::Vector{Symbol})
+    uniques = Vector{Symbol}(undef, length(elements))
+    for (element_i, element) in enumerate(elements)
+        preceding_count = count(e -> e == element, elements[1:element_i - 1])
+        if preceding_count == 0 && count(e -> e == element, elements[element_i + 1: end]) == 0
+            uniques[element_i] = element
+        else
+            uniques[element_i] = Symbol(string(element, preceding_count + 1))
         end
     end
-    dimension_map
+    uniques
 end
 
 struct RelationshipClassData
     entity_class_graph::MetaGraphsNext.MetaGraph
     vertex::RelationshipClassVertex
     object_classes::Dict{Symbol, ObjectClass}
-    legacy_dimension_map::Dict{Symbol, Vector{Int}}
-    function RelationshipClassData(graph, vertex, object_classes)
-        dimension_map = compute_legacy_dimension_map(vertex.atomic_dimension_choices)
-        new(graph, vertex, object_classes, dimension_map)
+    intact_dimension_combinations::Vector{Vector{Symbol}}
+    dimension_combinations::Vector{Vector{Symbol}}
+    function RelationshipClassData(graph, label, object_classes)
+        vertex = graph[label]
+        intact_combinations = atomic_dimensions(graph, label)
+        unique_combinations = [uniquefy_elements(c) for c in intact_combinations]
+        new(graph, vertex, object_classes, intact_combinations, unique_combinations)
     end
 end
 
@@ -215,8 +219,7 @@ struct RelationshipClass <: EntityClass
     name::Symbol
     env_dict::Dict{Symbol, RelationshipClassData}
     function RelationshipClass(name, entity_class_graph, object_classes)
-        vertex = entity_class_graph[name]
-        env_dict = Dict(_active_env() => RelationshipClassData(entity_class_graph, vertex, object_classes))
+        env_dict = Dict(_active_env() => RelationshipClassData(entity_class_graph, name, object_classes))
         new(name, env_dict)
     end
 end
@@ -224,6 +227,8 @@ end
 struct SuperclassData
     entity_class_graph::MetaGraphsNext.MetaGraph
     vertex::SuperclassVertex
+    object_classes::Dict{Symbol, ObjectClass}
+    relationship_classes::Dict{Symbol, RelationshipClass}
 end
 
 """
@@ -234,15 +239,15 @@ A type for representing a superclass from a Spine db.
 struct Superclass <: EntityClass
     name::Symbol
     env_dict::Dict{Symbol, SuperclassData}
-    function Superclass(name, entity_class_graph)
+    function Superclass(name, entity_class_graph, object_classes, relationship_classes)
         vertex = entity_class_graph[name]
-        env_dict = Dict(_active_env() => SuperclassData(entity_class_graph, vertex))
+        env_dict = Dict(_active_env() => SuperclassData(entity_class_graph, vertex, object_classes, relationship_classes))
         new(name, env_dict)
     end
 end
 
 struct _Parameter
-    classes::Vector{EntityClass}
+    sorted_classes::Vector{EntityClass}
 end
 
 """
@@ -253,8 +258,8 @@ A type for representing a parameter related to an object class or a relationship
 struct Parameter
     name::Symbol
     env_dict::Dict{Symbol,_Parameter}
-    function Parameter(name, classes=[])
-        env_dict = Dict(_active_env() => _Parameter(classes))
+    function Parameter(name, entity_class_graph, classes=[])
+        env_dict = Dict(_active_env() => _Parameter(sort(classes, by=ClassSize(entity_class_graph),rev=true)))
         new(name, env_dict)
     end
 end

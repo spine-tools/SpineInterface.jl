@@ -55,8 +55,8 @@
         add_parameter_value!(graph, :studio__duck, :color, parameter_value(c), :studio => s.name, :duck => d.name)
         add_parameter_value!(graph, :studio__duck, :uses_pants, parameter_value(up), :studio =>s.name, :duck => d.name)
     end
-    color = Parameter(:color, [studio__duck])
-    uses_pants = Parameter(:uses_pants, [studio__duck])
+    color = Parameter(:color, graph, [studio__duck])
+    uses_pants = Parameter(:uses_pants, graph, [studio__duck])
     t = TimeSlice(DateTime(0), DateTime(1))
     @test !uses_pants(studio=studio(:WB), duck=duck(:Daffy), t=t)
     @test uses_pants(studio=studio(:Disney), duck=duck(:Donald), t=t) == 1.0
@@ -64,7 +64,7 @@
     @test uses_pants(studio=studio(:Disney), duck=duck(:Daffy)) === nothing
     @test color(studio=studio(:WB), duck=duck(:Daffy)) === :black
     @test color(studio=studio(:Disney), duck=duck(:Donald)) === :white
-    dummy = Parameter(:dummy)
+    dummy = Parameter(:dummy, graph)
     @test dummy isa Parameter
     call = uses_pants[(studio=studio(:Disney), duck=duck(:Donald), t=t)]
     @test call isa Call
