@@ -1,6 +1,6 @@
 name = "SpineInterface"
 uuid = "0cda1612-498a-11e9-3c92-77fa82595a4f"
-version = "0.17.1"
+version = "1.0.0"
 authors = ["Spine Project consortium <spine_info@vtt.fi>"]
 
 [deps]

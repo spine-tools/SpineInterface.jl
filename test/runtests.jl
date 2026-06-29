@@ -18,6 +18,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+# Tasku: Uncomment these lines to run this test script locally.
+using Pkg
+Pkg.activate(@__DIR__)
+
 using SpineInterface
 import SpineInterface.parse_time_period
 using Dates
@@ -40,6 +44,12 @@ function import_test_data(db_url::String; kwargs...)
     SpineInterface.close_connection(db_url)
     SpineInterface.open_connection(db_url)
     import_data(db_url; kwargs...)
+end
+
+# Convenience for temporary DB-urls
+function _temp_db_url()
+    fp = tempname()
+    "sqlite:///$fp"
 end
 
 @testset begin

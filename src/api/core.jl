@@ -848,7 +848,7 @@ function indices(p::Parameter, class::RelationshipClass; kwargs...)
 end
 
 """
-    indices_as_tuples(p::Parameter, [c::Union{ObjectClass,RelationshipClass}]; kwargs...)
+    indices_as_tuples(p::Parameter[, c::EntityClass]; kwargs...)
 
 Like `indices` but also yields tuples for single-dimensional entities.
 """
@@ -882,12 +882,12 @@ function push_class!(p::Parameter, class::EntityClass)
 end
 
 """
-    add_objects!(object_class, objects)
+    add_objects!(object_class::ObjectClass, objects::AbstractVector{Object})
 
 Add everything from `objects` that's not already in `object_class` into `object_class`.
 Return the modified `object_class`.
 """
-function add_objects!(object_class::ObjectClass, objects::AbstractArray)
+function add_objects!(object_class::ObjectClass, objects::AbstractVector{Object})
     for object in objects
         if !in(object.name, keys(object_class.objects))
             add_object!(object_class, object)
@@ -1154,9 +1154,75 @@ function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
         new_rel = (rel..., obj)
         cls.parameter_values[new_rel] = pop!(cls.parameter_values, rel)
     end
-    cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
+        cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
     delete!(cls.row_map, cls.name)  # delete memoized rows
     nothing
+end
+
+"""
+    reorder_dimensions(name::Symbol, cls::RelationshipClass, dims::Vector)
+
+Create a new class `name` by reordering the dimensions of `cls`.
+
+`dims` indicates the new desired order for the dimensions,
+and can be either a `Vector{Symbol}` or `Vector{Integer}`.
+Note that `dims` needs to correspond to the `object_class_names`
+field, not the `intact_object_class_names` field!
+
+Returns a new [`RelationshipClass`](@ref) with the reordered dimensions.
+
+See also [`reorder_dimensions!`](@ref).
+"""
+function reorder_dimensions(name::Symbol, cls::RelationshipClass, dims::Vector{Symbol})
+    perm = _find_permutation(dims, cls.object_class_names)
+    return reorder_dimensions(name, cls, perm)
+end
+function reorder_dimensions(name::Symbol, cls::RelationshipClass, perm::Vector{<:Integer})
+    new_intact_cls_names = cls.intact_object_class_names[perm]
+    return RelationshipClass(
+        name,
+        new_intact_cls_names,
+        [Tuple(objtup[i] for i in perm) for objtup in cls.relationships],
+        Dict(
+            Tuple(objtup[i] for i in perm) => val
+            for (objtup, val) in cls.parameter_values
+        ),
+        cls.parameter_defaults
+    )
+end
+
+"""
+    reorder_dimensions!(cls::RelationshipClass, dims::Vector)
+
+Reordering the dimensions of `cls` in-place according to `dims`.
+
+`dims` indicates the new desired order for the dimensions,
+and can be either a `Vector{Symbol}` or `Vector{Integer}`.
+Note that `dims` needs to correspond to the `object_class_names`
+field, not the `intact_object_class_names` field!
+
+Returns the [`RelationshipClass`](@ref) with the reordered dimensions.
+
+See also [`reorderder_dimensions`](@ref).
+"""
+function reorder_dimensions!(cls::RelationshipClass, dims::Vector{Symbol})
+    perm = _find_permutation(dims, cls.object_class_names)
+    return reorder_dimensions!(cls, perm)
+end
+function reorder_dimensions!(cls::RelationshipClass, perm::Vector{<:Integer})
+    permute!(cls.intact_object_class_names, perm)
+    permute!(cls.object_class_names, perm)
+    # Reorder relationships list RelationshipLike NamedTuples.
+    map!(
+        reltup -> NamedTuple{Tuple(cls.object_class_names)}(reltup),
+        cls.relationships,
+        cls.relationships
+    )
+    # Reorder parameter value dict key ObjectTupleLikes.
+    for objtup in collect(keys(cls.parameter_values))
+        cls.parameter_values[objtup[perm]] = pop!(cls.parameter_values, objtup)
+    end
+    return cls
 end
 
 dimensions(cls::RelationshipClass) = cls.object_class_names
