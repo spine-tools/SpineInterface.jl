@@ -207,3 +207,32 @@ end
 function _add_update!(t::TimeSlice, timeout, upd)
     t.updates[upd] = timeout
 end
+
+"""
+    _find_permutation(a::Vector, b::Vector)
+
+Return which permutation of `b` `a` is.
+"""
+_find_permutation(a::Vector, b::Vector) = [findfirst(x .== b) for x in a]::Vector{<:Integer}
+
+"""
+    uniquefy_elements(elements::Vector{Symbol})
+
+Return a list of unique `Symbol`s based on `elements` differentiated by an increasing index.
+"""
+function uniquefy_elements(elements::Vector{Symbol})
+    uniques = Vector{Symbol}(undef, length(elements))
+    return _uniquefy!(uniques, elements)
+end
+
+function _uniquefy!(uniques::Vector, elements::Vector{Symbol})
+    for (element_i, element) in enumerate(elements)
+        preceding_count = count(e -> e == element, elements[1:element_i - 1])
+        if preceding_count == 0 && count(e -> e == element, elements[element_i + 1: end]) == 0
+            uniques[element_i] = element
+        else
+            uniques[element_i] = Symbol(element, preceding_count + 1)
+        end
+    end
+    return uniques::Vector{Symbol}
+end

@@ -19,8 +19,8 @@
 #############################################################################
 
 # Tasku: Uncomment these lines to run this test script locally.
-using Pkg
-Pkg.activate(@__DIR__)
+#using Pkg
+#Pkg.activate(@__DIR__)
 
 using SpineInterface
 import SpineInterface.parse_time_period

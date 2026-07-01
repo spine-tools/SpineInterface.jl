@@ -532,6 +532,14 @@ end
 function import_data(url, data::AbstractVector{EntityClass}, comment::String; upgrade=false)
     import_data(url, merge(append!, _to_dict.(data)...), comment; upgrade=upgrade)
 end
+function import_data(url, data::Bind, comment::String; upgrade=false)
+    import_data(
+        url,
+        [x for x in values(getfield(data, :d)) if isa(x, EntityClass)],
+        comment;
+        upgrade=upgrade
+    )
+end
 function import_data(url, data::Dict{String,T}, comment::String; upgrade=false) where {T}
     import_data(url, Dict(Symbol(k) => v for (k, v) in data), comment; upgrade=upgrade)
 end
@@ -888,6 +896,19 @@ function _to_dict(rel_cls::RelationshipClass)
             [rel_cls.name, [atom.second for atom in RelationshipAtoms(relationship_graph, entity_label)], parameter_name, unparse_db_value(parameter_value)]
             for (entity_label, parameter_values) in rel_cls.vertex.parameter_values
             for (parameter_name, parameter_value) in parameter_values
+        ]
+    )
+end
+function _to_dict(sc::Superclass)
+    Dict(
+        :object_classes => [sc.name],
+        :object_parameters => [ # Do Superclasses ever have object parameter defaults?
+            [sc.name, parameter_name, unparse_db_value(parameter_default_value)]
+            for (parameter_name, parameter_default_value) in sc.vertex.parameter_defaults
+        ],
+        :superclass_subclasses => [
+            [sc.name, sub]
+            for sub in MetaGraphsNext.inneighbor_labels(sc.entity_class_graph, sc.name)
         ]
     )
 end

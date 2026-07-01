@@ -135,7 +135,7 @@ struct ObjectClassVertex <: ClassVertexWithEntities
     parameter_values::Dict{Symbol, Dict{Symbol, ParameterValue}}
     parameter_defaults::Dict{Symbol, ParameterValue}
     function ObjectClassVertex()
-        new(Set(), empty_entity_group_graph(),Dict(), Dict())
+        new(Set(), empty_entity_group_graph(), Dict(), Dict())
     end
 end
 
@@ -181,19 +181,6 @@ struct ObjectClass <: EntityClass
         env_dict = Dict(_active_env() => ObjectClassData(entity_class_graph, vertex, objects))
         new(name, env_dict)
     end
-end
-
-function uniquefy_elements(elements::Vector{Symbol})
-    uniques = Vector{Symbol}(undef, length(elements))
-    for (element_i, element) in enumerate(elements)
-        preceding_count = count(e -> e == element, elements[1:element_i - 1])
-        if preceding_count == 0 && count(e -> e == element, elements[element_i + 1: end]) == 0
-            uniques[element_i] = element
-        else
-            uniques[element_i] = Symbol(string(element, preceding_count + 1))
-        end
-    end
-    uniques
 end
 
 struct RelationshipClassData

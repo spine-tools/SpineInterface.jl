@@ -118,7 +118,7 @@ function Base.iterate(iter::EntitySelectors, state=1)
             break
         end
         intact_class_label = iter.class.intact_dimension_combinations[state][dimension_i]
-        selector[dimension_i] =  objects_to_selector(intact_class_label, objects)
+        selector[dimension_i] = objects_to_selector(intact_class_label, objects)
         combination_start = dimension_i + 1
     end
     if !all(s -> s === anything, selector) && !wrong_order
@@ -954,7 +954,7 @@ function add_relationships!(relationship_class::RelationshipClass, object_tuples
     atoms = Vector{Atom}(undef, atomic_dimensionality(relationship_class.vertex))
     for object_tuple in object_tuples
         for (i, object) in enumerate(object_tuple)
-            class = object.class
+            class = object.class_name
             if isnothing(class)
                 class = class_for_object(relationship_class.vertex, object.name, i)
             end
@@ -1146,83 +1146,86 @@ function realize(call, upd=nothing)
     end
 end
 
-function add_dimension!(cls::RelationshipClass, name::Symbol, obj)
-    push!(cls.object_class_names, name)
-    push!(cls.intact_object_class_names, name)
-    map!(rel -> (; rel..., Dict(name => obj)...), cls.relationships, cls.relationships)
-    for rel in collect(keys(cls.parameter_values))
-        new_rel = (rel..., obj)
-        cls.parameter_values[new_rel] = pop!(cls.parameter_values, rel)
+"""
+    add_dimension!(rc::RelationshipClass, name, obj; m=@__MODULE__)
+
+Add `obj` as a new dimension at the end of `rc` relationships and parameter values.
+
+`name` and `obj` can also be `Vector`s for adding multiple objects and dimensions at once.
+`name` can be omitted if desired, in which case it will be deduced from `obj.class_name`.
+"""
+function add_dimension!(rc::RelationshipClass, name::Symbol, obj::Object; m=@__MODULE__)
+    add_dimension!(rc, [name], [obj]; m=m)
+end
+function add_dimension!(rc::RelationshipClass, obj::Object; m=@__MODULE__)
+    add_dimension!(rc, [obj.class_name], [obj]; m=m)
+end
+function add_dimension!(rc::RelationshipClass, objs::Vector{Object}; m=@__MODULE__)
+    add_dimension!(rc, getproperty.(objs, :class_name), objs; m=m)
+end
+function add_dimension!(rc::RelationshipClass, names::Vector{Symbol}, objs::Vector{Object}; m=@__MODULE__)
+    if length(names) != length(objs)
+        throw(ArgumentError("Length of `names` and `objs` must match!"))
     end
-        cls.row_map[name] = Dict(obj => collect(1:length(cls.relationships)))
-    delete!(cls.row_map, cls.name)  # delete memoized rows
+    # Tweak RelationshipClassData fields
+    for name in names # Add new object classes.
+        rc.object_classes[name] = object_class(name, m)
+    end
+    for (intact_dims, dims) in zip(rc.intact_dimension_combinations, rc.dimension_combinations)
+        append!(intact_dims, names) # Add new dimension names to the intact dims.
+        _uniquefy!(append!(dims, names), intact_dims) # Update unique dimension names
+    end
+    # Add new dimensions to the entity class and relationship graphs for all entities
+    initial_d = dimensionality(rc.entity_class_graph, rc.name) # Figure out existing dimensions.
+    add_dimension!(rc.entity_class_graph, rc.name, names; init=initial_d)
+    for ent in rc.vertex.entities
+        add_dimension!(
+            rc.vertex.relationship_graph,
+            ent,
+            Tuple(n => o for (n, o) in zip(names, getproperty.(objs, :name)));
+            init=initial_d
+        )
+    end
+    # No need to tweak parameter values, as these are mapped to the entity "index"?
     nothing
 end
 
 """
-    reorder_dimensions(name::Symbol, cls::RelationshipClass, dims::Vector)
+    reorder_dimensions!(rc::RelationshipClass, dims::Vector)
 
-Create a new class `name` by reordering the dimensions of `cls`.
+Reordering the dimensions of `rc` in-place according to `dims`.
 
-`dims` indicates the new desired order for the dimensions,
-and can be either a `Vector{Symbol}` or `Vector{Integer}`.
-Note that `dims` needs to correspond to the `object_class_names`
-field, not the `intact_object_class_names` field!
+Note that `dims` needs to correspond to the `dimension_combinations`
+field, not the `intact_dimension_combinations` field!
 
-Returns a new [`RelationshipClass`](@ref) with the reordered dimensions.
-
-See also [`reorder_dimensions!`](@ref).
+Returns the `rc` [`RelationshipClass`](@ref) with the reordered dimensions.
 """
-function reorder_dimensions(name::Symbol, cls::RelationshipClass, dims::Vector{Symbol})
-    perm = _find_permutation(dims, cls.object_class_names)
-    return reorder_dimensions(name, cls, perm)
+function reorder_dimensions!(rc::RelationshipClass, dims::Vector{Symbol})
+    perms = [_find_permutation(combs, dims) for combs in rc.dimension_combinations]
+    return reorder_dimensions!(rc, perms)
 end
-function reorder_dimensions(name::Symbol, cls::RelationshipClass, perm::Vector{<:Integer})
-    new_intact_cls_names = cls.intact_object_class_names[perm]
-    return RelationshipClass(
-        name,
-        new_intact_cls_names,
-        [Tuple(objtup[i] for i in perm) for objtup in cls.relationships],
-        Dict(
-            Tuple(objtup[i] for i in perm) => val
-            for (objtup, val) in cls.parameter_values
-        ),
-        cls.parameter_defaults
+function reorder_dimensions!(rc::RelationshipClass, perms::Vector{<:Vector{<:Integer}})
+    # Loop over the different dimension combinations
+    for (intacts, dims, perm) in zip(
+        rc.intact_dimension_combinations,
+        rc.dimension_combinations,
+        perms
     )
-end
-
-"""
-    reorder_dimensions!(cls::RelationshipClass, dims::Vector)
-
-Reordering the dimensions of `cls` in-place according to `dims`.
-
-`dims` indicates the new desired order for the dimensions,
-and can be either a `Vector{Symbol}` or `Vector{Integer}`.
-Note that `dims` needs to correspond to the `object_class_names`
-field, not the `intact_object_class_names` field!
-
-Returns the [`RelationshipClass`](@ref) with the reordered dimensions.
-
-See also [`reorderder_dimensions`](@ref).
-"""
-function reorder_dimensions!(cls::RelationshipClass, dims::Vector{Symbol})
-    perm = _find_permutation(dims, cls.object_class_names)
-    return reorder_dimensions!(cls, perm)
-end
-function reorder_dimensions!(cls::RelationshipClass, perm::Vector{<:Integer})
-    permute!(cls.intact_object_class_names, perm)
-    permute!(cls.object_class_names, perm)
-    # Reorder relationships list RelationshipLike NamedTuples.
-    map!(
-        reltup -> NamedTuple{Tuple(cls.object_class_names)}(reltup),
-        cls.relationships,
-        cls.relationships
-    )
-    # Reorder parameter value dict key ObjectTupleLikes.
-    for objtup in collect(keys(cls.parameter_values))
-        cls.parameter_values[objtup[perm]] = pop!(cls.parameter_values, objtup)
+        for (i_orig, i_new) in enumerate(perm) # Manipulate relationship graph edges
+            for (((dim, obj), ent), vi) in rc.vertex.relationship_graph.edge_data
+                # Permute only if edge matches the desired dimension combination.
+                if dim == intacts[i_orig] && only(vi) == i_orig
+                    vi[1] = i_new
+                end
+            end
+        end
+        permute!(intacts, perm) # Permute dimension name lists
+        permute!(dims, perm)
     end
-    return cls
+    # Ensure uniqueness of dimension combinations.
+    unique!(rc.intact_dimension_combinations)
+    unique!(rc.dimension_combinations)
+    return rc::RelationshipClass
 end
 
 dimensions(cls::RelationshipClass) = cls.object_class_names
