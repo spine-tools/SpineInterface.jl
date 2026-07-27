@@ -165,6 +165,9 @@ function _test_object_class_relationship_class_parameter()
         @test parameter(:people_count, Y).name == :people_count
         @test parameter(:animal_count, Y) isa Parameter
         @test parameter(:animal_count, Y).name == :animal_count
+        # SpineOpt needs direct access to parameter defaults
+        @test Y.institution.parameter_defaults === Y.institution.vertex.parameter_defaults == Dict(:since_year => parameter_value(nothing))
+        @test Y.institution__country.parameter_defaults === Y.institution__country.vertex.parameter_defaults == Dict(:people_count => parameter_value(nothing))
     end
 end
 
@@ -174,6 +177,8 @@ function _test_superclasses()
         _import_superclass_test_data(db_url)
         Y = Bind()
         using_spinedb(db_url, Y)
+        @test superclass(:unit_flow, Y) == Y.unit_flow
+        @test superclasses(Y) == [Y.unit_flow]
         # Tests for `unit_flow` and `flow_capacity`
         @test length(Y.unit_flow()) == 6
         @test Y.unit_flow(unit = Y.unit(:u1)) == [
@@ -346,13 +351,30 @@ function _test_timeslice_relationships()
     ts01 = TimeSlice(DateTime(0), DateTime(1))
     ts12 = TimeSlice(DateTime(1), DateTime(2))
     ts23 = TimeSlice(DateTime(2), DateTime(3))
-    t_before_t = RelationshipClass(:t_before_t, [:t_before, :t_after], [(ts01, ts12), (ts12, ts23)])
+    ts34 = TimeSlice(DateTime(3), DateTime(4))
+    t_rels = [ # These need to be RelationshipLikes
+        (t_before=tb, t_after=ta) 
+        for (tb, ta) in ((ts01, ts12), (ts01, ts23), (ts12, ts23))
+    ]
+    t_before_t = RelationshipClass(:t_before_t, [:t_before, :t_after], values.(t_rels))
+    @test t_before_t() == t_rels
     @test isempty(t_before_t(t_after=ts01))
-    @test t_before_t(t_before=ts01) == [ts12]
+    @test t_before_t(t_before=ts01) == t_before_t(t_before=[ts01]) == [ts12, ts23]
+    @test t_before_t(t_after=ts12) == t_before_t(t_after=[ts12]) == [ts01]
     @test t_before_t(t_after=ts12) == [ts01]
     @test t_before_t(t_before=ts12) == [ts23]
-    @test t_before_t(t_after=ts23) == [ts12]
+    @test t_before_t(t_after=ts23) == [ts01, ts12]
+    @test t_before_t(t_after=ts23; _compact=false) == t_rels[2:3] # Needs `_compact` support
+    @test t_before_t(t_before=anything, t_after=ts23; _compact=false) == t_rels[2:3] # `anything` needs to work with `_compact`
+    @test t_before_t(t_before=ts01, t_after=anything; _compact=false) == t_rels[1:2] # `anything` needs to work with `_compact`
+    @test t_before_t(t_before=ts01, t_after=ts23; _compact=false) == t_rels[2:2]
+    @test isempty(t_before_t(t_before=ts01, t_after=ts23; _compact=true))
+    @test t_before_t(t_after=anything; _compact=false) == t_rels # Needs to handle anythings AND `_compact`
+    @test t_before_t(t_before=anything, t_after=anything; _compact=false) == t_rels
+    @test isempty(t_before_t(t_before=anything, t_after=anything))
+    @test t_before_t(t_before=[ts01, ts12]) == t_before_t(t_before=anything) == [ts12, ts23]
     @test isempty(t_before_t(t_before=ts23))
+    @test isempty(t_before_t(t_after=ts34)) # Needs to support unincluded timeslices.
 end
 
 function _test_add_objects()
@@ -370,6 +392,12 @@ function _test_add_objects()
         add_object!(Y.institution, Object(:UCD))
         @test length(Y.institution()) === 5
         @test :UCD in Set(o.name for o in Y.institution())
+        add_object!(Y.institution, Object(:all, :institution, Y.institution(), [])) # SpineOpt uses groups
+        other_institutions = (i for i in Y.institution() if i.name != :all)
+        Y.institution(:all).members == collect(other_institutions)
+        for i in other_institutions
+            @test i.groups == [Y.institution(:all)]
+        end
     end
 end
 
@@ -480,7 +508,7 @@ function _test_add_object_parameter_values()
         object_classes = ["institution"]
         institutions = ["ER", "KTH"]
         objects = [["institution", x] for x in institutions]
-        object_parameters = [["institution", "since_year"]]
+        object_parameters = [["institution", "since_year"], ["institution", "full_name"]]
         object_parameter_values =
             [["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]]
         import_test_data(
@@ -496,10 +524,13 @@ function _test_add_object_parameter_values()
         @test Set(x.name for x in Y.institution()) == Set(Symbol.(institutions))
         ER = Y.institution(:ER)
         @test Y.since_year(institution=ER) == 2010
-        pvals = Dict(
-            Object(:ER, :institution) => Dict(:since_year => parameter_value(2011)),
-            Object(:CORRE_LABS, :institution) =>
-                Dict(:since_year => parameter_value(2022), :people_count => parameter_value(3)),
+        pvals = Dict{Object, Dict{Symbol, ParameterValue}}( # Needs to be typed, otherwise results in `Dict{Object,Dict{Symbol}}`
+            Object(:ER, :institution) => Dict(
+                :since_year => parameter_value(2011), :full_name => parameter_value("Energy Reform")
+            ),
+            Object(:CORRE_LABS, :institution) => Dict(
+                :since_year => parameter_value(2022), :people_count => parameter_value(3)
+            ),
         )
         add_object_parameter_values!(Y.institution, pvals)
         CORRE_LABS = Object(:CORRE_LABS, :institution)
@@ -719,7 +750,10 @@ function _test_maximum_parameter_value()
     @testset "maximum_parameter_value" begin
         object_classes = ["institution", "country"]
         relationship_classes = [["institution__country", ["institution", "country"]]]
-        relationship_parameters = [["institution__country", "people_count"]]
+        relationship_parameters = [
+            ["institution__country", "people_count"],
+            ["institution__country", "no_values"] # Test what an empty parameter yields
+        ]
         institutions = ["KTH", "VTT", "ER"]
         countries = ["Sweden", "France", "Finland", "Ireland"]
         objects = vcat([["institution", x] for x in institutions], [["country", x] for x in countries])
@@ -783,6 +817,7 @@ function _test_maximum_parameter_value()
         Y = Bind()
         using_spinedb(db_url, Y)
         @test maximum_parameter_value(Y.people_count) == 300.0
+        @test isnothing(maximum_parameter_value(Y.no_values))
     end
 end
 
@@ -1301,9 +1336,20 @@ end
 
 function _test_add_dimension()
     @testset "add_dimension!" begin
-        object_classes = ["institution", "country", "city"]
-        relationship_classes = [["institution__country", ["institution", "country"]]]
-        relationship_parameters = [["institution__country", "people_count"]]
+        object_classes = ["institution", "country", "city", "facility", "relation"]
+        relationship_classes = [
+            ["institution__country", ["institution", "country"]],
+            ["country__institution", ["country", "institution"]],
+            ["facility__facility", ["facility", "facility"]]
+        ]
+        superclass_subclasses = [
+            ["facility", "institution__country"],
+            ["facility", "country__institution"],
+        ]
+        relationship_parameters = [
+            ["institution__country", "people_count"],
+            ["facility__facility", "collaboration", false]
+        ]
         institutions = ["KTH", "VTT"]
         countries = ["Sweden", "France"]
         cities = ["Stockholm", "Paris"]
@@ -1311,8 +1357,15 @@ function _test_add_dimension()
             [["institution", x] for x in institutions],
             [["country", x] for x in countries],
             [["city", x] for x in cities],
+            [["relation", x] for x in (:in, :houses)]
         )
-        relationships = [["institution__country", ["KTH", "Sweden"]], ["institution__country", ["KTH", "France"]]]
+        relationships = [
+            ["institution__country", ["KTH", "Sweden"]],
+            ["institution__country", ["KTH", "France"]],
+            ["country__institution", ["Sweden", "KTH"]],
+            ["facility__facility", ["KTH", "Sweden", "Sweden", "KTH"]],
+            ["facility__facility", ["Sweden", "KTH", "KTH", "France"]]
+        ]
         relationship_parameter_values = [
             ["institution__country", ["KTH", "Sweden"], "people_count", 3],
             ["institution__country", ["KTH", "France"], "people_count", 1],
@@ -1325,12 +1378,14 @@ function _test_add_dimension()
             relationships=relationships,
             relationship_parameters=relationship_parameters,
             relationship_parameter_values=relationship_parameter_values,
+            superclass_subclasses=superclass_subclasses
         )
         Y = Bind()
         using_spinedb(db_url, Y)
         ic1 = Y.institution__country
         ic2 = deepcopy(ic1)
         ic3 = deepcopy(ic1)
+        f = Y.facility
         orig_pvs = deepcopy(ic1.vertex.parameter_values)
         # First testing adding one dimension.
         add_dimension!(ic1, Y.city(:Stockholm); m=Y)
@@ -1356,6 +1411,18 @@ function _test_add_dimension()
         @test collect(indices(Y.people_count)) == [
             (institution=Y.institution(:KTH), country=Y.country(:France), city=Y.city(:Stockholm)),
             (institution=Y.institution(:KTH), country=Y.country(:Sweden), city=Y.city(:Stockholm)),
+        ]
+        @test f() == [
+            (country=Y.country(:Sweden), institution=Y.institution(:KTH)),
+            (institution=Y.institution(:KTH), country=Y.country(:France), city=Y.city(:Stockholm)),
+            (institution=Y.institution(:KTH), country=Y.country(:Sweden), city=Y.city(:Stockholm))
+        ]
+        @test f(country=anything, institution=anything, _compact=false) == [
+            (country=Y.country(:Sweden), institution=Y.institution(:KTH))
+        ]
+        @test f(institution=anything, country=anything, _compact=false) == f(city=anything, _compact=false) == [
+            (institution=Y.institution(:KTH), country=Y.country(:France), city=Y.city(:Stockholm)),
+            (institution=Y.institution(:KTH), country=Y.country(:Sweden), city=Y.city(:Stockholm))
         ]
         # Test adding a second duplicate dimension to ic1
         add_dimension!(ic1, Y.city(:Paris); m=Y)
@@ -1394,6 +1461,11 @@ function _test_add_dimension()
             (institution=Y.institution(:KTH), country=Y.country(:France), city1=Y.city(:Stockholm), city2=Y.city(:Paris)),
             (institution=Y.institution(:KTH), country=Y.country(:Sweden), city1=Y.city(:Stockholm), city2=Y.city(:Paris)),
         ]
+        @test f() == [
+            (country=Y.country(:Sweden), institution=Y.institution(:KTH)),
+            (institution=Y.institution(:KTH), country=Y.country(:France), city1=Y.city(:Stockholm), city2=Y.city(:Paris)),
+            (institution=Y.institution(:KTH), country=Y.country(:Sweden), city1=Y.city(:Stockholm), city2=Y.city(:Paris))
+        ]
         # Test adding two duplicate dimensions at once to ic3 to replicate ic1
         add_dimension!(ic3, [Y.city(:Stockholm), Y.city(:Paris)]; m=Y)
         @test only(ic3.intact_dimension_combinations) == only(ic1.intact_dimension_combinations)
@@ -1410,6 +1482,49 @@ function _test_add_dimension()
                 (city2=Y.city(:Paris),),
             ]
         )
+        # Test adding dimensions and reordering `facility` subclasses.
+        ci = Y.country__institution
+        add_dimension!(ci, [Y.city(:Paris), Y.city(:Stockholm)]; m=Y)
+        @test f() == f(country=anything, city1=anything, city2=anything, _compact=false) == [
+            (country=Y.country(:Sweden), institution=Y.institution(:KTH), city1=Y.city(:Paris), city2=Y.city(:Stockholm)),
+            (institution=Y.institution(:KTH), country=Y.country(:France), city1=Y.city(:Stockholm), city2=Y.city(:Paris)),
+            (institution=Y.institution(:KTH), country=Y.country(:Sweden), city1=Y.city(:Stockholm), city2=Y.city(:Paris))
+        ]
+        reorder_dimensions!(ci, [:institution, :city1, :country, :city2])
+        reorder_dimensions!(ic1, [:institution, :city1, :country, :city2])
+        expected = [
+            (institution=Y.institution(:KTH), city1=Y.city(:Paris), country=Y.country(:Sweden), city2=Y.city(:Stockholm)),
+            (institution=Y.institution(:KTH), city1=Y.city(:Stockholm), country=Y.country(:France), city2=Y.city(:Paris)),
+            (institution=Y.institution(:KTH), city1=Y.city(:Stockholm), country=Y.country(:Sweden), city2=Y.city(:Paris))
+        ]
+        @test f() == expected
+        for (kw, arg) in pairs((institution=anything, city1=anything, country=anything, city2=anything))
+            @test f(; kw => arg, :_compact => false) == expected # Superclass calls need to work post reordering.
+        end
+        # Compound classes are not impacted by changes to their element classes,
+        # and need to be manipulated separately:
+        ff = Y.facility__facility
+        @test ff() == [
+            (institution1=Y.institution(:KTH), country1=Y.country(:Sweden), country2=Y.country(:Sweden), institution2=Y.institution(:KTH)),
+            (country1=Y.country(:Sweden), institution1=Y.institution(:KTH), institution2=Y.institution(:KTH), country2=Y.country(:France)),
+        ]
+        dim_perm_map = Dict(
+            [:country, :institution, :country, :institution] => [Y.relation(:houses), Y.relation(:houses)],
+            [:country, :institution, :institution, :country] => [Y.relation(:houses), Y.relation(:in)],
+            [:institution, :country, :country, :institution] => [Y.relation(:in), Y.relation(:houses)],
+            [:institution, :country, :institution, :country] => [Y.relation(:in), Y.relation(:in)],
+        )
+        add_dimension!(ff, [:relation, :relation], dim_perm_map; m=Y)
+        @test ff() == [
+            (institution1=Y.institution(:KTH), country1=Y.country(:Sweden), country2=Y.country(:Sweden), institution2=Y.institution(:KTH), relation1=Y.relation(:in), relation2=Y.relation(:houses)),
+            (country1=Y.country(:Sweden), institution1=Y.institution(:KTH), institution2=Y.institution(:KTH), country2=Y.country(:France), relation1=Y.relation(:houses), relation2=Y.relation(:in)),
+        ]
+        # Test reordering
+        reorder_dimensions!(ff, [:country1, :relation1, :institution1, :country2, :relation2, :institution2])
+        @test ff() == [
+            (country1=Y.country(:Sweden), relation1=Y.relation(:in), institution1=Y.institution(:KTH), country2=Y.country(:Sweden), relation2=Y.relation(:houses), institution2=Y.institution(:KTH)),
+            (country1=Y.country(:Sweden), relation1=Y.relation(:houses), institution1=Y.institution(:KTH), country2=Y.country(:France), relation2=Y.relation(:in), institution2=Y.institution(:KTH)),
+        ]
     end
 end
 
