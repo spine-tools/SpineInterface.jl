@@ -114,6 +114,9 @@ export run_request
 export set_value_translator
 export start
 export startref
+export superclass # Convenience
+export superclasses
+export Superclass
 export t_highest_resolution
 export t_highest_resolution!
 export t_highest_resolution_sets!

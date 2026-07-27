@@ -634,6 +634,11 @@ function empty_entity_group_graph()
     )
 end
 
+function add_entity_group_member!(entity_group_graph::MetaGraphsNext.MetaGraph, group::Object, member::Object) # Update group memberships on the fly
+    !in(member, group.members) && push!(group.members, member) # Consider using `Set` for group memberships?
+    !in(group, member.groups) && push!(member.groups, group)
+    add_entity_group_member!(entity_group_graph, group.name, member.name)
+end
 function add_entity_group_member!(entity_group_graph::MetaGraphsNext.MetaGraph, group_entity::Symbol, member_entity::Symbol)
     entity_group_graph[group_entity] = nothing
     entity_group_graph[member_entity] = nothing

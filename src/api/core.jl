@@ -108,20 +108,23 @@ function Base.iterate(iter::EntitySelectors, state=1)
     combination = iter.class.dimension_combinations[state]
     selector::Vector{Selector} = [anything for _ in 1:atomic_dimensionality(iter.class.vertex)]
     combination_start = 1
-    wrong_order = false
+    problem = false
     for (class_label, objects) in iter.legacy_selector
         dimension_i = findfirst(d -> d == class_label, combination)
         if isnothing(dimension_i)
             continue
         elseif dimension_i < combination_start
-            wrong_order = true
-            break
+            problem = true
+            break # Break if the dimensions are out of order
+        elseif isnothing(objects) || isempty(objects)
+            problem = true
+            break # Break if a selector is nothing or empty, needs to be after dimension check to accommodate parameter value kwargs
         end
         intact_class_label = iter.class.intact_dimension_combinations[state][dimension_i]
         selector[dimension_i] = objects_to_selector(intact_class_label, objects)
         combination_start = dimension_i + 1
     end
-    if !all(s -> s === anything, selector) && !wrong_order
+    if !all(s -> s === anything, selector) && !problem
         selector, state + 1
     else
         iterate(iter, state + 1)
@@ -346,7 +349,8 @@ function (superclass::Superclass)(; _compact::Bool=true, _default::Any=EntityLik
 end
 
 function entity_selectors(class::ObjectClass, legacy_selector)
-    (legacy_selector[class.name].name,)
+    sel = get(legacy_selector, class.name, nothing) # Handle shared parameter names across classes.
+    isnothing(sel) ? tuple() : (sel.name,)
 end
 function entity_selectors(class::RelationshipClass, legacy_selector)
     EntitySelectors(class, legacy_selector)
@@ -492,11 +496,9 @@ julia> demand(node=node(:Sthlm), i=2)
 """
 function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
     value = nothing
-    if !any(isnothing, values(kwargs))
-        value_instance, value_kwargs = unique_value_instance(p.name, classes(p), _default, kwargs)
-        if !isnothing(value_instance)
-            value = value_instance(; value_kwargs...)
-        end
+    value_instance, value_kwargs = unique_value_instance(p.name, classes(p), _default, kwargs) # Needs to support arbitrary `nothings` in parameter value kwargs...
+    if !isnothing(value_instance)
+        value = value_instance(; value_kwargs...)
     end
     if !isnothing(value)
         value
@@ -760,7 +762,7 @@ function fill_with_atoms!(atoms, object_tuple, dimension_combination, intact_com
     true
 end
 
-function object_tuple_to_atoms(object_tuple, class::RelationshipClass)
+function object_tuple_to_atoms(object_tuple::RelationshipLike, class::RelationshipClass) # Typing prevents reaching the unreachable
     atoms = Vector{Atom}()
     sizehint!(atoms, length(object_tuple))
     for (combination_i, combination) in enumerate(class.dimension_combinations)
@@ -771,7 +773,7 @@ function object_tuple_to_atoms(object_tuple, class::RelationshipClass)
             empty!(atoms)
         end
     end
-    error("this code should be unreachable")
+    error("This code should be unreachable! Check your `object_tuple` class-object pairs.")
 end
 
 function relationship_label(class::RelationshipClass, object_tuple::NamedTuple)
@@ -779,16 +781,61 @@ function relationship_label(class::RelationshipClass, object_tuple::NamedTuple)
     relationship_label(class.vertex.relationship_graph, atoms...)
 end
 
-function (slice_relationships::TimeSliceRelationships)(; kwargs...)
-    slice = get(kwargs, slice_relationships.preceding, nothing)
-    if !isnothing(slice)
-        return collect(MetaGraphsNext.outneighbor_labels(slice_relationships.time_slice_graph, slice))
+# TimeSlice relationships are called in quite complex ways in SpineOpt...
+# Similar to legacy relationship classes.
+function _get_outneighbors(time_slice_graph::MetaGraphsNext.MetaGraph, slice::TimeSlice, names::Tuple{Symbol, Symbol}, ::Val{true}) # Dispatch based on `_compact`
+    if haskey(time_slice_graph, slice)
+        return MetaGraphsNext.outneighbor_labels(time_slice_graph, slice)
+    else
+        return ()
     end
-    slice = get(kwargs, slice_relationships.succeeding, nothing)
-    if !isnothing(slice)
-        return collect(MetaGraphsNext.inneighbor_labels(slice_relationships.time_slice_graph, slice))
+end
+function _get_outneighbors(time_slice_graph::MetaGraphsNext.MetaGraph, slice::TimeSlice, names::Tuple{Symbol, Symbol}, ::Val{false}) # Dispatch based on `_compact`
+    return (NamedTuple{names}((slice, s)) for s in _get_outneighbors(time_slice_graph, slice, names, Val(true)))
+end
+function _get_inneighbors(time_slice_graph::MetaGraphsNext.MetaGraph, slice::TimeSlice, names::Tuple{Symbol, Symbol}, ::Val{true}) # Dispatch based on `_compact`
+    if haskey(time_slice_graph, slice)
+        return MetaGraphsNext.inneighbor_labels(time_slice_graph, slice)
+    else
+        return ()
     end
-    nothing
+end
+function _get_inneighbors(time_slice_graph::MetaGraphsNext.MetaGraph, slice::TimeSlice, names::Tuple{Symbol, Symbol}, ::Val{false}) # Dispatch based on `_compact`
+    return (NamedTuple{names}((s, slice)) for s in _get_inneighbors(time_slice_graph, slice, names, Val(true)))
+end
+function _get_timeslices(neighbor_func::Function, time_slice_graph::MetaGraphsNext.MetaGraph, slice::TimeSlice, names::Tuple{Symbol, Symbol}, _compact::Bool)
+    return neighbor_func(time_slice_graph, slice, names, Val(_compact))
+end
+function _get_timeslices(neighbor_func::Function, time_slice_graph::MetaGraphsNext.MetaGraph, slice::AbstractVector, names::Tuple{Symbol, Symbol}, _compact::Bool) # Potentially dangerous catch-all
+    return Iterators.flatten(neighbor_func(time_slice_graph, s, names, Val(_compact)) for s in slice)
+end
+
+function (slice_relationships::TimeSliceRelationships)(; _compact=true, kwargs...)
+    graph = slice_relationships.time_slice_graph
+    names = (slice_relationships.preceding, slice_relationships.succeeding)
+    _get_neighbors_map = Dict(
+        names[1] => _get_outneighbors,
+        names[2] => _get_inneighbors
+    )
+    all_kwargs_are_anything = all(v == anything for v in values(kwargs))
+    # Handle annoying special cases...
+    if isempty(kwargs) || (all_kwargs_are_anything && !_compact) # Need to return all relationships if no kwargs
+        return collect(NamedTuple{names}(tup) for tup in MetaGraphsNext.edge_labels(graph))
+    elseif any(isnothing(v) for v in values(kwargs))
+        return Vector{TimeSlice}() # Return empty if any kwarg is `nothing`
+    elseif length(kwargs) >= length(names) && _compact
+        return Vector{TimeSlice}() # Return empty if too many filters with `_compact`
+    elseif all_kwargs_are_anything && _compact
+        ind = findfirst(only(kwargs).first != name for name in names)
+        return unique(getindex.(MetaGraphsNext.edge_labels(graph), ind)) # Return the unique timeslices for the other half.
+    end
+    # Only now do we have to do filtering
+    return intersect( # This might waste memory, and I'm not sure how to type this Vector{TimeSlice}
+        (
+            _get_timeslices(_get_neighbors_map[name], graph, slice, names, _compact)
+            for (name, slice) in kwargs if slice != anything # No point in filtering `anything`s
+        )...
+    )
 end
 
 """
@@ -878,16 +925,16 @@ end
 
 function push_class!(p::Parameter, class::EntityClass)
     push!(p.sorted_classes, class)
-    sort!(p.sorted_classes, by=ClassSize(class.entity_class_graph),rev=true)
+    sort!(p.sorted_classes, by=ClassSize(class.entity_class_graph), rev=true)
 end
 
 """
-    add_objects!(object_class::ObjectClass, objects::AbstractVector{Object})
+    add_objects!(object_class::ObjectClass, objects)
 
 Add everything from `objects` that's not already in `object_class` into `object_class`.
 Return the modified `object_class`.
 """
-function add_objects!(object_class::ObjectClass, objects::AbstractVector{Object})
+function add_objects!(object_class::ObjectClass, objects) # Support other iterables
     for object in objects
         if !in(object.name, keys(object_class.objects))
             add_object!(object_class, object)
@@ -896,7 +943,11 @@ function add_objects!(object_class::ObjectClass, objects::AbstractVector{Object}
     object_class
 end
 
-function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict{Object, Dict{Symbol, ParameterValue{T}}}; merge_values=false) where T
+function add_object_parameter_values!(
+    object_class::ObjectClass,
+    parameter_values::Dict{Object, <:Dict{Symbol, <:ParameterValue}}; # Support mixed ParameterValue{T}s
+    merge_values=false
+)
     add_objects!(object_class, only.(keys(parameter_values)))
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     target_values = object_class.vertex.parameter_values
@@ -905,7 +956,11 @@ function add_object_parameter_values!(object_class::ObjectClass, parameter_value
         do_merge!(target_values[obj.name], vals)
     end
 end
-function add_object_parameter_values!(object_class::ObjectClass, parameter_values::Dict{Symbol, Dict{Symbol, ParameterValue{T}}}; merge_values=false) where T
+function add_object_parameter_values!(
+    object_class::ObjectClass,
+    parameter_values::Dict{Symbol, <:Dict{Symbol, <:ParameterValue}};
+    merge_values=false
+)
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     target_values = object_class.vertex.parameter_values
     for (object_label, values) in parameter_values
@@ -930,10 +985,10 @@ function add_object!(object_class::ObjectClass, object::Object)
     object_class.objects[object.name] = object
     group_graph = object_class.vertex.entity_group_graph
     for group in object.groups
-        add_entity_group_member!(group_graph, group, object.name)
+        add_entity_group_member!(group_graph, group, object) # Update group memberships on the fly
     end
     for member in object.members
-        add_entity_group_member!(group_graph, object.name, member)
+        add_entity_group_member!(group_graph, object, member) # Update group memberships on the fly
     end
 end
 
@@ -1053,6 +1108,13 @@ A sequence of `RelationshipClass`es generated by `using_spinedb` in the given mo
 relationship_classes(m=@__MODULE__) = _active_values(m, :_spine_relationship_classes)
 
 """
+    superclasses(m=@__MODULE__)
+
+A sequence of [`Superclass`](@ref)es generated by [`using_spinedb`](@ref) in the given module.
+"""
+superclasses(m=@__MODULE__) = _active_values(m, :_spine_superclasses)
+
+"""
     parameters(m=@__MODULE__)
 
 A sequence of `Parameter`s generated by `using_spinedb` in the given module.
@@ -1072,6 +1134,13 @@ object_class(name, m=@__MODULE__) = _active_value(m, :_spine_object_classes, nam
 The `RelationshipClass` of given name, generated by `using_spinedb` in the given module.
 """
 relationship_class(name, m=@__MODULE__) = _active_value(m, :_spine_relationship_classes, name)
+
+"""
+    superclass(name, m=@__MODULE__)
+
+The [`Superclass`](@ref) of the given `name` generated by [`using_spinedb`](@ref) in the given module.
+"""
+superclass(name, m=@__MODULE__) = _active_value(m, :_spine_superclasses, name)
 
 """
     parameter(name, m=@__MODULE__)
@@ -1167,18 +1236,41 @@ function add_dimension!(rc::RelationshipClass, names::Vector{Symbol}, objs::Vect
     if length(names) != length(objs)
         throw(ArgumentError("Length of `names` and `objs` must match!"))
     end
-    # Tweak RelationshipClassData fields
-    for name in names # Add new object classes.
-        rc.object_classes[name] = object_class(name, m)
+    if length(rc.dimension_combinations) > 1
+        throw(ArgumentError("Given RelationshipClass has ambiguous dimensions, Dict required for mapping!"))
+    else
+        add_dimension!(rc, names, Dict(only(rc.intact_dimension_combinations) => objs); m=m)
     end
-    for (intact_dims, dims) in zip(rc.intact_dimension_combinations, rc.dimension_combinations)
-        append!(intact_dims, names) # Add new dimension names to the intact dims.
-        _uniquefy!(append!(dims, names), intact_dims) # Update unique dimension names
-    end
-    # Add new dimensions to the entity class and relationship graphs for all entities
-    initial_d = dimensionality(rc.entity_class_graph, rc.name) # Figure out existing dimensions.
-    add_dimension!(rc.entity_class_graph, rc.name, names; init=initial_d)
-    for ent in rc.vertex.entities
+end
+function add_dimension!(
+    rc::RelationshipClass,
+    dim_perm_map::Dict{Vector{Symbol}, Object};
+    m=@__MODULE__
+)
+    add_dimension!(rc, Dict(vs => [obj] for (vs, obj) in dim_perm_map); m=m)
+end
+function add_dimension!(
+    rc::RelationshipClass,
+    dim_perm_map::Dict{Vector{Symbol}, Vector{Object}};
+    m=@__MODULE__
+)
+    add_dimension!(
+        rc,
+        only(unique(getproperty.(vo, :class_name) for vo in values(dim_perm_map))),
+        dim_perm_map; m=m
+    )
+end
+function add_dimension!(
+    rc::RelationshipClass,
+    names::Vector{Symbol},
+    dim_perm_map::Dict{Vector{Symbol}, Vector{Object}};
+    m=@__MODULE__
+)
+    initial_d = atomic_dimensionality(rc.entity_class_graph, rc.name) # Existing dimension count
+    for ent in rc.vertex.entities # Add dimensions to entities
+        ent_intact_dims = first.(RelationshipAtoms(rc.vertex.relationship_graph, ent)) # Current entity dimensions.
+        objs = get(dim_perm_map, ent_intact_dims, nothing)
+        isnothing(objs) && throw(ArgumentError("Missing dimension permutation! $ent_intact_dims"))
         add_dimension!(
             rc.vertex.relationship_graph,
             ent,
@@ -1186,8 +1278,15 @@ function add_dimension!(rc::RelationshipClass, names::Vector{Symbol}, objs::Vect
             init=initial_d
         )
     end
-    # No need to tweak parameter values, as these are mapped to the entity "index"?
-    nothing
+    add_dimension!(rc.entity_class_graph, rc.name, names; init=initial_d) # Add new dimensions to the entity class graph
+    for (intact_dims, dims) in zip(rc.intact_dimension_combinations, rc.dimension_combinations)
+        append!(intact_dims, names) # Add new dimension names to the intact dims.
+        _uniquefy!(append!(dims, names), intact_dims) # Update unique dimension names
+    end
+    for name in names
+        rc.object_classes[name] = object_class(name, m) # Add new object classes.
+    end
+    nothing # No need to tweak parameter values, as these are mapped to the entity "index"?
 end
 
 """
@@ -1201,30 +1300,51 @@ field, not the `intact_dimension_combinations` field!
 Returns the `rc` [`RelationshipClass`](@ref) with the reordered dimensions.
 """
 function reorder_dimensions!(rc::RelationshipClass, dims::Vector{Symbol})
-    perms = [_find_permutation(combs, dims) for combs in rc.dimension_combinations]
-    return reorder_dimensions!(rc, perms)
-end
-function reorder_dimensions!(rc::RelationshipClass, perms::Vector{<:Vector{<:Integer}})
-    # Loop over the different dimension combinations
-    for (intacts, dims, perm) in zip(
-        rc.intact_dimension_combinations,
-        rc.dimension_combinations,
-        perms
+    perm_map = Dict(
+        intacts => _find_permutation(combs, dims)
+        for (intacts, combs) in zip(
+            rc.intact_dimension_combinations, rc.dimension_combinations
+        )
     )
-        for (i_orig, i_new) in enumerate(perm) # Manipulate relationship graph edges
-            for (((dim, obj), ent), vi) in rc.vertex.relationship_graph.edge_data
-                # Permute only if edge matches the desired dimension combination.
-                if dim == intacts[i_orig] && only(vi) == i_orig
-                    vi[1] = i_new
-                end
+    return reorder_dimensions!(rc, perm_map)
+end
+function reorder_dimensions!(rc::RelationshipClass, perm_map::Dict{Vector{Symbol}, <:Vector{<:Integer}})
+    for ent in rc.vertex.entities
+        ent_intact_dims = first.(RelationshipAtoms(rc.vertex.relationship_graph, ent)) # Fetch edge dimensions
+        permutation = get(perm_map, ent_intact_dims, nothing) # Get permutation for this edge
+        isnothing(permutation) && throw(ArgumentError("Missing dimension permutation! $ent_intact_dims"))
+        for ((atom, ent2), vi) in rc.vertex.relationship_graph.edge_data # Loop over edges
+            ent !== ent2 && continue
+            for (i, i_dim) in enumerate(vi)
+                vi[i] = permutation[i_dim] # Permute edge index order
             end
         end
-        permute!(intacts, perm) # Permute dimension name lists
+    end
+    for (intacts, dims) in zip( # Permute dimension name lists
+        rc.intact_dimension_combinations,
+        rc.dimension_combinations,
+    )
+        perm = invperm(perm_map[intacts])
         permute!(dims, perm)
+        permute!(intacts, perm)
     end
     # Ensure uniqueness of dimension combinations.
     unique!(rc.intact_dimension_combinations)
     unique!(rc.dimension_combinations)
+    # Revise `atomic_dimension_choices`
+    atoms = rc.vertex.atomic_dimension_choices 
+    empty!(atoms)
+    for intacts in rc.intact_dimension_combinations
+        for (i, intact) in enumerate(intacts)
+            if length(atoms) < i
+                push!(atoms, [intact])
+            else
+                if !in(intact, atoms[i])
+                    push!(atoms[i], intact)
+                end 
+            end
+        end
+    end
     return rc::RelationshipClass
 end
 

@@ -71,8 +71,8 @@ A type for representing an object from a Spine db; an instance of an object clas
 struct Object
     name::Symbol
     class_name::Union{Symbol,Nothing}
-    members::Vector{Object}
-    groups::Vector{Object}
+    members::Vector{Object} # Consider using a `Set`?
+    groups::Vector{Object} # Consider using a `Set`?
     id::UInt64
     function Object(name, class_name, members, groups)
         id = objectid((name, class_name))
@@ -163,8 +163,9 @@ struct ObjectClassData
     entity_class_graph::MetaGraphsNext.MetaGraph
     vertex::ObjectClassVertex
     objects::Dict{Symbol, Object}
+    parameter_defaults::Dict{Symbol, ParameterValue} # SpineOpt needs direct access
     function ObjectClassData(graph, vertex, objects)
-        new(graph, vertex, objects)
+        new(graph, vertex, objects, vertex.parameter_defaults)
     end
 end
 
@@ -189,11 +190,12 @@ struct RelationshipClassData
     object_classes::Dict{Symbol, ObjectClass}
     intact_dimension_combinations::Vector{Vector{Symbol}}
     dimension_combinations::Vector{Vector{Symbol}}
+    parameter_defaults::Dict{Symbol, ParameterValue} # SpineOpt needs direct access
     function RelationshipClassData(graph, label, object_classes)
         vertex = graph[label]
         intact_combinations = atomic_dimensions(graph, label)
         unique_combinations = [uniquefy_elements(c) for c in intact_combinations]
-        new(graph, vertex, object_classes, intact_combinations, unique_combinations)
+        new(graph, vertex, object_classes, intact_combinations, unique_combinations, vertex.parameter_defaults)
     end
 end
 
@@ -214,8 +216,8 @@ end
 struct SuperclassData
     entity_class_graph::MetaGraphsNext.MetaGraph
     vertex::SuperclassVertex
-    object_classes::Dict{Symbol, ObjectClass}
-    relationship_classes::Dict{Symbol, RelationshipClass}
+    object_classes::Dict{Symbol, ObjectClass} # TODO: Check the contents! They seem to contain EVERY class when processed through SpineOpt!
+    relationship_classes::Dict{Symbol, RelationshipClass}  # TODO: See above
 end
 
 """
