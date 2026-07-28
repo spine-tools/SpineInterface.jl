@@ -1050,8 +1050,18 @@ function add_relationship_parameter_values!(
         do_merge!(target.vertex.parameter_values[label], vals)
     end
 end
+function add_relationship_parameter_values!( # SpineOpt uses ObjectTuples for some preprocessing for some reason.
+    target::RelationshipClass, source::Dict{<:ObjectTupleLike, <:Dict{Symbol, <:ParameterValue}}; merge_values=false
+)
+    new_source = sizehint!(Dict{RelationshipLike, Dict{Symbol, ParameterValue}}(), length(source))
+    for (objtup, pval) in source
+        unique_classes = uniquefy_elements(getfield.(objtup, :class_name))
+        new_source[NamedTuple{unique_classes}(objtup)] = pval
+    end
+    add_relationship_parameter_values!(target, new_source; merge_values=merge_values)
+end
 function add_relationship_parameter_values!(
-    target::RelationshipClass, source::Dict; merge_values=false
+    target::RelationshipClass, source::Dict{<:RelationshipLike, <:Dict{Symbol, <:ParameterValue}}; merge_values=false
 )
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     for (object_tuple, values) in source

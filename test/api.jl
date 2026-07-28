@@ -592,10 +592,10 @@ function _test_add_relationship_parameter_values()
         @test Y.people_count(; ERIreland...) == 1
         @test Y.people_count(; ERSweden...) == 1
         @test Y.people_count(; KTHFrance...) == 0
-        pvals = Dict(
-            (country1=Y.country(:Sweden), country2=Y.country(:Sweden)) =>
+        pvals = Dict( # Some SpineOpt preprocessing uses ObjectTuples for some reason.
+            (Y.country(:Sweden), Y.country(:Sweden)) =>
                 Dict(:is_different => parameter_value(false)),
-            (country1=Y.country(:Sweden), country2=Y.country(:France)) =>
+            (Y.country(:Sweden), Y.country(:France)) =>
                 Dict(:is_different => parameter_value(true)),
         )
         add_relationship_parameter_values!(Y.country__country, pvals)

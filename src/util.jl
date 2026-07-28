@@ -224,8 +224,11 @@ function uniquefy_elements(elements::Vector{Symbol})
     uniques = Vector{Symbol}(undef, length(elements))
     return _uniquefy!(uniques, elements)
 end
+function uniquefy_elements(elements::NTuple{N,Symbol} where N)
+    return Tuple(uniquefy_elements(collect(elements)))
+end
 
-function _uniquefy!(uniques::Vector, elements::Vector{Symbol})
+function _uniquefy!(uniques::Vector, elements)
     for (element_i, element) in enumerate(elements)
         preceding_count = count(e -> e == element, elements[1:element_i - 1])
         if preceding_count == 0 && count(e -> e == element, elements[element_i + 1: end]) == 0
