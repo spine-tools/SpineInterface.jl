@@ -967,6 +967,18 @@ function add_object_parameter_values!(
         do_merge!(target_values[object_label], values)
     end
 end
+function add_object_parameter_values!(oc::ObjectClass, pvs::Dict; merge_values=false)
+    if isempty(pvs)
+        return oc.vertex.parameter_values
+    else
+        throw(TypeError(
+            :add_object_parameter_values!,
+            "Only empty generic `Dict`s supported!",
+            Dict{ObjectLike, Dict{Symbol, ParameterValue}},
+            typeof(pvs)
+        ))
+    end
+end
 
 function merge_object_parameter_values!(target_vertex::ObjectClassVertex, source_vertex::ObjectClassVertex; merge_values=false)
     do_merge! = merge_values ? mergewith!(merge!) : merge!
@@ -1073,6 +1085,19 @@ function add_relationship_parameter_values!(
         do_merge!(target.vertex.parameter_values[label], values)
     end
 end
+function add_relationship_parameter_values!(rc::RelationshipClass, pvs::Dict; merge_values=false)
+    if isempty(pvs)
+        return rc.vertex.parameter_values
+    else
+        throw(TypeError(
+            :add_relationship_parameter_values!,
+            "Only empty generic `Dict`s supported!",
+            Dict{RelationshipLike, Dict{Symbol, ParameterValue}},
+            typeof(pvs)
+        ))
+    end
+end
+
 function merge_relationship_parameter_values!(target_vertex::RelationshipClassVertex, source_vertex::RelationshipClassVertex; merge_values=false)
     do_merge! = merge_values ? mergewith!(merge!) : merge!
     for (source_label, values) in source_vertex.parameter_values

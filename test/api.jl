@@ -538,6 +538,7 @@ function _test_add_object_parameter_values()
         @test length(Y.institution()) === 3
         @test Y.since_year(institution=ER) == 2011
         @test Y.since_year(institution=CORRE_LABS) == 2022
+        @test add_object_parameter_values!(Y.institution, Dict()) == Y.institution.vertex.parameter_values # SpineOpt preprocessing can add empty dictionaries
     end
 end
 
@@ -601,6 +602,7 @@ function _test_add_relationship_parameter_values()
         add_relationship_parameter_values!(Y.country__country, pvals)
         @test Y.is_different(country1=Y.country(:Sweden), country2=Y.country(:Sweden)) == false
         @test Y.is_different(country1=Y.country(:Sweden), country2=Y.country(:France)) == true
+        @test add_relationship_parameter_values!(Y.country__country, Dict()) == Y.country__country.vertex.parameter_values # SpineOpt preprocessing can add empty dictionaries
     end
 end
 
