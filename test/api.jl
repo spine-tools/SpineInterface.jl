@@ -74,6 +74,60 @@ function _import_superclass_test_data(db_url::String)
     )
 end
 
+function _import_superclass_test_data(db_url::String)
+    # Tasku: Note that this uses the v0.8 data structure!
+    ent_clss = [
+        ["node", []],
+        ["unit", []],
+        ["unit_flow", []],
+        ["node__unit", ["node", "unit"]],
+        ["unit__node", ["unit", "node"]],
+        ["unit_flow__unit_flow", ["unit_flow", "unit_flow"]]
+    ]
+    supcls_subclss = [
+        ["unit_flow", "node__unit"],
+        ["unit_flow", "unit__node"]
+    ]
+    ents = [
+        ["node", "n1"],
+        ["node", "n2"],
+        ["node", "n3"],
+        ["unit", "u1"],
+        ["unit", "u2"],
+        ["node__unit", ["n1", "u1"]],
+        ["node__unit", ["n2", "u2"]],
+        ["node__unit", ["n1", "u2"]],
+        ["unit__node", ["u1", "n1"]],
+        ["unit__node", ["u1", "n3"]],
+        ["unit__node", ["u2", "n3"]],
+        ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"]],
+        ["unit_flow__unit_flow", ["n1", "u1", "n2", "u2"]],
+        ["unit_flow__unit_flow", ["u1", "n3", "u2", "n3"]],
+        ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"]],
+    ]
+    par_defs = [
+        ["node__unit", "flow_capacity", 0.0],
+        ["unit__node", "flow_capacity", 1.0],
+        ["unit_flow__unit_flow", "ratio", 2.0],
+    ]
+    par_vals = [
+        ["node__unit", ["n1", "u1"], "flow_capacity", 4.0],
+        ["unit__node", ["u1", "n1"], "flow_capacity", 4.1],
+        ["unit__node", ["u1", "n3"], "flow_capacity", 5.0],
+        ["node__unit", ["n2", "u2"], "flow_capacity", 6.0],
+        ["unit_flow__unit_flow", ["n1", "u1", "u1", "n3"], "ratio", 7.0],
+        ["unit_flow__unit_flow", ["u1", "n3", "n1", "u1"], "ratio", 8.0],
+    ]
+    return import_test_data(
+        db_url;
+        entity_classes=ent_clss,
+        superclass_subclasses=supcls_subclss,
+        entities=ents,
+        parameter_definitions=par_defs,
+        parameter_values=par_vals
+    )
+end
+
 function _test_indices()
     @testset "indices" begin
         object_classes = ["institution", "country"]
