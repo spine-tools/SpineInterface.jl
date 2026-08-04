@@ -35,20 +35,13 @@ how to call the convenience functors.
 """
 function using_spinedb(url::String, mod=@__MODULE__; upgrade=false, filters=Dict(), extend=false)
     data = export_data(url; upgrade=upgrade, filters=filters)
-    using_spinedb(data, mod; filters=filters, extend=extend)
+    _generate_convenience_functions(data, mod; filters=filters, extend=extend)
 end
-function using_spinedb(data::Dict{Symbol,T}, mod=@__MODULE__; filters=nothing, extend=false) where T
-    using_spinedb(Dict(string(key) => value for (key, value) in data), mod; filters=filters, extend=extend)
+function using_spinedb(template::Dict{Symbol,T}, mod=@__MODULE__; filters=nothing, extend=false) where T
+    using_spinedb(Dict(string(key) => value for (key, value) in template), mod; filters=filters, extend=extend)
 end
-function using_spinedb(data::Dict{String,T}, mod=@__MODULE__; filters=nothing, extend=false) where T
-    if extend
-        entity_class_graph = _getproperty!(mod, :_spine_entity_class_graph, empty_entity_class_graph())
-    else
-        entity_class_graph = empty_entity_class_graph()
-    end
-    entity_class_graph, ocs, rcs, scs, ps = _add_data_to_graph!(entity_class_graph, data)
-    _set_entity_class_bindings!(mod, ocs, rcs, scs, ps; extend=extend)
-    return entity_class_graph
+function using_spinedb(template::Dict{String,T}, mod=@__MODULE__; filters=nothing, extend=false) where T
+    _generate_convenience_functions(template, mod; filters=filters, extend=extend)
 end
 
 function label_and_dimensions(class_data)
@@ -232,7 +225,7 @@ function make_legacy_objects!(class::ObjectClass)
     end
 end
 
-function _add_data_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, data)
+function _generate_convenience_functions(data, mod; filters=Dict(), extend=false)
     entity_class_data = get(data, "entity_classes") do
         vcat(get(data, "object_classes", []), get("relationship_classes", []))
     end
@@ -249,27 +242,17 @@ function _add_data_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, data)
     parameter_value_data = get(data, "parameter_values") do
         vcat(get(data, "object_parameter_values", []), get(data, "relationship_parameter_values", []))
     end
-    object_classes, relationship_classes, superclasses = make_entity_classes!(
+    entity_class_graph = empty_entity_class_graph()
+    (object_classes, relationship_classes, superclasses) = make_entity_classes!(
         entity_class_graph,
         entity_class_data,
         superclass_subclass_data
-    )
+        )
     make_entities!(entity_class_graph, entity_data)
     make_entity_groups!(entity_class_graph, entity_group_data)
     entity_classes = make_entity_class_map(object_classes, relationship_classes, superclasses)
     parameters = make_parameter_definitions!(entity_class_graph, entity_classes, parameter_definition_data)
     make_parameter_values!(entity_class_graph, parameter_value_data)
-    return entity_class_graph, object_classes, relationship_classes, superclasses, parameters
-end
-
-function _set_entity_class_bindings!(
-    mod,
-    object_classes,
-    relationship_classes,
-    superclasses,
-    parameters;
-    extend=false
-)
     existing_object_classes = _getproperty!(mod, :_spine_object_classes, Dict{Symbol,ObjectClass}())
     existing_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict{Symbol,RelationshipClass}())
     existing_superclasses = _getproperty!(mod, :_spine_superclasses, Dict{Symbol, Superclass}())
@@ -360,19 +343,17 @@ function write_interface(io::IO, template)
     relationship_class_names = sort!(first.(relationship_classes))
     parameter_names = sort!(unique!((x -> x[2]).(param_defs)))
     println(io, "# Convenience functors")
-    println(io, "## Initialize entity class graph")
-    println(io, "const _spine_entity_class_graph = empty_entity_class_graph()")
     println(io, "## Object classes")
     for name in object_class_names
-        println(io, "const $name = ObjectClass(:$name, _spine_entity_class_graph)")
+        println(io, "const $name = ObjectClass(:$name)")
     end
     println(io, "## Relationship classes")
     for name in relationship_class_names
-        println(io, "const $name = RelationshipClass(:$name, _spine_entity_class_graph)")
+        println(io, "const $name = RelationshipClass(:$name)")
     end
     println(io, "## Parameters")
     for name in parameter_names
-        println(io, "const $name = Parameter(:$name, _spine_entity_class_graph)")
+        println(io, "const $name = Parameter(:$name)")
     end
     println(io, "## Exports")
     println(io, "## Object classes")

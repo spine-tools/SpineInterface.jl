@@ -1076,16 +1076,14 @@ function _test_write_interface()
             output = String(take!(io))
             # Header comment
             @test startswith(output, "# Convenience functors\n")
-            # Initializing the entity class graph
-            @test occursin("const _spine_entity_class_graph = empty_entity_class_graph()\n", output)
             # ObjectClass declarations
-            @test occursin("const commodity = ObjectClass(:commodity, _spine_entity_class_graph)\n", output)
-            @test occursin("const node = ObjectClass(:node, _spine_entity_class_graph)\n", output)
+            @test occursin("const commodity = ObjectClass(:commodity)\n", output)
+            @test occursin("const node = ObjectClass(:node)\n", output)
             # RelationshipClass declaration
-            @test occursin("const node__commodity = RelationshipClass(:node__commodity, _spine_entity_class_graph)\n", output)
+            @test occursin("const node__commodity = RelationshipClass(:node__commodity)\n", output)
             # Parameter declarations
-            @test occursin("const demand = Parameter(:demand, _spine_entity_class_graph)\n", output)
-            @test occursin("const flow = Parameter(:flow, _spine_entity_class_graph)\n", output)
+            @test occursin("const demand = Parameter(:demand)\n", output)
+            @test occursin("const flow = Parameter(:flow)\n", output)
             # Exports
             @test occursin("export commodity\n", output)
             @test occursin("export node\n", output)
@@ -1106,15 +1104,11 @@ function _test_write_interface()
             io = IOBuffer()
             write_interface(io, template)
             output = String(take!(io))
-            # Initializing the entity class graph
-            @test occursin("const _spine_entity_class_graph = empty_entity_class_graph()\n", output)
-            # Classes etc.
-            @test occursin("const commodity = ObjectClass(:commodity, _spine_entity_class_graph)\n", output)
-            @test occursin("const node = ObjectClass(:node, _spine_entity_class_graph)\n", output)
-            @test occursin("const node__commodity = RelationshipClass(:node__commodity, _spine_entity_class_graph)\n", output)
-            @test occursin("const demand = Parameter(:demand, _spine_entity_class_graph)\n", output)
-            @test occursin("const flow = Parameter(:flow, _spine_entity_class_graph)\n", output)
-            # Exports
+            @test occursin("const commodity = ObjectClass(:commodity)\n", output)
+            @test occursin("const node = ObjectClass(:node)\n", output)
+            @test occursin("const node__commodity = RelationshipClass(:node__commodity)\n", output)
+            @test occursin("const demand = Parameter(:demand)\n", output)
+            @test occursin("const flow = Parameter(:flow)\n", output)
             @test occursin("export commodity\n", output)
             @test occursin("export node\n", output)
             @test occursin("export node__commodity\n", output)
@@ -1126,7 +1120,6 @@ function _test_write_interface()
             io = IOBuffer()
             write_interface(io, template)
             output = String(take!(io))
-            @test occursin("const _spine_entity_class_graph = empty_entity_class_graph()\n", output)
             @test occursin("const _spine_object_classes = Dict{Symbol,ObjectClass}()\n", output)
             @test occursin("const _spine_relationship_classes = Dict{Symbol,RelationshipClass}()\n", output)
             @test occursin("const _spine_parameters = Dict{Symbol,Parameter}()\n", output)
@@ -1165,7 +1158,7 @@ function _test_write_interface()
             io = IOBuffer()
             write_interface(io, template)
             output = String(take!(io))
-            @test count("const people_count = Parameter(:people_count, _spine_entity_class_graph)", output) == 1
+            @test count("const people_count = Parameter(:people_count)", output) == 1
             @test count("export people_count", output) == 1
         end
         @testset "object class only, no relationships or parameters" begin
@@ -1173,7 +1166,7 @@ function _test_write_interface()
             io = IOBuffer()
             write_interface(io, template)
             output = String(take!(io))
-            @test occursin("const node = ObjectClass(:node, _spine_entity_class_graph)\n", output)
+            @test occursin("const node = ObjectClass(:node)\n", output)
             @test occursin("export node\n", output)
             @test !occursin("RelationshipClass(:", output)
             @test !occursin("Parameter(:", output)
