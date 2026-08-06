@@ -36,24 +36,11 @@ end
 function add_relationship_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, dimensions...)
     atomic_dimension_choices = resolve_atomic_dimension_choices(entity_class_graph, dimensions...)
     entity_class_graph[class_label] = RelationshipClassVertex(atomic_dimension_choices)
-    add_dimension!(entity_class_graph, class_label, dimensions)
-end
-
-function add_dimension!(
-    entity_class_graph::MetaGraphsNext.MetaGraph,
-    class_label::Symbol,
-    dimensions::T where T<:Union{Tuple,AbstractVector};
-    init::Int=0
-)
     for (i, dimension) in enumerate(dimensions)
-        if init > 0 # Need to increment atomic dimensionality when manipulating an existing class
-            push!(entity_class_graph[class_label].atomic_dimension_choices, [dimension])
-            entity_class_graph[class_label].relationship_graph[].atomic_dimensionality += 1
-        end
         if !MetaGraphsNext.haskey(entity_class_graph, dimension, class_label)
-            entity_class_graph[dimension, class_label] = [init + i]
+            entity_class_graph[dimension, class_label] = [i]
         else
-            push!(entity_class_graph[dimension, class_label], init + i)
+            push!(entity_class_graph[dimension, class_label], i)
         end
     end
 end
@@ -125,7 +112,7 @@ end
 function atomic_combinations!(combinations, entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, ::RelationshipClassVertex)
     for dimension_label in Dimensions(entity_class_graph, class_label)
         vertex = entity_class_graph[dimension_label]
-        sub_dimensions = atomic_combinations!(combinations, entity_class_graph, dimension_label, vertex)
+        atomic_combinations!(combinations, entity_class_graph, dimension_label, vertex)
     end
 end
 function atomic_combinations!(combinations, entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, ::SuperclassVertex)
@@ -149,16 +136,18 @@ function resolve_atomic_dimension_choices(entity_class_graph::MetaGraphsNext.Met
     atomic_dimensions::Vector{Vector{Symbol}} = []
     sizehint!(atomic_dimensions, length(dimensions))  # Could be longer with superclasses or relationship dimensions
     for dimension_label in dimensions
-        class_vertex = entity_class_graph[dimension_label]
-        append_atomic_dimension_choices!(atomic_dimensions, entity_class_graph, dimension_label, class_vertex)
+        append_atomic_dimension_choices!(atomic_dimensions, entity_class_graph, dimension_label)
     end
     atomic_dimensions
 end
 
-function append_atomic_dimension_choices!(dimension_choices, entity_class_graph, label, vertex::ObjectClassVertex)
+function append_atomic_dimension_choices!(dimension_choices, entity_class_graph, label)
+    append_atomic_dimension_choices!(dimension_choices, entity_class_graph, label, entity_class_graph[label])
+end
+function append_atomic_dimension_choices!(dimension_choices, entity_class_graph, label, ::ObjectClassVertex)
     push!(dimension_choices, [label])
 end
-function append_atomic_dimension_choices!(dimension_choices, entity_class_graph, label, vertex::RelationshipClassVertex)
+function append_atomic_dimension_choices!(dimension_choices, entity_class_graph, label, ::RelationshipClassVertex)
     append!(
         dimension_choices,
         resolve_atomic_dimension_choices(
@@ -167,7 +156,7 @@ function append_atomic_dimension_choices!(dimension_choices, entity_class_graph,
         )
     )
 end
-function append_atomic_dimension_choices!(dimension_choices, entity_class_graph, label, vertex::SuperclassVertex)
+function append_atomic_dimension_choices!(dimension_choices, entity_class_graph, label, ::SuperclassVertex)
     dimension_stack = []
     for subclass_label in MetaGraphsNext.inneighbor_labels(entity_class_graph, label)
         push!(
@@ -519,24 +508,15 @@ end
 function add_relationship!(relationship_graph::MetaGraphsNext.MetaGraph, atoms::Atom...)
     relationship_label = new_relationship_label!(relationship_graph)
     relationship_graph[relationship_label] = nothing
-    add_dimension!(relationship_graph, relationship_label, atoms)
-    return relationship_label
-end
-
-function add_dimension!(
-    relationship_graph::MetaGraphsNext.MetaGraph,
-    relationship_label::Symbol,
-    atoms::NTuple{N,Atom} where N;
-    init::Int=0
-)
     for (i, atom_label) in enumerate(atoms)
         relationship_graph[atom_label] = nothing
         if !MetaGraphsNext.haskey(relationship_graph, atom_label, relationship_label)
-            relationship_graph[atom_label, relationship_label] = [init + i]
+            relationship_graph[atom_label, relationship_label] = [i]
         else
-            push!(relationship_graph[atom_label, relationship_label], init + i)
+            push!(relationship_graph[atom_label, relationship_label], i)
         end
     end
+    return relationship_label
 end
 
 struct RelationshipAtoms
