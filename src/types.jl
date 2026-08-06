@@ -27,6 +27,13 @@ A type with no fields that is the type of [`anything`](@ref).
 struct Anything end
 
 """
+    UndefSpineItem
+
+A type for indicating yet undefined Spine Items for [`write_interface`](@ref).
+"""
+struct UndefSpineItem end
+
+"""
     ParameterValue
 
 A type for representing a parameter value from a Spine db.

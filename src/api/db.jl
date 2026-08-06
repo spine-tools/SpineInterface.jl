@@ -286,7 +286,11 @@ function _add_binding!(mod, dict, name, new, extend)
         @warn "ignoring $name not defined in $mod"
         return
     end
-    if !_same_type(current, new)
+    if isa(current, UndefSpineItem) # Specific to static `write_interface`
+        dict[name] = new
+        setproperty!(mod, name, new)
+        return
+    elseif !_same_type(current, new)
         @warn "ignoring $new because there is already a binding with that name in $mod"
         return
     end
@@ -345,15 +349,15 @@ function write_interface(io::IO, template)
     println(io, "# Convenience functors")
     println(io, "## Object classes")
     for name in object_class_names
-        println(io, "const $name = ObjectClass(:$name)")
+        println(io, "$name = UndefSpineItem()")
     end
     println(io, "## Relationship classes")
     for name in relationship_class_names
-        println(io, "const $name = RelationshipClass(:$name)")
+        println(io, "$name = UndefSpineItem()")
     end
     println(io, "## Parameters")
     for name in parameter_names
-        println(io, "const $name = Parameter(:$name)")
+        println(io, "$name = UndefSpineItem()")
     end
     println(io, "## Exports")
     println(io, "## Object classes")
@@ -369,9 +373,9 @@ function write_interface(io::IO, template)
         println(io, "export $name")
     end
     println(io, "## Lookup dicts")
-    println(io, "const _spine_object_classes = Dict{Symbol,ObjectClass}()")
-    println(io, "const _spine_relationship_classes = Dict{Symbol,RelationshipClass}()")
-    println(io, "const _spine_parameters = Dict{Symbol,Parameter}()")
+    println(io, "_spine_object_classes = Dict{Symbol,ObjectClass}()")
+    println(io, "_spine_relationship_classes = Dict{Symbol,RelationshipClass}()")
+    println(io, "_spine_parameters = Dict{Symbol,Parameter}()")
 end
 
 """

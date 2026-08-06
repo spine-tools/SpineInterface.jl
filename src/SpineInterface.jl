@@ -131,6 +131,7 @@ export TimePattern
 export TimeSeries
 export TimeSlice
 export translate_map_pv_arg!
+export UndefSpineItem
 export unparse_db_value
 export using_spinedb
 export with_env
