@@ -67,7 +67,7 @@ function try_add_superclass!(superclasses, label, entity_class_graph, subclasses
     true
 end
 
-function make_entity_classes!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_class_data, superclass_subclass_data)
+function make_entity_classes!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_class_data, superclass_subclass_data, final_object_classes)
     object_classes = Dict{Symbol, ObjectClass}()
     relationship_classes = Dict{Symbol, RelationshipClass}()
     superclasses::Vector{Superclass} = []
@@ -92,7 +92,7 @@ function make_entity_classes!(entity_class_graph::MetaGraphsNext.MetaGraph, enti
                 object_classes[label] = ObjectClass(label, entity_class_graph, Dict())
             elseif all(MetaGraphsNext.haskey(entity_class_graph, dimension_label) for dimension_label in dimensions)
                 add_relationship_class!(entity_class_graph, label, dimensions...)
-                relationship_classes[label] = RelationshipClass(label, entity_class_graph, object_classes)
+                relationship_classes[label] = RelationshipClass(label, entity_class_graph, final_object_classes)
             else
                 push!(classes_missing_dimensions, class_data)
             end
@@ -243,17 +243,18 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
         vcat(get(data, "object_parameter_values", []), get(data, "relationship_parameter_values", []))
     end
     entity_class_graph = empty_entity_class_graph()
-    (object_classes, relationship_classes, superclasses) = make_entity_classes!(
+    existing_object_classes = _getproperty!(mod, :_spine_object_classes, Dict{Symbol,ObjectClass}())
+    (new_object_classes, relationship_classes, superclasses) = make_entity_classes!(
         entity_class_graph,
         entity_class_data,
-        superclass_subclass_data
+        superclass_subclass_data,
+        existing_object_classes
         )
     make_entities!(entity_class_graph, entity_data)
     make_entity_groups!(entity_class_graph, entity_group_data)
-    entity_classes = make_entity_class_map(object_classes, relationship_classes, superclasses)
+    entity_classes = make_entity_class_map(new_object_classes, relationship_classes, superclasses)
     parameters = make_parameter_definitions!(entity_class_graph, entity_classes, parameter_definition_data)
     make_parameter_values!(entity_class_graph, parameter_value_data)
-    existing_object_classes = _getproperty!(mod, :_spine_object_classes, Dict{Symbol,ObjectClass}())
     existing_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict{Symbol,RelationshipClass}())
     existing_superclasses = _getproperty!(mod, :_spine_superclasses, Dict{Symbol, Superclass}())
     existing_parameters = _getproperty!(mod, :_spine_parameters, Dict{Symbol,Parameter}())
@@ -263,7 +264,7 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
         empty!(existing_superclasses)
         empty!(existing_parameters)
     end
-    for object_class in values(object_classes)
+    for object_class in values(new_object_classes)
         make_legacy_objects!(object_class)
         _add_binding!(mod, existing_object_classes, object_class.name, object_class, extend)
     end
