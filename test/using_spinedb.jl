@@ -185,11 +185,9 @@ function _test_parameter()
         @test [x.name for x in Y.institution(since_year=1827)] == [:KTH]
         @test length(parameters(Y)) === 5
         @test all(x isa Parameter for x in parameters(Y))
-        # THIS I COULDN'T GET TO WORK!
-        # If an incomplete parameter call yields a unique value, it is returned immediately?
-        #@test Y.people_count(country=Y.country(:Sweden)) == 3
-        #@test Y.people_count(country=Y.country(:France)) == 1
-        #@test isnothing(Y.people_count(institution=Y.institution(:KTH)))
+        @test Y.people_count(country=Y.country(:Sweden)) == 3
+        @test Y.people_count(country=Y.country(:France)) == 1
+        @test isnothing(Y.people_count(institution=Y.institution(:KTH)))
     end
 end
 

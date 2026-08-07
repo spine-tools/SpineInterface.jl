@@ -361,20 +361,40 @@ function parameter_entity_label(vertex::ObjectClassVertex, selector)
 end
 function parameter_entity_label(vertex::RelationshipClassVertex, selector)
     if any(s === anything || s.second === anything for s in selector)
-        return nothing
+        unique_label = nothing
+        for relationship_label in keys(vertex.parameter_values)
+            hit = false
+            for (s, atom) in zip(selector, RelationshipAtoms(vertex.relationship_graph, relationship_label))
+                if s === anything || s.second === Anything
+                    continue
+                end
+                if s != atom
+                    hit = false
+                    break
+                end
+                hit = true
+            end
+            if hit
+                if !isnothing(unique_label)
+                    return nothing
+                end
+                unique_label = relationship_label
+            end
+        end
+        return unique_label
     end
     relationship_label(vertex.relationship_graph, selector...)
 end
 
-function value_instance(parameter_name, class, entity_selector, _default)
-    entity_label = parameter_entity_label(class.vertex, entity_selector)
-    values = get(class.vertex.parameter_values, entity_label, nothing)
+function find_value_instance(parameter_name, vertex, entity_selector, _default)
+    entity_label = parameter_entity_label(vertex, entity_selector)
+    values = get(vertex.parameter_values, entity_label, nothing)
     if !isnothing(values)
         value = get(values, parameter_name, nothing)
         if !isnothing(value)
             value
         elseif isnothing(_default)
-            class.vertex.parameter_defaults[parameter_name]
+            vertex.parameter_defaults[parameter_name]
         else
             parameter_value(_default)
         end
@@ -389,7 +409,7 @@ struct LegacySelectorKeys
     selector_length::Int
     function LegacySelectorKeys(class, entity_selector)
         for (selector_i, combination) in enumerate(class.intact_dimension_combinations)
-            if all(s.first == c for (s, c) in zip(entity_selector, combination))
+            if all(s !== anything ? s.first == c : true for (s, c) in zip(entity_selector, combination))
                 return new(class, selector_i, length(entity_selector))
             end
         end
@@ -402,7 +422,7 @@ function Base.eltype(::Type{LegacySelectorKeys})
 end
 
 function Base.length(iter::LegacySelectorKeys)
-    length(iter.entity_selector)
+    length(iter.selector_length)
 end
 
 function Base.iterate(iter::LegacySelectorKeys, state=1)
@@ -430,25 +450,28 @@ function unique_value_instance(parameter_name, classes, _default, kwargs)
     instance = nothing
     instance_kwargs = nothing
     max_selector_hits = 0
+    selector_hit_duplicity = 0
     for class in classes
         for selector in entity_selectors(class, kwargs)
-            selected_value = value_instance(parameter_name, class, selector, _default)
+            selector_hits = selector_hit_count(selector)
+            if selector_hits < max_selector_hits
+                continue
+            end
+            selected_value = find_value_instance(parameter_name, class.vertex, selector, _default)
             if !isnothing(selected_value)
-                selector_hits = selector_hit_count(selector)
                 if selector_hits > max_selector_hits
                     max_selector_hits = selector_hits
-                    instance = nothing
-                else
-                    break
-                end
-                if isnothing(instance)
+                    selector_hit_duplicity = 1
                     instance = selected_value
                     instance_kwargs = (k => v for (k, v) in pairs(kwargs) if !in(v, legacy_selector_keys(class, selector)))
                 else
-                    return nothing, nothing
+                    selector_hit_duplicity += 1
                 end
             end
         end
+    end
+    if selector_hit_duplicity > 1
+        return nothing, nothing
     end
     instance, instance_kwargs
 end
@@ -496,7 +519,7 @@ julia> demand(node=node(:Sthlm), i=2)
 """
 function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
     value = nothing
-    value_instance, value_kwargs = unique_value_instance(p.name, classes(p), _default, kwargs) # Needs to support arbitrary `nothings` in parameter value kwargs...
+    value_instance, value_kwargs = unique_value_instance(p.name, classes(p), _default, kwargs)
     if !isnothing(value_instance)
         value = value_instance(; value_kwargs...)
     end
