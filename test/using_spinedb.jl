@@ -178,6 +178,9 @@ function _test_parameter()
         @test Y.job(country1=Y.country(:France), country2=Y.country(:France)) == true
         @test Y.job(country1=Y.country(:France), country2=Y.country(:Sweden)) === nothing
         @test Y.job(country1=Y.country(:Sweden), country2=Y.country(:France)) === false
+        @test Y.job(country=Y.country(:Sweden)) == :teaching # Test weird incomplete parameter syntax.
+        @test Y.job(Y.country__country; country=Y.country(:Sweden)) === nothing # Test specifying class.
+        @test Y.job(Y.country__country; country1=Y.country(:France)) # Specifying class and weird incomplete syntax.
         @test Y.is_different(country1=Y.country(:Sweden), country2=Y.country(:Sweden)) == false
         @test Y.is_different(country1=Y.country(:Sweden), country2=Y.country(:France)) == true
         @test Y.is_different(country1=Y.country(:France), country2=Y.country(:France)) == true
