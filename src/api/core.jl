@@ -477,7 +477,7 @@ function unique_value_instance(parameter_name, classes, _default, kwargs)
 end
 
 """
-    (<p>::Parameter)(;<keyword arguments>)
+    (<p>::Parameter)(classes=classes(p);<keyword arguments>)
 
 The value of parameter `p` for a given arguments.
 
@@ -517,9 +517,9 @@ julia> demand(node=node(:Sthlm), i=2)
 17.0
 ```
 """
-function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
+function (p::Parameter)(classes::Vector{<:EntityClass}=classes(p); _strict=true, _default=nothing, kwargs...)
     value = nothing
-    value_instance, value_kwargs = unique_value_instance(p.name, classes(p), _default, kwargs)
+    value_instance, value_kwargs = unique_value_instance(p.name, classes, _default, kwargs)
     if !isnothing(value_instance)
         value = value_instance(; value_kwargs...)
     end
@@ -532,6 +532,7 @@ function (p::Parameter)(; _strict=true, _default=nothing, kwargs...)
         _default
     end
 end
+(p::Parameter)(class::EntityClass; kwargs...) = p([class]; kwargs...)
 
 const __value_translator = Ref{Union{Nothing,Function}}(nothing)
 
