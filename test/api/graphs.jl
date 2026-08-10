@@ -883,6 +883,33 @@ function _test_add_time_slice_pair()
     end
 end
 
+function _test_find_value()
+    @testset "find_value" begin
+        @testset "object parameter value" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :Object)
+            add_parameter_definition!(graph, :Object, :weight, parameter_value(2.3))
+            add_entity!(graph, :Object, :spoon)
+            add_parameter_value!(graph, :Object, :weight, parameter_value(3.2), :spoon)
+            @test find_value(graph, :Object, :weight, :spoon) == parameter_value(3.2)
+            @test isnothing(find_value(graph, :Object, :no_such_parameter, :spoon))
+        end
+        @testset "relationship parameter value" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_relationship_class!(graph, :A__B, :A, :B)
+            add_parameter_definition!(graph, :A__B, :weight, parameter_value(2.3))
+            add_entity!(graph, :A, :a)
+            add_entity!(graph, :B, :b)
+            add_entity!(graph, :A__B, :A => :a, :B => :b)
+            add_parameter_value!(graph, :A__B, :weight, parameter_value(3.2), :A => :a, :B => :b)
+            @test find_value(graph, :A__B, :weight, :A => :a, :B => :b) == parameter_value(3.2)
+            @test isnothing(find_value(graph, :A__B, :no_such_parameter, :A => :a, :B => :b))
+        end
+    end
+end
+
 @testset "graphs" begin
     _test_empty_entity_class_graph()
     _test_add_object_class()
@@ -908,4 +935,5 @@ end
     _test_selected_relationships_iterator()
     _test_add_time_slice_pair()
     _test_add_entity_group_member()
+    _test_find_value()
 end

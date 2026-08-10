@@ -403,8 +403,7 @@ function _test_pv_type_map()
                 ),
             ),
         )
-        #object_parameters = [["country", "apero_time"]] # This is not necessary?
-        relationship_parameters = [["country__country", "apero_time_rel"]] # But this is?
+        relationship_parameters = [["country__country", "apero_time_rel"]]
         object_parameter_values = [["country", "France", "apero_time", value]]
         relationship_parameter_values = [["country__country", ["France", "France"], "apero_time_rel", value]]
         import_data(

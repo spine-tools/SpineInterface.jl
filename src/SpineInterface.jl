@@ -74,6 +74,8 @@ export duration
 export empty_entity_class_graph
 export end_
 export export_data
+export find_relationships
+export find_value
 export fixer
 export groups
 export import_data
@@ -134,6 +136,7 @@ export translate_map_pv_arg!
 export UndefSpineItem
 export unparse_db_value
 export using_spinedb
+export value_or_default
 export with_env
 export without_filters
 export write_parameters

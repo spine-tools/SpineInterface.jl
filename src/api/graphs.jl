@@ -239,9 +239,9 @@ end
 function add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, entity_label::Symbol)
     add_parameter_value!(entity_class_graph[class_label], parameter_label, value, entity_label)
 end
-function add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, atoms...)
+function add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, first_atom::Atom, atoms::Atom...)
     class_vertex = entity_class_graph[class_label]
-    entity_label = relationship_label(class_vertex.relationship_graph, atoms...)
+    entity_label = relationship_label(class_vertex.relationship_graph, first_atom, atoms...)
     add_parameter_value!(entity_class_graph[class_label], parameter_label, value, entity_label)
 end
 function add_parameter_value!(class_vertex::ClassVertexWithEntities, parameter_label::Symbol, value, entity_label::Symbol)
@@ -631,4 +631,33 @@ end
 
 function groups(entity_group_graph::MetaGraphsNext.MetaGraph, member_entity::Symbol)
     MetaGraphsNext.outneighbor_labels(entity_group_graph, member_entity)
+end
+
+function find_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity::Symbol)
+    vertex = entity_class_graph[class]
+    find_value(vertex, parameter_definition, entity)
+end
+function find_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, first_atom::Atom, atoms::Atom...)
+    vertex = entity_class_graph[class]
+    entity_label = relationship_label(vertex.relationship_graph, first_atom, atoms...)
+    find_value(vertex, parameter_definition, entity_label)
+end
+function find_value(vertex::ClassVertexWithEntities, parameter_definition::Symbol, entity::Symbol)
+    get(vertex.parameter_values[entity], parameter_definition, nothing)
+end
+
+function value_or_default(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity::Symbol)
+    value_or_default(entity_class_graph[class], parameter_definition, entity)
+end
+function value_or_default(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, first_atom::Atom, atoms::Atom...)
+    vertex = entity_class_graph[class]
+    entity_label = relationship_label(vertex.relationship_graph, first_atom, atoms...)
+    value_or_default(vertex, parameter_definition, entity_label)
+end
+function value_or_default(vertex::ClassVertexWithEntities, parameter_definition::Symbol, entity::Symbol)
+    value = find_value(vertex, parameter_definition, entity)
+    if isnothing(value)
+        return vertex.parameter_defaults[parameter_definition]
+    end
+    value
 end
