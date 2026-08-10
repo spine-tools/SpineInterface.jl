@@ -102,10 +102,10 @@ function Base.IteratorSize(::Type{EntitySelectors})
 end
 
 function Base.iterate(iter::EntitySelectors, state=1)
-    if state > length(iter.class.dimension_combinations)
+    if state > size(iter.class.dimension_combinations, 2)
         return nothing
     end
-    combination = iter.class.dimension_combinations[state]
+    combination = view(iter.class.dimension_combinations, :, state)
     selector::Vector{Selector} = [anything for _ in 1:atomic_dimensionality(iter.class.vertex)]
     combination_start = 1
     problem = false
@@ -120,7 +120,7 @@ function Base.iterate(iter::EntitySelectors, state=1)
             problem = true
             break # Break if a selector is nothing or empty, needs to be after dimension check to accommodate parameter value kwargs
         end
-        intact_class_label = iter.class.intact_dimension_combinations[state][dimension_i]
+        intact_class_label = iter.class.intact_dimension_combinations[dimension_i, state]
         selector[dimension_i] = objects_to_selector(intact_class_label, objects)
         combination_start = dimension_i + 1
     end
@@ -408,7 +408,7 @@ struct LegacySelectorKeys
     selector_i::Int
     selector_length::Int
     function LegacySelectorKeys(class, entity_selector)
-        for (selector_i, combination) in enumerate(class.intact_dimension_combinations)
+        for (selector_i, combination) in enumerate(eachcol(class.intact_dimension_combinations))
             if all(s !== anything ? s.first == c : true for (s, c) in zip(entity_selector, combination))
                 return new(class, selector_i, length(entity_selector))
             end
@@ -429,7 +429,7 @@ function Base.iterate(iter::LegacySelectorKeys, state=1)
     if state > iter.selector_length
         return nothing
     end
-    iter.class.dimension_combinations[iter.selector_i][state], state + 1
+    iter.class.dimension_combinations[state, iter.selector_i], state + 1
 end
 
 function legacy_selector_keys(class::ObjectClass, entity_selector)
@@ -788,8 +788,8 @@ end
 function object_tuple_to_atoms(object_tuple::RelationshipLike, class::RelationshipClass) # Typing prevents reaching the unreachable
     atoms = Vector{Atom}()
     sizehint!(atoms, length(object_tuple))
-    for (combination_i, combination) in enumerate(class.dimension_combinations)
-        intact_combination = class.intact_dimension_combinations[combination_i]
+    for (combination_i, combination) in enumerate(eachcol(class.dimension_combinations))
+        intact_combination = view(class.intact_dimension_combinations, :, combination_i)
         if fill_with_atoms!(atoms, object_tuple, combination, intact_combination)
             return atoms
         else
@@ -1028,10 +1028,10 @@ function add_object!(object_class::ObjectClass, object::Object)
 end
 
 function intact_class_labels(class_labels, relationship_class::RelationshipClass)
-    i = findfirst(relationship_class.dimension_combinations) do combination
+    i = findfirst(eachcol(relationship_class.dimension_combinations)) do combination
         all(label == dimension for (label, dimension) in zip(class_labels, combination))
     end
-    relationship_class.intact_dimension_combinations[i]
+    view(relationship_class.intact_dimension_combinations,:, i)
 end
 
 """

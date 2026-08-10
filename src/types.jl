@@ -195,14 +195,14 @@ struct RelationshipClassData
     entity_class_graph::MetaGraphsNext.MetaGraph
     vertex::RelationshipClassVertex
     object_classes::Dict{Symbol, ObjectClass}
-    intact_dimension_combinations::Vector{Vector{Symbol}}
-    dimension_combinations::Vector{Vector{Symbol}}
+    intact_dimension_combinations::Matrix{Symbol}
+    dimension_combinations::Matrix{Symbol}
     parameter_defaults::Dict{Symbol, ParameterValue} # SpineOpt needs direct access
     function RelationshipClassData(graph, label, object_classes)
         vertex = graph[label]
         intact_combinations = atomic_dimensions(graph, label)
         unique_combinations = [uniquefy_elements(c) for c in intact_combinations]
-        new(graph, vertex, object_classes, intact_combinations, unique_combinations, vertex.parameter_defaults)
+        new(graph, vertex, object_classes, hcat(intact_combinations...), hcat(unique_combinations...), vertex.parameter_defaults)
     end
 end
 
