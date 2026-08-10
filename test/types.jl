@@ -58,8 +58,8 @@ function _test_relationship_class_construction()
             @test env_dict.entity_class_graph === graph
             @test env_dict.vertex === graph[:bond]
             @test env_dict.object_classes === object_classes
-            @test env_dict.intact_dimension_combinations == [:bondable;;]
-            @test env_dict.dimension_combinations == [:bondable;;]
+            @test env_dict.intact_dimension_combinations == [[:bondable]]
+            @test env_dict.dimension_combinations == [[:bondable]]
         end
         @testset "degenerate dimensions" begin
             graph = empty_entity_class_graph()
@@ -73,8 +73,8 @@ function _test_relationship_class_construction()
             @test env_dict.entity_class_graph === graph
             @test env_dict.vertex === graph[:bond]
             @test env_dict.object_classes === object_classes
-            @test env_dict.intact_dimension_combinations == [:bondable; :bondable;;]
-            @test env_dict.dimension_combinations == [:bondable1; :bondable2;;]
+            @test env_dict.intact_dimension_combinations == [[:bondable, :bondable]]
+            @test env_dict.dimension_combinations == [[:bondable1, :bondable2]]
         end
     end
 end
