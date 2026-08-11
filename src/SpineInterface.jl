@@ -40,7 +40,6 @@ include("api/parameter_value.jl")
 include("api/time_slice.jl")
 include("api/tests.jl")
 
-export add_dimension!
 export add_entity!
 export add_entity_group_member!
 export add_object_class!
@@ -109,8 +108,6 @@ export relationship_class
 export relationship_classes
 export RelationshipClass
 export RelationshipLike
-export reorder_dimensions
-export reorder_dimensions!
 export roll!
 export run_request
 export set_value_translator
