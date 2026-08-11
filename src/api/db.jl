@@ -106,6 +106,9 @@ function make_entity_classes!(entity_class_graph::MetaGraphsNext.MetaGraph, enti
 end
 
 function make_entities!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_data)
+    if isempty(entity_data) # Prevent a negative sizehint! 4 rows down.
+        return nothing
+    end
     nd_entities = Int[]
     sizehint!(nd_entities, length(entity_data) - 1)
     for (i, (class_name, name_data)) in enumerate(entity_data)
