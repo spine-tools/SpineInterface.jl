@@ -61,17 +61,24 @@ export anything
 export before
 export Bind
 export blocks
+export build_entity_class_graph
 export Call
+export class_labels
+export classes
+export collect_indexed_values
 export collect_updates
 export contains
 export db_api
 export db_value
 export db_value_and_type
+export default_value
 export difference
 export dimensions
 export duration
 export empty_entity_class_graph
 export end_
+export entities
+export entity_group_members
 export export_data
 export find_relationships
 export find_value
@@ -79,10 +86,10 @@ export fixer
 export groups
 export import_data
 export indexed_values
-export classes
-export collect_indexed_values
 export indices
 export indices_as_tuples
+export is_subclass_of
+export is_superclass
 export iscontained
 export Map
 export map_to_time_series
@@ -113,6 +120,7 @@ export run_request
 export set_value_translator
 export start
 export startref
+export subclasses
 export superclass # Convenience
 export superclasses
 export Superclass

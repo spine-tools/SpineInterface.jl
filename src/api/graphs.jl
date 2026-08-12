@@ -52,6 +52,25 @@ function add_superclass!(entity_class_graph::MetaGraphsNext.MetaGraph, class_lab
     end
 end
 
+function class_labels(entity_class_graph::MetaGraphsNext.MetaGraph)
+    MetaGraphsNext.labels(entity_class_graph)
+end
+
+function is_superclass(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
+    entity_class_graph[label] isa SuperclassVertex
+end
+
+function is_subclass_of(entity_class_graph::MetaGraphsNext.MetaGraph, subclass_label::Symbol, superclass_label::Symbol)
+    is_superclass(entity_class_graph, superclass_label) && MetaGraphsNext.haskey(entity_class_graph, subclass_label, superclass_label)
+end
+
+function subclasses(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
+    if !is_superclass(entity_class_graph, label)
+        throw(ArgumentError("$label is not a superclass"))
+    end
+    MetaGraphsNext.inneighbor_labels(entity_class_graph, label)
+end
+
 function dimensionality(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
     n_dimensions = 0
     for predecessor_label in MetaGraphsNext.inneighbor_labels(entity_class_graph, class_label)
@@ -196,6 +215,20 @@ function has_entity(vertex::ObjectClassVertex, entity_label::Symbol)
 end
 function has_entity(vertex::RelationshipClassVertex, atoms...)
     has_relationship(vertex.relationship_graph, atoms...)
+end
+
+function entities(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol)
+    vertex = entity_class_graph[class]
+    if vertex isa SuperclassVertex
+        return Iterators.flatten(entities(entity_class_graph[subclass]) for subclass in subclasses(entity_class_graph, class))
+    end
+    entities(vertex)
+end
+function entities(vertex::ObjectClassVertex)
+    vertex.entities
+end
+function entities(vertex::RelationshipClassVertex)
+    all_atom_tuples(vertex.relationship_graph, vertex.entities)
 end
 
 function finalize_add_entity!(class_vertex::ClassVertexWithEntities, entity_label::Symbol)
@@ -633,17 +666,52 @@ function groups(entity_group_graph::MetaGraphsNext.MetaGraph, member_entity::Sym
     MetaGraphsNext.outneighbor_labels(entity_group_graph, member_entity)
 end
 
+function find_subclass_value(entity_class_graph::MetaGraphsNext.MetaGraph, superclass::Symbol, parameter_definition::Symbol, entity::Symbol)
+    for subclass in subclasses(entity_class_graph, superclass)
+        subclass_vertex = entity_class_graph[subclass]
+        if entity in subclass_vertex.entities
+            return find_value(subclass_vertex, parameter_definition, entity)
+        end
+    end
+    throw(KeyError("entity $entity not found"))
+end
+function find_subclass_value(entity_class_graph::MetaGraphsNext.MetaGraph, superclass::Symbol, parameter_definition::Symbol, first_atom::Atom, atoms::Atom...)
+    for subclass in subclasses(entity_class_graph, class)
+        subclass_vertex = entity_class_graph[subclass]
+        if parameter_definition in subclass_vertex.parameter_defaults
+            entity_label = relationship_label(subclass_vertex.relationship_graph, first_atom, atoms...)
+            if !isnothing(entity_label)
+                return find_value(subclass_vertex, parameter_definition, entity_label)
+            end
+        end
+    end
+    throw(KeyError("entity $(tuple([first_atom, atoms...])) not found"))
+end
+
 function find_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity::Symbol)
     vertex = entity_class_graph[class]
+    if vertex isa SuperclassVertex
+        return find_subclass_value(entity_class_graph, class, parameter_definition, entity)
+    end
     find_value(vertex, parameter_definition, entity)
 end
 function find_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, first_atom::Atom, atoms::Atom...)
     vertex = entity_class_graph[class]
+    if vertex isa SuperclassVertex
+        return find_subclass_value(entity_class_graph, class, parameter_definition, first_atom, atoms...)
+    end
     entity_label = relationship_label(vertex.relationship_graph, first_atom, atoms...)
+    if isnothing(entity_label)
+        throw(KeyError("entity $(tuple([first_atom, atoms...])) not found"))
+    end
     find_value(vertex, parameter_definition, entity_label)
 end
 function find_value(vertex::ClassVertexWithEntities, parameter_definition::Symbol, entity::Symbol)
     get(vertex.parameter_values[entity], parameter_definition, nothing)
+end
+
+function default_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol)
+    entity_class_graph[class].parameter_defaults[parameter_definition]
 end
 
 function value_or_default(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity::Symbol)

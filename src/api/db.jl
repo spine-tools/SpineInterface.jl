@@ -105,9 +105,9 @@ function make_entity_classes!(entity_class_graph::MetaGraphsNext.MetaGraph, enti
     object_classes, relationship_classes, superclasses
 end
 
-function make_entities!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_data)
-    if isempty(entity_data) # Prevent a negative sizehint! 4 rows down.
-        return nothing
+function add_entities_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_data)
+    if isempty(entity_data)
+        return
     end
     nd_entities = Int[]
     sizehint!(nd_entities, length(entity_data) - 1)
@@ -145,7 +145,7 @@ function make_entities!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_dat
     end
 end
 
-function make_entity_groups!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_group_data)
+function add_entity_groups_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_group_data)
     for (class_name, group_name, member_name) in entity_group_data
         add_entity_group_member!(entity_class_graph, Symbol(class_name), Symbol(group_name), Symbol(member_name))
     end
@@ -185,7 +185,7 @@ function target_entity_label(class_vertex::RelationshipClassVertex, entity_bynam
     resolve_relationship_label(class_vertex, entity_byname)
 end
 
-function make_parameter_values!(entity_class_graph::MetaGraphsNext.MetaGraph, parameter_value_data)
+function add_parameter_values_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, parameter_value_data)
     for (class_name, entity_data, parameter_name, value_bytes) in parameter_value_data
         class_label = Symbol(class_name)
         class_vertex = entity_class_graph[class_label]
@@ -253,11 +253,11 @@ function _generate_convenience_functions(data, mod; filters=Dict(), extend=false
         superclass_subclass_data,
         existing_object_classes
         )
-    make_entities!(entity_class_graph, entity_data)
-    make_entity_groups!(entity_class_graph, entity_group_data)
+    add_entities_to_graph!(entity_class_graph, entity_data)
+    add_entity_groups_to_graph!(entity_class_graph, entity_group_data)
     entity_classes = make_entity_class_map(new_object_classes, relationship_classes, superclasses)
     parameters = make_parameter_definitions!(entity_class_graph, entity_classes, parameter_definition_data)
-    make_parameter_values!(entity_class_graph, parameter_value_data)
+    add_parameter_values_to_graph!(entity_class_graph, parameter_value_data)
     existing_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict{Symbol,RelationshipClass}())
     existing_superclasses = _getproperty!(mod, :_spine_superclasses, Dict{Symbol, Superclass}())
     existing_parameters = _getproperty!(mod, :_spine_parameters, Dict{Symbol,Parameter}())
@@ -335,6 +335,74 @@ function _env_merge!(current, new, extend)
     else
         current.env_dict[env] = new.env_dict[env]
     end
+end
+
+function try_add_superclass_to_graph!(entity_class_graph, label, subclasses_by_superclass, object_classes, relationship_classes)
+    subclasses = subclasses_by_superclass[label]
+    if !all(MetaGraphsNext.haskey(entity_class_graph, subclass_label) for subclass_label in subclasses)
+        return false
+    end
+    add_superclass!(entity_class_graph, label, subclasses...)
+    true
+end
+
+function add_entity_classes_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_class_data, superclass_subclass_data)
+    pending = [label_and_dimensions(class_data) for class_data in entity_class_data]
+    subclasses_by_superclass = Dict{Symbol, Vector{Symbol}}()
+    for (superclass_name, subclass_name) in superclass_subclass_data
+        subclasses = get!(subclasses_by_superclass, Symbol(superclass_name)) do
+            Vector{Symbol}()
+        end
+        push!(subclasses, Symbol(subclass_name))
+    end
+    while !isempty(pending)
+        classes_missing_dimensions = []
+        for class_data in pending
+            (label, dimensions) = class_data
+            if label in keys(subclasses_by_superclass)
+                if !try_add_superclass_to_graph!(entity_class_graph, label, subclasses_by_superclass, object_classes, relationship_classes)
+                    push!(classes_missing_dimensions, class_data)
+                end
+            elseif isnothing(dimensions)
+                add_object_class!(entity_class_graph, label)
+            elseif all(MetaGraphsNext.haskey(entity_class_graph, dimension_label) for dimension_label in dimensions)
+                add_relationship_class!(entity_class_graph, label, dimensions...)
+            else
+                push!(classes_missing_dimensions, class_data)
+            end
+        end
+        if length(classes_missing_dimensions) == length(pending)
+            error("some entity dimension is missing or misnamed")
+        end
+        pending = classes_missing_dimensions
+    end
+end
+
+function add_parameter_definitions_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_classes, parameter_definition_data)
+    for (class_name, parameter_name, default_value_bytes) in parameter_definition_data
+        class_label = Symbol(class_name)
+        parameter_label = Symbol(parameter_name)
+        default_value = _try_parameter_value_from_db(
+            default_value_bytes, "unable to parse default value of `$(parameter_label)` in $class_label"
+        )
+        add_parameter_definition!(entity_class_graph, class_label, parameter_label, default_value)
+    end
+end
+
+function build_entity_class_graph(data)
+    entity_class_data = get(data, "entity_classes", [])
+    superclass_subclass_data = get(data, "superclass_subclasses", [])
+    entity_data = get(data, "entities", [])
+    entity_group_data = get(data, "entity_groups", [])
+    parameter_definition_data = get(data, "parameter_definitions", [])
+    parameter_value_data = get(data, "parameter_values", [])
+    entity_class_graph = empty_entity_class_graph()
+    add_entity_classes_to_graph!(entity_class_graph, entity_class_data, superclass_subclass_data)
+    add_entities_to_graph!(entity_class_graph, entity_data)
+    add_entity_groups_to_graph!(entity_class_graph, entity_group_data)
+    add_parameter_definitions_to_graph!(entity_class_graph, entity_class_data, parameter_definition_data)
+    add_parameter_values_to_graph!(entity_class_graph, parameter_value_data)
+    entity_class_graph
 end
 
 function write_interface(io::IO, template)

@@ -94,6 +94,63 @@ function _test_add_superclass()
     end
 end
 
+function _test_class_labels()
+    @testset "class_labels" begin
+        @testset "empty graph" begin
+            @test isempty(collect(class_labels(empty_entity_class_graph())))
+        end
+        @testset "graph with classes" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_relationship_class!(graph, :A__B, :A, :B)
+            add_relationship_class!(graph, :A__A, :A, :A)
+            @test sort(collect(class_labels(graph))) == sort([:A, :B, :A__A, :A__B])
+        end
+    end
+end
+
+function _test_is_superclass()
+    @testset "is_superclass" begin
+        graph = empty_entity_class_graph()
+        add_object_class!(graph, :A)
+        add_object_class!(graph, :B)
+        add_relationship_class!(graph, :A__B, :A, :B)
+        add_superclass!(graph, :super, :A, :B)
+        @test is_superclass(graph, :super)
+        @test !is_superclass(graph, :A)
+        @test !is_superclass(graph, :B)
+        @test !is_superclass(graph, :A__B)
+    end
+end
+
+function _test_is_subclass_of()
+    @testset "is_subclass_of" begin
+        graph = empty_entity_class_graph()
+        add_object_class!(graph, :A)
+        add_object_class!(graph, :B)
+        add_relationship_class!(graph, :A__B, :A, :B)
+        add_superclass!(graph, :super, :A, :B)
+        @test is_subclass_of(graph, :A, :super)
+        @test is_subclass_of(graph, :B, :super)
+        @test !is_subclass_of(graph, :A, :B)
+        @test !is_subclass_of(graph, :A, :A__B)
+    end
+end
+
+function _test_subclasses()
+    @testset "subclasses" begin
+        graph = empty_entity_class_graph()
+        add_object_class!(graph, :A)
+        add_object_class!(graph, :B)
+        add_relationship_class!(graph, :A__B, :A, :B)
+        add_superclass!(graph, :super, :A, :B)
+        @test sort(collect(subclasses(graph, :super))) == sort([:A, :B])
+        @test_throws ArgumentError subclasses(graph, :A)
+        @test_throws ArgumentError subclasses(graph, :A__B)
+    end
+end
+
 function _test_dimensionality()
     @testset "dimensionality" begin
         @testset "object class dimensions" begin
@@ -286,6 +343,36 @@ function _test_has_entity()
             add_entity!(graph, :A__B, :ObjectA => :A, :ObjectB => :B)
             @test SpineInterface.has_entity(graph[:A__B], :ObjectA => :A, :ObjectB => :B)
             @test !SpineInterface.has_entity(graph[:A__B], :ObjectA => :A, :ObjectB => :none)
+        end
+    end
+end
+
+function _test_entities()
+    @testset "entities" begin
+        @testset "0D entity" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :Object)
+            add_entity!(graph, :Object, :a)
+            @test collect(entities(graph, :Object)) == [:a]
+        end
+        @testset "2D entity" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_entity!(graph, :A, :a)
+            add_object_class!(graph, :B)
+            add_entity!(graph, :B, :b)
+            add_relationship_class!(graph, :A__B, :A, :B)
+            add_entity!(graph, :A__B, :A => :a, :B => :b)
+            @test collect(entities(graph, :A__B)) == [(:A => :a, :B => :b)]
+        end
+        @testset "superclass" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_entity!(graph, :A, :a)
+            add_object_class!(graph, :B)
+            add_entity!(graph, :B, :b)
+            add_superclass!(graph, :A_or_B, :A, :B)
+            @test sort(collect(entities(graph, :A_or_B))) == sort([:a, :b])
         end
     end
 end
@@ -883,6 +970,15 @@ function _test_add_time_slice_pair()
     end
 end
 
+function _test_default_value()
+    @testset "default_value" begin
+        graph = empty_entity_class_graph()
+        add_object_class!(graph, :Object)
+        add_parameter_definition!(graph, :Object, :with_default, parameter_value(2.3))
+        @test default_value(graph, :Object, :with_default) == parameter_value(2.3)
+    end
+end
+
 function _test_find_value()
     @testset "find_value" begin
         @testset "object parameter value" begin
@@ -893,6 +989,7 @@ function _test_find_value()
             add_parameter_value!(graph, :Object, :weight, parameter_value(3.2), :spoon)
             @test find_value(graph, :Object, :weight, :spoon) == parameter_value(3.2)
             @test isnothing(find_value(graph, :Object, :no_such_parameter, :spoon))
+            @test_throws KeyError find_value(graph, :Object, :weight, :no_such_entity)
         end
         @testset "relationship parameter value" begin
             graph = empty_entity_class_graph()
@@ -906,6 +1003,31 @@ function _test_find_value()
             add_parameter_value!(graph, :A__B, :weight, parameter_value(3.2), :A => :a, :B => :b)
             @test find_value(graph, :A__B, :weight, :A => :a, :B => :b) == parameter_value(3.2)
             @test isnothing(find_value(graph, :A__B, :no_such_parameter, :A => :a, :B => :b))
+            @test_throws KeyError find_value(graph, :A__B, :weight, :A => :no_such_entity, :B => :b)
+        end
+        @testset "subclass parameter value" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_parameter_definition!(graph, :A, :shared, parameter_value(nothing))
+            add_parameter_definition!(graph, :A, :onlyA, parameter_value(nothing))
+            add_object_class!(graph, :B)
+            add_parameter_definition!(graph, :B, :shared, parameter_value(nothing))
+            add_parameter_definition!(graph, :B, :onlyB, parameter_value(nothing))
+            add_superclass!(graph, :A_or_B, :A, :B)
+            add_entity!(graph, :A, :a)
+            add_parameter_value!(graph, :A, :shared, parameter_value(1.1), :a)
+            add_parameter_value!(graph, :A, :onlyA, parameter_value(2.2), :a)
+            add_entity!(graph, :B, :b)
+            add_parameter_value!(graph, :B, :shared, parameter_value(3.3), :b)
+            add_parameter_value!(graph, :B, :onlyB, parameter_value(4.4), :b)
+            @test find_value(graph, :A_or_B, :shared, :a) == parameter_value(1.1)
+            @test find_value(graph, :A_or_B, :onlyA, :a) == parameter_value(2.2)
+            @test isnothing(find_value(graph, :A_or_B, :onlyB, :a))
+            @test find_value(graph, :A_or_B, :shared, :b) == parameter_value(3.3)
+            @test find_value(graph, :A_or_B, :onlyB, :b) == parameter_value(4.4)
+            @test isnothing(find_value(graph, :A_or_B, :onlyA, :b))
+            @test isnothing(find_value(graph, :A_or_B, :no_such_parameter, :a))
+            @test_throws KeyError find_value(graph, :A_or_B, :shared, :no_such_entity)
         end
     end
 end
@@ -915,11 +1037,16 @@ end
     _test_add_object_class()
     _test_add_relationship_class()
     _test_add_superclass()
+    _test_class_labels()
+    _test_is_superclass()
+    _test_is_subclass_of()
+    _test_subclasses()
     _test_dimensionality()
     _test_dimensions_iterator()
     _test_atomic_dimensions()
     _test_resolve_atomic_dimension_choices()
     _test_has_entity()
+    _test_entities()
     _test_add_entity()
     _test_add_parameter_definition()
     _test_add_parameter_value()
@@ -935,5 +1062,6 @@ end
     _test_selected_relationships_iterator()
     _test_add_time_slice_pair()
     _test_add_entity_group_member()
+    _test_default_value()
     _test_find_value()
 end
