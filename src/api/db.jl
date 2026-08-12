@@ -775,7 +775,13 @@ _do_create_db_handler(db_url::String, upgrade::Bool) = db_server.DBHandler(db_ur
 
 _close_db_handler(handler) = Base.invokelatest(_do_close_db_handler, handler)
 
-_do_close_db_handler(handler) = handler.close()
+import PyCall.pyimport # For forcing python garbage collection to avoid crashes?
+function _do_close_db_handler(handler)
+    handler.close() # Close handler
+    handler = nothing # Clear julia binding for GC
+    pyimport("gc").collect() # Force python garbage collection to avoid PyCall crashes?
+    GC.gc() # Force Julia garbage collection to avoid PyCall crashes?
+end
 
 function _import_data(db, data::Dict{Symbol,T}, comment::String) where {T}
     _run_server_request(db, "import_data", (Dict(string(k) => v for (k, v) in data), comment))
