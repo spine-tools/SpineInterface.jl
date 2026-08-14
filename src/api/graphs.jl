@@ -656,10 +656,11 @@ end
 """
     find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
 
-Return an iterator over n-dimensional entities filtered by given entity selector and parameter filters.
+Return an iterator over an iterator over the atoms of relationships
+filtered by given entity selector and parameter filters.
 
 `entity_selector` must have as many elements as atomic dimensions in the class.
-Each selector corresponds an atomic dimension and can be one of the following:
+Each selector corresponds to an atomic dimension and can be one of the following:
 
 - `anything`: any atom is accepted
 - `<class> => anything`: any atom in `<class>` is accepted
@@ -668,7 +669,7 @@ Each selector corresponds an atomic dimension and can be one of the following:
 
 The entities can be further filtered by `parameter_filters`.
 
-The order in which the iterator returns the entities is unspecified.
+The order in which the iterator returns the relationships is unspecified.
 
 # Examples
 ```jldoctest
@@ -706,23 +707,27 @@ julia> entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal_c
 
 julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(2.0), entity);
 
-julia> sort(collect(find_relationships(graph, :node__unit, anything, anything)))
+julia> sort(collect(Tuple.(find_relationships(graph, :node__unit, anything, anything))))
 4-element Vector{Tuple{Pair{Symbol, Symbol}, Pair{Symbol, Symbol}}}:
  (:node => :east, :unit => :coal)
  (:node => :east, :unit => :coal_chp)
  (:node => :west, :unit => :coal)
  (:node => :west, :unit => :coal_chp)
 
-julia> sort(collect(find_relationships(graph, :node__unit, :node => anything, :unit => :coal)))
+julia> sort(collect(Tuple.(find_relationships(graph, :node__unit, :node => anything, :unit => :coal))))
 2-element Vector{Tuple{Pair{Symbol, Symbol}, Vararg{Pair{Symbol, Symbol}}}}:
  (:node => :east, :unit => :coal)
  (:node => :west, :unit => :coal)
 
-julia> sort(collect(find_relationships(graph, :node__unit, :node => :east, :unit => :coal_chp)))
+julia> sort(collect(Tuple.(find_relationships(graph, :node__unit, :node => :east, :unit => :coal_chp))))
 1-element Vector{Tuple{Pair{Symbol, Symbol}, Vararg{Pair{Symbol, Symbol}}}}:
  (:node => :east, :unit => :coal_chp)
 
-julia> sort(collect(find_relationships(graph, :node__unit, (:node => :west, :node => :east), :unit => :coal)))
+julia> sort(collect(Tuple.(find_relationships(graph, :node__unit, :node => :west, anything; cost=2.0))))
+1-element Vector{Tuple{Pair{Symbol, Symbol}, Pair{Symbol, Symbol}}}:
+ (:node => :west, :unit => :coal_chp)
+
+julia> sort(collect(Tuple.(find_relationships(graph, :node__unit, (:node => :west, :node => :east), :unit => :coal))))
 2-element Vector{Tuple{Pair{Symbol, Symbol}, Vararg{Pair{Symbol, Symbol}}}}:
  (:node => :east, :unit => :coal)
  (:node => :west, :unit => :coal)
@@ -753,7 +758,7 @@ function find_relationships(class_vertex::RelationshipClassVertex, entity_select
     if !all(selector === anything for selector in entity_selector)
         selection = SelectedRelationships(relationship_graph, relationship_labels, entity_selector)
     else
-        selection = (Tuple(RelationshipAtoms(relationship_graph, label)) for label in relationship_labels)
+        selection = (RelationshipAtoms(relationship_graph, label) for label in relationship_labels)
     end
     selection
 end
@@ -784,7 +789,7 @@ function is_compact(selector::Atom)
 end
 
 struct CompactDimensions
-    atoms::AtomTuple
+    atom_iter
     compact_atomic_dimensions::Tuple{Vararg{Int}}
 end
 
@@ -793,33 +798,55 @@ function Base.eltype(::Type{CompactDimensions})
 end
 
 function Base.length(iter::CompactDimensions)
-    length(iter.atoms) - length(iter.compact_atomic_dimensions)
+    length(iter.atom_iter) - length(iter.compact_atomic_dimensions)
 end
 
-function Base.iterate(iter::CompactDimensions, state=1 => 1)
+struct CompactDimensionState
+    atom::Atom
+    atom_iter_state
+    atom_i::Int
+    compact_dimension_i::Int
+end
+
+function Base.iterate(iter::CompactDimensions, state)
     current = state
     while !isnothing(current)
-        (atomic_dimension, compact_dimension_i) = current
-        if atomic_dimension > length(iter.atoms)
+        if current.atom_i > length(iter.atom_iter)
             return nothing
         end
-        if compact_dimension_i > length(iter.compact_atomic_dimensions)
+        if current.compact_dimension_i > length(iter.compact_atomic_dimensions)
             compact_dimension = nothing
         else
-            compact_dimension = iter.compact_atomic_dimensions[compact_dimension_i]
+            compact_dimension = iter.compact_atomic_dimensions[current.compact_dimension_i]
         end
-        if atomic_dimension != compact_dimension
-            return iter.atoms[atomic_dimension], atomic_dimension + 1 => compact_dimension_i
+        if current.atom_i != compact_dimension
+            result = iterate(iter.atom_iter, current.atom_iter_state)
+            if isnothing(result)
+                next_state = nothing
+            else
+                next_atom, next_atom_iter_state = result
+                next_state = CompactDimensionState(next_atom, next_atom_iter_state, current.atom_i + 1, current.compact_dimension_i)
+            end
+            return current.atom, next_state
         end
-        atomic_dimension = atomic_dimension + 1
-        if atomic_dimension > length(iter.atoms)
+        if current.atom_i == length(iter.atom_iter)
             current = nothing
         else
-            compact_dimension_i = isnothing(compact_dimension) ? compact_dimension_i : compact_dimension_i + 1
-            current = atomic_dimension => compact_dimension_i
+            next_compact_dimension_i = isnothing(compact_dimension) ? current.compact_dimension_i : current.compact_dimension_i + 1
+            next_atom, next_atom_iter_state = iterate(iter.atom_iter, current.atom_iter_state)
+            current = CompactDimensionState(next_atom, next_atom_iter_state, current.atom_i + 1, next_compact_dimension_i)
         end
     end
     nothing
+end
+function Base.iterate(iter::CompactDimensions)
+    result = iterate(iter.atom_iter)
+    if isnothing(result)
+        return nothing
+    end
+    atom, atom_iter_state = result
+    state = CompactDimensionState(atom, atom_iter_state, 1, 1)
+    iterate(iter, state)
 end
 
 function find_relationships_compact(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
@@ -833,7 +860,7 @@ function find_relationships_compact(class_vertex::RelationshipClassVertex, entit
         return ()
     end
     selection = find_relationships(class_vertex, entity_selector...; parameter_filters...)
-    Iterators.map(atoms -> Tuple(CompactDimensions(atoms, compact_atomic_dimensions)), selection)
+    Iterators.map(atoms -> CompactDimensions(atoms, compact_atomic_dimensions), selection)
 end
 
 function class_for_object(vertex::RelationshipClassVertex, label::Symbol, dimension_i::Int)
@@ -986,7 +1013,7 @@ struct SelectedRelationships
 end
 
 function Base.eltype(::Type{SelectedRelationships})
-    AtomTuple
+    RelationshipAtoms
 end
 
 function Base.IteratorSize(::Type{SelectedRelationships})
@@ -996,12 +1023,10 @@ end
 function Base.iterate(iter::SelectedRelationships, current)
     while !isnothing(current)
         (current_label, label_iterator_state) = current
-        atoms = Tuple(RelationshipAtoms(iter.relationship_graph, current_label))
-        if all(atom_passes_selection(atom, selector) for (atom, selector) in zip(atoms, iter.entity_selector))
-            next = iterate(iter.relationship_label_iterator, label_iterator_state)
-            return atoms, next
-        end
         current = iterate(iter.relationship_label_iterator, label_iterator_state)
+        if all(x -> atom_passes_selection(x...), zip(RelationshipAtoms(iter.relationship_graph, current_label), iter.entity_selector))
+            return RelationshipAtoms(iter.relationship_graph, current_label), current
+        end
     end
 end
 function Base.iterate(iter::SelectedRelationships)

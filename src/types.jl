@@ -130,7 +130,6 @@ struct TimeSliceNetwork
 end
 
 const Atom = Pair{Symbol, Symbol}
-const AtomTuple = Tuple{Atom, Vararg{Atom}}
 const AnyAtomInClass = Pair{Symbol, Anything}
 const MultiAtomSelector = Tuple{Union{Atom, AnyAtomInClass}, Vararg{Union{Atom, AnyAtomInClass}}}
 

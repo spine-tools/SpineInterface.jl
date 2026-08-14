@@ -196,9 +196,11 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=EntityLike
         )
     end
     relationships = Vector{Union{Object, RelationshipLike}}()
+    atom_cache = Vector{Atom}(undef, atomic_dimensionality(rc.vertex))
     for selector in Set(EntitySelectors(rc, kwargs))
         for atoms in find_relationships(rc.vertex, selector...)
-            object_tuple = NamedTuple(AtomsAsObjects(rc.object_classes, atoms))
+            copyto!(atom_cache, atoms)
+            object_tuple = NamedTuple(AtomsAsObjects(rc.object_classes, atom_cache))
             if _compact
                 object_tuple = (; (class_name => object for (class_name, object) in pairs(object_tuple) if !in(class_name, keys(kwargs)))...)
             end
@@ -227,7 +229,7 @@ end
 
 struct AtomsAsObjects
     object_classes::Dict{Symbol, ObjectClass}
-    atoms::AtomTuple
+    atoms
     unambiguous_class_names::Vector{Symbol}
     function AtomsAsObjects(object_classes, atoms)
         class_names = Vector{Symbol}(undef, length(atoms))

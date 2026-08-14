@@ -569,27 +569,27 @@ function _test_find_relationships()
             add_relationship_class!(graph, :A__B, :ObjectA, :ObjectB)
             add_entity!(graph, :A__B, :ObjectA => :A, :ObjectB => :B)
             found = SpineInterface.find_relationships(graph, :A__B, anything, anything)
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships(graph, :A__B, :ObjectA => :A, anything)
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships(graph, :A__B, anything, :ObjectB => :B)
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships(graph, :A__B, :ObjectA => anything, anything)
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships(graph, :A__B, anything, :ObjectB => anything)
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships(graph, :A__B, :ObjectA => :A, :ObjectB => :B)
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships(graph, :A__B, (:ObjectA => :A,), :ObjectB => :B)
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships(graph, :A__B, (:ObjectA => :A,), (:ObjectB => :B,))
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships(graph, :A__B, (:ObjectA => anything,), (:ObjectB => anything,))
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships(graph, :A__B, :ObjectA => :C, anything)
-            @test isempty(found)
+            @test isempty(Tuple.(found))
             found = SpineInterface.find_relationships(graph, :A__B, :ObjectA => :A, :ObjectB => :D)
-            @test isempty(found)
+            @test isempty(Tuple.(found))
         end
         @testset "multiple relationship options" begin
             graph = empty_entity_class_graph()
@@ -602,9 +602,9 @@ function _test_find_relationships()
             add_entity!(graph, :Object__, :Object => :b)
             add_entity!(graph, :Object__, :Object => :c)
             found = SpineInterface.find_relationships(graph, :Object__, anything)
-            @test collect(found) == [(:Object => :a,), (:Object => :b,), (:Object => :c,)]
+            @test collect(Tuple.(found)) == [(:Object => :a,), (:Object => :b,), (:Object => :c,)]
             found = SpineInterface.find_relationships(graph, :Object__, (:Object => :a, :Object => :c))
-            @test collect(found) == [(:Object => :a,), (:Object => :c,)]
+            @test collect(Tuple.(found)) == [(:Object => :a,), (:Object => :c,)]
         end
         @testset "with superclass" begin
             graph = empty_entity_class_graph()
@@ -621,13 +621,13 @@ function _test_find_relationships()
             add_entity!(graph, :Any__, :ObjectB => :b1)
             add_entity!(graph, :Any__, :ObjectB => :b2)
             found = SpineInterface.find_relationships(graph, :Any__, anything)
-            @test sort(collect(found)) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,), (:ObjectB => :b1,), (:ObjectB => :b2,)])
+            @test sort(collect(Tuple.(found))) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,), (:ObjectB => :b1,), (:ObjectB => :b2,)])
             found = SpineInterface.find_relationships(graph, :Any__, :ObjectA => anything)
-            @test sort(collect(found)) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,)])
+            @test sort(collect(Tuple.(found))) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,)])
             found = SpineInterface.find_relationships(graph, :Any__, :ObjectB => anything)
-            @test sort(collect(found)) == sort([(:ObjectB => :b1,), (:ObjectB => :b2,)])
+            @test sort(collect(Tuple.(found))) == sort([(:ObjectB => :b1,), (:ObjectB => :b2,)])
             found = SpineInterface.find_relationships(graph, :Any__, (:ObjectA => anything,))
-            @test sort(collect(found)) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,)])
+            @test sort(collect(Tuple.(found))) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,)])
         end
         @testset "relationship of relationships" begin
             graph = empty_entity_class_graph()
@@ -656,29 +656,29 @@ function _test_find_relationships()
                 (:ObjectA => :a1, :ObjectB => :b2, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a2, :ObjectB => :b2, :ObjectB => :b2, :ObjectC => :c1),
                 ])
-            @test sort(collect(found)) == expected
+            @test sort(collect(Tuple.(found))) == expected
             found = SpineInterface.find_relationships(graph, :AB__BC, anything, :ObjectB => :b2, anything, anything)
             expected = sort([
                 (:ObjectA => :a1, :ObjectB => :b2, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a2, :ObjectB => :b2, :ObjectB => :b2, :ObjectC => :c1),
                 ])
-            @test sort(collect(found)) == expected
+            @test sort(collect(Tuple.(found))) == expected
             found = SpineInterface.find_relationships(graph, :AB__BC, anything, anything, (:ObjectB => :b2, :ObjectB => :b1), anything)
             expected = sort([
                 (:ObjectA => :a1, :ObjectB => :b1, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a1, :ObjectB => :b2, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a2, :ObjectB => :b2, :ObjectB => :b2, :ObjectC => :c1),
                 ])
-            @test sort(collect(found)) == expected
+            @test sort(collect(Tuple.(found))) == expected
             found = SpineInterface.find_relationships(graph, :AB__BC, anything, :ObjectB => :b2, :ObjectB => :b2, anything)
-            @test collect(found) == [(:ObjectA => :a2, :ObjectB => :b2, :ObjectB => :b2, :ObjectC => :c1)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :a2, :ObjectB => :b2, :ObjectB => :b2, :ObjectC => :c1)]
             found = SpineInterface.find_relationships(graph, :AB__BC, anything, anything, anything, :ObjectC => anything)
             expected = sort([
                 (:ObjectA => :a1, :ObjectB => :b1, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a1, :ObjectB => :b2, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a2, :ObjectB => :b2, :ObjectB => :b2, :ObjectC => :c1),
                 ])
-            @test sort(collect(found)) == expected
+            @test sort(collect(Tuple.(found))) == expected
         end
         @testset "with parameter filters" begin
             graph = empty_entity_class_graph()
@@ -689,7 +689,7 @@ function _test_find_relationships()
             add_entity!(graph, :Class__, :Class => :Object)
             add_parameter_value!(graph, :Class__, :Parameter, ParameterValue(2.3), :Class => :Object)
             found = SpineInterface.find_relationships(graph, :Class__, anything, Parameter=2.3)
-            @test collect(found) == [(:Class => :Object,)]
+            @test collect(Tuple.(found)) == [(:Class => :Object,)]
             @test isempty(collect(SpineInterface.find_relationships(graph, :Class__, anything, Parameter=3.2)))
         end
         @testset "2D relationship with parameter filters" begin
@@ -710,7 +710,7 @@ function _test_find_relationships()
             add_parameter_value!(graph, :node__unit, :cost, parameter_value(4.0), entity);
             entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal_chp);
             add_parameter_value!(graph, :node__unit, :cost, parameter_value(2.0), entity);
-            @test sort(collect(find_relationships(graph, :node__unit, :node => :west, anything; cost=2.0))) == [(:node => :west, :unit => :coal_chp)]
+            @test sort(collect(Tuple.(find_relationships(graph, :node__unit, :node => :west, anything; cost=2.0)))) == [(:node => :west, :unit => :coal_chp)]
         end
     end
 end
@@ -726,27 +726,27 @@ function _test_find_relationships_compact()
             add_relationship_class!(graph, :A__B, :ObjectA, :ObjectB)
             add_entity!(graph, :A__B, :ObjectA => :A, :ObjectB => :B)
             found = SpineInterface.find_relationships_compact(graph, :A__B, anything, anything)
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships_compact(graph, :A__B, :ObjectA => :A, anything)
-            @test collect(found) == [(:ObjectB => :B,)]
+            @test collect(Tuple.(found)) == [(:ObjectB => :B,)]
             found = SpineInterface.find_relationships_compact(graph, :A__B, anything, :ObjectB => :B)
-            @test collect(found) == [(:ObjectA => :A,)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A,)]
             found = SpineInterface.find_relationships_compact(graph, :A__B, :ObjectA => anything, anything)
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships_compact(graph, :A__B, anything, :ObjectB => anything)
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships_compact(graph, :A__B, :ObjectA => :A, :ObjectB => :B)
-            @test isempty(collect(found))
+            @test isempty(collect(Tuple.(found)))
             found = SpineInterface.find_relationships_compact(graph, :A__B, (:ObjectA => :A,), :ObjectB => :B)
-            @test isempty(collect(found))
+            @test isempty(collect(Tuple.(found)))
             found = SpineInterface.find_relationships_compact(graph, :A__B, (:ObjectA => :A,), (:ObjectB => :B,))
-            @test isempty(collect(found))
+            @test isempty(collect(Tuple.(found)))
             found = SpineInterface.find_relationships_compact(graph, :A__B, (:ObjectA => anything,), (:ObjectB => anything,))
-            @test collect(found) == [(:ObjectA => :A, :ObjectB => :B)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :A, :ObjectB => :B)]
             found = SpineInterface.find_relationships_compact(graph, :A__B, :ObjectA => :C, anything)
-            @test isempty(found)
+            @test isempty(Tuple.(found))
             found = SpineInterface.find_relationships_compact(graph, :A__B, :ObjectA => :A, :ObjectB => :D)
-            @test isempty(found)
+            @test isempty(Tuple.(found))
         end
         @testset "multiple relationship options" begin
             graph = empty_entity_class_graph()
@@ -759,7 +759,7 @@ function _test_find_relationships_compact()
             add_entity!(graph, :Object__, :Object => :b)
             add_entity!(graph, :Object__, :Object => :c)
             found = SpineInterface.find_relationships_compact(graph, :Object__, anything)
-            @test collect(found) == [(:Object => :a,), (:Object => :b,), (:Object => :c,)]
+            @test collect(Tuple.(found)) == [(:Object => :a,), (:Object => :b,), (:Object => :c,)]
         end
         @testset "with superclass" begin
             graph = empty_entity_class_graph()
@@ -776,13 +776,13 @@ function _test_find_relationships_compact()
             add_entity!(graph, :Any__, :ObjectB => :b1)
             add_entity!(graph, :Any__, :ObjectB => :b2)
             found = SpineInterface.find_relationships_compact(graph, :Any__, anything)
-            @test sort(collect(found)) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,), (:ObjectB => :b1,), (:ObjectB => :b2,)])
+            @test sort(collect(Tuple.(found))) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,), (:ObjectB => :b1,), (:ObjectB => :b2,)])
             found = SpineInterface.find_relationships_compact(graph, :Any__, :ObjectA => anything)
-            @test sort(collect(found)) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,)])
+            @test sort(collect(Tuple.(found))) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,)])
             found = SpineInterface.find_relationships_compact(graph, :Any__, :ObjectB => anything)
-            @test sort(collect(found)) == sort([(:ObjectB => :b1,), (:ObjectB => :b2,)])
+            @test sort(collect(Tuple.(found))) == sort([(:ObjectB => :b1,), (:ObjectB => :b2,)])
             found = SpineInterface.find_relationships_compact(graph, :Any__, (:ObjectA => anything,))
-            @test sort(collect(found)) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,)])
+            @test sort(collect(Tuple.(found))) == sort([(:ObjectA => :a1,), (:ObjectA => :a2,)])
         end
         @testset "relationship of relationships" begin
             graph = empty_entity_class_graph()
@@ -811,29 +811,29 @@ function _test_find_relationships_compact()
                 (:ObjectA => :a1, :ObjectB => :b2, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a2, :ObjectB => :b2, :ObjectB => :b2, :ObjectC => :c1),
                 ])
-            @test sort(collect(found)) == expected
+            @test sort(collect(Tuple.(found))) == expected
             found = SpineInterface.find_relationships_compact(graph, :AB__BC, anything, :ObjectB => :b2, anything, anything)
             expected = sort([
                 (:ObjectA => :a1, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a2, :ObjectB => :b2, :ObjectC => :c1),
                 ])
-            @test sort(collect(found)) == expected
+            @test sort(collect(Tuple.(found))) == expected
             found = SpineInterface.find_relationships_compact(graph, :AB__BC, anything, anything, (:ObjectB => :b2, :ObjectB => :b1), anything)
             expected = sort([
                 (:ObjectA => :a1, :ObjectB => :b1, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a1, :ObjectB => :b2, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a2, :ObjectB => :b2, :ObjectB => :b2, :ObjectC => :c1),
                 ])
-            @test sort(collect(found)) == expected
+            @test sort(collect(Tuple.(found))) == expected
             found = SpineInterface.find_relationships_compact(graph, :AB__BC, anything, :ObjectB => :b2, :ObjectB => :b2, anything)
-            @test collect(found) == [(:ObjectA => :a2, :ObjectC => :c1)]
+            @test collect(Tuple.(found)) == [(:ObjectA => :a2, :ObjectC => :c1)]
             found = SpineInterface.find_relationships_compact(graph, :AB__BC, anything, anything, anything, :ObjectC => anything)
             expected = sort([
                 (:ObjectA => :a1, :ObjectB => :b1, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a1, :ObjectB => :b2, :ObjectB => :b1, :ObjectC => :c2),
                 (:ObjectA => :a2, :ObjectB => :b2, :ObjectB => :b2, :ObjectC => :c1),
                 ])
-            @test sort(collect(found)) == expected
+            @test sort(collect(Tuple.(found))) == expected
         end
         @testset "with parameter filters" begin
             graph = empty_entity_class_graph()
@@ -844,8 +844,8 @@ function _test_find_relationships_compact()
             add_entity!(graph, :Class__, :Class => :Object)
             add_parameter_value!(graph, :Class__, :Parameter, ParameterValue(2.3), :Class => :Object)
             found = SpineInterface.find_relationships_compact(graph, :Class__, anything, Parameter=2.3)
-            @test collect(found) == [(:Class => :Object,)]
-            @test isempty(collect(SpineInterface.find_relationships_compact(graph, :Class__, anything, Parameter=3.2)))
+            @test collect(Tuple.(found)) == [(:Class => :Object,)]
+            @test isempty(collect(Tuple.(SpineInterface.find_relationships_compact(graph, :Class__, anything, Parameter=3.2))))
         end
     end
 end
@@ -947,21 +947,21 @@ function _test_selected_relationships_iterator()
             graph = SpineInterface.empty_relationship_graph(1)
             relationship_label = SpineInterface.add_relationship!(graph, :Class => :A)
             iterator = SpineInterface.SelectedRelationships(graph, [relationship_label], (anything,))
-            @test collect(iterator) == [(:Class => :A,)]
+            @test collect(Tuple.(iterator)) == [(:Class => :A,)]
             iterator = SpineInterface.SelectedRelationships(graph, [relationship_label], (:Class => anything,))
-            @test collect(iterator) == [(:Class => :A,)]
+            @test collect(Tuple.(iterator)) == [(:Class => :A,)]
             iterator = SpineInterface.SelectedRelationships(graph, [relationship_label], (:Class => :A,))
-            @test collect(iterator) == [(:Class => :A,)]
+            @test collect(Tuple.(iterator)) == [(:Class => :A,)]
             iterator = SpineInterface.SelectedRelationships(graph, [relationship_label], ((:Class => :A,),))
-            @test collect(iterator) == [(:Class => :A,)]
+            @test collect(Tuple.(iterator)) == [(:Class => :A,)]
             iterator = SpineInterface.SelectedRelationships(graph, [relationship_label], ((:Class => :A, :NoClass => :B)))
-            @test collect(iterator) == [(:Class => :A,)]
+            @test collect(Tuple.(iterator)) == [(:Class => :A,)]
             iterator = SpineInterface.SelectedRelationships(graph, [relationship_label], (:NoClass => anything,))
-            @test collect(iterator) == []
+            @test collect(Tuple.(iterator)) == []
             iterator = SpineInterface.SelectedRelationships(graph, [relationship_label], (:Class => :None,))
-            @test collect(iterator) == []
+            @test collect(Tuple.(iterator)) == []
             iterator = SpineInterface.SelectedRelationships(graph, [relationship_label], ((:Class => :None,),))
-            @test collect(iterator) == []
+            @test collect(Tuple.(iterator)) == []
         end
     end
 end
