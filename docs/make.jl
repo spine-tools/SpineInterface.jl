@@ -1,4 +1,5 @@
 using Documenter, SpineInterface, PyCall, Dates
+import MetaGraphsNext
 
 pages=[
     "Home" => "index.md",

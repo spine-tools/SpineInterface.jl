@@ -58,6 +58,7 @@ export add_relationships!
 export add_superclass!
 export Anything
 export anything
+export Atom
 export before
 export Bind
 export blocks
@@ -80,6 +81,7 @@ export end_
 export entities
 export entity_group_members
 export export_data
+export find_objects
 export find_relationships
 export find_value
 export fixer

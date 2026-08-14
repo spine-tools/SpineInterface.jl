@@ -20,6 +20,21 @@
 import Graphs
 import MetaGraphsNext
 
+"""
+    empty_entity_class_graph()
+
+Create an empty entity class graph.
+
+Entity class graphs contain all relevant data in Spine data model.
+The graph is a directed and acyclic.
+The vertices of the graph are class names
+and vertex metadata is `ObjectClassVertex`, `RelationshipClassVertex` or `SuperclassVertex`.
+Edges connect dimensions to relationship classes or subclasses to superclasses.
+Edge metadata is `Vector{Int}`.
+If an edge connects a dimension to a relationship class,
+the metadata vector contains the ordinal numbers of the dimension.
+If an edge connects subclass to a superclass, the metadata vector is empty.
+"""
 function empty_entity_class_graph()
     MetaGraphsNext.MetaGraph(
         Graphs.DiGraph(),
@@ -29,11 +44,27 @@ function empty_entity_class_graph()
     )
 end
 
+"""
+    add_object_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
+
+Add a 0-dimensional entity class to graph.
+
+See also [`add_relationship_class!`](@ref), [`add_superclass!`](@ref).
+"""
 function add_object_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
     entity_class_graph[class_label] = ObjectClassVertex()
 end
 
-function add_relationship_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, dimensions...)
+"""
+    add_relationship_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, dimensions::Symbol...)
+
+Add an n-dimensional entity class to graph.
+
+The graph is expected to already contain the dimension entity classes.
+
+See also [`add_object_class!`](@ref), [`add_superclass!`](@ref).
+"""
+function add_relationship_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, dimensions::Symbol...)
     atomic_dimension_choices = resolve_atomic_dimension_choices(entity_class_graph, dimensions...)
     entity_class_graph[class_label] = RelationshipClassVertex(atomic_dimension_choices)
     for (i, dimension) in enumerate(dimensions)
@@ -45,25 +76,95 @@ function add_relationship_class!(entity_class_graph::MetaGraphsNext.MetaGraph, c
     end
 end
 
-function add_superclass!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, subclasses...)
+"""
+    add_superclass!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, subclasses::Symbol...)
+
+Add a superclass to graph.
+
+The graph is expected to already contain the subclass entity classes.
+
+See also [`add_object_class!`](@ref), [`add_relationship_class!`](@ref).
+"""
+function add_superclass!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, subclasses::Symbol...)
     entity_class_graph[class_label] = SuperclassVertex()
     for subclass in subclasses
         entity_class_graph[subclass, class_label] = []
     end
 end
 
+"""
+    class_labels(entity_class_graph::MetaGraphsNext.MetaGraph)
+
+Return an iterator to all classes.
+
+The order in which the classes are returned by the iterator is unspecified.
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :node);
+
+julia> add_relationship_class!(graph, :node__, :node);
+
+julia> add_superclass!(graph, :supernode, :node);
+
+julia> sort(collect(class_labels(graph)))
+3-element Vector{Symbol}:
+ :node
+ :node__
+ :supernode
+```
+"""
 function class_labels(entity_class_graph::MetaGraphsNext.MetaGraph)
     MetaGraphsNext.labels(entity_class_graph)
 end
 
+"""
+    is_superclass(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
+
+Return true if the class identified by `label` is superclass.
+
+See also [`is_subclass_of`](@ref).
+"""
 function is_superclass(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
     entity_class_graph[label] isa SuperclassVertex
 end
 
+"""
+    is_subclass_of(entity_class_graph::MetaGraphsNext.MetaGraph, subclass_label::Symbol, superclass_label::Symbol)
+
+Return true if class is a subclass of another class.
+
+See also [`is_superclass`](@ref).
+"""
 function is_subclass_of(entity_class_graph::MetaGraphsNext.MetaGraph, subclass_label::Symbol, superclass_label::Symbol)
     is_superclass(entity_class_graph, superclass_label) && MetaGraphsNext.haskey(entity_class_graph, subclass_label, superclass_label)
 end
 
+"""
+    subclasses(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
+
+Return an iterator to subclasses of a superclass.
+
+The order in which the iterator returns the subclasses is unpecified.
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :sub1);
+
+julia> add_object_class!(graph, :sub2);
+
+julia> add_superclass!(graph, :super, :sub1, :sub2);
+
+julia> sort(collect(subclasses(graph, :super)))
+2-element Vector{Symbol}:
+ :sub1
+ :sub2
+```
+"""
 function subclasses(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
     if !is_superclass(entity_class_graph, label)
         throw(ArgumentError("$label is not a superclass"))
@@ -217,6 +318,44 @@ function has_entity(vertex::RelationshipClassVertex, atoms...)
     has_relationship(vertex.relationship_graph, atoms...)
 end
 
+"""
+    entities(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol)
+
+Return an iterator to the entities of a class.
+
+If the class is 0-dimensional, the iterator returns entity names as `Symbol`s.
+If the class is n-dimensional, the iterator returns entities as tuples of `Atom`s.
+If the class is superclass, the iterator returns entities from all its subclasses.
+
+The order of the entities returned by the iterator is unspecified.
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_entity!(graph, :unit, :coal);
+
+julia> add_entity!(graph, :unit, :wind);
+
+julia> sort(collect(entities(graph, :unit)))
+2-element Vector{Symbol}:
+ :coal
+ :wind
+
+julia> add_relationship_class!(graph, :unit__unit, :unit, :unit);
+
+julia> add_entity!(graph, :unit__unit, :unit => :coal, :unit => :wind);
+
+julia> add_entity!(graph, :unit__unit, :unit => :wind, :unit => :wind);
+
+julia> sort(collect(entities(graph, :unit__unit)))
+2-element Vector{Tuple{Pair{Symbol, Symbol}, Pair{Symbol, Symbol}}}:
+ (:unit => :coal, :unit => :wind)
+ (:unit => :wind, :unit => :wind)
+```
+"""
 function entities(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol)
     vertex = entity_class_graph[class]
     if vertex isa SuperclassVertex
@@ -237,42 +376,175 @@ function finalize_add_entity!(class_vertex::ClassVertexWithEntities, entity_labe
     entity_label
 end
 
+"""
+    add_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_label::Symbol)
+    add_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, first_atom::Atom, atoms::Atom...)
+
+Add new entity to entity class returning the label of the entity.
+
+0-dimensional entities are added by label only. N-dimensional entities are added by atoms.
+N-dimensional entities do not have names in `SpineInterface`,
+so the function returns an automatically generated label.
+
+Superclasses cannot have entities.
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :node);
+
+julia> add_entity!(graph, :node, :north)
+:north
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_entity!(graph, :unit, :solar_pv)
+:solar_pv
+
+julia> add_relationship_class!(graph, :unit__node);
+
+julia> add_entity!(graph, :unit__node, :unit => :solar_pv, :node => :north)
+Symbol("1")
+```
+"""
 function add_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_label::Symbol)
     add_entity!(entity_class_graph[class_label], entity_label)
 end
-function add_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, atoms...)
-    add_entity!(entity_class_graph[class_label], atoms...)
+function add_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, first_atom::Atom, atoms::Atom...)
+    add_entity!(entity_class_graph[class_label], first_atom, atoms...)
 end
 function add_entity!(vertex::ObjectClassVertex, entity_label::Symbol)
     finalize_add_entity!(vertex, entity_label)
 end
-function add_entity!(vertex::RelationshipClassVertex, atoms...)
+function add_entity!(vertex::RelationshipClassVertex, atoms::Atom...)
     relationship_label = add_relationship!(vertex.relationship_graph, atoms...)
     finalize_add_entity!(vertex, relationship_label)
 end
 
+"""
+    add_entity_group_member!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, group_label::Symbol, member_label::Symbol)
+
+Add a member to entity group.
+
+The group and member entities must exist before the operation.
+
+Entity groups are currently available only for 0-dimensional entities.
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_entity!(graph, :unit, :generators)
+:generators
+
+julia> add_entity!(graph, :unit, :wind_plant)
+:wind_plant
+
+julia> add_entity_group_member!(graph, :unit, :generators, :wind_plant)
+
+julia> collect(entity_group_members(graph, :unit, :generators))
+1-element Vector{Symbol}:
+ :wind_plant
+```
+"""
 function add_entity_group_member!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, group_label::Symbol, member_label::Symbol)
     class_vertex = entity_class_graph[class_label]
     add_entity_group_member!(class_vertex.entity_group_graph, group_label, member_label)
 end
 
+"""
+    entity_group_members(entity_class_graph, class_label::Symbol, group_label::Symbol)
+
+Return an iterator to the members of an entity group.
+
+The order in which the iterator returns the members is unspecified.
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_entity!(graph, :unit, :generators)
+:generators
+
+julia> add_entity!(graph, :unit, :wind_plant)
+:wind_plant
+
+julia> add_entity_group_member!(graph, :unit, :generators, :wind_plant)
+
+julia> collect(entity_group_members(graph, :unit, :generators))
+1-element Vector{Symbol}:
+ :wind_plant
+```
+"""
 function entity_group_members(entity_class_graph, class_label::Symbol, group_label::Symbol)
     class_vertex = entity_class_graph[class_label]
     members(class_vertex.entity_group_graph, group_label)
 end
 
-function add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value)
+"""
+    add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value::ParameterValue)
+
+Add a parameter to entity class or replace an existing default value.
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_parameter_definition!(graph, :unit, :efficiency, parameter_value(0.5));
+```
+"""
+function add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value::ParameterValue)
     class_vertex = entity_class_graph[class_label]
     add_parameter_definition!(class_vertex, parameter_label, default_value)
 end
-function add_parameter_definition!(class_vertex, parameter_label::Symbol, default_value)
+function add_parameter_definition!(class_vertex, parameter_label::Symbol, default_value::ParameterValue)
     class_vertex.parameter_defaults[parameter_label] = default_value
 end
 
-function add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, entity_label::Symbol)
+"""
+    add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value::ParameterValue, entity_label::Symbol)
+    add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value::ParameterValue, first_atom::Atom, atoms::Atom...)
+
+Add a parameter value to entity or replace an existing value.
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_parameter_definition!(graph, :unit, :efficiency, parameter_value(nothing));
+
+julia> add_entity!(graph, :unit, :coal_chp);
+
+julia> add_parameter_value!(graph, :unit, :efficiency, parameter_value(0.9), :coal_chp)
+ParameterValue(0.9)
+
+julia> add_object_class!(graph, :node);
+
+julia> add_entity!(graph, :node, :west);
+
+julia> add_relationship_class!(graph, :unit__node);
+
+julia> add_parameter_definition!(graph, :unit__node, :cost, parameter_value(nothing));
+
+julia> add_entity!(graph, :unit__node, :unit => :coal_chp, :node => :west);
+
+julia> add_parameter_value!(graph, :unit__node, :cost, parameter_value(23.0), :unit => :coal_chp, :node => :west)
+ParameterValue(23.0)
+```
+"""
+function add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value::ParameterValue, entity_label::Symbol)
     add_parameter_value!(entity_class_graph[class_label], parameter_label, value, entity_label)
 end
-function add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, first_atom::Atom, atoms::Atom...)
+function add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value::ParameterValue, first_atom::Atom, atoms::Atom...)
     class_vertex = entity_class_graph[class_label]
     entity_label = relationship_label(class_vertex.relationship_graph, first_atom, atoms...)
     add_parameter_value!(entity_class_graph[class_label], parameter_label, value, entity_label)
@@ -334,6 +606,45 @@ function Base.iterate(iter::ConcreteSubclassLabels, state::ConcreteSubclassLabel
     nothing
 end
 
+"""
+    find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol; parameter_filters...)
+
+Return an iterator over 0-dimensional entities filtered by given parameter filters.
+
+The order in which the iterator returns the entities is unspecified.
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_parameter_definition!(graph, :unit, :size, parameter_value(nothing));
+
+julia> add_entity!(graph, :unit, :coal);
+
+julia> add_entity!(graph, :unit, :coal_chp);
+
+julia> add_parameter_value!(graph, :unit, :size, parameter_value(2.0), :coal);
+
+julia> add_parameter_value!(graph, :unit, :size, parameter_value(3.0), :coal_chp);
+
+julia> sort(collect(find_objects(graph, :unit)))
+2-element Vector{Symbol}:
+ :coal
+ :coal_chp
+
+julia> collect(find_objects(graph, :unit; size=2.0))
+1-element Vector{Symbol}:
+ :coal
+
+julia> collect(find_objects(graph, :unit; size=3.0))
+1-element Vector{Symbol}:
+ :coal_chp
+```
+
+See also [`find_relationships`](@ref).
+"""
 function find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol; parameter_filters...)
     class_vertex = entity_class_graph[class_label]
     if isempty(parameter_filters)
@@ -342,6 +653,83 @@ function find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label:
     filter(label -> value_filter_condition(class_vertex, label, parameter_filters), class_vertex.entities)
 end
 
+"""
+    find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
+
+Return an iterator over n-dimensional entities filtered by given entity selector and parameter filters.
+
+`entity_selector` must have as many elements as atomic dimensions in the class.
+Each selector corresponds an atomic dimension and can be one of the following:
+
+- `anything`: any atom is accepted
+- `<class> => anything`: any atom in `<class>` is accepted
+- `<class> => <object>`: accept only the specified atom
+- tuple of atoms: accept only the specified atoms
+
+The entities can be further filtered by `parameter_filters`.
+
+The order in which the iterator returns the entities is unspecified.
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_entity!(graph, :unit, :coal);
+
+julia> add_entity!(graph, :unit, :coal_chp);
+
+julia> add_object_class!(graph, :node);
+
+julia> add_entity!(graph, :node, :east);
+
+julia> add_entity!(graph, :node, :west);
+
+julia> add_relationship_class!(graph, :node__unit, :node, :unit);
+
+julia> add_parameter_definition!(graph, :node__unit, :cost, parameter_value(nothing));
+
+julia> entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal);
+
+julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(5.0), entity);
+
+julia> entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal);
+
+julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(6.0), entity);
+
+julia> entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal_chp);
+
+julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(4.0), entity);
+
+julia> entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal_chp);
+
+julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(2.0), entity);
+
+julia> sort(collect(find_relationships(graph, :node__unit, anything, anything)))
+4-element Vector{Tuple{Pair{Symbol, Symbol}, Pair{Symbol, Symbol}}}:
+ (:node => :east, :unit => :coal)
+ (:node => :east, :unit => :coal_chp)
+ (:node => :west, :unit => :coal)
+ (:node => :west, :unit => :coal_chp)
+
+julia> sort(collect(find_relationships(graph, :node__unit, :node => anything, :unit => :coal)))
+2-element Vector{Tuple{Pair{Symbol, Symbol}, Vararg{Pair{Symbol, Symbol}}}}:
+ (:node => :east, :unit => :coal)
+ (:node => :west, :unit => :coal)
+
+julia> sort(collect(find_relationships(graph, :node__unit, :node => :east, :unit => :coal_chp)))
+1-element Vector{Tuple{Pair{Symbol, Symbol}, Vararg{Pair{Symbol, Symbol}}}}:
+ (:node => :east, :unit => :coal_chp)
+
+julia> sort(collect(find_relationships(graph, :node__unit, (:node => :west, :node => :east), :unit => :coal)))
+2-element Vector{Tuple{Pair{Symbol, Symbol}, Vararg{Pair{Symbol, Symbol}}}}:
+ (:node => :east, :unit => :coal)
+ (:node => :west, :unit => :coal)
+```
+
+See also [`find_objects`](@ref).
+"""
 function find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
     class_vertex = entity_class_graph[class_label]
     find_relationships(class_vertex, entity_selector...; parameter_filters...)
@@ -360,7 +748,7 @@ function find_relationships(class_vertex::RelationshipClassVertex, entity_select
         relationship_labels = class_vertex.entities
     end
     if !isempty(parameter_filters)
-        relationship_labels = filter(label -> value_filter_condition(class_vertex, label, parameter_filters), relationship_labels)
+        relationship_labels = Iterators.filter(label -> value_filter_condition(class_vertex, label, parameter_filters), relationship_labels)
     end
     if !all(selector === anything for selector in entity_selector)
         selection = SelectedRelationships(relationship_graph, relationship_labels, entity_selector)
@@ -385,7 +773,7 @@ function selector_to_atom(selector::Atom)
     selector
 end
 
-function is_compact(selector::Union{Anything, AnyAtomInClass, MultiAtomSelector})
+function is_compact(selector)
     false
 end
 function is_compact(selector::Tuple{Atom})

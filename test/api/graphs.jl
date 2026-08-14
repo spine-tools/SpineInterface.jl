@@ -692,6 +692,26 @@ function _test_find_relationships()
             @test collect(found) == [(:Class => :Object,)]
             @test isempty(collect(SpineInterface.find_relationships(graph, :Class__, anything, Parameter=3.2)))
         end
+        @testset "2D relationship with parameter filters" begin
+            graph = empty_entity_class_graph();
+            add_object_class!(graph, :unit);
+            add_entity!(graph, :unit, :coal);
+            add_entity!(graph, :unit, :coal_chp);
+            add_object_class!(graph, :node);
+            add_entity!(graph, :node, :east);
+            add_entity!(graph, :node, :west);
+            add_relationship_class!(graph, :node__unit, :node, :unit);
+            add_parameter_definition!(graph, :node__unit, :cost, parameter_value(nothing));
+            entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal);
+            add_parameter_value!(graph, :node__unit, :cost, parameter_value(5.0), entity);
+            entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal);
+            add_parameter_value!(graph, :node__unit, :cost, parameter_value(6.0), entity);
+            entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal_chp);
+            add_parameter_value!(graph, :node__unit, :cost, parameter_value(4.0), entity);
+            entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal_chp);
+            add_parameter_value!(graph, :node__unit, :cost, parameter_value(2.0), entity);
+            @test sort(collect(find_relationships(graph, :node__unit, :node => :west, anything; cost=2.0))) == [(:node => :west, :unit => :coal_chp)]
+        end
     end
 end
 
