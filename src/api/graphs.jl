@@ -613,6 +613,8 @@ Return an iterator over 0-dimensional entities filtered by given parameter filte
 
 The order in which the iterator returns the entities is unspecified.
 
+See also [`find_relationships`](@ref).
+
 # Examples
 ```jldoctest
 julia> graph = empty_entity_class_graph();
@@ -642,8 +644,6 @@ julia> collect(find_objects(graph, :unit; size=3.0))
 1-element Vector{Symbol}:
  :coal_chp
 ```
-
-See also [`find_relationships`](@ref).
 """
 function find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol; parameter_filters...)
     class_vertex = entity_class_graph[class_label]
@@ -670,6 +670,8 @@ Each selector corresponds to an atomic dimension and can be one of the following
 The entities can be further filtered by `parameter_filters`.
 
 The order in which the iterator returns the relationships is unspecified.
+
+See also [`find_objects`](@ref).
 
 # Examples
 ```jldoctest
@@ -732,8 +734,6 @@ julia> sort(collect(Tuple.(find_relationships(graph, :node__unit, (:node => :wes
  (:node => :east, :unit => :coal)
  (:node => :west, :unit => :coal)
 ```
-
-See also [`find_objects`](@ref).
 """
 function find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
     class_vertex = entity_class_graph[class_label]
