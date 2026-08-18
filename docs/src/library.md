@@ -31,6 +31,9 @@ add_entity_group_member!(entity_class_graph::MetaGraphsNext.MetaGraph, class_lab
 entity_group_members(entity_class_graph, class_label::Symbol, group_label::Symbol)
 add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value::ParameterValue)
 add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value::ParameterValue, entity_label::Symbol)
+find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol; parameter_filters...)
+find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
+find_relationships_compact(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
 ```
 
 ## Types in classic interface

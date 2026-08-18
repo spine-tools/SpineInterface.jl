@@ -83,6 +83,7 @@ export entity_group_members
 export export_data
 export find_objects
 export find_relationships
+export find_relationships_compact
 export find_value
 export fixer
 export groups
@@ -117,6 +118,7 @@ export relationship_class
 export relationship_classes
 export RelationshipClass
 export RelationshipLike
+export remove_entity!
 export roll!
 export run_request
 export set_value_translator

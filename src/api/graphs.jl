@@ -314,7 +314,7 @@ end
 function has_entity(vertex::ObjectClassVertex, entity_label::Symbol)
     entity_label in vertex.entities
 end
-function has_entity(vertex::RelationshipClassVertex, atoms...)
+function has_entity(vertex::RelationshipClassVertex, atoms::Atom...)
     has_relationship(vertex.relationship_graph, atoms...)
 end
 
@@ -613,7 +613,7 @@ Return an iterator over 0-dimensional entities filtered by given parameter filte
 
 The order in which the iterator returns the entities is unspecified.
 
-See also [`find_relationships`](@ref).
+See also [`find_relationships`](@ref), , [`find_relationships_compact`](@ref).
 
 # Examples
 ```jldoctest
@@ -671,7 +671,7 @@ The entities can be further filtered by `parameter_filters`.
 
 The order in which the iterator returns the relationships is unspecified.
 
-See also [`find_objects`](@ref).
+See also [`find_objects`](@ref), [`find_relationships_compact`](@ref).
 
 # Examples
 ```jldoctest
@@ -849,6 +849,77 @@ function Base.iterate(iter::CompactDimensions)
     iterate(iter, state)
 end
 
+"""
+    function find_relationships_compact(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
+
+Return an iterator to relationship's compact atoms similarly to [`find_relationships`](@ref).
+
+Compact means that atomic dimensions where `entity_selector` defines a unique atom
+are omitted in the returned iterator.
+
+See also [`find_objects`](@ref), [`find_relationships`](@ref).
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_entity!(graph, :unit, :coal);
+
+julia> add_entity!(graph, :unit, :coal_chp);
+
+julia> add_object_class!(graph, :node);
+
+julia> add_entity!(graph, :node, :east);
+
+julia> add_entity!(graph, :node, :west);
+
+julia> add_relationship_class!(graph, :node__unit, :node, :unit);
+
+julia> add_parameter_definition!(graph, :node__unit, :cost, parameter_value(nothing));
+
+julia> entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal);
+
+julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(5.0), entity);
+
+julia> entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal);
+
+julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(6.0), entity);
+
+julia> entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal_chp);
+
+julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(4.0), entity);
+
+julia> entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal_chp);
+
+julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(2.0), entity);
+
+julia> sort(collect(Tuple.(find_relationships_compact(graph, :node__unit, anything, anything))))
+4-element Vector{Tuple{Pair{Symbol, Symbol}, Pair{Symbol, Symbol}}}:
+ (:node => :east, :unit => :coal)
+ (:node => :east, :unit => :coal_chp)
+ (:node => :west, :unit => :coal)
+ (:node => :west, :unit => :coal_chp)
+
+julia> sort(collect(Tuple.(find_relationships_compact(graph, :node__unit, :node => anything, :unit => :coal))))
+2-element Vector{Tuple{Pair{Symbol, Symbol}}}:
+ (:node => :east,)
+ (:node => :west,)
+
+julia> sort(collect(Tuple.(find_relationships_compact(graph, :node__unit, :node => :east, :unit => :coal_chp))))
+Union{}[]
+
+julia> sort(collect(Tuple.(find_relationships_compact(graph, :node__unit, :node => :west, anything; cost=2.0))))
+1-element Vector{Tuple{Pair{Symbol, Symbol}}}:
+ (:unit => :coal_chp,)
+
+julia> sort(collect(Tuple.(find_relationships_compact(graph, :node__unit, (:node => :west, :node => :east), :unit => :coal))))
+2-element Vector{Tuple{Pair{Symbol, Symbol}}}:
+ (:node => :east,)
+ (:node => :west,)
+```
+"""
 function find_relationships_compact(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
     class_vertex = entity_class_graph[class_label]
     find_relationships_compact(class_vertex, entity_selector...; parameter_filters...)
