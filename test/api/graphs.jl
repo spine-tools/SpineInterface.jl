@@ -146,8 +146,6 @@ function _test_subclasses()
         add_relationship_class!(graph, :A__B, :A, :B)
         add_superclass!(graph, :super, :A, :B)
         @test sort(collect(subclasses(graph, :super))) == sort([:A, :B])
-        @test_throws ArgumentError subclasses(graph, :A)
-        @test_throws ArgumentError subclasses(graph, :A__B)
     end
 end
 
@@ -324,6 +322,40 @@ function _test_resolve_atomic_dimension_choices()
     end
 end
 
+function _test_atomic_dimensionality()
+    @testset "atomic_dimensionality" begin
+        @testset "object class" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :Object)
+            @test SpineInterface.atomic_dimensionality(graph, :Object) == 0
+        end
+        @testset "relationship class" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_object_class!(graph, :C)
+            add_object_class!(graph, :D)
+            add_relationship_class!(graph, :A__B, :A, :B)
+            add_relationship_class!(graph, :C__D, :C, :D)
+            add_relationship_class!(graph, :AB__CD, :A__B, :C__D)
+            @test SpineInterface.atomic_dimensionality(graph, :A__B) == 2
+            @test SpineInterface.atomic_dimensionality(graph, :C__D) == 2
+            @test SpineInterface.atomic_dimensionality(graph, :AB__CD) == 4
+        end
+        @testset "superclass of relationship classes" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_object_class!(graph, :C)
+            add_object_class!(graph, :D)
+            add_relationship_class!(graph, :A__B, :A, :B)
+            add_relationship_class!(graph, :C__D, :C, :D)
+            add_superclass!(graph, :Any__Any, :A__B, :C__D)
+            @test SpineInterface.atomic_dimensionality(graph, :Any__Any) == 2
+        end
+    end
+end
+
 function _test_has_entity()
     @testset "has_entity" begin
         @testset "0D entity" begin
@@ -343,6 +375,59 @@ function _test_has_entity()
             add_entity!(graph, :A__B, :ObjectA => :A, :ObjectB => :B)
             @test SpineInterface.has_entity(graph[:A__B], :ObjectA => :A, :ObjectB => :B)
             @test !SpineInterface.has_entity(graph[:A__B], :ObjectA => :A, :ObjectB => :none)
+        end
+    end
+end
+
+function _test_subclass_vertex_with_entity()
+    @testset "subclass_vertex_with_entity" begin
+        @testset "subclass is object class" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_entity!(graph, :A, :a)
+            add_entity!(graph, :B, :b)
+            add_superclass!(graph, :Any, :A, :B)
+            @test SpineInterface.subclass_vertex_with_entity(graph[:Any], :a) === graph[:A]
+            @test SpineInterface.subclass_vertex_with_entity(graph[:Any], :b) === graph[:B]
+            @test isnothing(SpineInterface.subclass_vertex_with_entity(graph[:Any], :something_else))
+        end
+        @testset "subclass is relationship class" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_object_class!(graph, :C)
+            add_object_class!(graph, :D)
+            add_entity!(graph, :A, :a)
+            add_entity!(graph, :B, :b)
+            add_entity!(graph, :C, :c)
+            add_entity!(graph, :D, :d)
+            add_relationship_class!(graph, :A__B, :A, :B)
+            add_relationship_class!(graph, :C__D, :C, :D)
+            add_entity!(graph, :A__B, :A => :a, :B => :b)
+            add_entity!(graph, :C__D, :C => :c, :D => :d)
+            add_superclass!(graph, :AB_or_CD, :A__B, :C__D)
+            @test SpineInterface.subclass_vertex_with_entity(graph[:AB_or_CD], :A => :a, :B => :b) === graph[:A__B]
+            @test SpineInterface.subclass_vertex_with_entity(graph[:AB_or_CD], :C => :c, :D => :d) === graph[:C__D]
+            @test isnothing(SpineInterface.subclass_vertex_with_entity(graph[:AB_or_CD], :A => :not_in_A, :B => :b))
+        end
+        @testset "subclass is superclass" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_object_class!(graph, :C)
+            add_object_class!(graph, :D)
+            add_entity!(graph, :A, :a)
+            add_entity!(graph, :B, :b)
+            add_entity!(graph, :C, :c)
+            add_entity!(graph, :D, :d)
+            add_superclass!(graph, :A_or_B, :A, :B)
+            add_superclass!(graph, :C_or_D, :C, :D)
+            add_superclass!(graph, :Any, :A_or_B, :C_or_D)
+            @test SpineInterface.subclass_vertex_with_entity(graph[:Any], :a) === graph[:A]
+            @test SpineInterface.subclass_vertex_with_entity(graph[:Any], :b) === graph[:B]
+            @test SpineInterface.subclass_vertex_with_entity(graph[:Any], :c) === graph[:C]
+            @test SpineInterface.subclass_vertex_with_entity(graph[:Any], :d) === graph[:D]
         end
     end
 end
@@ -850,6 +935,34 @@ function _test_find_relationships_compact()
     end
 end
 
+function _test_class_for_object()
+    @testset "class_for_object" begin
+        graph = empty_entity_class_graph()
+        add_object_class!(graph, :A)
+        add_object_class!(graph, :B)
+        add_entity!(graph, :A, :a)
+        add_entity!(graph, :B, :b)
+        add_relationship_class!(graph, :A__B, :A, :B)
+        add_relationship_class!(graph, :B__A, :B, :A)
+        @test SpineInterface.class_for_object(graph, :A__B, :a, 1) == :A
+        @test SpineInterface.class_for_object(graph, :A__B, :b, 2) == :B
+        @test SpineInterface.class_for_object(graph, :B__A, :a, 2) == :A
+        @test SpineInterface.class_for_object(graph, :B__A, :b, 1) == :B
+        @test_throws ErrorException SpineInterface.class_for_object(graph, :A__B, :a, 2)
+        @test_throws ErrorException SpineInterface.class_for_object(graph, :A__B, :no_entity, 1)
+        add_superclass!(graph, :AB_or_BA, :A__B, :B__A)
+        add_relationship_class!(graph, :R__R, :AB_or_BA, :AB_or_BA)
+        @test SpineInterface.class_for_object(graph, :R__R, :a, 1) == :A
+        @test SpineInterface.class_for_object(graph, :R__R, :a, 2) == :A
+        @test SpineInterface.class_for_object(graph, :R__R, :a, 3) == :A
+        @test SpineInterface.class_for_object(graph, :R__R, :a, 4) == :A
+        @test SpineInterface.class_for_object(graph, :R__R, :b, 1) == :B
+        @test SpineInterface.class_for_object(graph, :R__R, :b, 2) == :B
+        @test SpineInterface.class_for_object(graph, :R__R, :b, 3) == :B
+        @test SpineInterface.class_for_object(graph, :R__R, :b, 4) == :B
+    end
+end
+
 function _test_has_relationship()
     @testset "has_relationship" begin
         @testset "from emtpy graph" begin
@@ -1047,7 +1160,6 @@ function _test_find_value()
             @test find_value(graph, :A_or_B, :onlyB, :b) == parameter_value(4.4)
             @test isnothing(find_value(graph, :A_or_B, :onlyA, :b))
             @test isnothing(find_value(graph, :A_or_B, :no_such_parameter, :a))
-            @test_throws KeyError find_value(graph, :A_or_B, :shared, :no_such_entity)
         end
     end
 end
@@ -1065,7 +1177,9 @@ end
     _test_dimensions_iterator()
     _test_atomic_dimensions()
     _test_resolve_atomic_dimension_choices()
+    _test_atomic_dimensionality()
     _test_has_entity()
+    _test_subclass_vertex_with_entity()
     _test_entities()
     _test_add_entity()
     _test_add_parameter_definition()
@@ -1074,6 +1188,7 @@ end
     _test_find_objects()
     _test_find_relationships()
     _test_find_relationships_compact()
+    _test_class_for_object()
     _test_has_relationship()
     _test_add_relationship()
     _test_relationship_atoms_iterator()

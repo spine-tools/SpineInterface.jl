@@ -158,8 +158,10 @@ end
 
 struct SuperclassVertex
     parameter_defaults::Dict{Symbol, ParameterValue}
-    function SuperclassVertex()
-        new(Dict())
+    entity_class_graph::MetaGraphsNext.MetaGraph
+    class_label::Symbol
+    function SuperclassVertex(entity_class_graph, class_label)
+        new(Dict(), entity_class_graph, class_label)
     end
 end
 
