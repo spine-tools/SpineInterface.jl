@@ -541,7 +541,7 @@ julia> graph = empty_entity_class_graph();
 
 julia> add_object_class!(graph, :unit);
 
-julia> add_parameter_definition!(graph, :unit, :efficiency, parameter_value(nothing));
+julia> add_parameter_definition!(graph, :unit, :efficiency);
 
 julia> add_entity!(graph, :unit, :coal_chp);
 
@@ -554,7 +554,7 @@ julia> add_entity!(graph, :node, :west);
 
 julia> add_relationship_class!(graph, :unit__node);
 
-julia> add_parameter_definition!(graph, :unit__node, :cost, parameter_value(nothing));
+julia> add_parameter_definition!(graph, :unit__node, :cost);
 
 julia> add_entity!(graph, :unit__node, :unit => :coal_chp, :node => :west);
 
@@ -642,7 +642,7 @@ julia> graph = empty_entity_class_graph();
 
 julia> add_object_class!(graph, :unit);
 
-julia> add_parameter_definition!(graph, :unit, :size, parameter_value(nothing));
+julia> add_parameter_definition!(graph, :unit, :size);
 
 julia> add_entity!(graph, :unit, :coal);
 
@@ -712,7 +712,7 @@ julia> add_entity!(graph, :node, :west);
 
 julia> add_relationship_class!(graph, :node__unit, :node, :unit);
 
-julia> add_parameter_definition!(graph, :node__unit, :cost, parameter_value(nothing));
+julia> add_parameter_definition!(graph, :node__unit, :cost);
 
 julia> entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal);
 
@@ -1209,6 +1209,34 @@ function groups(entity_group_graph::MetaGraphsNext.MetaGraph, member_entity::Sym
     MetaGraphsNext.outneighbor_labels(entity_group_graph, member_entity)
 end
 
+"""
+    find_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+
+Find the value of a parameter for a given entity.
+
+Returns `nothing` if the value is not defined for the entity.
+
+See also [`default_value`](@ref), [`value_or_default`](@ref).
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_parameter_definition!(graph, :unit, :mass);
+
+julia> add_entity!(graph, :unit, :solar_pv);
+
+julia> add_parameter_value!(graph, :unit, :mass, parameter_value(1023.0), :solar_pv);
+
+julia> find_value(graph, :unit, :mass, :solar_pv)
+ParameterValue(1023.0)
+
+julia> isnothing(find_value(graph, :unit, :undefined, :solar_pv))
+true
+```
+"""
 function find_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
     find_value(entity_class_graph[class], parameter_definition, entity_or_atom, atoms...)
 end
@@ -1227,10 +1255,58 @@ function find_value(vertex::SuperclassVertex, parameter_definition::Symbol, enti
     find_value(subclass_vertex, parameter_definition, entity_or_atom, atoms...)
 end
 
+"""
+    default_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol)
+
+Returns the default value for a parameter definition in an entity class.
+
+See also [`find_value`](@ref), [`value_or_default`](@ref).
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_parameter_definition!(graph, :unit, :mass, parameter_value(5500.0));
+
+julia> default_value(graph, :unit, :mass)
+ParameterValue(5500.0)
+```
+"""
 function default_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol)
     entity_class_graph[class].parameter_defaults[parameter_definition]
 end
 
+"""
+    value_or_default(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity::Symbol)
+    value_or_default(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, first_atom::Atom, atoms::Atom...)
+
+Return the value of a parameter for an entity, or the default value if not found.
+
+See also [`find_value`](@ref), [`default_value`](@ref).
+
+# Examples
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_object_class!(graph, :unit);
+
+julia> add_parameter_definition!(graph, :unit, :mass, parameter_value(5500.0));
+
+julia> add_parameter_definition!(graph, :unit, :size, parameter_value(23.0));
+
+julia> add_entity!(graph, :unit, :cheeseburger);
+
+julia> add_parameter_value!(graph, :unit, :mass, parameter_value(3.2), :cheeseburger);
+
+julia> value_or_default(graph, :unit, :mass, :cheeseburger)
+ParameterValue(3.2)
+
+julia> value_or_default(graph, :unit, :size, :cheeseburger)
+ParameterValue(23.0)
+```
+"""
 function value_or_default(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity::Symbol)
     value_or_default(entity_class_graph[class], parameter_definition, entity)
 end

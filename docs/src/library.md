@@ -33,7 +33,10 @@ add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_la
 find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol; parameter_filters...)
 find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
 find_relationships_compact(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
-```
+remove_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+find_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+default_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol)
+value_or_default(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity::Symbol)```
 
 ## Types in classic interface
 
