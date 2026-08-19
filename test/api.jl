@@ -606,7 +606,7 @@ function _test_add_relationship_parameter_values()
     end
 end
 
-function _test_add_entity_group_member()
+function _test_classic_add_entity_group_member()
     @testset "add_entity_group_member!" begin
         @testset "higher level interface" begin
             entity_class_graph = empty_entity_class_graph()
@@ -1301,7 +1301,7 @@ end
     _test_parse_db_value()
     _test_add_object_parameter_values()
     _test_add_relationship_parameter_values()
-    _test_add_entity_group_member()
+    _test_classic_add_entity_group_member()
     _test_write_parameters()
     _test_call()
     _test_maximum_parameter_value()

@@ -128,7 +128,13 @@ Return true if the class identified by `label` is superclass.
 See also [`is_subclass_of`](@ref).
 """
 function is_superclass(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
-    entity_class_graph[label] isa SuperclassVertex
+    is_superclass(entity_class_graph[label])
+end
+function is_superclass(vertex)
+    false
+end
+function is_superclass(vertex::SuperclassVertex)
+    true
 end
 
 """
@@ -189,7 +195,7 @@ struct Dimensions
     label::Symbol
     dimensionality::Int
     function Dimensions(entity_class_graph, label)
-        if entity_class_graph[label] isa SuperclassVertex
+        if is_superclass(entity_class_graph[label])
             n_dimensions = 0
         else
             n_dimensions = dimensionality(entity_class_graph, label)
@@ -320,7 +326,7 @@ end
 function subclass_vertex_with_entity(vertex::SuperclassVertex, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
     for subclass in subclasses(vertex)
         subclass_vertex = vertex.entity_class_graph[subclass]
-        if subclass_vertex isa SuperclassVertex
+        if is_superclass(subclass_vertex)
             found = subclass_vertex_with_entity(subclass_vertex, entity_or_atom, atoms...)
             if !isnothing(found)
                 return found
@@ -592,7 +598,7 @@ function Base.iterate(iter::ConcreteSubclassLabels)
     subclass_label, subclass_iter_state = iterate(subclass_iter)
     state = ConcreteSubclassLabelsState(subclass_iter, subclass_iter_state, nothing)
     subclass_vertex = iter.entity_class_graph[subclass_label]
-    if subclass_vertex isa ClassVertexWithEntities
+    if !is_superclass(subclass_vertex)
         return subclass_label, state
     end
     sub_iter = ConcreteSubclassLabels(iter.entity_class_graph, subclass_label)
@@ -606,7 +612,7 @@ function Base.iterate(iter::ConcreteSubclassLabels, state::ConcreteSubclassLabel
         subclass_label, new_subclass_iter_state = current
         state.subclass_iter_state = new_subclass_iter_state
         subclass_vertex = iter.entity_class_graph[subclass_label]
-        if subclass_vertex isa ClassVertexWithEntities
+        if !is_superclass(subclass_vertex)
             return subclass_label, state
         end
         sub_iter = ConcreteSubclassLabels(iter.entity_class_graph, subclass_label)
