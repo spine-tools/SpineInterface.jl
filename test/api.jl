@@ -606,6 +606,19 @@ function _test_add_relationship_parameter_values()
     end
 end
 
+function _test_add_entity_group_member()
+    @testset "add_entity_group_member!" begin
+        @testset "higher level interface" begin
+            entity_class_graph = empty_entity_class_graph()
+            add_object_class!(entity_class_graph, :Class)
+            add_entity!(entity_class_graph, :Class, :group_object)
+            add_entity!(entity_class_graph, :Class, :member_object)
+            add_entity_group_member!(entity_class_graph, :Class, :group_object, :member_object)
+            @test collect(SpineInterface.entity_group_members(entity_class_graph, :Class, :group_object)) == [:member_object]
+        end
+    end
+end
+
 function _test_write_parameters()
     @testset "write_parameters" begin
         path = "$(@__DIR__)/test_out.sqlite"
@@ -1288,6 +1301,7 @@ end
     _test_parse_db_value()
     _test_add_object_parameter_values()
     _test_add_relationship_parameter_values()
+    _test_add_entity_group_member()
     _test_write_parameters()
     _test_call()
     _test_maximum_parameter_value()

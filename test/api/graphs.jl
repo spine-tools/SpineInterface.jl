@@ -510,14 +510,6 @@ end
 
 function _test_add_entity_group_member()
     @testset "add_entity_group_member!" begin
-        @testset "higher level interface" begin
-            entity_class_graph = empty_entity_class_graph()
-            add_object_class!(entity_class_graph, :Class)
-            add_entity!(entity_class_graph, :Class, :group_object)
-            add_entity!(entity_class_graph, :Class, :member_object)
-            add_entity_group_member!(entity_class_graph, :Class, :group_object, :member_object)
-            @test collect(SpineInterface.entity_group_members(entity_class_graph, :Class, :group_object)) == [:member_object]
-        end
         @testset "add object members directly to graph" begin
             graph = SpineInterface.empty_entity_group_graph()
             SpineInterface.add_entity_group_member!(graph, :group_entity, :member1)
@@ -546,6 +538,13 @@ function _test_add_parameter_definition()
             add_parameter_definition!(graph, :Class__, :Parameter, ParameterValue(2.3))
             vertex = graph[:Class__]
             @test vertex.parameter_defaults == Dict(:Parameter => ParameterValue(2.3))
+        end
+        @testset "default value is nothing by default" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :Class)
+            add_parameter_definition!(graph, :Class, :Parameter)
+            vertex = graph[:Class]
+            @test vertex.parameter_defaults == Dict(:Parameter => parameter_value(nothing))
         end
     end
 end
@@ -935,6 +934,39 @@ function _test_find_relationships_compact()
     end
 end
 
+function _test_delete_future_rophan_dependee_vertices()
+    @testset "delete_future_orphan_dependee_vertices!" begin
+        @testset "shared member is not deleted" begin
+            graph = SpineInterface.empty_entity_group_graph()
+            add_entity_group_member!(graph, :group1, :shared_member)
+            add_entity_group_member!(graph, :group1, :single_member1)
+            add_entity_group_member!(graph, :group2, :shared_member)
+            add_entity_group_member!(graph, :group2, :single_member2)
+            @test Graphs.nv(graph) == 5
+            SpineInterface.delete_future_orphan_dependee_vertices!(graph, :group1)
+            @test sort(collect(MetaGraphsNext.labels(graph))) == sort([:group1, :group2, :shared_member, :single_member2])
+            SpineInterface.delete_future_orphan_dependee_vertices!(graph, :group2)
+            @test sort(collect(MetaGraphsNext.labels(graph))) == sort([:group1, :group2, :shared_member])
+        end
+    end
+end
+
+function _test_delete_future_rophan_dependant_vertices()
+    @testset "delete_future_orphan_dependant_vertices!" begin
+        @testset "vertices with edges are not deleted" begin
+            graph = SpineInterface.empty_entity_group_graph()
+            add_entity_group_member!(graph, :small_group, :shared_member)
+            add_entity_group_member!(graph, :large_group, :shared_member)
+            add_entity_group_member!(graph, :large_group, :single_member)
+            @test Graphs.nv(graph) == 4
+            SpineInterface.delete_future_orphan_dependant_vertices!(graph, :shared_member)
+            @test sort(collect(MetaGraphsNext.labels(graph))) == sort([:large_group, :shared_member, :single_member])
+            SpineInterface.delete_future_orphan_dependant_vertices!(graph, :single_member)
+            @test sort(collect(MetaGraphsNext.labels(graph))) == sort([:large_group, :shared_member, :single_member])
+        end
+    end
+end
+
 function _test_class_for_object()
     @testset "class_for_object" begin
         graph = empty_entity_class_graph()
@@ -960,6 +992,58 @@ function _test_class_for_object()
         @test SpineInterface.class_for_object(graph, :R__R, :b, 2) == :B
         @test SpineInterface.class_for_object(graph, :R__R, :b, 3) == :B
         @test SpineInterface.class_for_object(graph, :R__R, :b, 4) == :B
+    end
+end
+
+function _test_remove_entity()
+    @testset "remove_entity!" begin
+        @testset "0D entity" begin
+            graph = SpineInterface.empty_entity_class_graph()
+            add_object_class!(graph, :Object)
+            add_parameter_definition!(graph, :Object, :X)
+            add_entity!(graph, :Object, :a)
+            add_parameter_value!(graph, :Object, :a, parameter_value(2.3), :a)
+            remove_entity!(graph, :Object, :a)
+            @test isempty(graph[:Object].entities)
+            @test isempty(graph[:Object].parameter_values)
+        end
+        @testset "0D group member" begin
+            graph = SpineInterface.empty_entity_class_graph()
+            add_object_class!(graph, :Object)
+            add_entity!(graph, :Object, :group)
+            add_entity!(graph, :Object, :member)
+            add_entity_group_member!(graph, :Object, :group, :member)
+            remove_entity!(graph, :Object, :member)
+            @test graph[:Object].entities == Set([:group])
+            @test Graphs.nv(graph[:Object].entity_group_graph) == 0
+        end
+        @testset "2D entity" begin
+            graph = SpineInterface.empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_entity!(graph, :A, :a)
+            add_relationship_class!(graph, :A__, :A)
+            add_parameter_definition!(graph, :A__, :X)
+            add_entity!(graph, :A__, :A => :a)
+            add_parameter_value!(graph, :A__, :X, parameter_value(2.3), :A => :a)
+            remove_entity!(graph, :A__, :A => :a)
+            vertex = graph[:A__]
+            @test isempty(vertex.entities)
+            @test Graphs.nv(vertex.relationship_graph) == 0
+            @test isempty(vertex.parameter_values)
+        end
+        @testset "superclass" begin
+            graph = SpineInterface.empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_entity!(graph, :A, :a)
+            add_object_class!(graph, :B)
+            add_entity!(graph, :B, :b)
+            add_superclass!(graph, :A_or_B, :A, :B)
+            remove_entity!(graph, :A_or_B, :a)
+            @test isempty(graph[:A].entities)
+            @test graph[:B].entities == Set([:b])
+            remove_entity!(graph, :A_or_B, :b)
+            @test isempty(graph[:B].entities)
+        end
     end
 end
 
@@ -1189,6 +1273,9 @@ end
     _test_find_relationships()
     _test_find_relationships_compact()
     _test_class_for_object()
+    _test_delete_future_rophan_dependee_vertices()
+    _test_delete_future_rophan_dependant_vertices()
+    _test_remove_entity()
     _test_has_relationship()
     _test_add_relationship()
     _test_relationship_atoms_iterator()

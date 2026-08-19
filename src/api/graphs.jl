@@ -502,7 +502,7 @@ function entity_group_members(entity_class_graph, class_label::Symbol, group_lab
 end
 
 """
-    add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value::ParameterValue)
+    add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value::ParameterValue = parameter_value(nothing))
 
 Add a parameter to entity class or replace an existing default value.
 
@@ -515,7 +515,7 @@ julia> add_object_class!(graph, :unit);
 julia> add_parameter_definition!(graph, :unit, :efficiency, parameter_value(0.5));
 ```
 """
-function add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value::ParameterValue)
+function add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value::ParameterValue = parameter_value(nothing))
     class_vertex = entity_class_graph[class_label]
     add_parameter_definition!(class_vertex, parameter_label, default_value)
 end
@@ -960,14 +960,56 @@ function class_for_object(entity_class_graph::MetaGraphsNext.MetaGraph, class::S
     error("no such dimension $entity at $dimension_i in relationship class")
 end
 
+function delete_future_orphan_dependee_vertices!(graph::MetaGraphsNext.MetaGraph, dependant_label)
+    for dependee_label in MetaGraphsNext.inneighbor_labels(graph, dependant_label)
+        if length(MetaGraphsNext.outneighbor_labels(graph, dependee_label)) == 1
+            delete!(graph, dependee_label)
+        end
+    end
+end
+
+function delete_future_orphan_dependant_vertices!(graph::MetaGraphsNext.MetaGraph, dependee_label)
+    for dependant_label in MetaGraphsNext.outneighbor_labels(graph, dependee_label)
+        if length(MetaGraphsNext.inneighbor_labels(graph, dependant_label)) == 1
+            delete!(graph, dependant_label)
+        end
+    end
+end
+
+"""
+    remove_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+
+Unsafely remove entity from entity class.
+
+This method does not check if the entity is used as an element in relationships.
+Removing such entities will leave the relationships in an invalid state.
+
+If class is superclass, the entity will be removed from the corresponding subclass.
+"""
+function remove_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+    remove_entity!(entity_class_graph[class], entity_or_atom, atoms...)
+end
 function remove_entity!(vertex::ObjectClassVertex, label::Symbol)
     delete!(vertex.entities, label)
+    if MetaGraphsNext.haskey(vertex.entity_group_graph, label)
+        delete_future_orphan_dependee_vertices!(vertex.entity_group_graph, label)
+        delete_future_orphan_dependant_vertices!(vertex.entity_group_graph, label)
+        delete!(vertex.entity_group_graph, label)
+    end
     delete!(vertex.parameter_values, label)
+end
+function remove_entity!(vertex::RelationshipClassVertex, first_atom::Atom, atoms::Atom...)
+    remove_entity!(vertex, relationship_label(vertex.relationship_graph, first_atom, atoms...))
 end
 function remove_entity!(vertex::RelationshipClassVertex, label::Symbol)
     delete!(vertex.entities, label)
+    delete_future_orphan_dependee_vertices!(vertex.relationship_graph, label)
     delete!(vertex.relationship_graph, label)
     delete!(vertex.parameter_values, label)
+end
+function remove_entity!(vertex::SuperclassVertex, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+    subclass_vertex = subclass_vertex_with_entity(vertex, entity_or_atom, atoms...)
+    remove_entity!(subclass_vertex, entity_or_atom, atoms...)
 end
 
 mutable struct RelationshipGraphData
@@ -1147,11 +1189,6 @@ function empty_entity_group_graph()
     )
 end
 
-function add_entity_group_member!(entity_group_graph::MetaGraphsNext.MetaGraph, group::Object, member::Object) # Update group memberships on the fly
-    !in(member, group.members) && push!(group.members, member) # Consider using `Set` for group memberships?
-    !in(group, member.groups) && push!(member.groups, group)
-    add_entity_group_member!(entity_group_graph, group.name, member.name)
-end
 function add_entity_group_member!(entity_group_graph::MetaGraphsNext.MetaGraph, group_entity::Symbol, member_entity::Symbol)
     entity_group_graph[group_entity] = nothing
     entity_group_graph[member_entity] = nothing

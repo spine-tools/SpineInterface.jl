@@ -763,6 +763,12 @@ function _timeout(val::TimeSeries, t_start, t_end, a, b)
     min(_next_index(val, a) - t_start, _next_index(val, b) + Millisecond(1) - t_end)
 end
 
+function add_entity_group_member!(entity_group_graph::MetaGraphsNext.MetaGraph, group::Object, member::Object)
+    !in(member, group.members) && push!(group.members, member)
+    !in(group, member.groups) && push!(member.groups, group)
+    add_entity_group_member!(entity_group_graph, group.name, member.name)
+end
+
 members(::Anything) = anything
 function members(objects)
     unique_members = Set{Object}()
