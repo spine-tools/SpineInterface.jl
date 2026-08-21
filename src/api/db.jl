@@ -628,6 +628,61 @@ function import_data(url, data::Dict{Symbol,T}, comment::String; upgrade=false) 
     end
 end
 
+function data_to_import(entity_class_graph::MetaGraphsNext.MetaGraph)
+    data = Dict{Symbol, Vector{Any}}()
+    entity_classes = Vector{Vector{Any}}()
+    superclasses = Vector{Vector{Any}}()
+    entities = Vector{Vector{Any}}()
+    parameter_definitions = Vector{Vector{Any}}()
+    parameter_values = Vector{Vector{Any}}()
+    for class in ClassesInDependencyOrder(entity_class_graph)
+        vertex = entity_class_graph[class]
+        if is_object_class(vertex)
+            push!(entity_classes, [class])
+            for entity in SpineInterface.entities(vertex)
+                push!(entities, [class, entity])
+                for (parameter_definition, value) in SpineInterface.parameter_values(vertex, entity)
+                    push!(parameter_values, [class, entity, parameter_definition, unparse_db_value(value)])
+                end
+            end
+        elseif is_relationship_class(vertex)
+            push!(entity_classes, [class, [Dimensions(entity_class_graph, class)...]])
+            for entity in vertex.entities
+                elements = [atom.second for atom in RelationshipAtoms(vertex.relationship_graph, entity)]
+                push!(entities, [class, elements])
+                for (parameter_definition, value) in SpineInterface.parameter_values(vertex, entity)
+                    push!(parameter_values, [class, elements, parameter_definition, unparse_db_value(value)])
+                end
+            end
+        else
+            push!(entity_classes, [class])
+            for subclass in subclasses(vertex)
+                push!(superclasses, [class, subclass])
+            end
+        end
+        for parameter_definition in parameters(vertex)
+            default = default_value(vertex, parameter_definition)
+            push!(parameter_definitions, [class, parameter_definition, unparse_db_value(default)])
+        end
+    end
+    if !isempty(entity_classes)
+        data[:entity_classes] = entity_classes
+    end
+    if !isempty(superclasses)
+        data[:superclasses] = superclasses
+    end
+    if !isempty(entities)
+        data[:entities] = entities
+    end
+    if !isempty(parameter_definitions)
+        data[:parameter_definitions] = parameter_definitions
+    end
+    if !isempty(parameter_values)
+        data[:parameter_values] = parameter_values
+    end
+    data
+end
+
 """
     export_data(url)
 

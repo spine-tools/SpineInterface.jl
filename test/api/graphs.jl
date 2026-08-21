@@ -110,6 +110,87 @@ function _test_class_labels()
     end
 end
 
+function _test_classes_in_dependency_order_iterator()
+    @testset "ClassesInDependencyOrder" begin
+        @testset "object classes come before relationship classes" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_relationship_class!(graph, :A__B, :A, :B)
+            dependants = Set([:A, :B])
+            iter = SpineInterface.ClassesInDependencyOrder(graph)
+            for label in Iterators.take(iter, 2)
+                @test label in dependants
+                delete!(dependants, label)
+            end
+            @test collect(Iterators.drop(iter, 2)) == [:A__B]
+        end
+        @testset "subclasses come before their superclasses" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_superclass!(graph, :super, :A, :B)
+            dependants = Set([:A, :B])
+            iter = SpineInterface.ClassesInDependencyOrder(graph)
+            for label in Iterators.take(iter, 2)
+                @test label in dependants
+                delete!(dependants, label)
+            end
+            @test collect(Iterators.drop(iter, 2)) == [:super]
+        end
+        @testset "multilevel hierarchy" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_object_class!(graph, :C)
+            add_superclass!(graph, :super, :A, :B)
+            add_relationship_class!(graph, :AB__AB, :super, :super)
+            add_relationship_class!(graph, :AB__AB__C, :AB__AB, :C)
+            dependees = Dict([:A => Set([:super, :AB__AB, :AB__AB__C]),
+                              :B => Set([:super, :AB__AB, :AB__AB__C]),
+                              :C => Set([:AB__AB__C]),
+                              :super => Set([:AB__AB, :AB__AB__C]),
+                              :AB__AB => Set([:AB__AB__C]),
+                              :AB__AB__C => Set()
+                              ])
+            classes = collect(SpineInterface.ClassesInDependencyOrder(graph))
+            for (i, label) in enumerate(classes)
+                expected = dependees[label]
+                for label in classes[i + 1: end]
+                    if label in expected
+                        delete!(expected, label)
+                    end
+                end
+                @test isempty(expected)
+            end
+        end
+    end
+end
+
+function _test_is_object_class()
+    @testset "is_object_class" begin
+        graph = empty_entity_class_graph()
+        add_object_class!(graph, :A)
+        add_relationship_class!(graph, :A__, :A)
+        add_superclass!(graph, :super, :A)
+        @test is_object_class(graph, :A)
+        @test !is_object_class(graph, :A__)
+        @test !is_object_class(graph, :super)
+    end
+end
+
+function _test_is_relationship_class()
+    @testset "is_relationship_class" begin
+        graph = empty_entity_class_graph()
+        add_object_class!(graph, :A)
+        add_relationship_class!(graph, :A__, :A)
+        add_superclass!(graph, :super, :A)
+        @test !is_relationship_class(graph, :A)
+        @test is_relationship_class(graph, :A__)
+        @test !is_relationship_class(graph, :super)
+    end
+end
+
 function _test_is_superclass()
     @testset "is_superclass" begin
         graph = empty_entity_class_graph()
@@ -1254,6 +1335,9 @@ end
     _test_add_relationship_class()
     _test_add_superclass()
     _test_class_labels()
+    _test_classes_in_dependency_order_iterator()
+    _test_is_object_class()
+    _test_is_relationship_class()
     _test_is_superclass()
     _test_is_subclass_of()
     _test_subclasses()

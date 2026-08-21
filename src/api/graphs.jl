@@ -120,12 +120,84 @@ function class_labels(entity_class_graph::MetaGraphsNext.MetaGraph)
     MetaGraphsNext.labels(entity_class_graph)
 end
 
+struct ClassesInDependencyOrder
+    entity_class_graph::MetaGraphsNext.MetaGraph
+end
+
+struct ClassesInDependencyOrderState
+    processed_labels::Set{Symbol}
+    non_processed_labels::Set{Symbol}
+    function ClassesInDependencyOrderState(iter::ClassesInDependencyOrder)
+        new(Set{Symbol}(), Set{Symbol}(class_labels(iter.entity_class_graph)))
+    end
+end
+
+function Base.length(iter::ClassesInDependencyOrder)
+    Graphs.nv(iter.entity_class_graph)
+end
+
+function Base.eltype(::Type{ClassesInDependencyOrder})
+    Symbol
+end
+
+function Base.iterate(iter::ClassesInDependencyOrder)
+    state = ClassesInDependencyOrderState(iter)
+    iterate(iter, state)
+end
+
+function Base.iterate(iter::ClassesInDependencyOrder, state::ClassesInDependencyOrderState)
+    if isempty(state.non_processed_labels)
+        return nothing
+    end
+    for label in state.non_processed_labels
+        if any(!in(label, state.processed_labels) for label in MetaGraphsNext.inneighbor_labels(iter.entity_class_graph, label))
+            continue
+        end
+        push!(state.processed_labels, pop!(state.non_processed_labels, label))
+        return label, state
+    end
+end
+
+"""
+    is_object_class(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
+
+Return true if the class identified by `label` is an object class.
+
+See also [`is_relationship_class`](@ref), [`is_superclass`](@ref).
+"""
+function is_object_class(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
+    return is_object_class(entity_class_graph[label])
+end
+function is_object_class(vertex)
+    false
+end
+function is_object_class(vertex::ObjectClassVertex)
+    true
+end
+
+"""
+    is_relationship_class(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
+
+Return true if the class identified by `label` is a relationship class.
+
+See also [`is_object_class`](@ref), [`is_superclass`](@ref).
+"""
+function is_relationship_class(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
+    return is_relationship_class(entity_class_graph[label])
+end
+function is_relationship_class(vertex)
+    false
+end
+function is_relationship_class(vertex::RelationshipClassVertex)
+    true
+end
+
 """
     is_superclass(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
 
 Return true if the class identified by `label` is superclass.
 
-See also [`is_subclass_of`](@ref).
+See also [`is_subclass_of`](@ref), [`is_object_class`](@ref), [`is_relationship_class`](@ref).
 """
 function is_superclass(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
     is_superclass(entity_class_graph[label])
@@ -512,6 +584,8 @@ end
 
 Add a parameter to entity class or replace an existing default value.
 
+See also [`parameters`](@ref).
+
 # Examples
 ```jldoctest
 julia> graph = empty_entity_class_graph();
@@ -527,6 +601,18 @@ function add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph,
 end
 function add_parameter_definition!(class_vertex, parameter_label::Symbol, default_value::ParameterValue)
     class_vertex.parameter_defaults[parameter_label] = default_value
+end
+
+"""
+    parameters(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol)
+
+Return an iterator to the parameter labels of a given entity class.
+"""
+function parameters(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol)
+    parameters(entity_class_graph[class])
+end
+function parameters(vertex::Union{ClassVertexWithEntities, SuperclassVertex})
+    keys(vertex.parameter_defaults)
 end
 
 """
@@ -1209,6 +1295,17 @@ function groups(entity_group_graph::MetaGraphsNext.MetaGraph, member_entity::Sym
     MetaGraphsNext.outneighbor_labels(entity_group_graph, member_entity)
 end
 
+function parameter_values(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+    parameter_values(entity_class_graph[class], entity_or_atom, atoms...)
+end
+function parameter_values(vertex::ClassVertexWithEntities, entity::Symbol)
+    pairs(vertex.parameter_values[entity])
+end
+function parameter_values(vertex::RelationshipClassVertex, first_atom::Atom, atoms::Atom...)
+    entity = relationship_label(vertex.relationship_graph, first_atom, atoms...)
+    parameter_values(vertex, entity)
+end
+
 """
     find_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
 
@@ -1275,7 +1372,10 @@ ParameterValue(5500.0)
 ```
 """
 function default_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol)
-    entity_class_graph[class].parameter_defaults[parameter_definition]
+    default_value(entity_class_graph[class], parameter_definition)
+end
+function default_value(vertex, parameter_definition::Symbol)
+    vertex.parameter_defaults[parameter_definition]
 end
 
 """

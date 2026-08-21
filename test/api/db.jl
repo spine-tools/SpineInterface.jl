@@ -93,6 +93,112 @@ function _test_build_entity_class_graph()
     end
 end
 
+function _test_data_to_import()
+    @testset "data_to_import" begin
+        @testset "0D entity class" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :Object)
+            data = data_to_import(graph)
+            @test data == Dict([:entity_classes => [[:Object]]])
+        end
+        @testset "2D entity class" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_relationship_class!(graph, :A__B, :A, :B)
+            data = data_to_import(graph)
+            @test length(data) == 1
+            classes = data[:entity_classes]
+            @test length(classes) == 3
+            @test sort(classes[1:2]) == sort([[:A], [:B]])
+            @test classes[3] == [:A__B, [:A, :B]]
+        end
+        @testset "superclass" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_superclass!(graph, :super, :A, :B)
+            data = data_to_import(graph)
+            @test length(data) == 2
+            classes = data[:entity_classes]
+            @test length(classes) == 3
+            @test sort(classes[1:2]) == sort([[:A], [:B]])
+            @test classes[3] == [:super]
+            superclasses = data[:superclasses]
+            @test sort(superclasses) == sort([[:super, :A], [:super, :B]])
+        end
+        @testset "parameter definitions" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :Object)
+            add_parameter_definition!(graph, :Object, :X)
+            add_parameter_definition!(graph, :Object, :Y, parameter_value(2.3))
+            data = data_to_import(graph)
+            @test length(data) == 2
+            @test data[:entity_classes] ==[[:Object]]
+            @test sort(data[:parameter_definitions]) == sort([[:Object, :X, unparse_db_value(parameter_value(nothing))], [:Object, :Y, unparse_db_value(parameter_value(2.3))]])
+        end
+        @testset "0D entity" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :Object)
+            add_entity!(graph, :Object, :thing)
+            data = data_to_import(graph)
+            @test data == Dict([:entity_classes => [[:Object]], :entities => [[:Object, :thing]]])
+        end
+        @testset "2D entity" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_relationship_class!(graph, :A__B, :A, :B)
+            add_entity!(graph, :A, :a)
+            add_entity!(graph, :B, :b)
+            add_entity!(graph, :A__B, :A => :a, :B => :b)
+            data = data_to_import(graph)
+            @test length(data) == 2
+            classes = data[:entity_classes]
+            @test length(classes) == 3
+            @test sort(data[:entity_classes][1:2]) == sort([[:A], [:B]])
+            @test data[:entity_classes][3] == [:A__B, [:A, :B]]
+            entities = data[:entities]
+            @test length(entities) == 3
+            @test sort(entities[1:2]) == sort([[:A, :a], [:B, :b]])
+            @test entities[3] == [:A__B, [:a, :b]]
+        end
+        @testset "0D parameter value" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :Object)
+            add_parameter_definition!(graph, :Object, :X)
+            add_entity!(graph, :Object, :thing)
+            add_parameter_value!(graph, :Object, :X, parameter_value(2.3), :thing)
+            data = data_to_import(graph)
+            @test data == Dict([:entity_classes => [[:Object]], :entities => [[:Object, :thing]], :parameter_definitions => [[:Object, :X, unparse_db_value(parameter_value(nothing))]], :parameter_values => [[:Object, :thing, :X, unparse_db_value(parameter_value(2.3))]]])
+        end
+        @testset "2D parameter value" begin
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :A)
+            add_object_class!(graph, :B)
+            add_relationship_class!(graph, :A__B, :A, :B)
+            add_parameter_definition!(graph, :A__B, :X)
+            add_entity!(graph, :A, :a)
+            add_entity!(graph, :B, :b)
+            add_entity!(graph, :A__B, :A => :a, :B => :b)
+            add_parameter_value!(graph, :A__B, :X, parameter_value(2.3), :A => :a, :B => :b)
+            data = data_to_import(graph)
+            @test length(data) == 4
+            classes = data[:entity_classes]
+            @test length(classes) == 3
+            @test sort(data[:entity_classes][1:2]) == sort([[:A], [:B]])
+            @test data[:entity_classes][3] == [:A__B, [:A, :B]]
+            @test data[:parameter_definitions] == [[:A__B, :X, unparse_db_value(parameter_value(nothing))]]
+            entities = data[:entities]
+            @test length(entities) == 3
+            @test sort(entities[1:2]) == sort([[:A, :a], [:B, :b]])
+            @test entities[3] == [:A__B, [:a, :b]]
+            @test data[:parameter_values] == [[:A__B, [:a, :b], :X, unparse_db_value(parameter_value(2.3))]]
+        end
+    end
+end
+
 @testset "db" begin
     _test_build_entity_class_graph()
+    _test_data_to_import()
 end

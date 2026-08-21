@@ -69,6 +69,7 @@ export classes
 export collect_indexed_values
 export collect_updates
 export contains
+export data_to_import
 export db_api
 export db_value
 export db_value_and_type
@@ -91,6 +92,8 @@ export import_data
 export indexed_values
 export indices
 export indices_as_tuples
+export is_object_class
+export is_relationship_class
 export is_subclass_of
 export is_superclass
 export iscontained
