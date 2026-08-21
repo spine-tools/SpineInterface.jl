@@ -39,7 +39,7 @@ function empty_entity_class_graph()
     MetaGraphsNext.MetaGraph(
         Graphs.DiGraph(),
         label_type=Symbol,
-        vertex_data_type=Union{ObjectClassVertex, RelationshipClassVertex, SuperclassVertex},
+        vertex_data_type=Union{ObjectClassVertex,RelationshipClassVertex,SuperclassVertex},
         edge_data_type=Vector{Int},
     )
 end
@@ -64,7 +64,11 @@ The graph is expected to already contain the dimension entity classes.
 
 See also [`add_object_class!`](@ref), [`add_superclass!`](@ref).
 """
-function add_relationship_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, dimensions::Symbol...)
+function add_relationship_class!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    dimensions::Symbol...,
+)
     atomic_dimension_choices = resolve_atomic_dimension_choices(entity_class_graph, dimensions...)
     entity_class_graph[class_label] = RelationshipClassVertex(atomic_dimension_choices)
     for (i, dimension) in enumerate(dimensions)
@@ -100,6 +104,7 @@ Return an iterator to all classes.
 The order in which the classes are returned by the iterator is unspecified.
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -150,7 +155,10 @@ function Base.iterate(iter::ClassesInDependencyOrder, state::ClassesInDependency
         return nothing
     end
     for label in state.non_processed_labels
-        if any(!in(label, state.processed_labels) for label in MetaGraphsNext.inneighbor_labels(iter.entity_class_graph, label))
+        if any(
+            !in(label, state.processed_labels) for
+            label in MetaGraphsNext.inneighbor_labels(iter.entity_class_graph, label)
+        )
             continue
         end
         push!(state.processed_labels, pop!(state.non_processed_labels, label))
@@ -217,7 +225,8 @@ Return true if class is a subclass of another class.
 See also [`is_superclass`](@ref).
 """
 function is_subclass_of(entity_class_graph::MetaGraphsNext.MetaGraph, subclass_label::Symbol, superclass_label::Symbol)
-    is_superclass(entity_class_graph, superclass_label) && MetaGraphsNext.haskey(entity_class_graph, subclass_label, superclass_label)
+    is_superclass(entity_class_graph, superclass_label) &&
+        MetaGraphsNext.haskey(entity_class_graph, subclass_label, superclass_label)
 end
 
 """
@@ -228,6 +237,7 @@ Return an iterator to subclasses of a superclass.
 The order in which the iterator returns the subclasses is unpecified.
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -307,13 +317,23 @@ function atomic_combinations!(combinations, ::MetaGraphsNext.MetaGraph, class_la
         push!(dimensions, class_label)
     end
 end
-function atomic_combinations!(combinations, entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, ::RelationshipClassVertex)
+function atomic_combinations!(
+    combinations,
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    ::RelationshipClassVertex,
+)
     for dimension_label in Dimensions(entity_class_graph, class_label)
         vertex = entity_class_graph[dimension_label]
         atomic_combinations!(combinations, entity_class_graph, dimension_label, vertex)
     end
 end
-function atomic_combinations!(combinations, entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, ::SuperclassVertex)
+function atomic_combinations!(
+    combinations,
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    ::SuperclassVertex,
+)
     new_combinations::Vector{Vector{Symbol}} = []
     for dimensions in combinations
         for subclass_label in MetaGraphsNext.inneighbor_labels(entity_class_graph, class_label)
@@ -348,22 +368,13 @@ end
 function append_atomic_dimension_choices!(dimension_choices, entity_class_graph, label, ::RelationshipClassVertex)
     append!(
         dimension_choices,
-        resolve_atomic_dimension_choices(
-            entity_class_graph,
-            Dimensions(entity_class_graph, label)...
-        )
+        resolve_atomic_dimension_choices(entity_class_graph, Dimensions(entity_class_graph, label)...),
     )
 end
 function append_atomic_dimension_choices!(dimension_choices, entity_class_graph, label, ::SuperclassVertex)
     dimension_stack = []
     for subclass_label in MetaGraphsNext.inneighbor_labels(entity_class_graph, label)
-        push!(
-            dimension_stack,
-            resolve_atomic_dimension_choices(
-                entity_class_graph,
-                subclass_label
-            )
-        )
+        push!(dimension_stack, resolve_atomic_dimension_choices(entity_class_graph, subclass_label))
     end
     subclass_dimensions = dimension_stack[1]
     for other_dimensions in dimension_stack[2:end]
@@ -395,7 +406,7 @@ function has_entity(vertex::RelationshipClassVertex, first_atom::Atom, atoms::At
     has_relationship(vertex.relationship_graph, first_atom, atoms...)
 end
 
-function subclass_vertex_with_entity(vertex::SuperclassVertex, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+function subclass_vertex_with_entity(vertex::SuperclassVertex, entity_or_atom::Union{Atom,Symbol}, atoms::Atom...)
     for subclass in subclasses(vertex)
         subclass_vertex = vertex.entity_class_graph[subclass]
         if is_superclass(subclass_vertex)
@@ -424,6 +435,7 @@ If the class is superclass, the iterator returns entities from all its subclasse
 The order of the entities returned by the iterator is unspecified.
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -460,7 +472,10 @@ function entities(vertex::RelationshipClassVertex)
     all_atom_tuples(vertex.relationship_graph, vertex.entities)
 end
 function entities(vertex::SuperclassVertex)
-    Iterators.flatten(entities(vertex.entity_class_graph[subclass]) for subclass in subclasses(vertex.entity_class_graph, vertex.class_label))
+    Iterators.flatten(
+        entities(vertex.entity_class_graph[subclass]) for
+        subclass in subclasses(vertex.entity_class_graph, vertex.class_label)
+    )
 end
 
 function finalize_add_entity!(class_vertex::ClassVertexWithEntities, entity_label::Symbol)
@@ -482,6 +497,7 @@ so the function returns an automatically generated label.
 Superclasses cannot have entities.
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -504,7 +520,12 @@ Symbol("1")
 function add_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_label::Symbol)
     add_entity!(entity_class_graph[class_label], entity_label)
 end
-function add_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, first_atom::Atom, atoms::Atom...)
+function add_entity!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    first_atom::Atom,
+    atoms::Atom...,
+)
     add_entity!(entity_class_graph[class_label], first_atom, atoms...)
 end
 function add_entity!(vertex::ObjectClassVertex, entity_label::Symbol)
@@ -525,6 +546,7 @@ The group and member entities must exist before the operation.
 Entity groups are currently available only for 0-dimensional entities.
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -543,7 +565,12 @@ julia> collect(entity_group_members(graph, :unit, :generators))
  :wind_plant
 ```
 """
-function add_entity_group_member!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, group_label::Symbol, member_label::Symbol)
+function add_entity_group_member!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    group_label::Symbol,
+    member_label::Symbol,
+)
     class_vertex = entity_class_graph[class_label]
     add_entity_group_member!(class_vertex.entity_group_graph, group_label, member_label)
 end
@@ -556,6 +583,7 @@ Return an iterator to the members of an entity group.
 The order in which the iterator returns the members is unspecified.
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -587,15 +615,22 @@ Add a parameter to entity class or replace an existing default value.
 See also [`parameters`](@ref).
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
 julia> add_object_class!(graph, :unit);
 
 julia> add_parameter_definition!(graph, :unit, :efficiency, parameter_value(0.5));
+
 ```
 """
-function add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value::ParameterValue = parameter_value(nothing))
+function add_parameter_definition!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    parameter_label::Symbol,
+    default_value::ParameterValue=parameter_value(nothing),
+)
     class_vertex = entity_class_graph[class_label]
     add_parameter_definition!(class_vertex, parameter_label, default_value)
 end
@@ -611,7 +646,7 @@ Return an iterator to the parameter labels of a given entity class.
 function parameters(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol)
     parameters(entity_class_graph[class])
 end
-function parameters(vertex::Union{ClassVertexWithEntities, SuperclassVertex})
+function parameters(vertex::Union{ClassVertexWithEntities,SuperclassVertex})
     keys(vertex.parameter_defaults)
 end
 
@@ -622,6 +657,7 @@ end
 Add a parameter value to entity or replace an existing value.
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -648,15 +684,33 @@ julia> add_parameter_value!(graph, :unit__node, :cost, parameter_value(23.0), :u
 ParameterValue(23.0)
 ```
 """
-function add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value::ParameterValue, entity_label::Symbol)
+function add_parameter_value!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    parameter_label::Symbol,
+    value::ParameterValue,
+    entity_label::Symbol,
+)
     add_parameter_value!(entity_class_graph[class_label], parameter_label, value, entity_label)
 end
-function add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value::ParameterValue, first_atom::Atom, atoms::Atom...)
+function add_parameter_value!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    parameter_label::Symbol,
+    value::ParameterValue,
+    first_atom::Atom,
+    atoms::Atom...,
+)
     class_vertex = entity_class_graph[class_label]
     entity_label = relationship_label(class_vertex.relationship_graph, first_atom, atoms...)
     add_parameter_value!(entity_class_graph[class_label], parameter_label, value, entity_label)
 end
-function add_parameter_value!(class_vertex::ClassVertexWithEntities, parameter_label::Symbol, value, entity_label::Symbol)
+function add_parameter_value!(
+    class_vertex::ClassVertexWithEntities,
+    parameter_label::Symbol,
+    value,
+    entity_label::Symbol,
+)
     class_vertex.parameter_values[entity_label][parameter_label] = value
 end
 
@@ -675,8 +729,8 @@ end
 
 mutable struct ConcreteSubclassLabelsState
     const subclass_iter
-    subclass_iter_state
-    previous_state::Union{ConcreteSubclassLabelsState, Nothing}
+    subclass_iter_state::Any
+    previous_state::Union{ConcreteSubclassLabelsState,Nothing}
 end
 
 function Base.iterate(iter::ConcreteSubclassLabels)
@@ -723,6 +777,7 @@ The order in which the iterator returns the entities is unspecified.
 See also [`find_relationships`](@ref), , [`find_relationships_compact`](@ref).
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -769,10 +824,10 @@ filtered by given entity selector and parameter filters.
 `entity_selector` must have as many elements as atomic dimensions in the class.
 Each selector corresponds to an atomic dimension and can be one of the following:
 
-- `anything`: any atom is accepted
-- `<class> => anything`: any atom in `<class>` is accepted
-- `<class> => <object>`: accept only the specified atom
-- tuple of atoms: accept only the specified atoms
+  - `anything`: any atom is accepted
+  - `<class> => anything`: any atom in `<class>` is accepted
+  - `<class> => <object>`: accept only the specified atom
+  - tuple of atoms: accept only the specified atoms
 
 The entities can be further filtered by `parameter_filters`.
 
@@ -781,6 +836,7 @@ The order in which the iterator returns the relationships is unspecified.
 See also [`find_objects`](@ref), [`find_relationships_compact`](@ref).
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -842,7 +898,12 @@ julia> sort(collect(Tuple.(find_relationships(graph, :node__unit, (:node => :wes
  (:node => :west, :unit => :coal)
 ```
 """
-function find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
+function find_relationships(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    entity_selector...;
+    parameter_filters...,
+)
     class_vertex = entity_class_graph[class_label]
     find_relationships(class_vertex, entity_selector...; parameter_filters...)
 end
@@ -855,12 +916,18 @@ function find_relationships(class_vertex::RelationshipClassVertex, entity_select
             return SelectedRelationships(relationship_graph, (), entity_selector)
         end
         relationship_iterator = MetaGraphsNext.outneighbor_labels(relationship_graph, fixed_point_atom)
-        relationship_labels = (label for label in relationship_iterator if first_compact_selector_i in relationship_graph[fixed_point_atom, label])
+        relationship_labels = (
+            label for label in relationship_iterator if
+            first_compact_selector_i in relationship_graph[fixed_point_atom, label]
+        )
     else
         relationship_labels = class_vertex.entities
     end
     if !isempty(parameter_filters)
-        relationship_labels = Iterators.filter(label -> value_filter_condition(class_vertex, label, parameter_filters), relationship_labels)
+        relationship_labels = Iterators.filter(
+            label -> value_filter_condition(class_vertex, label, parameter_filters),
+            relationship_labels,
+        )
     end
     if !all(selector === anything for selector in entity_selector)
         selection = SelectedRelationships(relationship_graph, relationship_labels, entity_selector)
@@ -896,7 +963,7 @@ function is_compact(selector::Atom)
 end
 
 struct CompactDimensions
-    atom_iter
+    atom_iter::Any
     compact_atomic_dimensions::Tuple{Vararg{Int}}
 end
 
@@ -910,7 +977,7 @@ end
 
 struct CompactDimensionState
     atom::Atom
-    atom_iter_state
+    atom_iter_state::Any
     atom_i::Int
     compact_dimension_i::Int
 end
@@ -932,16 +999,23 @@ function Base.iterate(iter::CompactDimensions, state)
                 next_state = nothing
             else
                 next_atom, next_atom_iter_state = result
-                next_state = CompactDimensionState(next_atom, next_atom_iter_state, current.atom_i + 1, current.compact_dimension_i)
+                next_state = CompactDimensionState(
+                    next_atom,
+                    next_atom_iter_state,
+                    current.atom_i + 1,
+                    current.compact_dimension_i,
+                )
             end
             return current.atom, next_state
         end
         if current.atom_i == length(iter.atom_iter)
             current = nothing
         else
-            next_compact_dimension_i = isnothing(compact_dimension) ? current.compact_dimension_i : current.compact_dimension_i + 1
+            next_compact_dimension_i =
+                isnothing(compact_dimension) ? current.compact_dimension_i : current.compact_dimension_i + 1
             next_atom, next_atom_iter_state = iterate(iter.atom_iter, current.atom_iter_state)
-            current = CompactDimensionState(next_atom, next_atom_iter_state, current.atom_i + 1, next_compact_dimension_i)
+            current =
+                CompactDimensionState(next_atom, next_atom_iter_state, current.atom_i + 1, next_compact_dimension_i)
         end
     end
     nothing
@@ -967,6 +1041,7 @@ are omitted in the returned iterator.
 See also [`find_objects`](@ref), [`find_relationships`](@ref).
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -1027,7 +1102,12 @@ julia> sort(collect(Tuple.(find_relationships_compact(graph, :node__unit, (:node
  (:node => :west,)
 ```
 """
-function find_relationships_compact(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
+function find_relationships_compact(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    entity_selector...;
+    parameter_filters...,
+)
     class_vertex = entity_class_graph[class_label]
     find_relationships_compact(class_vertex, entity_selector...; parameter_filters...)
 end
@@ -1078,7 +1158,12 @@ Removing such entities will leave the relationships in an invalid state.
 
 If class is superclass, the entity will be removed from the corresponding subclass.
 """
-function remove_entity!(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+function remove_entity!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class::Symbol,
+    entity_or_atom::Union{Atom,Symbol},
+    atoms::Atom...,
+)
     remove_entity!(entity_class_graph[class], entity_or_atom, atoms...)
 end
 function remove_entity!(vertex::ObjectClassVertex, label::Symbol)
@@ -1099,7 +1184,7 @@ function remove_entity!(vertex::RelationshipClassVertex, label::Symbol)
     delete!(vertex.relationship_graph, label)
     delete!(vertex.parameter_values, label)
 end
-function remove_entity!(vertex::SuperclassVertex, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+function remove_entity!(vertex::SuperclassVertex, entity_or_atom::Union{Atom,Symbol}, atoms::Atom...)
     subclass_vertex = subclass_vertex_with_entity(vertex, entity_or_atom, atoms...)
     remove_entity!(subclass_vertex, entity_or_atom, atoms...)
 end
@@ -1121,7 +1206,7 @@ end
 function empty_relationship_graph(atomic_dimensionality)
     MetaGraphsNext.MetaGraph(
         Graphs.DiGraph();
-        label_type=Union{Symbol, Atom},
+        label_type=Union{Symbol,Atom},
         vertex_data_type=Nothing,
         edge_data_type=Vector{Int},
         graph_data=RelationshipGraphData(atomic_dimensionality),
@@ -1229,8 +1314,8 @@ end
 
 struct SelectedRelationships
     relationship_graph::MetaGraphsNext.MetaGraph
-    relationship_label_iterator
-    entity_selector
+    relationship_label_iterator::Any
+    entity_selector::Any
 end
 
 function Base.eltype(::Type{SelectedRelationships})
@@ -1245,7 +1330,10 @@ function Base.iterate(iter::SelectedRelationships, current)
     while !isnothing(current)
         (current_label, label_iterator_state) = current
         current = iterate(iter.relationship_label_iterator, label_iterator_state)
-        if all(x -> atom_passes_selection(x...), zip(RelationshipAtoms(iter.relationship_graph, current_label), iter.entity_selector))
+        if all(
+            x -> atom_passes_selection(x...),
+            zip(RelationshipAtoms(iter.relationship_graph, current_label), iter.entity_selector),
+        )
             return RelationshipAtoms(iter.relationship_graph, current_label), current
         end
     end
@@ -1281,7 +1369,11 @@ function empty_entity_group_graph()
     )
 end
 
-function add_entity_group_member!(entity_group_graph::MetaGraphsNext.MetaGraph, group_entity::Symbol, member_entity::Symbol)
+function add_entity_group_member!(
+    entity_group_graph::MetaGraphsNext.MetaGraph,
+    group_entity::Symbol,
+    member_entity::Symbol,
+)
     entity_group_graph[group_entity] = nothing
     entity_group_graph[member_entity] = nothing
     entity_group_graph[member_entity, group_entity] = nothing
@@ -1295,7 +1387,12 @@ function groups(entity_group_graph::MetaGraphsNext.MetaGraph, member_entity::Sym
     MetaGraphsNext.outneighbor_labels(entity_group_graph, member_entity)
 end
 
-function parameter_values(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+function parameter_values(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class::Symbol,
+    entity_or_atom::Union{Atom,Symbol},
+    atoms::Atom...,
+)
     parameter_values(entity_class_graph[class], entity_or_atom, atoms...)
 end
 function parameter_values(vertex::ClassVertexWithEntities, entity::Symbol)
@@ -1316,6 +1413,7 @@ Returns `nothing` if the value is not defined for the entity.
 See also [`default_value`](@ref), [`value_or_default`](@ref).
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -1334,7 +1432,13 @@ julia> isnothing(find_value(graph, :unit, :undefined, :solar_pv))
 true
 ```
 """
-function find_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+function find_value(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class::Symbol,
+    parameter_definition::Symbol,
+    entity_or_atom::Union{Atom,Symbol},
+    atoms::Atom...,
+)
     find_value(entity_class_graph[class], parameter_definition, entity_or_atom, atoms...)
 end
 function find_value(vertex::ClassVertexWithEntities, parameter_definition::Symbol, entity::Symbol)
@@ -1347,7 +1451,12 @@ function find_value(vertex::RelationshipClassVertex, parameter_definition::Symbo
     end
     find_value(vertex, parameter_definition, entity_label)
 end
-function find_value(vertex::SuperclassVertex, parameter_definition::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+function find_value(
+    vertex::SuperclassVertex,
+    parameter_definition::Symbol,
+    entity_or_atom::Union{Atom,Symbol},
+    atoms::Atom...,
+)
     subclass_vertex = subclass_vertex_with_entity(vertex, entity_or_atom, atoms...)
     find_value(subclass_vertex, parameter_definition, entity_or_atom, atoms...)
 end
@@ -1360,6 +1469,7 @@ Returns the default value for a parameter definition in an entity class.
 See also [`find_value`](@ref), [`value_or_default`](@ref).
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -1387,6 +1497,7 @@ Return the value of a parameter for an entity, or the default value if not found
 See also [`find_value`](@ref), [`default_value`](@ref).
 
 # Examples
+
 ```jldoctest
 julia> graph = empty_entity_class_graph();
 
@@ -1407,10 +1518,21 @@ julia> value_or_default(graph, :unit, :size, :cheeseburger)
 ParameterValue(23.0)
 ```
 """
-function value_or_default(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity::Symbol)
+function value_or_default(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class::Symbol,
+    parameter_definition::Symbol,
+    entity::Symbol,
+)
     value_or_default(entity_class_graph[class], parameter_definition, entity)
 end
-function value_or_default(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, first_atom::Atom, atoms::Atom...)
+function value_or_default(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class::Symbol,
+    parameter_definition::Symbol,
+    first_atom::Atom,
+    atoms::Atom...,
+)
     vertex = entity_class_graph[class]
     entity_label = relationship_label(vertex.relationship_graph, first_atom, atoms...)
     value_or_default(vertex, parameter_definition, entity_label)

@@ -78,7 +78,12 @@ function _test_build_entity_class_graph()
             definition_data = [["Object", "attribute", nothing]]
             entity_data = [["Object", "a"]]
             value_data = [["Object", "a", "attribute", 2.3]]
-            data = Dict(["entity_classes" => class_data, "parameter_definitions" => definition_data, "entities" => entity_data, "parameter_values" => value_data])
+            data = Dict([
+                "entity_classes" => class_data,
+                "parameter_definitions" => definition_data,
+                "entities" => entity_data,
+                "parameter_values" => value_data,
+            ])
             graph = build_entity_class_graph(data)
             @test find_value(graph, :Object, :attribute, :a) == parameter_value(2.3)
         end
@@ -134,8 +139,11 @@ function _test_data_to_import()
             add_parameter_definition!(graph, :Object, :Y, parameter_value(2.3))
             data = data_to_import(graph)
             @test length(data) == 2
-            @test data[:entity_classes] ==[[:Object]]
-            @test sort(data[:parameter_definitions]) == sort([[:Object, :X, unparse_db_value(parameter_value(nothing))], [:Object, :Y, unparse_db_value(parameter_value(2.3))]])
+            @test data[:entity_classes] == [[:Object]]
+            @test sort(data[:parameter_definitions]) == sort([
+                [:Object, :X, unparse_db_value(parameter_value(nothing))],
+                [:Object, :Y, unparse_db_value(parameter_value(2.3))],
+            ])
         end
         @testset "0D entity" begin
             graph = empty_entity_class_graph()
@@ -170,7 +178,12 @@ function _test_data_to_import()
             add_entity!(graph, :Object, :thing)
             add_parameter_value!(graph, :Object, :X, parameter_value(2.3), :thing)
             data = data_to_import(graph)
-            @test data == Dict([:entity_classes => [[:Object]], :entities => [[:Object, :thing]], :parameter_definitions => [[:Object, :X, unparse_db_value(parameter_value(nothing))]], :parameter_values => [[:Object, :thing, :X, unparse_db_value(parameter_value(2.3))]]])
+            @test data == Dict([
+                :entity_classes => [[:Object]],
+                :entities => [[:Object, :thing]],
+                :parameter_definitions => [[:Object, :X, unparse_db_value(parameter_value(nothing))]],
+                :parameter_values => [[:Object, :thing, :X, unparse_db_value(parameter_value(2.3))]],
+            ])
         end
         @testset "2D parameter value" begin
             graph = empty_entity_class_graph()
