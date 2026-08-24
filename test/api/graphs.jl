@@ -610,7 +610,7 @@ function _test_add_parameter_definition()
         @testset "0D entity class" begin
             graph = empty_entity_class_graph()
             add_object_class!(graph, :Class)
-            add_parameter_definition!(graph, :Class, :Parameter, ParameterValue(2.3))
+            add_parameter_definition!(graph, :Class, :Parameter, 2.3)
             vertex = graph[:Class]
             @test vertex.parameter_defaults == Dict(:Parameter => ParameterValue(2.3))
         end
@@ -618,7 +618,7 @@ function _test_add_parameter_definition()
             graph = empty_entity_class_graph()
             add_object_class!(graph, :Class)
             add_relationship_class!(graph, :Class__, :Class)
-            add_parameter_definition!(graph, :Class__, :Parameter, ParameterValue(2.3))
+            add_parameter_definition!(graph, :Class__, :Parameter, 2.3)
             vertex = graph[:Class__]
             @test vertex.parameter_defaults == Dict(:Parameter => ParameterValue(2.3))
         end
@@ -637,9 +637,9 @@ function _test_add_parameter_value()
         @testset "0D entity class" begin
             graph = empty_entity_class_graph()
             add_object_class!(graph, :Class)
-            add_parameter_definition!(graph, :Class, :Parameter, ParameterValue(2.3))
+            add_parameter_definition!(graph, :Class, :Parameter, 2.3)
             add_entity!(graph, :Class, :Object)
-            add_parameter_value!(graph, :Class, :Parameter, ParameterValue(3.2), :Object)
+            add_parameter_value!(graph, :Class, :Parameter, 3.2, :Object)
             vertex = graph[:Class]
             @test vertex.parameter_values == Dict(:Object => Dict(:Parameter => ParameterValue(3.2)))
         end
@@ -648,9 +648,9 @@ function _test_add_parameter_value()
             add_object_class!(graph, :Class)
             add_entity!(graph, :Class, :Object)
             add_relationship_class!(graph, :Class__, :Class)
-            add_parameter_definition!(graph, :Class__, :Parameter, ParameterValue(2.3))
+            add_parameter_definition!(graph, :Class__, :Parameter, 2.3)
             relationship_label = add_entity!(graph, :Class__, :Class => :Object)
-            add_parameter_value!(graph, :Class__, :Parameter, ParameterValue(3.2), :Class => :Object)
+            add_parameter_value!(graph, :Class__, :Parameter, 3.2, :Class => :Object)
             vertex = graph[:Class__]
             @test vertex.parameter_values == Dict(relationship_label => Dict(:Parameter => ParameterValue(3.2)))
         end

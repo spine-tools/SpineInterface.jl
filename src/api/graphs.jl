@@ -608,7 +608,7 @@ function entity_group_members(entity_class_graph, class_label::Symbol, group_lab
 end
 
 """
-    add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value::ParameterValue = parameter_value(nothing))
+    add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value = nothing)
 
 Add a parameter to entity class or replace an existing default value.
 
@@ -621,7 +621,7 @@ julia> graph = empty_entity_class_graph();
 
 julia> add_object_class!(graph, :unit);
 
-julia> add_parameter_definition!(graph, :unit, :efficiency, parameter_value(0.5));
+julia> add_parameter_definition!(graph, :unit, :efficiency, 0.5);
 
 ```
 """
@@ -629,7 +629,15 @@ function add_parameter_definition!(
     entity_class_graph::MetaGraphsNext.MetaGraph,
     class_label::Symbol,
     parameter_label::Symbol,
-    default_value::ParameterValue=parameter_value(nothing),
+    default_value=nothing,
+)
+    add_parameter_definition!(entity_class_graph, class_label, parameter_label, parameter_value(default_value))
+end
+function add_parameter_definition!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    parameter_label::Symbol,
+    default_value::ParameterValue,
 )
     class_vertex = entity_class_graph[class_label]
     add_parameter_definition!(class_vertex, parameter_label, default_value)
@@ -651,8 +659,8 @@ function parameters(vertex::Union{ClassVertexWithEntities,SuperclassVertex})
 end
 
 """
-    add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value::ParameterValue, entity_label::Symbol)
-    add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value::ParameterValue, first_atom::Atom, atoms::Atom...)
+    add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, entity_label::Symbol)
+    add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, first_atom::Atom, atoms::Atom...)
 
 Add a parameter value to entity or replace an existing value.
 
@@ -667,7 +675,7 @@ julia> add_parameter_definition!(graph, :unit, :efficiency);
 
 julia> add_entity!(graph, :unit, :coal_chp);
 
-julia> add_parameter_value!(graph, :unit, :efficiency, parameter_value(0.9), :coal_chp)
+julia> add_parameter_value!(graph, :unit, :efficiency, 0.9, :coal_chp)
 ParameterValue(0.9)
 
 julia> add_object_class!(graph, :node);
@@ -680,10 +688,29 @@ julia> add_parameter_definition!(graph, :unit__node, :cost);
 
 julia> add_entity!(graph, :unit__node, :unit => :coal_chp, :node => :west);
 
-julia> add_parameter_value!(graph, :unit__node, :cost, parameter_value(23.0), :unit => :coal_chp, :node => :west)
+julia> add_parameter_value!(graph, :unit__node, :cost, 23.0, :unit => :coal_chp, :node => :west)
 ParameterValue(23.0)
 ```
 """
+function add_parameter_value!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    parameter_label::Symbol,
+    value,
+    entity_label::Symbol
+)
+    add_parameter_value!(entity_class_graph, class_label, parameter_label, parameter_value(value), entity_label)
+end
+function add_parameter_value!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    parameter_label::Symbol,
+    value,
+    first_atom::Atom,
+    atoms::Atom...,
+)
+    add_parameter_value!(entity_class_graph, class_label, parameter_label, parameter_value(value), first_atom, atoms...)
+end
 function add_parameter_value!(
     entity_class_graph::MetaGraphsNext.MetaGraph,
     class_label::Symbol,
@@ -703,7 +730,7 @@ function add_parameter_value!(
 )
     class_vertex = entity_class_graph[class_label]
     entity_label = relationship_label(class_vertex.relationship_graph, first_atom, atoms...)
-    add_parameter_value!(entity_class_graph[class_label], parameter_label, value, entity_label)
+    add_parameter_value!(class_vertex, parameter_label, value, entity_label)
 end
 function add_parameter_value!(
     class_vertex::ClassVertexWithEntities,
