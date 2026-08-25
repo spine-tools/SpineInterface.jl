@@ -697,7 +697,7 @@ function add_parameter_value!(
     class_label::Symbol,
     parameter_label::Symbol,
     value,
-    entity_label::Symbol
+    entity_label::Symbol,
 )
     add_parameter_value!(entity_class_graph, class_label, parameter_label, parameter_value(value), entity_label)
 end
@@ -1474,7 +1474,7 @@ end
 function find_value(vertex::RelationshipClassVertex, parameter_definition::Symbol, first_atom::Atom, atoms::Atom...)
     entity_label = relationship_label(vertex.relationship_graph, first_atom, atoms...)
     if isnothing(entity_label)
-        throw(KeyError("entity $(tuple([first_atom, atoms...])) not found"))
+        throw(KeyError(tuple([first_atom, atoms...])))
     end
     find_value(vertex, parameter_definition, entity_label)
 end
@@ -1562,6 +1562,9 @@ function value_or_default(
 )
     vertex = entity_class_graph[class]
     entity_label = relationship_label(vertex.relationship_graph, first_atom, atoms...)
+    if isnothing(entity_label)
+        throw(KeyError(tuple(first_atom, atoms...)))
+    end
     value_or_default(vertex, parameter_definition, entity_label)
 end
 function value_or_default(vertex::ClassVertexWithEntities, parameter_definition::Symbol, entity::Symbol)
@@ -1570,4 +1573,13 @@ function value_or_default(vertex::ClassVertexWithEntities, parameter_definition:
         return vertex.parameter_defaults[parameter_definition]
     end
     value
+end
+function value_or_default(
+    vertex::SuperclassVertex,
+    parameter_definition::Symbol,
+    entity_or_atom::Union{Atom,Symbol},
+    atoms::Atom...,
+)
+    subclass_vertex = subclass_vertex_with_entity(vertex, entity_or_atom, atoms...)
+    value_or_default(subclass_vertex, parameter_definition, entity_or_atom, atoms...)
 end
