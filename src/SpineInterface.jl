@@ -48,7 +48,6 @@ export add_object_parameter_defaults!
 export add_object!
 export add_objects!
 export add_parameter_definition!
-export add_parameter_value!
 export add_parameter_values!
 export add_relationship_class!
 export add_relationship_parameter_values!
@@ -124,6 +123,7 @@ export RelationshipLike
 export remove_entity!
 export roll!
 export run_request
+export set_parameter_value!
 export set_value_translator
 export start
 export startref

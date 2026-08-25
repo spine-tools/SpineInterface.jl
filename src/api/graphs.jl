@@ -659,10 +659,10 @@ function parameters(vertex::Union{ClassVertexWithEntities,SuperclassVertex})
 end
 
 """
-    add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, entity_label::Symbol)
-    add_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, first_atom::Atom, atoms::Atom...)
+    set_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, entity_label::Symbol)
+    set_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, first_atom::Atom, atoms::Atom...)
 
-Add a parameter value to entity or replace an existing value.
+Set a parameter value for entity.
 
 # Examples
 
@@ -675,7 +675,7 @@ julia> add_parameter_definition!(graph, :unit, :efficiency);
 
 julia> add_entity!(graph, :unit, :coal_chp);
 
-julia> add_parameter_value!(graph, :unit, :efficiency, 0.9, :coal_chp)
+julia> set_parameter_value!(graph, :unit, :efficiency, 0.9, :coal_chp)
 ParameterValue(0.9)
 
 julia> add_object_class!(graph, :node);
@@ -688,20 +688,20 @@ julia> add_parameter_definition!(graph, :unit__node, :cost);
 
 julia> add_entity!(graph, :unit__node, :unit => :coal_chp, :node => :west);
 
-julia> add_parameter_value!(graph, :unit__node, :cost, 23.0, :unit => :coal_chp, :node => :west)
+julia> set_parameter_value!(graph, :unit__node, :cost, 23.0, :unit => :coal_chp, :node => :west)
 ParameterValue(23.0)
 ```
 """
-function add_parameter_value!(
+function set_parameter_value!(
     entity_class_graph::MetaGraphsNext.MetaGraph,
     class_label::Symbol,
     parameter_label::Symbol,
     value,
     entity_label::Symbol,
 )
-    add_parameter_value!(entity_class_graph, class_label, parameter_label, parameter_value(value), entity_label)
+    set_parameter_value!(entity_class_graph, class_label, parameter_label, parameter_value(value), entity_label)
 end
-function add_parameter_value!(
+function set_parameter_value!(
     entity_class_graph::MetaGraphsNext.MetaGraph,
     class_label::Symbol,
     parameter_label::Symbol,
@@ -709,18 +709,18 @@ function add_parameter_value!(
     first_atom::Atom,
     atoms::Atom...,
 )
-    add_parameter_value!(entity_class_graph, class_label, parameter_label, parameter_value(value), first_atom, atoms...)
+    set_parameter_value!(entity_class_graph, class_label, parameter_label, parameter_value(value), first_atom, atoms...)
 end
-function add_parameter_value!(
+function set_parameter_value!(
     entity_class_graph::MetaGraphsNext.MetaGraph,
     class_label::Symbol,
     parameter_label::Symbol,
     value::ParameterValue,
     entity_label::Symbol,
 )
-    add_parameter_value!(entity_class_graph[class_label], parameter_label, value, entity_label)
+    set_parameter_value!(entity_class_graph[class_label], parameter_label, value, entity_label)
 end
-function add_parameter_value!(
+function set_parameter_value!(
     entity_class_graph::MetaGraphsNext.MetaGraph,
     class_label::Symbol,
     parameter_label::Symbol,
@@ -730,9 +730,9 @@ function add_parameter_value!(
 )
     class_vertex = entity_class_graph[class_label]
     entity_label = relationship_label(class_vertex.relationship_graph, first_atom, atoms...)
-    add_parameter_value!(class_vertex, parameter_label, value, entity_label)
+    set_parameter_value!(class_vertex, parameter_label, value, entity_label)
 end
-function add_parameter_value!(
+function set_parameter_value!(
     class_vertex::ClassVertexWithEntities,
     parameter_label::Symbol,
     value,
@@ -816,9 +816,9 @@ julia> add_entity!(graph, :unit, :coal);
 
 julia> add_entity!(graph, :unit, :coal_chp);
 
-julia> add_parameter_value!(graph, :unit, :size, parameter_value(2.0), :coal);
+julia> set_parameter_value!(graph, :unit, :size, parameter_value(2.0), :coal);
 
-julia> add_parameter_value!(graph, :unit, :size, parameter_value(3.0), :coal_chp);
+julia> set_parameter_value!(graph, :unit, :size, parameter_value(3.0), :coal_chp);
 
 julia> sort(collect(find_objects(graph, :unit)))
 2-element Vector{Symbol}:
@@ -885,19 +885,19 @@ julia> add_parameter_definition!(graph, :node__unit, :cost);
 
 julia> entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal);
 
-julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(5.0), entity);
+julia> set_parameter_value!(graph, :node__unit, :cost, parameter_value(5.0), entity);
 
 julia> entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal);
 
-julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(6.0), entity);
+julia> set_parameter_value!(graph, :node__unit, :cost, parameter_value(6.0), entity);
 
 julia> entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal_chp);
 
-julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(4.0), entity);
+julia> set_parameter_value!(graph, :node__unit, :cost, parameter_value(4.0), entity);
 
 julia> entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal_chp);
 
-julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(2.0), entity);
+julia> set_parameter_value!(graph, :node__unit, :cost, parameter_value(2.0), entity);
 
 julia> sort(collect(Tuple.(find_relationships(graph, :node__unit, anything, anything))))
 4-element Vector{Tuple{Pair{Symbol, Symbol}, Pair{Symbol, Symbol}}}:
@@ -1090,19 +1090,19 @@ julia> add_parameter_definition!(graph, :node__unit, :cost, parameter_value(noth
 
 julia> entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal);
 
-julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(5.0), entity);
+julia> set_parameter_value!(graph, :node__unit, :cost, parameter_value(5.0), entity);
 
 julia> entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal);
 
-julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(6.0), entity);
+julia> set_parameter_value!(graph, :node__unit, :cost, parameter_value(6.0), entity);
 
 julia> entity = add_entity!(graph, :node__unit, :node => :east, :unit => :coal_chp);
 
-julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(4.0), entity);
+julia> set_parameter_value!(graph, :node__unit, :cost, parameter_value(4.0), entity);
 
 julia> entity = add_entity!(graph, :node__unit, :node => :west, :unit => :coal_chp);
 
-julia> add_parameter_value!(graph, :node__unit, :cost, parameter_value(2.0), entity);
+julia> set_parameter_value!(graph, :node__unit, :cost, parameter_value(2.0), entity);
 
 julia> sort(collect(Tuple.(find_relationships_compact(graph, :node__unit, anything, anything))))
 4-element Vector{Tuple{Pair{Symbol, Symbol}, Pair{Symbol, Symbol}}}:
@@ -1450,7 +1450,7 @@ julia> add_parameter_definition!(graph, :unit, :mass);
 
 julia> add_entity!(graph, :unit, :solar_pv);
 
-julia> add_parameter_value!(graph, :unit, :mass, parameter_value(1023.0), :solar_pv);
+julia> set_parameter_value!(graph, :unit, :mass, parameter_value(1023.0), :solar_pv);
 
 julia> find_value(graph, :unit, :mass, :solar_pv)
 ParameterValue(1023.0)
@@ -1536,7 +1536,7 @@ julia> add_parameter_definition!(graph, :unit, :size, parameter_value(23.0));
 
 julia> add_entity!(graph, :unit, :cheeseburger);
 
-julia> add_parameter_value!(graph, :unit, :mass, parameter_value(3.2), :cheeseburger);
+julia> set_parameter_value!(graph, :unit, :mass, parameter_value(3.2), :cheeseburger);
 
 julia> value_or_default(graph, :unit, :mass, :cheeseburger)
 ParameterValue(3.2)

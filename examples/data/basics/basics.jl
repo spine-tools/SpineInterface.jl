@@ -30,15 +30,16 @@ collect(Tuple.(find_relationships_compact(data, :actor__film, anything, :film =>
 collect(collect(atoms) for atoms in find_relationships_compact(data, :actor__film, :actor => anything, :film => :Her))
 collect(Tuple.(find_relationships_compact(data, :actor__film, :actor => anything, :film => :Her)))
 
-add_parameter_definition!(data, :film, :release_year);
-add_parameter_value!(data, :film, :release_year, 2019, :Joker);
+add_parameter_definition!(data, :film, :release_year, "not given");
+set_parameter_value!(data, :film, :release_year, 2019, :Joker);
 add_parameter_definition!(data, :actor__film, :character_name);
-add_parameter_value!(data, :actor__film, :character_name, "Arthur", :actor => :Phoenix, :film => :Joker);
-add_parameter_value!(data, :actor__film, :character_name, "Theodore", :actor => :Phoenix, :film => :Her);
-add_parameter_value!(data, :actor__film, :character_name, "Samantha", :actor => :Johansson, :film => :Her);
+set_parameter_value!(data, :actor__film, :character_name, "Arthur", :actor => :Phoenix, :film => :Joker);
+set_parameter_value!(data, :actor__film, :character_name, "Theodore", :actor => :Phoenix, :film => :Her);
+set_parameter_value!(data, :actor__film, :character_name, "Samantha", :actor => :Johansson, :film => :Her);
 
 find_value(data, :film, :release_year, :Joker)
 isnothing(find_value(data, :film, :release_year, :Her))
+value_or_default(data, :film, :release_year, :Her)
 find_value(data, :actor__film, :character_name, :actor => :Phoenix, :film => :Joker)
 
 url = "sqlite:///$(@__DIR__)/example.sqlite";

@@ -176,7 +176,7 @@ function _test_data_to_import()
             add_object_class!(graph, :Object)
             add_parameter_definition!(graph, :Object, :X)
             add_entity!(graph, :Object, :thing)
-            add_parameter_value!(graph, :Object, :X, parameter_value(2.3), :thing)
+            set_parameter_value!(graph, :Object, :X, parameter_value(2.3), :thing)
             data = data_to_import(graph)
             @test data == Dict([
                 :entity_classes => [[:Object]],
@@ -194,7 +194,7 @@ function _test_data_to_import()
             add_entity!(graph, :A, :a)
             add_entity!(graph, :B, :b)
             add_entity!(graph, :A__B, :A => :a, :B => :b)
-            add_parameter_value!(graph, :A__B, :X, parameter_value(2.3), :A => :a, :B => :b)
+            set_parameter_value!(graph, :A__B, :X, parameter_value(2.3), :A => :a, :B => :b)
             data = data_to_import(graph)
             @test length(data) == 4
             classes = data[:entity_classes]

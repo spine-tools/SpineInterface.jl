@@ -160,18 +160,18 @@ Let's add some parameters to the dataset:
 ```julia
 julia> add_parameter_definition!(data, :film, :release_year);
 
-julia> add_parameter_value!(data, :film, :release_year, 2019, :Joker);
+julia> set_parameter_value!(data, :film, :release_year, 2019, :Joker);
 
 julia> add_parameter_definition!(data, :actor__film, :character_name);
 
-julia> add_parameter_value!(data, :actor__film, :character_name, "Arthur", :actor => :Phoenix, :film => :Joker);
+julia> set_parameter_value!(data, :actor__film, :character_name, "Arthur", :actor => :Phoenix, :film => :Joker);
 
-julia> add_parameter_value!(data, :actor__film, :character_name, "Theodore", :actor => :Phoenix, :film => :Her);
+julia> set_parameter_value!(data, :actor__film, :character_name, "Theodore", :actor => :Phoenix, :film => :Her);
 
-julia> add_parameter_value!(data, :actor__film, :character_name, "Samantha", :actor => :Johansson, :film => :Her);
+julia> set_parameter_value!(data, :actor__film, :character_name, "Samantha", :actor => :Johansson, :film => :Her);
 ```
 
-We can use `find_value` to access the parameters:
+We can use `find_value` and `value_or_default `to access the parameters:
 
 ```julia
 julia> find_value(data, :film, :release_year, :Joker)
@@ -180,9 +180,16 @@ ParameterValue(2019)
 julia> isnothing(find_value(data, :film, :release_year, :Her))
 true
 
+julia> value_or_default(data, :film, :release_year, :Her)
+ParameterValue(not given)
+
 julia> find_value(data, :actor__film, :character_name, :actor => :Phoenix, :film => :Joker)
 ParameterValue(Arthur)
 ```
+
+In the above, `find_value` returns `nothing` for the release year of Her because the value is not set.
+`value_or_default`, on the other hand, returns the default value
+that is set when the parameter is introduced by `add_parameter_definition!`.
 
 Finally, let's store the dataset to a Spine database, so it can be accessed later for example
 in [Spine Toolbox](https://github.com/spine-tools/Spine-Toolbox):

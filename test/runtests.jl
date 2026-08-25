@@ -53,17 +53,17 @@ function _temp_db_url()
 end
 
 @testset begin
-    # include("using_spinedb.jl")
-    # include("api.jl")
-    # include("api/db.jl")
+    include("using_spinedb.jl")
+    include("api.jl")
+    include("api/db.jl")
     include("api/graphs.jl")
-    # include("constructors.jl")
-    # include("base.jl")
-    # include("types.jl")
-    # include("util.jl")
-    # include("update_model.jl")
-    # @testset "examples" begin
-    #     include("../examples/tutorial_spine_database/tutorial_spine_database.jl")
-    #     include("../examples/tutorial_spineopt_database/tutorial_spineopt_database.jl")
-    # end
+    include("constructors.jl")
+    include("base.jl")
+    include("types.jl")
+    include("util.jl")
+    include("update_model.jl")
+    @testset "examples" begin
+        include("../examples/tutorial_spine_database/tutorial_spine_database.jl")
+        include("../examples/tutorial_spineopt_database/tutorial_spineopt_database.jl")
+    end
 end
