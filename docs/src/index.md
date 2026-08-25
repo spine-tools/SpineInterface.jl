@@ -11,7 +11,7 @@ with `import_data` you can populate a Spine database with that data for a system
 call `using_spinedb` in your module to generate the convenience functions,
 and then use those functions to build, e.g., an optimisation model for that system.
 This allows you to develop fully data-driven applications.
-One key example is the [`SpineOpt`](https://github.com/Spine-project/SpineOpt.jl) package,
+One key example is the [`SpineOpt`](https://github.com/spine-tools/SpineOpt.jl) package,
 which uses the above technique to generate and run energy system integration models.
 
 ## Compatibility
@@ -83,10 +83,11 @@ with `import_data` and `using_spinedb` being the key functions for interfacing a
 ## Tutorials
 
 To get started with SpineInterface you can take a look at the tutorials:
-+ 'Tutorial spine database' shows the basic functionality of SpineInterface for general spine databases
-+ 'Tutorial SpineOpt database' shows the more specific functionality for [SpineOpt](https://github.com/Spine-tools/SpineOpt.jl) databases
++ 'SpineInterface basics' shows basic functionality of SpineInterface
++ 'Classic interface basics' shows basic functionality with the classic interface
++ 'Classic interface with SpineOpt database' shows the more specific functionality for [SpineOpt](https://github.com/spine-tools/SpineOpt.jl) databases with the classic interface
 
-The files corresponding to these tutorials can be found in the examples folder of the github repository [SpineInterface](https://github.com/Spine-tools/SpineInterface.jl).
+The files corresponding to these tutorials can be found in the examples folder of the github repository [SpineInterface](https://github.com/spine-tools/SpineInterface.jl).
 
 
 ## Library outline

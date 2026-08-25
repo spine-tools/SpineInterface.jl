@@ -4,8 +4,9 @@ import MetaGraphsNext
 pages=[
     "Home" => "index.md",
     "Tutorials" => Any[
-        "Tutorial spine database" => joinpath("tutorials", "tutorial_spine_database.md"),
-        "Tutorial SpineOpt database" => joinpath("tutorials", "tutorial_spineopt_database.md")
+        "SpineInterface basics" => joinpath("tutorials", "basics.md"),
+        "Classic interface basics" => joinpath("tutorials", "tutorial_spine_database.md"),
+        "Classic interface with SpineOpt database" => joinpath("tutorials", "tutorial_spineopt_database.md")
     ],
     "Library" => "library.md"
 ]

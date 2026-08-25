@@ -1,4 +1,4 @@
-# Tutorial Spine database
+# Classic interface basics
 
 Once `SpineInterface` is installed, we can start using it in Julia scripts or consoles.
 
