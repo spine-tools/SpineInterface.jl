@@ -23,12 +23,14 @@ collect(collect(atoms) for atoms in find_relationships(data, :actor__film))
 collect(collect(atoms) for atoms in find_relationships(data, :actor__film, :actor => :Phoenix, anything))
 collect(collect(atoms) for atoms in find_relationships(data, :actor__film, anything, :film => :Her))
 collect(collect(atoms) for atoms in find_relationships(data, :actor__film, :actor => anything, :film => :Her))
+collect(collect(atoms) for atoms in find_relationships(data, :actor__film, (:actor => :Phoenix, :actor => :Johansson), :film => :Her))
 
 collect(Tuple.(find_relationships_compact(data, :actor__film)))
 collect(Tuple.(find_relationships_compact(data, :actor__film, :actor => :Phoenix, anything)))
 collect(Tuple.(find_relationships_compact(data, :actor__film, anything, :film => :Her)))
 collect(collect(atoms) for atoms in find_relationships_compact(data, :actor__film, :actor => anything, :film => :Her))
 collect(Tuple.(find_relationships_compact(data, :actor__film, :actor => anything, :film => :Her)))
+collect(Tuple.(find_relationships_compact(data, :actor__film, (:actor => :Phoenix, :actor => :Johansson), :film => :Her)))
 
 add_parameter_definition!(data, :film, :release_year, "not given");
 set_parameter_value!(data, :film, :release_year, 2019, :Joker);

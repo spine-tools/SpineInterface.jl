@@ -112,6 +112,11 @@ julia> collect(collect(atoms) for atoms in find_relationships(data, :actor__film
 2-element Vector{Vector{Pair{Symbol, Symbol}}}:
  [:actor => :Phoenix, :film => :Her]
  [:actor => :Johansson, :film => :Her]
+
+ julia> collect(collect(atoms) for atoms in find_relationships(data, :actor__film, (:actor => :Phoenix, :actor => :Johansson), :film => :Her))
+ 2-element Vector{Vector{Pair{Symbol, Symbol}}}:
+  [:actor => :Phoenix, :film => :Her]
+  [:actor => :Johansson, :film => :Her]
 ```
 
 The first thing to note in the code above is that `find_relationships` returns iterators.
@@ -124,8 +129,10 @@ where any of the dimensions of the relationship class are superclasses.
 This form forces `find_relationships` to find relationships with the specific class,
 and not consider other subclasses.
 
+Thirdly, we can use a tuple atoms to find relationships that contain the given atoms.
+
 There is an alternative to `find_relationships` that only returns dimensions that are set to `anything` in the call.
-It is called `find_relationships_compact`:
+It is called `find_relationships_compact` and works otherwise just like `find_relationships`:
 
 ```julia
 julia> collect(Tuple.(find_relationships_compact(data, :actor__film)))
@@ -150,6 +157,11 @@ julia> collect(collect(atoms) for atoms in find_relationships_compact(data, :act
  [:actor => :Johansson]
 
 julia> collect(Tuple.(find_relationships_compact(data, :actor__film, :actor => anything, :film => :Her)))
+2-element Vector{Tuple{Pair{Symbol, Symbol}}}:
+ (:actor => :Phoenix,)
+ (:actor => :Johansson,)
+
+julia> collect(Tuple.(find_relationships_compact(data, :actor__film, (:actor => :Phoenix, :actor => :Johansson), :film => :Her)))
 2-element Vector{Tuple{Pair{Symbol, Symbol}}}:
  (:actor => :Phoenix,)
  (:actor => :Johansson,)
