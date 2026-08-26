@@ -890,6 +890,22 @@ function _test_find_relationships()
             @test sort(collect(Tuple.(find_relationships(graph, :node__unit, :node => :west, anything; cost=2.0)))) ==
                   [(:node => :west, :unit => :coal_chp)]
         end
+        @testset "string value in parameter filter" begin
+            data = empty_entity_class_graph();
+            add_object_class!(data, :actor);
+            add_object_class!(data, :film);
+            add_entity!(data, :actor, :Phoenix);
+            add_entity!(data, :actor, :Johansson);
+            add_entity!(data, :film, :Her);
+            add_entity!(data, :film, :Joker);
+            add_relationship_class!(data, :actor__film, :actor, :film);
+            add_entity!(data, :actor__film, :actor => :Phoenix, :film => :Joker);
+            add_entity!(data, :actor__film, :actor => :Phoenix, :film => :Her);
+            add_entity!(data, :actor__film, :actor => :Johansson, :film => :Her);
+            add_parameter_definition!(data, :actor__film, :character_name);
+            set_parameter_value!(data, :actor__film, :character_name, "Theodore", :actor => :Phoenix, :film => :Her);
+            @test collect(Tuple.(find_relationships(data, :actor__film, (:actor => :Phoenix, :actor => :Johansson), anything; character_name=:Theodore))) == [(:actor => :Phoenix, :film => :Her)]
+        end
     end
 end
 
