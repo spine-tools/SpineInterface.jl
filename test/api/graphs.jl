@@ -25,6 +25,22 @@ function _test_empty_entity_class_graph()
     end
 end
 
+function _test_add_entity_class()
+    @testset "add_entity_class!" begin
+        graph = empty_entity_class_graph()
+        add_entity_class!(graph, :A)
+        @test Graphs.nv(graph) == 1
+        @test SpineInterface.is_object_class(graph, :A)
+        add_entity_class!(graph, :B)
+        @test Graphs.nv(graph) == 2
+        @test SpineInterface.is_object_class(graph, :B)
+        add_entity_class!(graph, :A__B, :A, :B)
+        @test Graphs.nv(graph) == 3
+        @test SpineInterface.is_relationship_class(graph, :A__B)
+        @test collect(SpineInterface.Dimensions(graph, :A__B)) == [:A, :B]
+    end
+end
+
 function _test_add_object_class()
     @testset "add_object_class!" begin
         @testset "normal use case" begin
@@ -1436,6 +1452,7 @@ end
 
 @testset "graphs" begin
     _test_empty_entity_class_graph()
+    _test_add_entity_class()
     _test_add_object_class()
     _test_add_relationship_class()
     _test_add_superclass()

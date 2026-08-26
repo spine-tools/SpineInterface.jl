@@ -45,11 +45,28 @@ function empty_entity_class_graph()
 end
 
 """
+    add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, [dimensions::Symbol...])
+
+Add an entity class to graph.
+
+If dimensions are omitted, adds an object class.
+Otherwise, adds a relationship class.
+
+See also [`add_object_class!`](@ref), [`add_relationship_class!`](@ref), [`add_superclass!`](@ref).
+"""
+function add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
+    add_object_class!(entity_class_graph, class_label)
+end
+function add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, first_dimension::Symbol, dimensions::Symbol...)
+    add_relationship_class!(entity_class_graph, class_label, first_dimension, dimensions...)
+end
+
+"""
     add_object_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
 
 Add a 0-dimensional entity class to graph.
 
-See also [`add_relationship_class!`](@ref), [`add_superclass!`](@ref).
+See also [`add_entity_class!`](@ref), [`add_relationship_class!`](@ref), [`add_superclass!`](@ref).
 """
 function add_object_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
     entity_class_graph[class_label] = ObjectClassVertex()
@@ -62,7 +79,7 @@ Add an n-dimensional entity class to graph.
 
 The graph is expected to already contain the dimension entity classes.
 
-See also [`add_object_class!`](@ref), [`add_superclass!`](@ref).
+See also [`add_entity_class!`](@ref), [`add_object_class!`](@ref), [`add_superclass!`](@ref).
 """
 function add_relationship_class!(
     entity_class_graph::MetaGraphsNext.MetaGraph,
@@ -87,7 +104,7 @@ Add a superclass to graph.
 
 The graph is expected to already contain the subclass entity classes.
 
-See also [`add_object_class!`](@ref), [`add_relationship_class!`](@ref).
+See also [`add_entity_class!`](@ref), [`add_object_class!`](@ref), [`add_relationship_class!`](@ref).
 """
 function add_superclass!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, subclasses::Symbol...)
     entity_class_graph[class_label] = SuperclassVertex(entity_class_graph, class_label)

@@ -21,14 +21,15 @@ entity classes, entities, parameter definitions and parameter values.
 Generally, it is not necessary know the details of the graph or even that `data` is a graph at all.
 SpineInterface offers high-level functions to work with the graph without this knowledge.
 However, if you want to dive into the details, you can use the low-level functions
-from the [MetaGraphsNext](https://juliagraphs.org/MetaGraphsNext.jl/stable/) library.
+from the [MetaGraphsNext](https://juliagraphs.org/MetaGraphsNext.jl/stable/)
+and [Graphs](https://juliagraphs.org/Graphs.jl/stable/) libraries.
 
 Let's add some data to our dataset:
 
 ```julia
-julia> add_object_class!(data, :actor);
+julia> add_entity_class!(data, :actor);
 
-julia> add_object_class!(data, :film);
+julia> add_entity_class!(data, :film);
 ```
 
 The above will add two object classes called "actor" and "film" to out dataset.
@@ -62,7 +63,7 @@ julia> collect(entities(data, :film))
 To make things more interesting, let's add relationships that record which actor has acted in which film:
 
 ```julia
-julia> add_relationship_class!(data, :actor__film, :actor, :film);
+julia> add_entity_class!(data, :actor__film, :actor, :film);
 
 julia> add_entity!(data, :actor__film, :actor => :Phoenix, :film => :Joker);
 

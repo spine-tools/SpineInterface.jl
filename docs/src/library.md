@@ -18,6 +18,7 @@ Depth = 3
 
 ```@docs
 empty_entity_class_graph()
+add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, [dimensions::Symbol...])
 add_object_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
 add_relationship_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, dimensions::Symbol...)
 add_superclass!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, subclasses::Symbol...)

@@ -41,6 +41,7 @@ include("api/time_slice.jl")
 include("api/tests.jl")
 
 export add_entity!
+export add_entity_class!
 export add_entity_group_member!
 export add_object_class!
 export add_object_parameter_values!

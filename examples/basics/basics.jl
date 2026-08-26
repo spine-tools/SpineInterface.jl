@@ -1,8 +1,8 @@
 using SpineInterface
 data = empty_entity_class_graph();
 
-add_object_class!(data, :actor);
-add_object_class!(data, :film);
+add_entity_class!(data, :actor);
+add_entity_class!(data, :film);
 
 add_entity!(data, :actor, :Phoenix);
 add_entity!(data, :actor, :Johansson);
@@ -12,7 +12,7 @@ add_entity!(data, :film, :Joker);
 collect(entities(data, :actor))
 collect(entities(data, :film))
 
-add_relationship_class!(data, :actor__film, :actor, :film);
+add_entity_class!(data, :actor__film, :actor, :film);
 add_entity!(data, :actor__film, :actor => :Phoenix, :film => :Joker);
 add_entity!(data, :actor__film, :actor => :Phoenix, :film => :Her);
 add_entity!(data, :actor__film, :actor => :Johansson, :film => :Her);
