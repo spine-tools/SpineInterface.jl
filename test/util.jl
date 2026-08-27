@@ -21,11 +21,12 @@
 @testset "object_class_to_dict" begin
     graph = empty_entity_class_graph()
     add_object_class!(graph, :cat)
+
     add_entity!(graph, :cat, :silvester)
     add_entity!(graph, :cat, :tom)
     add_parameter_definition!(graph, :cat, :age, parameter_value(9))
-    set_parameter_value!(graph, :cat, :age, parameter_value(1), :silvester)
-    set_parameter_value!(graph, :cat, :age, parameter_value(2), :tom)
+    set_parameter_value!(graph, :cat, :age, :silvester, parameter_value(1))
+    set_parameter_value!(graph, :cat, :age, :tom, parameter_value(2))
     cls = ObjectClass(:cat, graph)
     d_obs = SpineInterface._to_dict(cls)
     d_exp = Dict(
@@ -54,8 +55,8 @@ end
     add_entity!(graph, :cat__cat__dog, :cat => :silvester, :cat => :tom, :dog => :pluto)
     add_entity!(graph, :cat__cat__dog, :cat => :tom, :cat => :silvester, :dog => :pluto)
     add_parameter_definition!(graph, :cat__cat__dog, :aver_age, parameter_value(9))
-    set_parameter_value!(graph, :cat__cat__dog, :aver_age, parameter_value(1), :cat => :silvester, :cat => :tom, :dog => :pluto)
-    set_parameter_value!(graph, :cat__cat__dog, :aver_age, parameter_value(2), :cat => :tom, :cat => :silvester, :dog => :pluto)
+    set_parameter_value!(graph, :cat__cat__dog, :aver_age, :cat => :silvester, :cat => :tom, :dog => :pluto, parameter_value(1))
+    set_parameter_value!(graph, :cat__cat__dog, :aver_age, :cat => :tom, :cat => :silvester, :dog => :pluto, parameter_value(2))
     silvester = Object(:silvester)
     cls = RelationshipClass(:cat__cat__dog, graph, Dict([:cat => cat, :dog => dog]))
     d_obs = SpineInterface._to_dict(cls)

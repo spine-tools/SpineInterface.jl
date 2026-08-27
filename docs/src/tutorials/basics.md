@@ -171,17 +171,17 @@ julia> collect(Tuple.(find_relationships_compact(data, :actor__film, (:actor => 
 Let's add some parameters to the dataset:
 
 ```julia
-julia> add_parameter_definition!(data, :film, :release_year);
+julia> add_parameter_definition!(data, :film, :release_year, "not given");
 
-julia> set_parameter_value!(data, :film, :release_year, 2019, :Joker);
+julia> set_parameter_value!(data, :film, :release_year, :Joker, 2019);
 
 julia> add_parameter_definition!(data, :actor__film, :character_name);
 
-julia> set_parameter_value!(data, :actor__film, :character_name, "Arthur", :actor => :Phoenix, :film => :Joker);
+julia> set_parameter_value!(data, :actor__film, :character_name, :actor => :Phoenix, :film => :Joker, "Arthur");
 
-julia> set_parameter_value!(data, :actor__film, :character_name, "Theodore", :actor => :Phoenix, :film => :Her);
+julia> set_parameter_value!(data, :actor__film, :character_name, :actor => :Phoenix, :film => :Her, "Theodore");
 
-julia> set_parameter_value!(data, :actor__film, :character_name, "Samantha", :actor => :Johansson, :film => :Her);
+julia> set_parameter_value!(data, :actor__film, :character_name, :actor => :Johansson, :film => :Her, "Samantha");
 ```
 
 We can use `find_value` and `value_or_default `to access the parameters:

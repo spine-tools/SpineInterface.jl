@@ -45,7 +45,8 @@ function empty_entity_class_graph()
 end
 
 """
-    add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, [dimensions::Symbol...])
+    add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
+    add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, first_dimension::Symbol, dimensions::Symbol...)
 
 Add an entity class to graph.
 
@@ -676,8 +677,8 @@ function parameters(vertex::Union{ClassVertexWithEntities,SuperclassVertex})
 end
 
 """
-    set_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, entity_label::Symbol)
-    set_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, first_atom::Atom, atoms::Atom...)
+    set_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, entity::Symbol, value)
+    set_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, atoms::Atom..., value)
 
 Set a parameter value for entity.
 
@@ -692,7 +693,7 @@ julia> add_parameter_definition!(graph, :unit, :efficiency);
 
 julia> add_entity!(graph, :unit, :coal_chp);
 
-julia> set_parameter_value!(graph, :unit, :efficiency, 0.9, :coal_chp)
+julia> set_parameter_value!(graph, :unit, :efficiency, :coal_chp, 0.9)
 ParameterValue(0.9)
 
 julia> add_object_class!(graph, :node);
@@ -705,7 +706,7 @@ julia> add_parameter_definition!(graph, :unit__node, :cost);
 
 julia> add_entity!(graph, :unit__node, :unit => :coal_chp, :node => :west);
 
-julia> set_parameter_value!(graph, :unit__node, :cost, 23.0, :unit => :coal_chp, :node => :west)
+julia> set_parameter_value!(graph, :unit__node, :cost, :unit => :coal_chp, :node => :west, 23.0)
 ParameterValue(23.0)
 ```
 """
@@ -713,46 +714,24 @@ function set_parameter_value!(
     entity_class_graph::MetaGraphsNext.MetaGraph,
     class_label::Symbol,
     parameter_label::Symbol,
-    value,
-    entity_label::Symbol,
+    args...
 )
-    set_parameter_value!(entity_class_graph, class_label, parameter_label, parameter_value(value), entity_label)
+    set_parameter_value!(entity_class_graph[class_label], parameter_label, parameter_value(args[end]), args[1:end-1]...)
 end
 function set_parameter_value!(
-    entity_class_graph::MetaGraphsNext.MetaGraph,
-    class_label::Symbol,
-    parameter_label::Symbol,
-    value,
-    first_atom::Atom,
-    atoms::Atom...,
-)
-    set_parameter_value!(entity_class_graph, class_label, parameter_label, parameter_value(value), first_atom, atoms...)
-end
-function set_parameter_value!(
-    entity_class_graph::MetaGraphsNext.MetaGraph,
-    class_label::Symbol,
-    parameter_label::Symbol,
-    value::ParameterValue,
-    entity_label::Symbol,
-)
-    set_parameter_value!(entity_class_graph[class_label], parameter_label, value, entity_label)
-end
-function set_parameter_value!(
-    entity_class_graph::MetaGraphsNext.MetaGraph,
-    class_label::Symbol,
+    class_vertex::RelationshipClassVertex,
     parameter_label::Symbol,
     value::ParameterValue,
     first_atom::Atom,
     atoms::Atom...,
 )
-    class_vertex = entity_class_graph[class_label]
     entity_label = relationship_label(class_vertex.relationship_graph, first_atom, atoms...)
     set_parameter_value!(class_vertex, parameter_label, value, entity_label)
 end
 function set_parameter_value!(
     class_vertex::ClassVertexWithEntities,
     parameter_label::Symbol,
-    value,
+    value::ParameterValue,
     entity_label::Symbol,
 )
     class_vertex.parameter_values[entity_label][parameter_label] = value

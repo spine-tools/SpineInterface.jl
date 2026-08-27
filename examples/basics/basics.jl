@@ -33,11 +33,11 @@ collect(Tuple.(find_relationships_compact(data, :actor__film, :actor => anything
 collect(Tuple.(find_relationships_compact(data, :actor__film, (:actor => :Phoenix, :actor => :Johansson), :film => :Her)))
 
 add_parameter_definition!(data, :film, :release_year, "not given");
-set_parameter_value!(data, :film, :release_year, 2019, :Joker);
+set_parameter_value!(data, :film, :release_year, :Joker, 2019);
 add_parameter_definition!(data, :actor__film, :character_name);
-set_parameter_value!(data, :actor__film, :character_name, "Arthur", :actor => :Phoenix, :film => :Joker);
-set_parameter_value!(data, :actor__film, :character_name, "Theodore", :actor => :Phoenix, :film => :Her);
-set_parameter_value!(data, :actor__film, :character_name, "Samantha", :actor => :Johansson, :film => :Her);
+set_parameter_value!(data, :actor__film, :character_name, :actor => :Phoenix, :film => :Joker, "Arthur");
+set_parameter_value!(data, :actor__film, :character_name, :actor => :Phoenix, :film => :Her, "Theodore");
+set_parameter_value!(data, :actor__film, :character_name, :actor => :Johansson, :film => :Her, "Samantha");
 
 find_value(data, :film, :release_year, :Joker)
 isnothing(find_value(data, :film, :release_year, :Her))

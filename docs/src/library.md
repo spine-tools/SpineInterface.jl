@@ -18,7 +18,7 @@ Depth = 3
 
 ```@docs
 empty_entity_class_graph()
-add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, [dimensions::Symbol...])
+add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
 add_object_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
 add_relationship_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, dimensions::Symbol...)
 add_superclass!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, subclasses::Symbol...)
@@ -34,7 +34,7 @@ add_entity_group_member!(entity_class_graph::MetaGraphsNext.MetaGraph, class_lab
 entity_group_members(entity_class_graph, class_label::Symbol, group_label::Symbol)
 add_parameter_definition!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, default_value = nothing)
 parameters(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol)
-set_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, value, entity_label::Symbol)
+set_parameter_value!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, parameter_label::Symbol, entity::Symbol, value)
 find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol; parameter_filters...)
 find_relationships(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)
 find_relationships_compact(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, entity_selector...; parameter_filters...)

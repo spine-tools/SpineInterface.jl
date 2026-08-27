@@ -52,8 +52,8 @@
     add_parameter_definition!(graph, :studio__duck, :color, parameter_value(nothing))
     add_parameter_definition!(graph, :studio__duck, :uses_pants, parameter_value(nothing))
     for (s, d, c, up) in zip(studios, ducks, color_vals, uses_pants_vals)
-        set_parameter_value!(graph, :studio__duck, :color, parameter_value(c), :studio => s.name, :duck => d.name)
-        set_parameter_value!(graph, :studio__duck, :uses_pants, parameter_value(up), :studio =>s.name, :duck => d.name)
+        set_parameter_value!(graph, :studio__duck, :color, :studio => s.name, :duck => d.name, parameter_value(c))
+        set_parameter_value!(graph, :studio__duck, :uses_pants, :studio =>s.name, :duck => d.name, parameter_value(up))
     end
     color = Parameter(:color, graph, [studio__duck])
     uses_pants = Parameter(:uses_pants, graph, [studio__duck])
