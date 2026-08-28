@@ -338,6 +338,13 @@ function is_legacy_selector_compatible(legacy_selector, vertex::RelationshipClas
     true
 end
 
+function call_subclass(class::ObjectClass; _compact, _default, kwargs...)
+    class(;kwargs...)
+end
+function call_subclass(class::RelationshipClass; kwargs...)
+    class(;kwargs...)
+end
+
 function (superclass::Superclass)(; _compact::Bool=true, _default::Any=EntityLike[], kwargs...)
     entities = []
     for subclass_label in ConcreteSubclassLabels(superclass.entity_class_graph, superclass.name)
@@ -345,7 +352,7 @@ function (superclass::Superclass)(; _compact::Bool=true, _default::Any=EntityLik
         if !isempty(kwargs) && !is_legacy_selector_compatible(kwargs, subclass_vertex)
             continue
         end
-        append!(entities, get_concrete_class(superclass, subclass_label)(; _compact=_compact, _default=_default, kwargs...))
+        append!(entities, call_subclass(get_concrete_class(superclass, subclass_label); _compact=_compact, _default=_default, kwargs...))
     end
     entities
 end
@@ -478,6 +485,38 @@ function unique_value_instance(parameter_name, classes, _default, kwargs)
     instance, instance_kwargs
 end
 
+function is_suspect_to_misorder(classes; parameter_kwargs...)
+    any(is_suspect_to_misorder(class; parameter_kwargs...) for class in classes)
+end
+function is_suspect_to_misorder(::ObjectClass; parameter_kwargs...)
+    false
+end
+function is_suspect_to_misorder(class::RelationshipClass; parameter_kwargs...)
+    if atomic_dimensionality(class.vertex) == 1
+        return false
+    end
+    for (i, key) in enumerate(keys(parameter_kwargs))
+        key_found = false
+        matched = false
+        match = isequal(key)
+        for combinations in class.dimension_combinations
+            j = findfirst(match, combinations)
+            if isnothing(j)
+                continue
+            end
+            key_found = true
+            if i == j
+                matched = true
+                break
+            end
+        end
+        if key_found && !matched
+            return true
+        end
+    end
+    false
+end
+
 """
     (<p>::Parameter)(classes=classes(p);<keyword arguments>)
 
@@ -528,7 +567,9 @@ function (p::Parameter)(classes::Vector{<:EntityClass}=classes(p); _strict=true,
     if !isnothing(value)
         value
     else
-        if _strict
+        if is_suspect_to_misorder(classes; kwargs...)
+            @warn("can't find a value of $p for arguments $((; kwargs...)); check the order of arguments")
+        elseif _strict
             @warn("can't find a value of $p for argument(s) $((; kwargs...))")
         end
         _default
@@ -1299,5 +1340,50 @@ function with_env(f::Function, env::Symbol)
         return f()
     finally
         _activate_env(prev_env)
+    end
+end
+
+function make_bindings!(mod, entity_class_graph::MetaGraphsNext.MetaGraph)
+    existing_object_classes = _getproperty!(mod, :_spine_object_classes, Dict{Symbol,ObjectClass}())
+    existing_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict{Symbol,RelationshipClass}())
+    existing_superclasses = _getproperty!(mod, :_spine_superclasses, Dict{Symbol, Superclass}())
+    object_classes = Dict{Symbol, ObjectClass}()
+    relationship_classes = Dict{Symbol, RelationshipClass}()
+    parameters = Dict{Symbol, Vector{EntityClass}}()
+    for class_label in class_labels(entity_class_graph)
+        vertex = entity_class_graph[class_label]
+        if is_object_class(vertex)
+            objects = Dict{Symbol, Object}()
+            for entity_label in entities(vertex)
+                objects[entity_label] = Object(entity_label, class_label, [], [])
+            end
+            for group_label in group_entities(vertex)
+                group_object = objects[group_label]
+                for member_label in entity_group_members(vertex, group_label)
+                    member_object = objects[member_label]
+                    push!(group_object.members, member_object)
+                    push!(member_object.groups, group_object)
+                end
+            end
+            class = ObjectClass(class_label, entity_class_graph, objects)
+            object_classes[class_label] = class
+            _add_binding!(mod, existing_object_classes, class.name, class, false)
+        elseif is_relationship_class(vertex)
+            class = RelationshipClass(class_label, entity_class_graph, object_classes)
+            relationship_classes[class_label] = class
+            _add_binding!(mod, existing_relationship_classes, class.name, class, false)
+        else
+           class = Superclass(class_label, entity_class_graph, object_classes, relationship_classes)
+            _add_binding!(mod, existing_superclasses, class.name, class, false)
+        end
+        for parameter_label in keys(vertex.parameter_defaults)
+            parameter_classes = get!(parameters, parameter_label, [])
+            push!(parameter_classes, class)
+        end
+    end
+    existing_parameters = _getproperty!(mod, :_spine_parameters, Dict{Symbol,Parameter}())
+    for (parameter_label, parameter_classes) in parameters
+        parameter = Parameter(parameter_label, entity_class_graph, parameter_classes)
+        _add_binding!(mod, existing_parameters, parameter_label, parameter, false)
     end
 end

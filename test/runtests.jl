@@ -55,6 +55,7 @@ end
 @testset begin
     include("using_spinedb.jl")
     include("api.jl")
+    include("api/core.jl")
     include("api/db.jl")
     include("api/graphs.jl")
     include("constructors.jl")

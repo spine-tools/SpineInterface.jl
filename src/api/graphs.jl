@@ -594,11 +594,29 @@ function add_entity_group_member!(
 end
 
 """
-    entity_group_members(entity_class_graph, class_label::Symbol, group_label::Symbol)
+    group_entities(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol)
+
+Return an iterator to group entities.
+
+The order in which the iterator returns the members is unspecified.
+
+See also [`entity_group_members`](@ref).
+"""
+function group_entities(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol)
+    group_entities(entity_class_graph[class])
+end
+function group_entities(vertex::ObjectClassVertex)
+    GroupEntities(vertex.entity_group_graph)
+end
+
+"""
+    entity_group_members(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, group_label::Symbol)
 
 Return an iterator to the members of an entity group.
 
 The order in which the iterator returns the members is unspecified.
+
+See also [`group_entities`](@ref).
 
 # Examples
 
@@ -620,9 +638,11 @@ julia> collect(entity_group_members(graph, :unit, :generators))
  :wind_plant
 ```
 """
-function entity_group_members(entity_class_graph, class_label::Symbol, group_label::Symbol)
-    class_vertex = entity_class_graph[class_label]
-    members(class_vertex.entity_group_graph, group_label)
+function entity_group_members(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, group_label::Symbol)
+    entity_group_members(entity_class_graph[class_label], group_label)
+end
+function entity_group_members(vertex::ObjectClassVertex, group_label::Symbol)
+    members(vertex.entity_group_graph, group_label)
 end
 
 """
@@ -1400,6 +1420,54 @@ function add_entity_group_member!(
     entity_group_graph[group_entity] = nothing
     entity_group_graph[member_entity] = nothing
     entity_group_graph[member_entity, group_entity] = nothing
+end
+
+struct GroupEntities
+    entity_group_graph::MetaGraphsNext.MetaGraph
+    vertex_iterator
+    function GroupEntities(entity_group_graph)
+        new(entity_group_graph, MetaGraphsNext.labels(entity_group_graph))
+    end
+end
+
+function Base.IteratorSize(::Type{GroupEntities})
+    Base.SizeUnknown()
+end
+
+function Base.eltype(::Type{GroupEntities})
+    Symbol
+end
+
+function Base.iterate(iter::GroupEntities)
+    current = iterate(iter.vertex_iterator)
+    if !isnothing(current)
+        next_label, next_state = current
+        if is_group_entity(iter.entity_group_graph, next_label)
+            return next_label, next_state
+        end
+        return iterate(iter, next_state)
+    end
+end
+
+function Base.iterate(iter::GroupEntities, state)
+    current = iterate(iter.vertex_iterator, state)
+    while !isnothing(current)
+        next_label, next_state = current
+        if is_group_entity(iter.entity_group_graph, next_label)
+            return next_label, next_state
+        end
+        current = iterate(iter.vertex_iterator, next_state)
+    end
+end
+
+function is_group_entity(entity_group_graph::MetaGraphsNext.MetaGraph, entity::Symbol)
+    member = try
+        member = Iterators.peel(MetaGraphsNext.inneighbor_labels(entity_group_graph, entity))
+    catch
+        # peel() throws when iterator is empty in Julia < 1.7
+        nothing
+    end
+    !isnothing(member)
 end
 
 function members(entity_group_graph::MetaGraphsNext.MetaGraph, group_entity::Symbol)

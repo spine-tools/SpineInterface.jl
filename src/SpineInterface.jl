@@ -87,6 +87,7 @@ export find_relationships
 export find_relationships_compact
 export find_value
 export fixer
+export group_entities
 export groups
 export import_data
 export indexed_values

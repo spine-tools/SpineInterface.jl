@@ -1450,6 +1450,27 @@ function _test_value_or_default()
     end
 end
 
+function _test_is_group_entity()
+    @testset "is_group_entity" begin
+        graph = SpineInterface.empty_entity_group_graph()
+        add_entity_group_member!(graph, :group, :member)
+        @test SpineInterface.is_group_entity(graph, :group)
+        @test !SpineInterface.is_group_entity(graph, :member)
+    end
+end
+
+function _test_group_entities_iterator()
+    @testset "GroupEntities" begin
+        graph = SpineInterface.empty_entity_group_graph()
+        @test collect(SpineInterface.GroupEntities(graph)) == []
+        add_entity_group_member!(graph, :group1, :member1)
+        add_entity_group_member!(graph, :group1, :member2)
+        add_entity_group_member!(graph, :group2, :member2)
+        add_entity_group_member!(graph, :group2, :member3)
+        @test sort(collect(SpineInterface.GroupEntities(graph))) == sort([:group1, :group2])
+    end
+end
+
 @testset "graphs" begin
     _test_empty_entity_class_graph()
     _test_add_entity_class()
@@ -1493,4 +1514,6 @@ end
     _test_default_value()
     _test_find_value()
     _test_value_or_default()
+    _test_is_group_entity()
+    _test_group_entities_iterator()
 end

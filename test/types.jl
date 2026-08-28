@@ -76,6 +76,18 @@ function _test_relationship_class_construction()
             @test env_dict.intact_dimension_combinations == [[:bondable, :bondable]]
             @test env_dict.dimension_combinations == [[:bondable1, :bondable2]]
         end
+        @testset "0D superclasses as dimensions" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_entity_class!(graph, :B)
+            add_superclass!(graph, :Any, :A, :B)
+            add_entity_class!(graph, :Any__Any, :Any, :Any)
+            object_classes = Dict([:A => ObjectClass(:A, graph), :B => ObjectClass(:B, graph)])
+            relationship_class = SpineInterface.RelationshipClass(:Any__Any, graph, object_classes)
+            env_dict = relationship_class.env_dict[SpineInterface._active_env()]
+            @test env_dict.intact_dimension_combinations == [[:A, :A], [:A, :B], [:B, :A], [:B, :B]]
+            @test env_dict.dimension_combinations == [[:A1, :A2], [:A, :B], [:B, :A], [:B1, :B2]]
+        end
     end
 end
 
