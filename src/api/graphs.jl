@@ -417,11 +417,22 @@ function atomic_dimensionality(vertex::SuperclassVertex)
     atomic_dimensionality(vertex.entity_class_graph[subclass_label])
 end
 
+function has_entity(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+    has_entity(entity_class_graph[class], entity_or_atom, atoms...)
+end
 function has_entity(vertex::ClassVertexWithEntities, entity_label::Symbol)
     entity_label in vertex.entities
 end
 function has_entity(vertex::RelationshipClassVertex, first_atom::Atom, atoms::Atom...)
     has_relationship(vertex.relationship_graph, first_atom, atoms...)
+end
+function has_entity(vertex::SuperclassVertex, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+    for subclass in MetaGraphsNext.inneighbor_labels(vertex.entity_class_graph, vertex.class_label)
+        if has_entity(vertex.entity_class_graph[subclass], entity_or_atom, atoms...)
+            return true
+        end
+    end
+    false
 end
 
 function subclass_vertex_with_entity(vertex::SuperclassVertex, entity_or_atom::Union{Atom,Symbol}, atoms::Atom...)

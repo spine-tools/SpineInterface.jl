@@ -475,6 +475,17 @@ function _test_has_entity()
             @test SpineInterface.has_entity(graph[:A__B], :ObjectA => :A, :ObjectB => :B)
             @test !SpineInterface.has_entity(graph[:A__B], :ObjectA => :A, :ObjectB => :none)
         end
+        @testset "entity in superclass" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_entity_class!(graph, :B)
+            add_superclass!(graph, :Any, :A, :B)
+            add_entity!(graph, :A, :a)
+            add_entity!(graph, :B, :b)
+            @test SpineInterface.has_entity(graph, :Any, :a)
+            @test SpineInterface.has_entity(graph, :Any, :b)
+            @test !SpineInterface.has_entity(graph, :Any, :c)
+        end
     end
 end
 
