@@ -1384,11 +1384,12 @@ function Base.iterate(iter::SelectedRelationships, current)
     while !isnothing(current)
         (current_label, label_iterator_state) = current
         current = iterate(iter.relationship_label_iterator, label_iterator_state)
+        atom_iter = RelationshipAtoms(iter.relationship_graph, current_label)
         if all(
             x -> atom_passes_selection(x...),
-            zip(RelationshipAtoms(iter.relationship_graph, current_label), iter.entity_selector),
+            zip(atom_iter, iter.entity_selector),
         )
-            return RelationshipAtoms(iter.relationship_graph, current_label), current
+            return atom_iter, current
         end
     end
 end
