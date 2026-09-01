@@ -197,10 +197,11 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=EntityLike
     end
     relationships = Vector{Union{Object, RelationshipLike}}()
     atom_cache = Vector{Atom}(undef, atomic_dimensionality(rc.vertex))
+    recycled_class_names = Vector{Symbol}(undef, length(atom_cache))
     for selector in Set(EntitySelectors(rc, kwargs))
         for atoms in find_relationships(rc.vertex, selector...)
             copyto!(atom_cache, atoms)
-            object_tuple = NamedTuple(AtomsAsObjects(rc.object_classes, atom_cache))
+            object_tuple = NamedTuple(AtomsAsObjects(rc.object_classes, atom_cache, recycled_class_names))
             if _compact
                 object_tuple = (; (class_name => object for (class_name, object) in pairs(object_tuple) if !in(class_name, keys(kwargs)))...)
             end
@@ -231,8 +232,7 @@ struct AtomsAsObjects
     object_classes::Dict{Symbol, ObjectClass}
     atoms
     unambiguous_class_names::Vector{Symbol}
-    function AtomsAsObjects(object_classes, atoms)
-        class_names = Vector{Symbol}(undef, length(atoms))
+    function AtomsAsObjects(object_classes, atoms, recycled_class_names)
         for (i, atom) in enumerate(atoms)
             prior_n = occurrences_before(atoms, atom.first, i)
             post_n = occurrences_after(atoms, atom.first, i)
@@ -241,10 +241,14 @@ struct AtomsAsObjects
             else
                 unambiguous_name = atom.first
             end
-            class_names[i] = unambiguous_name
+            recycled_class_names[i] = unambiguous_name
         end
-        new(object_classes, atoms, class_names)
+        new(object_classes, atoms, recycled_class_names)
     end
+end
+
+function AtomsAsObjects(object_classes, atoms)
+    AtomsAsObjects(object_classes, atoms, Vector{Symbol}(undef, length(atoms)))
 end
 
 function Base.eltype(::Type{AtomsAsObjects})
