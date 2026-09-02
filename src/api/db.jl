@@ -734,6 +734,7 @@ function run_request(url, request::String, args::Tuple, kwargs::Dict; upgrade=fa
 end
 
 function open_connection(db_url)
+    close_connection(db_url) # Ensure any connection is closed before overwriting.
     _handlers[db_url] = _create_db_handler(db_url, false)
 end
 
@@ -833,9 +834,6 @@ _close_db_handler(handler) = Base.invokelatest(_do_close_db_handler, handler)
 import PyCall.pyimport # For forcing python garbage collection to avoid crashes?
 function _do_close_db_handler(handler)
     handler.close() # Close handler
-    handler = nothing # Clear julia binding for GC
-    pyimport("gc").collect() # Force python garbage collection to avoid PyCall crashes?
-    GC.gc() # Force Julia garbage collection to avoid PyCall crashes?
 end
 
 function _import_data(db, data::Dict{Symbol,T}, comment::String) where {T}
