@@ -1,4 +1,4 @@
-# Tutorial spine database
+# Classic interface basics
 
 Once `SpineInterface` is installed, we can start using it in Julia scripts or consoles.
 
@@ -159,7 +159,7 @@ julia> release_year(film=film(:Joker))
 julia> release_year(film=film(:Her))
 2013
 
-julia> character_name(film=film(:Joker), actor=actor(:Phoenix))
+julia> character_name(actor=actor(:Phoenix), film=film(:Joker))
 :Arthur
 
 julia> character_name(actor=actor(:Johansson), film=film(:Her))

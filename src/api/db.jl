@@ -44,100 +44,156 @@ function using_spinedb(template::Dict{String,T}, mod=@__MODULE__; filters=nothin
     _generate_convenience_functions(template, mod; filters=filters, extend=extend)
 end
 
-"""
-A Dict mapping entity group names to an Array of member names.
-"""
-function _members_per_group(groups)
-    d = Dict()
-    for (class_name, group_name, member_name) in groups
-        push!(get!(d, group_name, []), member_name)
+function label_and_dimensions(class_data)
+    if length(class_data) > 1
+        dimension_data = class_data[2]
+        dimensions = !isempty(dimension_data) ? Tuple(Symbol(dimension) for dimension in dimension_data) : nothing
+    else
+        dimensions = nothing
     end
-    d
+    Symbol(class_data[1]), dimensions
+end
+function label_and_dimensions(class_data::String)
+    Symbol(class_data), nothing
 end
 
-"""
-A Dict mapping member names to an Array of entity group names.
-"""
-function _groups_per_member(groups)
-    d = Dict()
-    for (class_name, group_name, member_name) in groups
-        push!(get!(d, member_name, []), group_name)
+function try_add_superclass!(superclasses, label, entity_class_graph, subclasses_by_superclass, object_classes, relationship_classes)
+    subclasses = subclasses_by_superclass[label]
+    if !all(MetaGraphsNext.haskey(entity_class_graph, subclass_label) for subclass_label in subclasses)
+        return false
     end
-    d
+    add_superclass!(entity_class_graph, label, subclasses...)
+    push!(superclasses, Superclass(label, entity_class_graph, object_classes, relationship_classes))
+    true
 end
 
-"""
-A Dict mapping superclass names to their subclass names.
-"""
-function _subclasses_per_superclass(superclass_subclass)
-    d = Dict()
-    for (superclass_name, subclass_name) in superclass_subclass
-        push!(get!(d, superclass_name, []), subclass_name)
-    end 
-    return d
-end
-
-"""
-A `Vector` of byobject class names.
-"""
-function _byobject_classes(object_classes, subclasses_per_superclass)
-    return Symbol.(setdiff(
-        getindex.(object_classes, 1), keys(subclasses_per_superclass)
-    ))
-end
-
-"""
-A Dict mapping `Object` names to the corresponding `Object`.
-"""
-function _full_objects_per_id(objects, members_per_group, groups_per_member)
-    objects_per_id = Dict(
-        name => Object(name, class_name) for (class_name, name) in objects
-    )
-    # Specify `members` for each group
-    for (name, object) in objects_per_id
-        member_names = get(members_per_group, name, ())
-        members = isempty(member_names) ? [object] : [objects_per_id[member_name] for member_name in member_names]
-        append!(object.members, members)
+function make_entity_classes!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_class_data, superclass_subclass_data, final_object_classes)
+    object_classes = Dict{Symbol, ObjectClass}()
+    relationship_classes = Dict{Symbol, RelationshipClass}()
+    superclasses::Vector{Superclass} = []
+    pending = [label_and_dimensions(class_data) for class_data in entity_class_data]
+    subclasses_by_superclass = Dict{Symbol, Vector{Symbol}}()
+    for (superclass_name, subclass_name) in superclass_subclass_data
+        subclasses = get!(subclasses_by_superclass, Symbol(superclass_name)) do
+            Vector{Symbol}()
+        end
+        push!(subclasses, Symbol(subclass_name))
     end
-    # Specify `groups` for each member
-    for (name, object) in objects_per_id
-        group_names = get(groups_per_member, name, ())
-        groups = [objects_per_id[group_name] for group_name in group_names]
-        append!(object.groups, groups)
+    while !isempty(pending)
+        classes_missing_dimensions = []
+        for class_data in pending
+            (label, dimensions) = class_data
+            if label in keys(subclasses_by_superclass)
+                if !try_add_superclass!(superclasses, label, entity_class_graph, subclasses_by_superclass, object_classes, relationship_classes)
+                    push!(classes_missing_dimensions, class_data)
+                end
+            elseif isnothing(dimensions)
+                add_object_class!(entity_class_graph, label)
+                object_classes[label] = ObjectClass(label, entity_class_graph, Dict())
+            elseif all(MetaGraphsNext.haskey(entity_class_graph, dimension_label) for dimension_label in dimensions)
+                add_relationship_class!(entity_class_graph, label, dimensions...)
+                relationship_classes[label] = RelationshipClass(label, entity_class_graph, final_object_classes)
+            else
+                push!(classes_missing_dimensions, class_data)
+            end
+        end
+        if length(classes_missing_dimensions) == length(pending)
+            error("some entity dimension is missing or misnamed")
+        end
+        pending = classes_missing_dimensions
     end
-    objects_per_id
+    object_classes, relationship_classes, superclasses
 end
 
-"""
-A Dict mapping class ids to an Array of entities in that class.
-"""
-function _entities_per_class(entities)
-    d = Dict()
-    for ent in entities
-        push!(get!(d, ent[1], []), ent)
+function add_entities_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_data)
+    if isempty(entity_data)
+        return
     end
-    d
+    nd_entities = Int[]
+    sizehint!(nd_entities, length(entity_data) - 1)
+    for (i, (class_name, name_data)) in enumerate(entity_data)
+        if !isa(name_data, String)
+            push!(nd_entities, i)
+            continue
+        end
+        add_entity!(entity_class_graph, Symbol(class_name), Symbol(name_data))
+    end
+    for i in nd_entities
+        (class_name, byname) = entity_data[i]
+        class_label = Symbol(class_name)
+        atomic_dimension_choices = entity_class_graph[class_label].atomic_dimension_choices
+        atoms = Vector{Atom}(undef, length(atomic_dimension_choices))
+        for (j, (dimension_choices, atom_name)) in enumerate(zip(atomic_dimension_choices, byname))
+            atom_label = Symbol(atom_name)
+            if length(dimension_choices) == 1
+                atoms[j] = dimension_choices[1] => atom_label
+            else
+                found = false
+                for dimension_label in dimension_choices
+                    if atom_label in entity_class_graph[dimension_label].entities
+                        atoms[j] = dimension_label => atom_label
+                        found = true
+                        break
+                    end
+                end
+                if !found
+                    error("no dimension found for $atom_label in $class_label")
+                end
+            end
+        end
+        add_entity!(entity_class_graph, class_label, atoms...)
+    end
 end
 
-"""
-A Dict mapping entity class ids to an Array of parameter definitions associated to that class.
-"""
-function _parameter_definitions_per_class(param_defs)
-    d = Dict()
-    for param_def in param_defs
-        push!(get!(d, param_def[1], []), param_def)
+function add_entity_groups_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_group_data)
+    for (class_name, group_name, member_name) in entity_group_data
+        add_entity_group_member!(entity_class_graph, Symbol(class_name), Symbol(group_name), Symbol(member_name))
     end
-    d
 end
 
-"""
-A Dict mapping tuples of parameter definition and entity ids, to an Array of corresponding parameter values.
-"""
-function _parameter_values_per_entity(param_values)
-    Dict(
-        (class_name, entity_name, param_name) => value
-        for (class_name, entity_name, param_name, value) in param_values
-    )
+function make_parameter_definitions!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_classes, parameter_definition_data)
+    parameters = Dict{Symbol, Parameter}()
+    for (class_name, parameter_name, default_value_bytes) in parameter_definition_data
+        class_label = Symbol(class_name)
+        parameter_label = Symbol(parameter_name)
+        default_value = _try_parameter_value_from_db(
+            default_value_bytes, "unable to parse default value of `$(parameter_label)` in $class_label"
+        )
+        add_parameter_definition!(entity_class_graph, class_label, parameter_label, default_value)
+        parameter = get!(parameters, parameter_label) do
+            Parameter(parameter_label, entity_class_graph)
+        end
+        push_class!(parameter, entity_classes[class_label])
+    end
+    values(parameters)
+end
+
+function resolve_relationship_label(vertex::RelationshipClassVertex, entity_byname)
+    for relationship_label in vertex.entities
+        atoms = RelationshipAtoms(vertex.relationship_graph, relationship_label)
+        if all(atom.second == Symbol(byname) for (atom, byname) in zip(atoms, entity_byname))
+            return relationship_label
+        end
+    end
+    error("can't find relationship label for byname $entity_byname")
+end
+
+function target_entity_label(::ObjectClassVertex, entity_name::AbstractString)
+    Symbol(entity_name)
+end
+function target_entity_label(class_vertex::RelationshipClassVertex, entity_byname)
+    resolve_relationship_label(class_vertex, entity_byname)
+end
+
+function add_parameter_values_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, parameter_value_data)
+    for (class_name, entity_data, parameter_name, value_bytes) in parameter_value_data
+        class_label = Symbol(class_name)
+        class_vertex = entity_class_graph[class_label]
+        entity_label = target_entity_label(class_vertex, entity_data)
+        get!(class_vertex.parameter_values, entity_label, Dict())[Symbol(parameter_name)] = _try_parameter_value_from_db(
+            value_bytes, "unable to parse the value of `$(parameter_name)` for $entity_data in $class_name"
+        )
+    end
 end
 
 function _try_parameter_value_from_db(db_value, err_msg)
@@ -148,422 +204,81 @@ function _try_parameter_value_from_db(db_value, err_msg)
     end
 end
 
-"""
-A Dict mapping parameter names to their default values.
-"""
-function _default_parameter_values(param_defs)
-    Dict(
-        Symbol(param_name) => _try_parameter_value_from_db(
-            default_val, "unable to parse default value of `$(param_name)`"
-        )
-        for (class_name, param_name, default_val) in param_defs
-    )
+function make_entity_class_map(object_classes, relationship_classes, superclasses)
+    entity_classes::Dict{Symbol, EntityClass} = copy(object_classes)
+    merge!(entity_classes, relationship_classes)
+    for class in superclasses
+        entity_classes[class.name] = class
+    end
+    entity_classes
 end
 
-"""
-A Dict mapping parameter names to their values for a given entity.
-"""
-function _parameter_values(entity_name, param_defs, param_vals_per_ent)
-    Dict(
-        Symbol(param_name) => _try_parameter_value_from_db(
-            value, "unable to parse value of `$param_name` for `$entity_name`"
-        )
-        for (param_name, value) in (
-            (param_name, get(param_vals_per_ent, (class_name, entity_name, param_name), nothing))
-            for (class_name, param_name) in param_defs
-        )
-        if value !== nothing
-    )
-end
-
-function _obj_class_args(
-    class,
-    objs_per_cls,
-    full_objs_per_id,
-    param_defs_per_cls,
-    param_vals_per_ent,
-    subclasses_per_superclass
-)
-    class_name, = class
-    objects = get(objs_per_cls, class_name, ())
-    param_defs = get(param_defs_per_cls, class_name, ())
-    (
-        _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)...,
-        _default_parameter_values(param_defs),
-        Symbol.(get(subclasses_per_superclass, class_name, [])),
-        [] # Normal object classes have no `original_intact_class_names` from automatic compound class deconstruction.
-    )
-end
-
-function _obj_and_vals(objects, full_objs_per_id, param_defs, param_vals_per_ent)
-    objects = [full_objs_per_id[obj_name] for (class_name, obj_name) in objects]
-    param_vals = Dict(obj => _parameter_values(string(obj.name), param_defs, param_vals_per_ent) for obj in objects)
-    objects, param_vals
-end
-
-function _rel_class_args(class, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    class_name, object_class_name_list = class
-    relationships = get(rels_per_cls, class_name, ())
-    param_defs = get(param_defs_per_cls, class_name, ())
-    (
-        Symbol.(object_class_name_list),
-        _rels_and_vals(relationships, full_objs_per_id, param_defs, param_vals_per_ent)...,
-        _default_parameter_values(param_defs),
-        false # Normal classes are not `autogenerated`
-    )
-end
-
-function _rels_and_vals(relationships, full_objs_per_id, param_defs, param_vals_per_ent)
-    object_tuples = [
-        Tuple(
-            full_objs_per_id[obj_name]
-            for obj_name in object_name_list
-        )
-        for (rel_cls_name, object_name_list) in relationships
-    ]
-    param_vals = Dict(
-        object_tuple => _parameter_values(string.(obj.name for obj in object_tuple), param_defs, param_vals_per_ent)
-        for object_tuple in object_tuples
-    )
-    object_tuples, param_vals
-end
-
-"""
-A Dict mapping object class names to arguments.
-"""
-function _obj_args_per_class(
-    classes,
-    ents_per_cls,
-    full_objs_per_id,
-    param_defs_per_cls,
-    param_vals_per_ent,
-    subclasses_per_superclass,
-)
-    Dict(
-        Symbol(class[1]) => _obj_class_args(
-            class,
-            ents_per_cls,
-            full_objs_per_id,
-            param_defs_per_cls,
-            param_vals_per_ent,
-            subclasses_per_superclass
-        )
-        for class in classes
-    )
-end
-
-"""
-A Dict mapping relationship class names to arguments.
-"""
-function _rel_args_per_class(classes, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent)
-    Dict(
-        Symbol(class[1]) => _rel_class_args(
-            class, ents_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-        )
-        for class in classes
-    )
-end
-
-"""
-A Dict mapping parameter names to an Array of class names where the parameter is defined.
-The Array of class names is sorted by decreasing number of dimensions in the class.
-Note that for object classes, the number of dimensions is one.
-"""
-function _class_names_per_parameter(object_classes, relationship_classes, param_defs)
-    d = Dict()
-    for (class_name,) in object_classes
-        class_param_defs = get(param_defs, class_name, ())
-        dim_count = 1
-        for (class_name, parameter_name) in class_param_defs
-            push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), dim_count))
+function make_legacy_objects!(class::ObjectClass)
+    for entity_label in class.vertex.entities
+        class.objects[entity_label] = Object(entity_label, class.name)
+    end
+    for entity_label in MetaGraphsNext.labels(class.vertex.entity_group_graph)
+        object = class.objects[entity_label]
+        for group_label in groups(class.vertex.entity_group_graph, entity_label)
+            push!(object.groups, class.objects[group_label])
+        end
+        for member_label in members(class.vertex.entity_group_graph, entity_label)
+            push!(object.members, class.objects[member_label])
         end
     end
-    for (class_name, object_class_name_list) in relationship_classes
-        class_param_defs = get(param_defs, class_name, ())
-        dim_count = length(object_class_name_list)
-        for (class_name, parameter_name) in class_param_defs
-            push!(get!(d, Symbol(parameter_name), Tuple{Symbol,Int64}[]), (Symbol(class_name), dim_count))
-        end
-    end
-    Dict(name => first.(sort(tups; by=last, rev=true)) for (name, tups) in d)
-end
-
-"""
-    _split_superrel_args!(
-        args_per_rel_cls, byobject_classes, subclasses_per_superclass
-    )
-
-Updates `args_per_rel_cls` by splitting compound relationship classes into subclasses.
-
-Returns the updated `args_per_rel_cls` as well as a `Dict` mapping the original
-compound relationship classes to their autogenerated subclasses.
-"""
-function _split_superrel_args!(
-    args_per_rel_cls, byobject_classes, subclasses_per_superclass
-)
-    superrel_subrel_map_name = Dict()
-    isempty(args_per_rel_cls) && return args_per_rel_cls, superrel_subrel_map_name
-    # Separate compound relationships that need to be split.
-    args_per_superrel = _pop_superrels!(args_per_rel_cls, byobject_classes)
-    isempty(args_per_superrel) && return args_per_rel_cls, superrel_subrel_map_name
-    # Figure out the necessary dimension permutations for the sub-relationships
-    new_args_per_subrel = Dict()
-    for (name, superrel) in args_per_superrel
-        new_subrels, new_map = _subrel_args(
-            name, superrel, byobject_classes, args_per_rel_cls, subclasses_per_superclass
-        )
-        merge!(new_args_per_subrel, new_subrels)
-        push!(superrel_subrel_map_name, new_map)
-    end
-    # Merge newly splitted subrels back into 
-    return merge!(args_per_rel_cls, new_args_per_subrel), superrel_subrel_map_name
-end
-
-"""
-Pop a new relationship class argument Dict needing to be divided into subclasses.
-"""
-function _pop_superrels!(args_per_rel_cls, byobj_classes)
-    d = Dict()
-    for (rel_name, rel_class) in args_per_rel_cls
-        if all(dim in byobj_classes for dim in rel_class[1])
-            continue
-        else
-            d[rel_name] = pop!(args_per_rel_cls, rel_name)
-        end
-    end
-    return d
-end
-
-"""
-    _subrel_args(
-        name, superrel, byobject_classes, args_per_rel_cls, subclasses_per_superclass
-    )
-
-Return a `Dict` with arguments for subrel creation splitting `superrel`.
-Also returns a pair mapping `(superrel.name, superrel.intact_object_class_names)`
-to its subrels' names.
-"""
-function _subrel_args(
-    name, superrel, byobject_classes, args_per_rel_cls, subclasses_per_superclass
-)
-    # Determine all possible permutations of byclasses for the subrels. 
-    subrel_dimensions = _recursive_fetch_dimension_permutations(
-        [superrel[1]],
-        byobject_classes,
-        args_per_rel_cls,
-        subclasses_per_superclass
-    )
-    name_map = (name, superrel[1]) => [] # Store name and `original_intact_class_names` of compound classes to be transformed into pseudo-superclasses.
-    subrel_args = Dict()
-    # Loop over subrels-to-be and split superrel constructor arguments among them.
-    for subrel in subrel_dimensions
-        subrel_name = _generate_relationship_class_name(subrel; prefix=name)
-        push!(name_map[2], subrel_name)
-        push!(
-            subrel_args,
-            subrel_name => (
-                subrel,
-                filter(
-                    objtup -> getfield.(objtup, :class_name) == (subrel...,),
-                    superrel[2]
-                ),
-                filter(
-                    key_val -> getfield.(key_val[1], :class_name) == (subrel...,),
-                    superrel[3]
-                ),
-                superrel[4],
-                true # This sets `autogenerated = true` for autogenerated subrels.
-            )
-        )
-    end
-    return subrel_args, name_map
-end
-
-"""
-    _recursive_fetch_dimension_permutations(
-        dim_perms::Vector{Vector{Symbol}},
-        byobj_classes::Vector{Symbol},
-        args_per_rel_cls,
-        subclasses_per_superclass
-    )
-
-Return a `Vector{Vector{Symbol}}` of possible byclass dimension permutations of `dim_perms`.
-
-Essentially recursively navigates `args_per_rel_cls` and `subclasses_per_superclass`
-to find all potential permutations of the `byobj_classes`.
-Used for splitting Spine-Database-API compound relationship classes into flat
-subclasses for [`RelationshipClass`](@ref) constructors.
-"""
-function _recursive_fetch_dimension_permutations(
-    dim_perms::Vector{Vector{Symbol}},
-    byobj_classes::Vector{Symbol},
-    args_per_rel_cls,
-    subclasses_per_superclass
-)
-    # If all dimension permutations only contain byobject class names, return.
-    if all(all(name in byobj_classes for name in dim_names) for dim_names in dim_perms)
-        return dim_perms
-    else
-        new_dim_perms = Vector{Vector{Symbol}}()
-        # Expand superclass permutations
-        for perm in dim_perms
-            new_perm = Vector{Vector{Symbol}}()
-            for dim_name in perm
-                push!(
-                    new_perm,
-                    Symbol.(get(subclasses_per_superclass, string(dim_name), [dim_name]))
-                )
-            end
-            for dims in Iterators.product(new_perm...)
-                push!(new_dim_perms, collect(dims))
-            end
-        end
-        # Expand relationship classes to their elements
-        new_dim_perms = [
-            vcat(
-                [get(args_per_rel_cls, name, [name])[1] for name in perm]...
-            )
-            for perm in new_dim_perms
-        ]
-        # Begin the process anew for the next iteration.
-        return _recursive_fetch_dimension_permutations(
-            new_dim_perms,
-            byobj_classes,
-            args_per_rel_cls,
-            subclasses_per_superclass
-        )
-    end
-end
-
-"""
-Return a single symbol joining the individual dimension names with `__`.
-"""
-function _generate_relationship_class_name(
-    dimension_vector::Vector{Symbol}; prefix=nothing
-)
-    name_to_be = join(string.(dimension_vector), "__")
-    if isnothing(prefix) || string(prefix) == name_to_be # Avoid name duplication!
-        return Symbol(name_to_be)
-    else
-        return Symbol(join([string(prefix), name_to_be], "__"))
-    end
-end
-
-"""
-    _add_pseudo_superclasses!(args_per_obj_cls, superrel_to_subrels_name_map)
-
-Add pseudo-superrel arguments to [`ObjectClass`](@ref) generation.
-"""
-function _add_pseudo_superclasses!(args_per_obj_cls, superrel_to_subrels_name_map)
-    for ((superrel_name, superrel_orig_dims), subrels) in superrel_to_subrels_name_map
-        superrel_name == first(subrels) && continue # If superrel name matches its subrel, skip.
-        push!(args_per_obj_cls, superrel_name => ([], Dict(), Dict(), subrels, superrel_orig_dims)) # Saves original dimensions of the superrel for writing back into a db.
-    end
-    return args_per_obj_cls
-end
-
-"""
-    _split_superrel_params!(class_names_per_param, superrel_to_subrels_name_map)
-
-Split super-relationship classes to their subrelationship classes for [`Parameter`](@ref) constructors.
-"""
-function _split_superrel_params!(class_names_per_param, superrel_to_subrels_name_map)
-    for ((superrel_name, superrel_orig_dims), subrels) in superrel_to_subrels_name_map
-        for (param_name, param_classes) in class_names_per_param
-            ind = findfirst(superrel_name .== param_classes)
-            isnothing(ind) && continue
-            popat!(param_classes, ind)
-            append!(param_classes, subrels)
-        end
-    end
-    return class_names_per_param
 end
 
 function _generate_convenience_functions(data, mod; filters=Dict(), extend=false)
-    object_classes = get(data, "object_classes") do
-        [x for x in get(data, "entity_classes", []) if isempty(x[2])]
+    entity_class_data = get(data, "entity_classes") do
+        vcat(get(data, "object_classes", []), get("relationship_classes", []))
     end
-    relationship_classes = get(data, "relationship_classes") do
-        [x for x in get(data, "entity_classes", []) if !isempty(x[2])]
+    superclass_subclass_data = get(data, "superclass_subclasses", [])
+    entity_data = get(data, "entities") do
+        vcat(get(data, "objects", []), get(data, "relationships", []))
     end
-    objects = get(data, "objects") do
-        [x for x in get(data, "entities", []) if x[2] isa String]
+    entity_group_data = get(data, "entity_groups") do
+        get(data, "object_groups", [])
     end
-    relationships = get(data, "relationships") do
-        [x for x in get(data, "entities", []) if !(x[2] isa String)]
-    end
-    object_groups = get(data, "object_groups") do
-        get(data, "entity_groups", [])
-    end
-    param_defs = get(data, "parameter_definitions") do
+    parameter_definition_data = get(data, "parameter_definitions") do
         vcat(get(data, "object_parameters", []), get(data, "relationship_parameters", []))
     end
-    param_vals = get(data, "parameter_values") do
+    parameter_value_data = get(data, "parameter_values") do
         vcat(get(data, "object_parameter_values", []), get(data, "relationship_parameter_values", []))
     end
-    superclass_subclass = get(data, "superclass_subclasses") do
-        get(data, "superclass_subclasses", [])
-    end
-    members_per_group = _members_per_group(object_groups)
-    groups_per_member = _groups_per_member(object_groups)
-    subclasses_per_superclass = _subclasses_per_superclass(superclass_subclass)
-    full_objs_per_id = _full_objects_per_id(objects, members_per_group, groups_per_member)
-    objs_per_cls = _entities_per_class(objects)
-    rels_per_cls = _entities_per_class(relationships)
-    param_defs_per_cls = _parameter_definitions_per_class(param_defs)
-    param_vals_per_ent = _parameter_values_per_entity(param_vals)
-    args_per_obj_cls = _obj_args_per_class(
-        object_classes,
-        objs_per_cls,
-        full_objs_per_id,
-        param_defs_per_cls,
-        param_vals_per_ent,
-        subclasses_per_superclass
-    )
-    args_per_rel_cls = _rel_args_per_class(
-        relationship_classes, rels_per_cls, full_objs_per_id, param_defs_per_cls, param_vals_per_ent
-    )
-    class_names_per_param = _class_names_per_parameter(object_classes, relationship_classes, param_defs_per_cls)
-    # Generate pseudo-compound-superclass structure on top of previous stuff.
-    byobject_classes = _byobject_classes(object_classes, subclasses_per_superclass)
-    args_per_rel_cls, superrel_to_subrels_name_map = _split_superrel_args!(
-        args_per_rel_cls,
-        byobject_classes,
-        subclasses_per_superclass
-    )
-    _add_pseudo_superclasses!(args_per_obj_cls, superrel_to_subrels_name_map)
-    _split_superrel_params!(class_names_per_param, superrel_to_subrels_name_map)
-    object_classes = _getproperty!(mod, :_spine_object_classes, Dict{Symbol,ObjectClass}())
-    relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict{Symbol,RelationshipClass}())
-    parameters = _getproperty!(mod, :_spine_parameters, Dict{Symbol,Parameter}())
+    entity_class_graph = empty_entity_class_graph()
+    existing_object_classes = _getproperty!(mod, :_spine_object_classes, Dict{Symbol,ObjectClass}())
+    (new_object_classes, relationship_classes, superclasses) = make_entity_classes!(
+        entity_class_graph,
+        entity_class_data,
+        superclass_subclass_data,
+        existing_object_classes
+        )
+    add_entities_to_graph!(entity_class_graph, entity_data)
+    add_entity_groups_to_graph!(entity_class_graph, entity_group_data)
+    entity_classes = make_entity_class_map(new_object_classes, relationship_classes, superclasses)
+    parameters = make_parameter_definitions!(entity_class_graph, entity_classes, parameter_definition_data)
+    add_parameter_values_to_graph!(entity_class_graph, parameter_value_data)
+    existing_relationship_classes = _getproperty!(mod, :_spine_relationship_classes, Dict{Symbol,RelationshipClass}())
+    existing_superclasses = _getproperty!(mod, :_spine_superclasses, Dict{Symbol, Superclass}())
+    existing_parameters = _getproperty!(mod, :_spine_parameters, Dict{Symbol,Parameter}())
     if !extend
-        empty!(object_classes)
-        empty!(relationship_classes)
-        empty!(parameters)
+        empty!(existing_object_classes)
+        empty!(existing_relationship_classes)
+        empty!(existing_superclasses)
+        empty!(existing_parameters)
     end
-    for (name, args) in args_per_obj_cls
-        new = ObjectClass(name, args...)
-        _add_binding!(mod, object_classes, name, new, extend)
+    for object_class in values(new_object_classes)
+        make_legacy_objects!(object_class)
+        _add_binding!(mod, existing_object_classes, object_class.name, object_class, extend)
     end
-    for (name, args) in args_per_rel_cls
-        new = RelationshipClass(name, args...)
-        _add_binding!(mod, relationship_classes, name, new, extend)
+    for relationship_class in values(relationship_classes)
+        _add_binding!(mod, existing_relationship_classes, relationship_class.name, relationship_class, extend)
     end
-    for (name, class_names) in class_names_per_param
-        classes = [getproperty(mod, x) for x in class_names if hasproperty(mod, x)]
-        new = Parameter(name, classes)
-        _add_binding!(mod, parameters, name, new, extend)
+    for superclass in superclasses
+        _add_binding!(mod, existing_superclasses, superclass.name, superclass, extend)
     end
-    # Resolve superclass subclass names.
-    # Tasku: A better way would be to actually type `_ObjectClass` `subclasses`
-    # field to `Vector{EntityClass}`, but I couldn't get that to work
-    # with the time I had available to me.
-    for obj_cls in SpineInterface.object_classes(mod) # Need to SpineInterface. due to name conflict.
-        for (i, subcls) in enumerate(obj_cls.subclasses)
-            if subcls isa Symbol # Tasku: Only resolve `Symbol`s, `EntityClass` might already exist if `extend=true`
-                obj_cls.subclasses[i] = entity_class(subcls, mod)
-            end
-        end
+    for parameter in parameters
+        _add_binding!(mod, existing_parameters, parameter.name, parameter, extend)
     end
 end
 
@@ -575,7 +290,11 @@ function _add_binding!(mod, dict, name, new, extend)
         @warn "ignoring $name not defined in $mod"
         return
     end
-    if !_same_type(current, new)
+    if isa(current, UndefSpineItem) # Specific to static `write_interface`
+        dict[name] = new
+        setproperty!(mod, name, new)
+        return
+    elseif !_same_type(current, new)
         @warn "ignoring $new because there is already a binding with that name in $mod"
         return
     end
@@ -618,22 +337,80 @@ function _env_merge!(current, new, extend)
     end
 end
 
-function write_interface(io::IO, template)
-    # RelationshipClasses with superclasses as dimensions are
-    # automatically processed into ObjectClasses!
-    superclasses = Set(first.(get(template, "superclass_subclasses", [])))
-    function is_objclss(jsonrow, superclasses)
-        if isempty(jsonrow[2])
-            return true
-        else
-            return any([cls in superclasses for cls in jsonrow[2]])
-        end
+function try_add_superclass_to_graph!(entity_class_graph, label, subclasses_by_superclass, object_classes, relationship_classes)
+    subclasses = subclasses_by_superclass[label]
+    if !all(MetaGraphsNext.haskey(entity_class_graph, subclass_label) for subclass_label in subclasses)
+        return false
     end
+    add_superclass!(entity_class_graph, label, subclasses...)
+    true
+end
+
+function add_entity_classes_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_class_data, superclass_subclass_data)
+    pending = [label_and_dimensions(class_data) for class_data in entity_class_data]
+    subclasses_by_superclass = Dict{Symbol, Vector{Symbol}}()
+    for (superclass_name, subclass_name) in superclass_subclass_data
+        subclasses = get!(subclasses_by_superclass, Symbol(superclass_name)) do
+            Vector{Symbol}()
+        end
+        push!(subclasses, Symbol(subclass_name))
+    end
+    while !isempty(pending)
+        classes_missing_dimensions = []
+        for class_data in pending
+            (label, dimensions) = class_data
+            if label in keys(subclasses_by_superclass)
+                if !try_add_superclass_to_graph!(entity_class_graph, label, subclasses_by_superclass, object_classes, relationship_classes)
+                    push!(classes_missing_dimensions, class_data)
+                end
+            elseif isnothing(dimensions)
+                add_object_class!(entity_class_graph, label)
+            elseif all(MetaGraphsNext.haskey(entity_class_graph, dimension_label) for dimension_label in dimensions)
+                add_relationship_class!(entity_class_graph, label, dimensions...)
+            else
+                push!(classes_missing_dimensions, class_data)
+            end
+        end
+        if length(classes_missing_dimensions) == length(pending)
+            error("some entity dimension is missing or misnamed")
+        end
+        pending = classes_missing_dimensions
+    end
+end
+
+function add_parameter_definitions_to_graph!(entity_class_graph::MetaGraphsNext.MetaGraph, entity_classes, parameter_definition_data)
+    for (class_name, parameter_name, default_value_bytes) in parameter_definition_data
+        class_label = Symbol(class_name)
+        parameter_label = Symbol(parameter_name)
+        default_value = _try_parameter_value_from_db(
+            default_value_bytes, "unable to parse default value of `$(parameter_label)` in $class_label"
+        )
+        add_parameter_definition!(entity_class_graph, class_label, parameter_label, default_value)
+    end
+end
+
+function build_entity_class_graph(data)
+    entity_class_data = get(data, "entity_classes", [])
+    superclass_subclass_data = get(data, "superclass_subclasses", [])
+    entity_data = get(data, "entities", [])
+    entity_group_data = get(data, "entity_groups", [])
+    parameter_definition_data = get(data, "parameter_definitions", [])
+    parameter_value_data = get(data, "parameter_values", [])
+    entity_class_graph = empty_entity_class_graph()
+    add_entity_classes_to_graph!(entity_class_graph, entity_class_data, superclass_subclass_data)
+    add_entities_to_graph!(entity_class_graph, entity_data)
+    add_entity_groups_to_graph!(entity_class_graph, entity_group_data)
+    add_parameter_definitions_to_graph!(entity_class_graph, entity_class_data, parameter_definition_data)
+    add_parameter_values_to_graph!(entity_class_graph, parameter_value_data)
+    entity_class_graph
+end
+
+function write_interface(io::IO, template)
     object_classes = get(template, "object_classes") do
-        [x for x in get(template, "entity_classes", []) if is_objclss(x, superclasses)]
+        [x for x in get(template, "entity_classes", []) if isempty(x[2])]
     end
     relationship_classes = get(template, "relationship_classes") do
-        [x for x in get(template, "entity_classes", []) if !is_objclss(x, superclasses)]
+        [x for x in get(template, "entity_classes", []) if !isempty(x[2])]
     end
     param_defs = get(template, "parameter_definitions") do
         vcat(get(template, "object_parameters", []), get(template, "relationship_parameters", []))
@@ -644,15 +421,15 @@ function write_interface(io::IO, template)
     println(io, "# Convenience functors")
     println(io, "## Object classes")
     for name in object_class_names
-        println(io, "const $name = ObjectClass(:$name)")
+        println(io, "$name = UndefSpineItem()")
     end
     println(io, "## Relationship classes")
     for name in relationship_class_names
-        println(io, "const $name = RelationshipClass(:$name)")
+        println(io, "$name = UndefSpineItem()")
     end
     println(io, "## Parameters")
     for name in parameter_names
-        println(io, "const $name = Parameter(:$name)")
+        println(io, "$name = UndefSpineItem()")
     end
     println(io, "## Exports")
     println(io, "## Object classes")
@@ -668,9 +445,9 @@ function write_interface(io::IO, template)
         println(io, "export $name")
     end
     println(io, "## Lookup dicts")
-    println(io, "const _spine_object_classes = Dict{Symbol,ObjectClass}()")
-    println(io, "const _spine_relationship_classes = Dict{Symbol,RelationshipClass}()")
-    println(io, "const _spine_parameters = Dict{Symbol,Parameter}()")
+    println(io, "_spine_object_classes = Dict{Symbol,ObjectClass}()")
+    println(io, "_spine_relationship_classes = Dict{Symbol,RelationshipClass}()")
+    println(io, "_spine_parameters = Dict{Symbol,Parameter}()")
 end
 
 """
@@ -789,11 +566,6 @@ _object_class_name(key, val) = string(key)
 
 Import data to a Spine db.
 
-Eventually, `data` will be converted into the dictionary format below for import.
-However, there are convenience methods allowing direct import of `data::EntityClass`,
-`data::Vector{EntityClass}`, and `data::Bind`.
-See the `_to_dict(...)` functions for more details.
-
 # Arguments
 - `url::String`: the url of the target database.
 - `data::Dict`: the data to import, in the format below.
@@ -833,7 +605,7 @@ import_data(url, d, "arf!")
 function import_data(url, data::EntityClass, comment::String; upgrade=false)
     import_data(url, _to_dict(data), comment; upgrade=upgrade)
 end
-function import_data(url, data::Vector{EntityClass}, comment::String; upgrade=false)
+function import_data(url, data::AbstractVector{EntityClass}, comment::String; upgrade=false)
     import_data(url, merge(append!, _to_dict.(data)...), comment; upgrade=upgrade)
 end
 function import_data(url, data::Bind, comment::String; upgrade=false)
@@ -854,6 +626,61 @@ function import_data(url, data::Dict{Symbol,T}, comment::String; upgrade=false) 
     _db(url; upgrade=upgrade) do db
         _import_data(db, data, comment)
     end
+end
+
+function data_to_import(entity_class_graph::MetaGraphsNext.MetaGraph)
+    data = Dict{Symbol, Vector{Any}}()
+    entity_classes = Vector{Vector{Any}}()
+    superclasses = Vector{Vector{Any}}()
+    entities = Vector{Vector{Any}}()
+    parameter_definitions = Vector{Vector{Any}}()
+    parameter_values = Vector{Vector{Any}}()
+    for class in ClassesInDependencyOrder(entity_class_graph)
+        vertex = entity_class_graph[class]
+        if is_object_class(vertex)
+            push!(entity_classes, [class])
+            for entity in SpineInterface.entities(vertex)
+                push!(entities, [class, entity])
+                for (parameter_definition, value) in SpineInterface.parameter_values(vertex, entity)
+                    push!(parameter_values, [class, entity, parameter_definition, unparse_db_value(value)])
+                end
+            end
+        elseif is_relationship_class(vertex)
+            push!(entity_classes, [class, [Dimensions(entity_class_graph, class)...]])
+            for entity in vertex.entities
+                elements = [atom.second for atom in RelationshipAtoms(vertex.relationship_graph, entity)]
+                push!(entities, [class, elements])
+                for (parameter_definition, value) in SpineInterface.parameter_values(vertex, entity)
+                    push!(parameter_values, [class, elements, parameter_definition, unparse_db_value(value)])
+                end
+            end
+        else
+            push!(entity_classes, [class])
+            for subclass in subclasses(vertex)
+                push!(superclasses, [class, subclass])
+            end
+        end
+        for parameter_definition in parameters(vertex)
+            default = default_value(vertex, parameter_definition)
+            push!(parameter_definitions, [class, parameter_definition, unparse_db_value(default)])
+        end
+    end
+    if !isempty(entity_classes)
+        data[:entity_classes] = entity_classes
+    end
+    if !isempty(superclasses)
+        data[:superclasses] = superclasses
+    end
+    if !isempty(entities)
+        data[:entities] = entities
+    end
+    if !isempty(parameter_definitions)
+        data[:parameter_definitions] = parameter_definitions
+    end
+    if !isempty(parameter_values)
+        data[:parameter_values] = parameter_values
+    end
+    data
 end
 
 """
@@ -907,6 +734,7 @@ function run_request(url, request::String, args::Tuple, kwargs::Dict; upgrade=fa
 end
 
 function open_connection(db_url)
+    close_connection(db_url) # Ensure any connection is closed before overwriting.
     _handlers[db_url] = _create_db_handler(db_url, false)
 end
 
@@ -915,7 +743,7 @@ function close_connection(db_url)
     handler === nothing || _close_db_handler(handler)
 end
 
-_handlers = Dict()
+const _handlers = Dict()
 
 function _db(f, url::String; upgrade=false)
     uri = URI(url)
@@ -1003,7 +831,10 @@ _do_create_db_handler(db_url::String, upgrade::Bool) = db_server.DBHandler(db_ur
 
 _close_db_handler(handler) = Base.invokelatest(_do_close_db_handler, handler)
 
-_do_close_db_handler(handler) = handler.close()
+import PyCall.pyimport # For forcing python garbage collection to avoid crashes?
+function _do_close_db_handler(handler)
+    handler.close() # Close handler
+end
 
 function _import_data(db, data::Dict{Symbol,T}, comment::String) where {T}
     _run_server_request(db, "import_data", (Dict(string(k) => v for (k, v) in data), comment))
@@ -1166,90 +997,53 @@ function _process_db_answer(result, err::Int64)
 end
 _process_db_answer(result, err) = error(string(err))
 
-"""
-    _to_dict(cls::EntityClass)
-
-Convert `cls` into its `Dict` form for `import_data(...)`.
-
-With the current hacky way of implementing superclass and compound class functionality,
-compound classes are automatically refactored into superclasses with autogenerated
-subclasses upon import (see `_generate_convenience_functions`).
-As a result, these needed to be flagged and restored upon writing back into DBs.
-Meanwhile, regular superclasses should not contain entities in DBs, so those are not written.
-Similarly, autogenerad sub-relationship-classes are unnecessary to write into DBs.
-"""
 function _to_dict(obj_cls::ObjectClass)
-    # Case 1: Restoring automatically refactored compound classes.
-    if !isempty(obj_cls.original_intact_class_names)
-        return Dict(
-            :object_classes => unique(obj_cls.original_intact_class_names),
-            :objects => unique(
-                [obj_cls_name, obj.name]
-                for subrel_cls in obj_cls.subclasses
-                for rel in subrel_cls.relationships
-                for (obj_cls_name, obj) in zip(subrel_cls.intact_object_class_names, rel)
-            ),
-            :relationship_classes => [[obj_cls.name, obj_cls.original_intact_class_names]],
-            :relationship_parameters => [
-                [obj_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
-                for (parameter_name, parameter_default_value) in first(obj_cls.subclasses).parameter_defaults # Autogenerated subclasses all have the same parameter definitions.
-            ],
-            :relationships => [
-                [obj_cls.name, [obj.name for obj in rel]]
-                for subrel_cls in obj_cls.subclasses
-                for rel in subrel_cls.relationships
-            ],
-            :relationship_parameter_values => [
-                [obj_cls.name, [obj.name for obj in rel], parameter_name, unparse_db_value(parameter_value)]
-                for subrel_cls in obj_cls.subclasses
-                for (rel, parameter_values) in subrel_cls.parameter_values
-                for (parameter_name, parameter_value) in parameter_values
-            ]
-        )
-    # Case 2: Superclass
-    elseif !isempty(obj_cls.subclasses)
-        return Dict(
-            :object_classes => [obj_cls.name],
-            :superclass_subclasses => [[obj_cls.name, subcls.name] for subcls in obj_cls.subclasses],
-        )
-    end
-    # Otherwise: Regular old object class
-    return Dict(
+    Dict(
         :object_classes => [obj_cls.name],
         :object_parameters => [
             [obj_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
-            for (parameter_name, parameter_default_value) in obj_cls.parameter_defaults
+            for (parameter_name, parameter_default_value) in obj_cls.vertex.parameter_defaults
         ],
-        :objects => [[obj_cls.name, object.name] for object in obj_cls.objects],
+        :objects => [[obj_cls.name, entity_label] for entity_label in obj_cls.vertex.entities],
         :object_parameter_values => [
-            [obj_cls.name, object.name, parameter_name, unparse_db_value(parameter_value)]
-            for (object, parameter_values) in obj_cls.parameter_values
+            [obj_cls.name, entity_label, parameter_name, unparse_db_value(parameter_value)]
+            for (entity_label, parameter_values) in obj_cls.vertex.parameter_values
             for (parameter_name, parameter_value) in parameter_values
         ]
     )
 end
 function _to_dict(rel_cls::RelationshipClass)
-    # No need to write autogenerated subrels
-    rel_cls.autogenerated && return Dict{Symbol,RelationshipClass}()
-    return Dict(
-        :object_classes => unique(rel_cls.intact_object_class_names),
-        :objects => unique(
-            [obj_cls_name, obj.name]
-            for relationship in rel_cls.relationships
-            for (obj_cls_name, obj) in zip(rel_cls.intact_object_class_names, relationship)
-        ),
-        :relationship_classes => [[rel_cls.name, rel_cls.intact_object_class_names]],
+    object_classes = Iterators.flatten(rel_cls.vertex.atomic_dimension_choices)
+    relationship_graph = rel_cls.vertex.relationship_graph
+    objects = [[label.first, label.second] for label in MetaGraphsNext.labels(relationship_graph) if label isa Pair]
+    Dict(
+        :object_classes => unique(object_classes),
+        :objects => objects,
+        :relationship_classes => [[rel_cls.name, [label for label in Dimensions(rel_cls.entity_class_graph, rel_cls.name)]]],
         :relationship_parameters => [
             [rel_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
-            for (parameter_name, parameter_default_value) in rel_cls.parameter_defaults
+            for (parameter_name, parameter_default_value) in rel_cls.vertex.parameter_defaults
         ],
         :relationships => [
-            [rel_cls.name, [obj.name for obj in relationship]] for relationship in rel_cls.relationships
+            [rel_cls.name, [atom.second for atom in RelationshipAtoms(relationship_graph, entity_label)]] for entity_label in rel_cls.vertex.entities
         ],
         :relationship_parameter_values => [
-            [rel_cls.name, [obj.name for obj in relationship], parameter_name, unparse_db_value(parameter_value)]
-            for (relationship, parameter_values) in rel_cls.parameter_values
+            [rel_cls.name, [atom.second for atom in RelationshipAtoms(relationship_graph, entity_label)], parameter_name, unparse_db_value(parameter_value)]
+            for (entity_label, parameter_values) in rel_cls.vertex.parameter_values
             for (parameter_name, parameter_value) in parameter_values
+        ]
+    )
+end
+function _to_dict(sc::Superclass)
+    Dict(
+        :object_classes => [sc.name],
+        :object_parameters => [ # Do Superclasses ever have object parameter defaults?
+            [sc.name, parameter_name, unparse_db_value(parameter_default_value)]
+            for (parameter_name, parameter_default_value) in sc.vertex.parameter_defaults
+        ],
+        :superclass_subclasses => [
+            [sc.name, sub]
+            for sub in MetaGraphsNext.inneighbor_labels(sc.entity_class_graph, sc.name)
         ]
     )
 end

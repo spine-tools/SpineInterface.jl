@@ -35,44 +35,68 @@ include("base.jl")
 include("constructors.jl")
 include("api/db.jl")
 include("api/core.jl")
+include("api/graphs.jl")
 include("api/parameter_value.jl")
 include("api/time_slice.jl")
 include("api/tests.jl")
 
-export add_dimension!
+export add_entity!
+export add_entity_class!
+export add_entity_group_member!
+export add_object_class!
 export add_object_parameter_values!
 export add_object_parameter_defaults!
 export add_object!
 export add_objects!
+export add_parameter_definition!
 export add_parameter_values!
+export add_relationship_class!
 export add_relationship_parameter_values!
 export add_relationship_parameter_defaults!
 export add_relationship!
 export add_relationships!
+export add_superclass!
 export Anything
 export anything
+export Atom
 export before
 export Bind
 export blocks
+export build_entity_class_graph
 export Call
+export class_labels
+export classes
+export collect_indexed_values
 export collect_updates
 export contains
+export data_to_import
 export db_api
 export db_value
 export db_value_and_type
+export default_value
 export difference
 export dimensions
 export duration
+export empty_entity_class_graph
 export end_
+export entities
+export entity_group_members
 export export_data
+export find_objects
+export find_relationships
+export find_relationships_compact
+export find_value
 export fixer
+export group_entities
 export groups
 export import_data
 export indexed_values
-export classes
-export collect_indexed_values
 export indices
 export indices_as_tuples
+export is_object_class
+export is_relationship_class
+export is_subclass_of
+export is_superclass
 export iscontained
 export Map
 export map_to_time_series
@@ -98,13 +122,17 @@ export relationship_class
 export relationship_classes
 export RelationshipClass
 export RelationshipLike
-export reorder_dimensions
-export reorder_dimensions!
+export remove_entity!
 export roll!
 export run_request
+export set_parameter_value!
 export set_value_translator
 export start
 export startref
+export subclasses
+export superclass # Convenience
+export superclasses
+export Superclass
 export t_highest_resolution
 export t_highest_resolution!
 export t_highest_resolution_sets!
@@ -119,8 +147,10 @@ export TimePattern
 export TimeSeries
 export TimeSlice
 export translate_map_pv_arg!
+export UndefSpineItem
 export unparse_db_value
 export using_spinedb
+export value_or_default
 export with_env
 export without_filters
 export write_parameters

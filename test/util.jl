@@ -19,10 +19,15 @@
 #############################################################################
 
 @testset "object_class_to_dict" begin
-    objects = [Object(:silvester), Object(:tom)]
-    parameter_values = Dict(obj => Dict(:age => parameter_value(k)) for (k, obj) in enumerate(objects))
-    parameter_defaults = Dict(:age => parameter_value(9))
-    cls = ObjectClass(:cat, objects, parameter_values, parameter_defaults)
+    graph = empty_entity_class_graph()
+    add_object_class!(graph, :cat)
+
+    add_entity!(graph, :cat, :silvester)
+    add_entity!(graph, :cat, :tom)
+    add_parameter_definition!(graph, :cat, :age, parameter_value(9))
+    set_parameter_value!(graph, :cat, :age, :silvester, parameter_value(1))
+    set_parameter_value!(graph, :cat, :age, :tom, parameter_value(2))
+    cls = ObjectClass(:cat, graph)
     d_obs = SpineInterface._to_dict(cls)
     d_exp = Dict(
         :object_classes => [:cat],
@@ -38,13 +43,22 @@
     end
 end
 @testset "relationship_class_to_dict" begin
+    graph = empty_entity_class_graph()
+    add_object_class!(graph, :cat)
+    add_object_class!(graph, :dog)
+    add_entity!(graph, :cat, :silvester)
+    add_entity!(graph, :cat, :tom)
+    add_entity!(graph, :cat, :pluto)
+    cat = ObjectClass(:cat, graph)
+    dog = ObjectClass(:dog, graph)
+    add_relationship_class!(graph, :cat__cat__dog, :cat, :cat, :dog)
+    add_entity!(graph, :cat__cat__dog, :cat => :silvester, :cat => :tom, :dog => :pluto)
+    add_entity!(graph, :cat__cat__dog, :cat => :tom, :cat => :silvester, :dog => :pluto)
+    add_parameter_definition!(graph, :cat__cat__dog, :aver_age, parameter_value(9))
+    set_parameter_value!(graph, :cat__cat__dog, :aver_age, :cat => :silvester, :cat => :tom, :dog => :pluto, parameter_value(1))
+    set_parameter_value!(graph, :cat__cat__dog, :aver_age, :cat => :tom, :cat => :silvester, :dog => :pluto, parameter_value(2))
     silvester = Object(:silvester)
-    tom = Object(:tom)
-    pluto = Object(:pluto)
-    object_tuples = [(silvester, tom, pluto), (tom, silvester, pluto)]
-    parameter_values = Dict(x => Dict(:aver_age => parameter_value(k)) for (k, x) in enumerate(object_tuples))
-    parameter_defaults = Dict(:aver_age => parameter_value(9))
-    cls = RelationshipClass(:cat__cat__dog, [:cat, :cat, :dog], object_tuples, parameter_values, parameter_defaults)
+    cls = RelationshipClass(:cat__cat__dog, graph, Dict([:cat => cat, :dog => dog]))
     d_obs = SpineInterface._to_dict(cls)
     d_exp = Dict(
         :object_classes => [:cat, :dog],
@@ -59,8 +73,6 @@ end
     )
     @test keys(d_obs) == keys(d_exp)
     for (k, v) in d_exp
-        @test Set(v) == Set(d_obs[k])
+        @test sort(v) == sort(d_obs[k])
     end
 end
-
-

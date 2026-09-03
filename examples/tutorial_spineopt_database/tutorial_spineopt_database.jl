@@ -1,6 +1,6 @@
 using SpineInterface
 
-const Y = Bind()
+Y = Bind()
 
 # requires PyCall
 input_file_path = joinpath(@__DIR__, "example_spineopt_database.json")

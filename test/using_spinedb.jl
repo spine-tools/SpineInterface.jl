@@ -111,8 +111,11 @@ end
 function _test_parameter()
     @testset "parameter" begin
         obj_classes = ["institution", "country"]
-        rel_classes =
-            [["institution__country", ["institution", "country"]], ["country__country", ["country", "country"]]]
+        rel_classes = [
+                ["institution__country", ["institution", "country"]],
+                ["duplicate__institution__country", ["institution", "country"]],
+                ["country__country", ["country", "country"]]
+            ]
         object_parameters = [
             ["institution", "since_year"],
             ["country", "bread", "knackebrod"],
@@ -121,6 +124,7 @@ function _test_parameter()
         relationship_parameters = [
             ["institution__country", "people_count"],
             ["institution__country", "job", "research"],
+            ["duplicate__institution__country", "job", "consultancy"],
             ["country__country", "is_different", true],
             ["country__country", "job", false]
         ]
@@ -130,6 +134,7 @@ function _test_parameter()
         relationships = [
             ["institution__country", ["KTH", "Sweden"]],
             ["institution__country", ["KTH", "France"]],
+            ["duplicate__institution__country", ["KTH", "Sweden"]],
             ["country__country", ["Sweden", "Sweden"]],
             ["country__country", ["Sweden", "France"]],
             ["country__country", ["France", "France"]],
@@ -172,12 +177,18 @@ function _test_parameter()
         @test Y.bread(country=Y.country(:France)) == :baguette
         @test Y.bread(country=Y.country(:Sweden)) == :knackebrod
         @test Y.bread(country=Y.country(:Finland)) === nothing
-        @test Y.job(institution=Y.institution(:KTH), country=Y.country(:Sweden)) == :teaching
+        @test Y.job(Y.duplicate__institution__country; institution=Y.institution(:KTH), country=Y.country(:Sweden)) == :consultancy # Correct default
+        @test Y.job(Y.institution__country; institution=Y.institution(:KTH), country=Y.country(:Sweden)) == :teaching # Correct value
+        # @test Y.job(Y.institution__country; institution=Y.institution(:KTH), country=Y.country(:Sweden)) == :teaching # FIXME Value prioritized over default?
         @test Y.job(institution=Y.institution(:KTH), country=Y.country(:France)) == :research
         @test Y.job(institution=Y.institution(:VTT), country=Y.country(:Finland)) === nothing
         @test Y.job(country1=Y.country(:France), country2=Y.country(:France)) == true
         @test Y.job(country1=Y.country(:France), country2=Y.country(:Sweden)) === nothing
         @test Y.job(country1=Y.country(:Sweden), country2=Y.country(:France)) === false
+        @test Y.job(country1=Y.country(:France)) # Test weird incomplete parameter syntax.
+        # @test Y.job(country2=Y.country(:France)) # FIXME Test weird incomplete parameter syntax that fails?
+        @test Y.job(Y.country__country; country=Y.country(:Sweden)) === nothing # Test specifying class.
+        @test Y.job(Y.country__country; country1=Y.country(:France)) # Specifying class and weird incomplete syntax.
         @test Y.is_different(country1=Y.country(:Sweden), country2=Y.country(:Sweden)) == false
         @test Y.is_different(country1=Y.country(:Sweden), country2=Y.country(:France)) == true
         @test Y.is_different(country1=Y.country(:France), country2=Y.country(:France)) == true
@@ -185,7 +196,6 @@ function _test_parameter()
         @test [x.name for x in Y.institution(since_year=1827)] == [:KTH]
         @test length(parameters(Y)) === 5
         @test all(x isa Parameter for x in parameters(Y))
-        # If an incomplete parameter call yields a unique value, it is returned immediately?
         @test Y.people_count(country=Y.country(:Sweden)) == 3
         @test Y.people_count(country=Y.country(:France)) == 1
         @test isnothing(Y.people_count(institution=Y.institution(:KTH)))
@@ -404,8 +414,7 @@ function _test_pv_type_map()
                 ),
             ),
         )
-        #object_parameters = [["country", "apero_time"]] # This is not necessary?
-        relationship_parameters = [["country__country", "apero_time_rel"]] # But this is?
+        relationship_parameters = [["country__country", "apero_time_rel"]]
         object_parameter_values = [["country", "France", "apero_time", value]]
         relationship_parameter_values = [["country__country", ["France", "France"], "apero_time_rel", value]]
         import_data(
