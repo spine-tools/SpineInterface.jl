@@ -743,7 +743,7 @@ function close_connection(db_url)
     handler === nothing || _close_db_handler(handler)
 end
 
-_handlers = Dict()
+const _handlers = Dict()
 
 function _db(f, url::String; upgrade=false)
     uri = URI(url)
