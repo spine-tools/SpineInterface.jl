@@ -733,31 +733,63 @@ function run_request(url, request::String, args::Tuple, kwargs::Dict; upgrade=fa
     end
 end
 
-function open_connection(db_url)
-    close_connection(db_url) # Ensure any connection is closed before overwriting.
-    _handlers[db_url] = _create_db_handler(db_url, false)
+function with_connection_open(f, db_url, upgrade=false)
+    open_connection(db_url, upgrade)
+    try
+        f()
+    finally
+        close_connection(db_url)
+    end
+end
+
+function open_connection(db_url, upgrade=false)
+    cached_handler = get(_handlers, db_url, nothing)
+    if isnothing(cached_handler)
+        if URI(db_url).scheme == "http"
+            return
+        end
+        cached_handler = CachedHandler(db_url, upgrade)
+        _handlers[db_url] = cached_handler
+    else
+        cached_handler.n_users += 1
+    end
 end
 
 function close_connection(db_url)
-    handler = pop!(_handlers, db_url, nothing)
-    handler === nothing || _close_db_handler(handler)
+    cached_handler = get(_handlers, db_url, nothing)
+    if isnothing(cached_handler)
+        return
+    elseif cached_handler.n_users > 1
+        cached_handler.n_users -= 1
+    else
+        _close_db_handler(cached_handler.handler)
+        delete!(_handlers, db_url)
+        GC.gc()
+    end
 end
 
-const _handlers = Dict()
+mutable struct CachedHandler
+    const handler
+    n_users::Int
+    function CachedHandler(db_url, upgrade)
+        new(_create_db_handler(db_url, upgrade), 1)
+    end
+end
+
+const _handlers = Dict{String, CachedHandler}()
 
 function _db(f, url::String; upgrade=false)
     uri = URI(url)
     if uri.scheme == "http"
         f(uri)
     else
-        handler = get(_handlers, url, nothing)
-        if handler !== nothing
-            f(handler)
+        cached_handler = get(_handlers, url, nothing)
+        if cached_handler !== nothing
+            f(cached_handler.handler)
         else
-            handler = _create_db_handler(url, upgrade)
-            result = f(handler)
-            _close_db_handler(handler)
-            result
+            with_connection_open(url, upgrade) do
+                f(_handlers[url].handler)
+            end
         end
     end
 end
@@ -765,9 +797,7 @@ _db(f, db; kwargs...) = f(db)
 
 function _create_db_handler(db_url::String, upgrade::Bool)
     _import_spinedb_api()
-    handler = Base.invokelatest(_do_create_db_handler, db_url, upgrade)
-    atexit(() -> _close_db_handler(handler))
-    handler
+    Base.invokelatest(_do_create_db_handler, db_url, upgrade)
 end
 
 const _required_spinedb_api_version = v"0.31.0"
@@ -831,9 +861,8 @@ _do_create_db_handler(db_url::String, upgrade::Bool) = db_server.DBHandler(db_ur
 
 _close_db_handler(handler) = Base.invokelatest(_do_close_db_handler, handler)
 
-import PyCall.pyimport # For forcing python garbage collection to avoid crashes?
 function _do_close_db_handler(handler)
-    handler.close() # Close handler
+    handler.close()
 end
 
 function _import_data(db, data::Dict{Symbol,T}, comment::String) where {T}

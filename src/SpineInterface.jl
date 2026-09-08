@@ -151,6 +151,7 @@ export UndefSpineItem
 export unparse_db_value
 export using_spinedb
 export value_or_default
+export with_connection_open
 export with_env
 export without_filters
 export write_parameters

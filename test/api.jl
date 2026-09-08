@@ -89,19 +89,21 @@ function _test_indices()
             ["institution__country", ["KTH", "Sweden"], "people_count", 3],
             ["institution__country", ["KTH", "France"], "people_count", 1],
         ]
-        import_test_data(
-            db_url;
-            object_classes=object_classes,
-            relationship_classes=relationship_classes,
-            objects=objects,
-            relationships=relationships,
-            object_parameters=object_parameters,
-            relationship_parameters=relationship_parameters,
-            object_parameter_values=object_parameter_values,
-            relationship_parameter_values=relationship_parameter_values,
-        )
         Y = Bind()
-        using_spinedb(db_url, Y)
+        with_connection_open(db_url) do
+            import_test_data(
+                db_url;
+                object_classes=object_classes,
+                relationship_classes=relationship_classes,
+                objects=objects,
+                relationships=relationships,
+                object_parameters=object_parameters,
+                relationship_parameters=relationship_parameters,
+                object_parameter_values=object_parameter_values,
+                relationship_parameter_values=relationship_parameter_values,
+            )
+            using_spinedb(db_url, Y)
+        end
         @test Set(indices(Y.people_count)) == Set([
             (institution=Y.institution(:KTH), country=Y.country(:Sweden)),
             (institution=Y.institution(:KTH), country=Y.country(:France)),
@@ -123,15 +125,17 @@ function _test_indices_as_tuples()
         objects = [["institution", x] for x in institutions]
         object_parameter_values =
             [["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]]
-        import_test_data(
-            db_url;
-            object_classes=object_classes,
-            objects=objects,
-            object_parameters=object_parameters,
-            object_parameter_values=object_parameter_values,
-        )
         Y = Bind()
-        using_spinedb(db_url, Y)
+        with_connection_open(db_url) do
+            import_test_data(
+                db_url;
+                object_classes=object_classes,
+                objects=objects,
+                object_parameters=object_parameters,
+                object_parameter_values=object_parameter_values,
+            )
+            using_spinedb(db_url, Y)
+        end
         @test Set(indices_as_tuples(Y.since_year)) ==
               Set([(institution=Y.institution(:KTH),), (institution=Y.institution(:ER),)])
     end
@@ -144,15 +148,17 @@ function _test_object_class_relationship_class_parameter()
             [["institution__country", ["institution", "country"]], ["country__institution", ["country", "institution"]]]
         object_parameters = [["institution", "since_year"]]
         relationship_parameters = [["institution__country", "people_count"], ["country__institution", "animal_count"]]
-        import_test_data(
-            db_url;
-            object_classes=object_classes,
-            relationship_classes=relationship_classes,
-            object_parameters=object_parameters,
-            relationship_parameters=relationship_parameters,
-        )
         Y = Bind()
-        using_spinedb(db_url, Y)
+        with_connection_open(db_url) do
+            import_test_data(
+                db_url;
+                object_classes=object_classes,
+                relationship_classes=relationship_classes,
+                object_parameters=object_parameters,
+                relationship_parameters=relationship_parameters,
+            )
+            using_spinedb(db_url, Y)
+        end
         @test object_class(:institution, Y) isa ObjectClass
         @test object_class(:institution, Y).name == :institution
         @test object_class(:country, Y) isa ObjectClass
@@ -185,143 +191,145 @@ function _test_superclasses()
     end
     @testset "superclasses" begin
         @testset "SpineOpt v0.8 structure" begin
-            _import_superclass_test_data(db_url)
             Y = Bind()
-            using_spinedb(db_url, Y)
-            @test superclass(:unit_flow, Y) == Y.unit_flow
-            @test superclasses(Y) == [Y.unit_flow]
-            # Tests for `unit_flow` and `flow_capacity`
-            @test length(Y.unit_flow()) == 6
-            @test Y.unit_flow(unit = Y.unit(:u1)) == [
-                Y.node(:n1), Y.node(:n1), Y.node(:n3)
-            ]
-            @test collect(Y.unit_flow(unit = Y.unit(:u1); _compact=false)) == [
-                (node=Y.node(:n1), unit=Y.unit(:u1)),
-                (unit=Y.unit(:u1), node=Y.node(:n1)),
-                (unit=Y.unit(:u1), node=Y.node(:n3))
-            ]
-            @test Y.unit_flow(node = Y.node(:n2)) == [Y.unit(:u2)]
-            @test collect(Y.unit_flow(node = Y.node(:n2); _compact=false)) == [
-                (node=Y.node(:n2), unit=Y.unit(:u2))
-            ]
-            @test collect(Y.unit_flow(node = anything, unit = Y.unit(:u1); _compact=false)) == [
-                (node=Y.node(:n1), unit=Y.unit(:u1))
-            ]
-            @test collect(Y.unit_flow(unit = Y.unit(:u1), node = anything; _compact=false)) == [
-                (unit=Y.unit(:u1), node=Y.node(:n1))
-                (unit=Y.unit(:u1), node=Y.node(:n3))
-            ]
-            @test Y.flow_capacity(node=Y.node(:n1), unit=Y.unit(:u1)) == 4.0
-            @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n1)) == 4.1
-            @test Y.flow_capacity(node=Y.node(:n2), unit=Y.unit(:u2)) == 6.0
-            @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n3)) == 5.0
-            @test Y.flow_capacity(node=Y.node(:n1), unit=Y.unit(:u2)) == 0.0
-            @test Y.flow_capacity(unit=Y.unit(:u2), node=Y.node(:n3)) == 1.0
-            @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n2)) === nothing
-            @test collect(indices(Y.flow_capacity)) == [
-                (node=Y.node(:n1), unit=Y.unit(:u1)),
-                (node=Y.node(:n1), unit=Y.unit(:u2)),
-                (node=Y.node(:n2), unit=Y.unit(:u2)),
-                (unit=Y.unit(:u1), node=Y.node(:n1)),
-                (unit=Y.unit(:u1), node=Y.node(:n3)),
-                (unit=Y.unit(:u2), node=Y.node(:n3)),
-            ]
-            @test collect(indices(Y.flow_capacity; node=anything, unit=anything)) == [
-                (node=Y.node(:n1), unit=Y.unit(:u1)),
-                (node=Y.node(:n1), unit=Y.unit(:u2)),
-                (node=Y.node(:n2), unit=Y.unit(:u2)),
-            ]
-            #= Tasku: RelationshipClasses have no parameter value filters.
-            @test unit_flow(flow_capacity=0.0) == [(node=node(:n1), unit=unit(:u2))]
-            @test unit_flow(flow_capacity=4.0) == [(node=node(:n1), unit=unit(:u1))]
-            @test unit_flow(flow_capacity=1.0) == [(unit=unit(:u2), node=node(:n3))]
-            =#
-            # Tests for `unit_flow__unit_flow` and `ratio`
-            @test length(Y.unit_flow__unit_flow()) == 4
-            expected = [
-                (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1)),
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n3)),
-            ]
-            collected = Y.unit_flow__unit_flow(unit2=Y.unit(:u1))
-            @test length(collected) == length(expected)
-            @test all(c in expected for c in collected)
-            expected = [
-                (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
-            ]
-            collected = collect(Y.unit_flow__unit_flow(unit2=Y.unit(:u1); _compact=false))
-            @test length(collected) == length(expected)
-            @test all(c in expected for c in collected)
-            expected = [
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
-                (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
-                (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
-            ]
-            collected = collect(Y.unit_flow__unit_flow(unit1=Y.unit(:u1); _compact=false))
-            @test length(collected) == length(expected)
-            @test all(c in expected for c in collected)
-            @test collect(Y.unit_flow__unit_flow(node1=anything, unit1=Y.unit(:u1); _compact=false)) == [
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
-            ]
-            @test collect(Y.unit_flow__unit_flow(unit1=Y.unit(:u1), node1=anything; _compact=false)) == [
-                (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
-                (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
-            ]
-            @test collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything, unit2=anything; _compact=false)) == [
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
-            ]
-            expected = [
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3))
-            ]
-            collected = collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything; _compact=false))
-            @test length(collected) == length(expected)
-            @test all(c in expected for c in collected)
-            @test Y.ratio(node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)) == 7.0
-            @test Y.ratio(unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)) == 8.0
-            @test Y.ratio(unit1=Y.unit(:u1), node1=Y.node(:n1), node2=Y.node(:n1), unit2=Y.unit(:u1)) === nothing
-            @test Y.ratio(node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)) == 2.0
-            expected = [
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
-                (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
-                (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
-            ]
-            collected = collect(indices(Y.ratio))
-            @test length(collected) == length(expected)
-            @test all(c in expected for c in collected)
-            @test collect(indices(Y.ratio; node1=anything, unit1=anything)) == [
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
-                (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
-            ]
-            #= Tasku: Parameter value filtering for relationship classes is not a thing atm.
-            @test unit_flow__unit_flow(ratio=2.0) == [
-                (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
-                (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
-            ]
-            @test collect(unit_flow__unit_flow(node1=anything, unit1=anything, ratio=2.0, _compact=false)) == [
-                (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
-            ]
-            @test unit_flow__unit_flow(ratio=7.0) == [
-                (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3))
-            ]
-            =#
-            # @test Y.unit_flow__unit_flow__node__unit__node__unit() == [
-            #     (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
-            # ]
-            # @test Y.unit_flow__unit_flow__unit__node__node__unit() == [
-            #     (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
-            # ]
-            # @test Y.unit_flow__unit_flow__node__unit__unit__node() == [
-            #     (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
-            # ]
-            # @test Y.unit_flow__unit_flow__unit__node__unit__node() == [
-            #     (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
-            # ]
-            # Test superclass database extension (to see if it errors)
-            using_spinedb(db_url, Y; extend=true)
+            with_connection_open(db_url) do
+                _import_superclass_test_data(db_url)
+                using_spinedb(db_url, Y)
+                @test superclass(:unit_flow, Y) == Y.unit_flow
+                @test superclasses(Y) == [Y.unit_flow]
+                # Tests for `unit_flow` and `flow_capacity`
+                @test length(Y.unit_flow()) == 6
+                @test Y.unit_flow(unit = Y.unit(:u1)) == [
+                    Y.node(:n1), Y.node(:n1), Y.node(:n3)
+                ]
+                @test collect(Y.unit_flow(unit = Y.unit(:u1); _compact=false)) == [
+                    (node=Y.node(:n1), unit=Y.unit(:u1)),
+                    (unit=Y.unit(:u1), node=Y.node(:n1)),
+                    (unit=Y.unit(:u1), node=Y.node(:n3))
+                ]
+                @test Y.unit_flow(node = Y.node(:n2)) == [Y.unit(:u2)]
+                @test collect(Y.unit_flow(node = Y.node(:n2); _compact=false)) == [
+                    (node=Y.node(:n2), unit=Y.unit(:u2))
+                ]
+                @test collect(Y.unit_flow(node = anything, unit = Y.unit(:u1); _compact=false)) == [
+                    (node=Y.node(:n1), unit=Y.unit(:u1))
+                ]
+                @test collect(Y.unit_flow(unit = Y.unit(:u1), node = anything; _compact=false)) == [
+                    (unit=Y.unit(:u1), node=Y.node(:n1))
+                    (unit=Y.unit(:u1), node=Y.node(:n3))
+                ]
+                @test Y.flow_capacity(node=Y.node(:n1), unit=Y.unit(:u1)) == 4.0
+                @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n1)) == 4.1
+                @test Y.flow_capacity(node=Y.node(:n2), unit=Y.unit(:u2)) == 6.0
+                @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n3)) == 5.0
+                @test Y.flow_capacity(node=Y.node(:n1), unit=Y.unit(:u2)) == 0.0
+                @test Y.flow_capacity(unit=Y.unit(:u2), node=Y.node(:n3)) == 1.0
+                @test Y.flow_capacity(unit=Y.unit(:u1), node=Y.node(:n2)) === nothing
+                @test collect(indices(Y.flow_capacity)) == [
+                    (node=Y.node(:n1), unit=Y.unit(:u1)),
+                    (node=Y.node(:n1), unit=Y.unit(:u2)),
+                    (node=Y.node(:n2), unit=Y.unit(:u2)),
+                    (unit=Y.unit(:u1), node=Y.node(:n1)),
+                    (unit=Y.unit(:u1), node=Y.node(:n3)),
+                    (unit=Y.unit(:u2), node=Y.node(:n3)),
+                ]
+                @test collect(indices(Y.flow_capacity; node=anything, unit=anything)) == [
+                    (node=Y.node(:n1), unit=Y.unit(:u1)),
+                    (node=Y.node(:n1), unit=Y.unit(:u2)),
+                    (node=Y.node(:n2), unit=Y.unit(:u2)),
+                ]
+                #= Tasku: RelationshipClasses have no parameter value filters.
+                @test unit_flow(flow_capacity=0.0) == [(node=node(:n1), unit=unit(:u2))]
+                @test unit_flow(flow_capacity=4.0) == [(node=node(:n1), unit=unit(:u1))]
+                @test unit_flow(flow_capacity=1.0) == [(unit=unit(:u2), node=node(:n3))]
+                =#
+                # Tests for `unit_flow__unit_flow` and `ratio`
+                @test length(Y.unit_flow__unit_flow()) == 4
+                expected = [
+                    (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1)),
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n3)),
+                ]
+                collected = Y.unit_flow__unit_flow(unit2=Y.unit(:u1))
+                @test length(collected) == length(expected)
+                @test all(c in expected for c in collected)
+                expected = [
+                    (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+                ]
+                collected = collect(Y.unit_flow__unit_flow(unit2=Y.unit(:u1); _compact=false))
+                @test length(collected) == length(expected)
+                @test all(c in expected for c in collected)
+                expected = [
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+                    (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+                    (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+                ]
+                collected = collect(Y.unit_flow__unit_flow(unit1=Y.unit(:u1); _compact=false))
+                @test length(collected) == length(expected)
+                @test all(c in expected for c in collected)
+                @test collect(Y.unit_flow__unit_flow(node1=anything, unit1=Y.unit(:u1); _compact=false)) == [
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+                ]
+                @test collect(Y.unit_flow__unit_flow(unit1=Y.unit(:u1), node1=anything; _compact=false)) == [
+                    (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+                    (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+                ]
+                @test collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything, unit2=anything; _compact=false)) == [
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
+                ]
+                expected = [
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3))
+                ]
+                collected = collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything; _compact=false))
+                @test length(collected) == length(expected)
+                @test all(c in expected for c in collected)
+                @test Y.ratio(node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)) == 7.0
+                @test Y.ratio(unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)) == 8.0
+                @test Y.ratio(unit1=Y.unit(:u1), node1=Y.node(:n1), node2=Y.node(:n1), unit2=Y.unit(:u1)) === nothing
+                @test Y.ratio(node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)) == 2.0
+                expected = [
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+                    (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+                    (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+                ]
+                collected = collect(indices(Y.ratio))
+                @test length(collected) == length(expected)
+                @test all(c in expected for c in collected)
+                @test collect(indices(Y.ratio; node1=anything, unit1=anything)) == [
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+                    (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+                ]
+                #= Tasku: Parameter value filtering for relationship classes is not a thing atm.
+                @test unit_flow__unit_flow(ratio=2.0) == [
+                    (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+                    (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
+                ]
+                @test collect(unit_flow__unit_flow(node1=anything, unit1=anything, ratio=2.0, _compact=false)) == [
+                    (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
+                ]
+                @test unit_flow__unit_flow(ratio=7.0) == [
+                    (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3))
+                ]
+                =#
+                # @test Y.unit_flow__unit_flow__node__unit__node__unit() == [
+                #     (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
+                # ]
+                # @test Y.unit_flow__unit_flow__unit__node__node__unit() == [
+                #     (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
+                # ]
+                # @test Y.unit_flow__unit_flow__node__unit__unit__node() == [
+                #     (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
+                # ]
+                # @test Y.unit_flow__unit_flow__unit__node__unit__node() == [
+                #     (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
+                # ]
+                # Test superclass database extension (to see if it errors)
+                using_spinedb(db_url, Y; extend=true)
+            end
         end
     end
 end
@@ -394,9 +402,11 @@ function _test_add_objects()
         object_classes = ["institution"]
         institutions = ["VTT", "KTH"]
         objects = [["institution", x] for x in institutions]
-        import_test_data(db_url; object_classes=object_classes, objects=objects)
         Y = Bind()
-        using_spinedb(db_url, Y)
+        with_connection_open(db_url) do
+            import_test_data(db_url; object_classes=object_classes, objects=objects)
+            using_spinedb(db_url, Y)
+        end
         @test length(Y.institution()) === 2
         add_objects!(Y.institution, [Y.institution()[1], Object(:KUL), Object(:ER)])
         @test length(Y.institution()) === 4
@@ -424,15 +434,17 @@ function _test_add_relationships()
         object_tuples =
             [["VTT", "Finland"], ["KTH", "Sweden"], ["KTH", "France"], ["KUL", "Belgium"], ["UCD", "Ireland"]]
         relationships = [["institution__country", x] for x in object_tuples]
-        import_test_data(
-            db_url;
-            object_classes=object_classes,
-            relationship_classes=relationship_classes,
-            objects=objects,
-            relationships=relationships,
-        )
         Y = Bind()
-        using_spinedb(db_url, Y)
+        with_connection_open(db_url) do
+            import_test_data(
+                db_url;
+                object_classes=object_classes,
+                relationship_classes=relationship_classes,
+                objects=objects,
+                relationships=relationships,
+            )
+            using_spinedb(db_url, Y)
+        end
         @test length(Y.institution__country()) === 5
         add_relationships!(
             Y.institution__country,
@@ -523,15 +535,17 @@ function _test_add_object_parameter_values()
         object_parameters = [["institution", "since_year"], ["institution", "full_name"]]
         object_parameter_values =
             [["institution", "KTH", "since_year", 1827], ["institution", "ER", "since_year", 2010]]
-        import_test_data(
-            db_url;
-            object_classes=object_classes,
-            objects=objects,
-            object_parameters=object_parameters,
-            object_parameter_values=object_parameter_values,
-        )
         Y = Bind()
-        using_spinedb(db_url, Y)
+        with_connection_open(db_url) do
+            import_test_data(
+                db_url;
+                object_classes=object_classes,
+                objects=objects,
+                object_parameters=object_parameters,
+                object_parameter_values=object_parameter_values,
+            )
+            using_spinedb(db_url, Y)
+        end
         @test length(Y.institution()) === 2
         @test Set(x.name for x in Y.institution()) == Set(Symbol.(institutions))
         ER = Y.institution(:ER)
@@ -570,17 +584,19 @@ function _test_add_relationship_parameter_values()
             ["institution__country", [inst, country], "people_count", k] for
             (k, (inst, country)) in enumerate(institution_country_tuples)
         ]
-        import_test_data(
-            db_url;
-            object_classes=object_classes,
-            relationship_classes=relationship_classes,
-            relationship_parameters=relationship_parameters,
-            objects=objects,
-            relationships=relationships,
-            relationship_parameter_values=relationship_parameter_values,
-        )
         Y = Bind()
-        using_spinedb(db_url, Y)
+        with_connection_open(db_url) do
+            import_test_data(
+                db_url;
+                object_classes=object_classes,
+                relationship_classes=relationship_classes,
+                relationship_parameters=relationship_parameters,
+                objects=objects,
+                relationships=relationships,
+                relationship_parameter_values=relationship_parameter_values,
+            )
+            using_spinedb(db_url, Y)
+        end
         @test length(Y.institution__country()) === 5
         ER = Object(:ER, :institution)
         ERFrance = (institution=ER, country=Y.country(:France))
@@ -832,17 +848,19 @@ function _test_maximum_parameter_value()
             ["institution__country", ["VTT", "Finland"], "people_count", map_value],
             ["institution__country", ["VTT", "Ireland"], "people_count", nothing],
         ]
-        import_test_data(
-            db_url;
-            object_classes=object_classes,
-            relationship_classes=relationship_classes,
-            objects=objects,
-            relationships=relationships,
-            relationship_parameters=relationship_parameters,
-            relationship_parameter_values=relationship_parameter_values,
-        )
         Y = Bind()
-        using_spinedb(db_url, Y)
+        with_connection_open(db_url) do
+            import_test_data(
+                db_url;
+                object_classes=object_classes,
+                relationship_classes=relationship_classes,
+                objects=objects,
+                relationships=relationships,
+                relationship_parameters=relationship_parameters,
+                relationship_parameter_values=relationship_parameter_values,
+            )
+            using_spinedb(db_url, Y)
+        end
         @test maximum_parameter_value(Y.people_count) == 300.0
         @test isnothing(maximum_parameter_value(Y.no_values))
     end
@@ -850,75 +868,83 @@ end
 
 function _test_import_data()
     @testset "import_data" begin
-        # Clear in-memory db
-        import_test_data(db_url; object_classes=[])
-        # Create test data
-        sc = 1.0
-        str = "test"
-        dt = DateTime(1)
-        dur = Hour(1)
-        ar = [1.0, NaN, 3.0]
-        tp = Dict(SpineInterface.parse_time_period("Y1-2") => 1.0)
-        ts = TimeSeries([DateTime(1), DateTime(2), DateTime(3)], [1.0, 2.0, 1.0], false, false)
-        map = Map([1.0, 2.0], [3.0, 4.0])
-        pv_dict = Dict(
-            :nothing_parameter => parameter_value(nothing),
-            :scalar_parameter => parameter_value(sc),
-            :string_parameter => parameter_value(str),
-            :date_time_parameter => parameter_value(dt),
-            :duration_parameter => parameter_value(dur),
-            :array_parameter => parameter_value(ar),
-            :timepattern_parameter => parameter_value(tp),
-            :timeseries_parameter => parameter_value(ts),
-            :map_parameter => parameter_value(map),
-        )
-        # Create objects and object class for testing
-        graph = empty_entity_class_graph()
-        add_object_class!(graph, :test_oc)
-        add_entity!(graph, :test_oc, :test_object_1)
-        add_entity!(graph, :test_oc, :test_object_2)
-        add_relationship_class!(graph, :test_rc, :test_oc, :test_oc)
-        add_entity!(graph, :test_rc, :test_oc => :test_object_1, :test_oc => :test_object_2)
-        for (name, value) in pv_dict
-            add_parameter_definition!(graph, :test_oc, name, value)
-            set_parameter_value!(graph, :test_oc, name, :test_object_1, value)
-            add_parameter_definition!(graph, :test_rc, name, value)
-            set_parameter_value!(graph, :test_rc, name, :test_oc => :test_object_1, :test_oc => :test_object_2, value)
-        end
-        original_oc = ObjectClass(:test_oc, graph)
-        original_rc = RelationshipClass(:test_rc, graph, Dict([:test_oc => original_oc]))
-        # Import the newly created `ObjectClass` and `RelationshipClass`
-        @test import_data(db_url, original_oc, "Import test object class.") == [21, []]
-        @test import_data(db_url, original_rc, "Import test relationship class.") == [20, []]
-        @test import_data(db_url, [original_oc, original_rc], "Import both object and relationship class.") == [0, []]
-        Y = Bind()
-        using_spinedb(db_url, Y)
-        @testset for pname in keys(pv_dict)
-            pval = pv_dict[pname]
-            param = getproperty(Y, pname)
-            @test isequal(param(test_oc=Y.test_oc(:test_object_1)), SpineInterface._recursive_inner_value(pval))
+        with_connection_open(db_url) do
+            # Clear in-memory db
+            import_test_data(db_url; object_classes=[])
+            # Create test data
+            sc = 1.0
+            str = "test"
+            dt = DateTime(1)
+            dur = Hour(1)
+            ar = [1.0, NaN, 3.0]
+            tp = Dict(SpineInterface.parse_time_period("Y1-2") => 1.0)
+            ts = TimeSeries([DateTime(1), DateTime(2), DateTime(3)], [1.0, 2.0, 1.0], false, false)
+            map = Map([1.0, 2.0], [3.0, 4.0])
+            pv_dict = Dict(
+                :nothing_parameter => parameter_value(nothing),
+                :scalar_parameter => parameter_value(sc),
+                :string_parameter => parameter_value(str),
+                :date_time_parameter => parameter_value(dt),
+                :duration_parameter => parameter_value(dur),
+                :array_parameter => parameter_value(ar),
+                :timepattern_parameter => parameter_value(tp),
+                :timeseries_parameter => parameter_value(ts),
+                :map_parameter => parameter_value(map),
+            )
+            # Create objects and object class for testing
+            graph = empty_entity_class_graph()
+            add_object_class!(graph, :test_oc)
+            add_entity!(graph, :test_oc, :test_object_1)
+            add_entity!(graph, :test_oc, :test_object_2)
+            add_relationship_class!(graph, :test_rc, :test_oc, :test_oc)
+            add_entity!(graph, :test_rc, :test_oc => :test_object_1, :test_oc => :test_object_2)
+            for (name, value) in pv_dict
+                add_parameter_definition!(graph, :test_oc, name, value)
+                set_parameter_value!(graph, :test_oc, name, :test_object_1, value)
+                add_parameter_definition!(graph, :test_rc, name, value)
+                set_parameter_value!(graph, :test_rc, name, :test_oc => :test_object_1, :test_oc => :test_object_2, value)
+            end
+            original_oc = ObjectClass(:test_oc, graph)
+            original_rc = RelationshipClass(:test_rc, graph, Dict([:test_oc => original_oc]))
+            # Import the newly created `ObjectClass` and `RelationshipClass`
+            @test import_data(db_url, original_oc, "Import test object class.") == [21, []]
+            @test import_data(db_url, original_rc, "Import test relationship class.") == [20, []]
+            @test import_data(db_url, [original_oc, original_rc], "Import both object and relationship class.") == [0, []]
+            Y = Bind()
+            using_spinedb(db_url, Y)
+            @testset for pname in keys(pv_dict)
+                pval = pv_dict[pname]
+                param = getproperty(Y, pname)
+                @test isequal(param(test_oc=Y.test_oc(:test_object_1)), SpineInterface._recursive_inner_value(pval))
+            end
         end
     end
 end
 
 function _test_difference()
     @testset "difference" begin
-        import_test_data(
-            db_url;
-            object_classes=["institution", "country"],
-            relationship_classes=[["institution__country", ["institution", "country"]]],
-            object_parameters=[["institution", "since_year"]],
-            relationship_parameters=[["institution__country", "people_count"]],
-        )
-        left = export_data(db_url)
-        import_test_data(
-            db_url;
-            object_classes=["institution", "idea"],
-            relationship_classes=[["institution__idea", ["institution", "idea"]]],
-            object_parameters=[["institution", "since_year"]],
-            relationship_parameters=[["institution__idea", "creator"]],
-        )
-        right = export_data(db_url)
+        left = nothing
+        with_connection_open(db_url) do
+            import_test_data(
+                db_url;
+                object_classes=["institution", "country"],
+                relationship_classes=[["institution__country", ["institution", "country"]]],
+                object_parameters=[["institution", "since_year"]],
+                relationship_parameters=[["institution__country", "people_count"]],
+            )
+            left = export_data(db_url)
+        end
+        right = nothing
+        with_connection_open(db_url) do
+            import_test_data(
+                db_url;
+                object_classes=["institution", "idea"],
+                relationship_classes=[["institution__idea", ["institution", "idea"]]],
+                object_parameters=[["institution", "since_year"]],
+                relationship_parameters=[["institution__idea", "creator"]],
+            )
+            right = export_data(db_url)
+        end
         left_diff = difference(left, right)
         left_parts = [split(strip(x), "  ") for x in split(left_diff, '\n') if !isempty(x)]
         left_expected = [["entity classes", "country"], ["institution__country"], ["parameters", "people_count"]]
@@ -976,15 +1002,17 @@ function _test_indexed_values()
             ["country", "Finland", "people_count", map_value],
             ["country", "Denmark", "people_count", nothing],
         ]
-        import_test_data(
-            db_url;
-            object_classes=object_classes,
-            objects=objects,
-            object_parameters=object_parameters,
-            object_parameter_values=object_parameter_values,
-        )
         Y = Bind()
-        using_spinedb(db_url, Y)
+        with_connection_open(db_url) do
+            import_test_data(
+                db_url;
+                object_classes=object_classes,
+                objects=objects,
+                object_parameters=object_parameters,
+                object_parameter_values=object_parameter_values,
+            )
+            using_spinedb(db_url, Y)
+        end
         @test indexed_values(Y.people_count(country=Y.country(:France))) == Dict(nothing => 18)
         # @show collect(indexed_values(people_count(country=country(:Sweden))))
         @test indexed_values(Y.people_count(country=Y.country(:Finland))) == Dict(
@@ -1205,33 +1233,35 @@ function _test_writing_superclasses()
     @testset "writing_superclasses" begin
         # Tasku: Note that this test uses the v0.8 data structure!
         # Read original data to Y.
-        _import_superclass_test_data(db_url)
-        orig_data = SpineInterface.parse_db_dict!(export_data(db_url))
-        Y = Bind()
-        using_spinedb(db_url, Y)
-        # Reset database contents
-        SpineInterface.close_connection(db_url)
-        SpineInterface.open_connection(db_url)
-        no_data = export_data(db_url)
-        @test length(no_data) == 1 # Test that data is indeed gone, only "alternatives" remain.
-        # Read Y back into the fresh db
-        import_data(db_url, Y, "testing")
-        # Re-read database into X
-        new_data = SpineInterface.parse_db_dict!(export_data(db_url))
-        X = Bind()
-        using_spinedb(db_url, X)
-        # Test if original and re-read data are identical in X and Y.
-        @test orig_data == new_data
-        @test keys(getfield(Y, :d)) == keys(getfield(X, :d))
-        for ((yname, yvalue), (xname, xvalue)) in zip(getfield(Y, :d), getfield(X, :d))
-            @test yname == xname
-            if isa(yvalue, SpineInterface.EntityClass)
-                @test yvalue() == xvalue()
+        with_connection_open(db_url) do
+            _import_superclass_test_data(db_url)
+            orig_data = SpineInterface.parse_db_dict!(export_data(db_url))
+            Y = Bind()
+            using_spinedb(db_url, Y)
+            # Reset database contents
+            SpineInterface.close_connection(db_url)
+            SpineInterface.open_connection(db_url)
+            no_data = export_data(db_url)
+            @test length(no_data) == 1 # Test that data is indeed gone, only "alternatives" remain.
+            # Read Y back into the fresh db
+            import_data(db_url, Y, "testing")
+            # Re-read database into X
+            new_data = SpineInterface.parse_db_dict!(export_data(db_url))
+            X = Bind()
+            using_spinedb(db_url, X)
+            # Test if original and re-read data are identical in X and Y.
+            @test orig_data == new_data
+            @test keys(getfield(Y, :d)) == keys(getfield(X, :d))
+            for ((yname, yvalue), (xname, xvalue)) in zip(getfield(Y, :d), getfield(X, :d))
+                @test yname == xname
+                if isa(yvalue, SpineInterface.EntityClass)
+                    @test yvalue() == xvalue()
+                end
             end
+            # Test that X and Y are distinct by adding : u3 to Y.
+            add_object!(Y.unit, Object(:u3, :unit))
+            @test Y.unit() != X.unit()
         end
-        # Test that X and Y are distinct by adding : u3 to Y.
-        add_object!(Y.unit, Object(:u3, :unit))
-        @test Y.unit() != X.unit()
     end
 end
 
@@ -1239,9 +1269,11 @@ function _test_manipulating_superclasses()
     @testset "manipulating_superclasses" begin
         # Tasku: Note that this test uses the v0.8 data structure!
         # Read original data to Y.
-        _import_superclass_test_data(db_url)
         Y = Bind()
-        using_spinedb(db_url, Y)
+        with_connection_open(db_url) do
+            _import_superclass_test_data(db_url)
+            using_spinedb(db_url, Y)
+        end
         # Test adding new `unit_flow__unit_flow`s
         nunu = (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n1), unit2=Y.unit(:u1))
         unun = (unit1=Y.unit(:u1), node1=Y.node(:n1), unit2=Y.unit(:u1), node2=Y.node(:n1))
@@ -1292,11 +1324,13 @@ function _test_parse_db_dict()
             :parameter_value_lists => [["boolean", true]],
             :alternatives => [["Base", "Base alternative"]],
         )
-        import_test_data(url; data...)
-        parsed_data = export_data(url)
-        parsed_data = SpineInterface.parse_db_dict!(parsed_data)
-        for (k, v) in data
-            @test get(parsed_data, string(k), nothing) == v
+        with_connection_open(url) do
+            import_test_data(url; data...)
+            parsed_data = export_data(url)
+            parsed_data = SpineInterface.parse_db_dict!(parsed_data)
+            for (k, v) in data
+                @test get(parsed_data, string(k), nothing) == v
+            end
         end
     end
 end
