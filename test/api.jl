@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-db_url = "sqlite://"
+const db_url = "sqlite://"
 
 function _import_superclass_test_data(db_url::String)
     # Tasku: Note that this uses the v0.8 data structure!
@@ -28,12 +28,9 @@ function _import_superclass_test_data(db_url::String)
         ["unit_flow", []],
         ["node__unit", ["node", "unit"]],
         ["unit__node", ["unit", "node"]],
-        ["unit_flow__unit_flow", ["unit_flow", "unit_flow"]]
+        ["unit_flow__unit_flow", ["unit_flow", "unit_flow"]],
     ]
-    supcls_subclss = [
-        ["unit_flow", "node__unit"],
-        ["unit_flow", "unit__node"]
-    ]
+    supcls_subclss = [["unit_flow", "node__unit"], ["unit_flow", "unit__node"]]
     ents = [
         ["node", "n1"],
         ["node", "n2"],
@@ -70,7 +67,7 @@ function _import_superclass_test_data(db_url::String)
         superclass_subclasses=supcls_subclss,
         entities=ents,
         parameter_definitions=par_defs,
-        parameter_values=par_vals
+        parameter_values=par_vals,
     )
 end
 
@@ -172,8 +169,12 @@ function _test_object_class_relationship_class_parameter()
         @test parameter(:animal_count, Y) isa Parameter
         @test parameter(:animal_count, Y).name == :animal_count
         # SpineOpt needs direct access to parameter defaults
-        @test Y.institution.parameter_defaults === Y.institution.vertex.parameter_defaults == Dict(:since_year => parameter_value(nothing))
-        @test Y.institution__country.parameter_defaults === Y.institution__country.vertex.parameter_defaults == Dict(:people_count => parameter_value(nothing))
+        @test Y.institution.parameter_defaults ===
+              Y.institution.vertex.parameter_defaults ==
+              Dict(:since_year => parameter_value(nothing))
+        @test Y.institution__country.parameter_defaults ===
+              Y.institution__country.vertex.parameter_defaults ==
+              Dict(:people_count => parameter_value(nothing))
     end
 end
 
@@ -199,22 +200,17 @@ function _test_superclasses()
                 @test superclasses(Y) == [Y.unit_flow]
                 # Tests for `unit_flow` and `flow_capacity`
                 @test length(Y.unit_flow()) == 6
-                @test Y.unit_flow(unit = Y.unit(:u1)) == [
-                    Y.node(:n1), Y.node(:n1), Y.node(:n3)
-                ]
-                @test collect(Y.unit_flow(unit = Y.unit(:u1); _compact=false)) == [
+                @test Y.unit_flow(unit=Y.unit(:u1)) == [Y.node(:n1), Y.node(:n1), Y.node(:n3)]
+                @test collect(Y.unit_flow(unit=Y.unit(:u1); _compact=false)) == [
                     (node=Y.node(:n1), unit=Y.unit(:u1)),
                     (unit=Y.unit(:u1), node=Y.node(:n1)),
-                    (unit=Y.unit(:u1), node=Y.node(:n3))
+                    (unit=Y.unit(:u1), node=Y.node(:n3)),
                 ]
-                @test Y.unit_flow(node = Y.node(:n2)) == [Y.unit(:u2)]
-                @test collect(Y.unit_flow(node = Y.node(:n2); _compact=false)) == [
-                    (node=Y.node(:n2), unit=Y.unit(:u2))
-                ]
-                @test collect(Y.unit_flow(node = anything, unit = Y.unit(:u1); _compact=false)) == [
-                    (node=Y.node(:n1), unit=Y.unit(:u1))
-                ]
-                @test collect(Y.unit_flow(unit = Y.unit(:u1), node = anything; _compact=false)) == [
+                @test Y.unit_flow(node=Y.node(:n2)) == [Y.unit(:u2)]
+                @test collect(Y.unit_flow(node=Y.node(:n2); _compact=false)) == [(node=Y.node(:n2), unit=Y.unit(:u2))]
+                @test collect(Y.unit_flow(node=anything, unit=Y.unit(:u1); _compact=false)) ==
+                      [(node=Y.node(:n1), unit=Y.unit(:u1))]
+                @test collect(Y.unit_flow(unit=Y.unit(:u1), node=anything; _compact=false)) == [
                     (unit=Y.unit(:u1), node=Y.node(:n1))
                     (unit=Y.unit(:u1), node=Y.node(:n3))
                 ]
@@ -276,14 +272,21 @@ function _test_superclasses()
                     (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
                     (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
                 ]
-                @test collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything, unit2=anything; _compact=false)) == [
-                    (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
-                ]
+                @test collect(
+                    Y.unit_flow__unit_flow(
+                        node1=anything,
+                        unit1=anything,
+                        node2=anything,
+                        unit2=anything;
+                        _compact=false,
+                    ),
+                ) == [(node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))]
                 expected = [
                     (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
                     (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3))
                 ]
-                collected = collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything; _compact=false))
+                collected =
+                    collect(Y.unit_flow__unit_flow(node1=anything, unit1=anything, node2=anything; _compact=false))
                 @test length(collected) == length(expected)
                 @test all(c in expected for c in collected)
                 @test Y.ratio(node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)) == 7.0
@@ -373,8 +376,7 @@ function _test_timeslice_relationships()
     ts23 = TimeSlice(DateTime(2), DateTime(3))
     ts34 = TimeSlice(DateTime(3), DateTime(4))
     t_rels = [ # These need to be RelationshipLikes
-        (t_before=tb, t_after=ta)
-        for (tb, ta) in ((ts01, ts12), (ts01, ts23), (ts12, ts23))
+        (t_before=tb, t_after=ta) for (tb, ta) in ((ts01, ts12), (ts01, ts23), (ts12, ts23))
     ]
     t_before_t = RelationshipClass(:t_before_t, [:t_before, :t_after], values.(t_rels))
     @test t_before_t() == t_rels
@@ -550,13 +552,11 @@ function _test_add_object_parameter_values()
         @test Set(x.name for x in Y.institution()) == Set(Symbol.(institutions))
         ER = Y.institution(:ER)
         @test Y.since_year(institution=ER) == 2010
-        pvals = Dict{Object, Dict{Symbol, ParameterValue}}( # Needs to be typed, otherwise results in `Dict{Object,Dict{Symbol}}`
-            Object(:ER, :institution) => Dict(
-                :since_year => parameter_value(2011), :full_name => parameter_value("Energy Reform")
-            ),
-            Object(:CORRE_LABS, :institution) => Dict(
-                :since_year => parameter_value(2022), :people_count => parameter_value(3)
-            ),
+        pvals = Dict{Object,Dict{Symbol,ParameterValue}}( # Needs to be typed, otherwise results in `Dict{Object,Dict{Symbol}}`
+            Object(:ER, :institution) =>
+                Dict(:since_year => parameter_value(2011), :full_name => parameter_value("Energy Reform")),
+            Object(:CORRE_LABS, :institution) =>
+                Dict(:since_year => parameter_value(2022), :people_count => parameter_value(3)),
         )
         add_object_parameter_values!(Y.institution, pvals)
         CORRE_LABS = Object(:CORRE_LABS, :institution)
@@ -622,15 +622,14 @@ function _test_add_relationship_parameter_values()
         @test Y.people_count(; ERSweden...) == 1
         @test Y.people_count(; KTHFrance...) == 0
         pvals = Dict( # Some SpineOpt preprocessing uses ObjectTuples for some reason.
-            (Y.country(:Sweden), Y.country(:Sweden)) =>
-                Dict(:is_different => parameter_value(false)),
-            (Y.country(:Sweden), Y.country(:France)) =>
-                Dict(:is_different => parameter_value(true)),
+            (Y.country(:Sweden), Y.country(:Sweden)) => Dict(:is_different => parameter_value(false)),
+            (Y.country(:Sweden), Y.country(:France)) => Dict(:is_different => parameter_value(true)),
         )
         add_relationship_parameter_values!(Y.country__country, pvals)
         @test Y.is_different(country1=Y.country(:Sweden), country2=Y.country(:Sweden)) == false
         @test Y.is_different(country1=Y.country(:Sweden), country2=Y.country(:France)) == true
-        @test add_relationship_parameter_values!(Y.country__country, Dict()) == Y.country__country.vertex.parameter_values # SpineOpt preprocessing can add empty dictionaries
+        @test add_relationship_parameter_values!(Y.country__country, Dict()) ==
+              Y.country__country.vertex.parameter_values # SpineOpt preprocessing can add empty dictionaries
     end
 end
 
@@ -642,7 +641,8 @@ function _test_classic_add_entity_group_member()
             add_entity!(entity_class_graph, :Class, :group_object)
             add_entity!(entity_class_graph, :Class, :member_object)
             add_entity_group_member!(entity_class_graph, :Class, :group_object, :member_object)
-            @test collect(SpineInterface.entity_group_members(entity_class_graph, :Class, :group_object)) == [:member_object]
+            @test collect(SpineInterface.entity_group_members(entity_class_graph, :Class, :group_object)) ==
+                  [:member_object]
         end
     end
 end
@@ -795,7 +795,7 @@ function _test_maximum_parameter_value()
         relationship_classes = [["institution__country", ["institution", "country"]]]
         relationship_parameters = [
             ["institution__country", "people_count"],
-            ["institution__country", "no_values"] # Test what an empty parameter yields
+            ["institution__country", "no_values"], # Test what an empty parameter yields
         ]
         institutions = ["KTH", "VTT", "ER"]
         countries = ["Sweden", "France", "Finland", "Ireland"]
@@ -902,14 +902,22 @@ function _test_import_data()
                 add_parameter_definition!(graph, :test_oc, name, value)
                 set_parameter_value!(graph, :test_oc, name, :test_object_1, value)
                 add_parameter_definition!(graph, :test_rc, name, value)
-                set_parameter_value!(graph, :test_rc, name, :test_oc => :test_object_1, :test_oc => :test_object_2, value)
+                set_parameter_value!(
+                    graph,
+                    :test_rc,
+                    name,
+                    :test_oc => :test_object_1,
+                    :test_oc => :test_object_2,
+                    value,
+                )
             end
             original_oc = ObjectClass(:test_oc, graph)
             original_rc = RelationshipClass(:test_rc, graph, Dict([:test_oc => original_oc]))
             # Import the newly created `ObjectClass` and `RelationshipClass`
             @test import_data(db_url, original_oc, "Import test object class.") == [21, []]
             @test import_data(db_url, original_rc, "Import test relationship class.") == [20, []]
-            @test import_data(db_url, [original_oc, original_rc], "Import both object and relationship class.") == [0, []]
+            @test import_data(db_url, [original_oc, original_rc], "Import both object and relationship class.") ==
+                  [0, []]
             Y = Bind()
             using_spinedb(db_url, Y)
             @testset for pname in keys(pv_dict)
@@ -1277,29 +1285,23 @@ function _test_manipulating_superclasses()
         # Test adding new `unit_flow__unit_flow`s
         nunu = (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n1), unit2=Y.unit(:u1))
         unun = (unit1=Y.unit(:u1), node1=Y.node(:n1), unit2=Y.unit(:u1), node2=Y.node(:n1))
-        @test isempty(Y.unit_flow__unit_flow(;nunu..., _compact=false))
-        @test isempty(Y.unit_flow__unit_flow(;unun..., _compact=false))
+        @test isempty(Y.unit_flow__unit_flow(; nunu..., _compact=false))
+        @test isempty(Y.unit_flow__unit_flow(; unun..., _compact=false))
         add_relationships!(Y.unit_flow__unit_flow, [values(nunu), values(unun)])
-        @test first(Y.unit_flow__unit_flow(;nunu..., _compact=false)) == nunu
-        @test first(Y.unit_flow__unit_flow(;unun..., _compact=false)) == unun
+        @test first(Y.unit_flow__unit_flow(; nunu..., _compact=false)) == nunu
+        @test first(Y.unit_flow__unit_flow(; unun..., _compact=false)) == unun
         # Test adding new `unit_flow__unit_flow` parameter values
         unnu = (unit1=Y.unit(:u1), node1=Y.node(:n1), node2=Y.node(:n1), unit2=Y.unit(:u1))
         nuun = (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n1))
         @test Y.ratio(; unnu...) == Y.ratio(; nuun...) == nothing
-        pvs = Dict(
-            unnu => Dict(:ratio => parameter_value(:unnu)),
-            nuun => Dict(:ratio => parameter_value(:nuun))
-        )
+        pvs = Dict(unnu => Dict(:ratio => parameter_value(:unnu)), nuun => Dict(:ratio => parameter_value(:nuun)))
         add_relationship_parameter_values!(Y.unit_flow__unit_flow, pvs)
         @test Y.ratio(; unnu...) == :unnu
         @test Y.ratio(; nuun...) == :nuun
         # Test changing the default
         inds = (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2))
         @test Y.ratio(; inds...) == 2.0
-        add_relationship_parameter_defaults!(
-            Y.unit_flow__unit_flow,
-            Dict(:ratio => parameter_value(3.0))
-        )
+        add_relationship_parameter_defaults!(Y.unit_flow__unit_flow, Dict(:ratio => parameter_value(3.0)))
         @test Y.ratio(; inds...) == 3.0
     end
 end
@@ -1310,7 +1312,7 @@ function _test_parse_db_dict()
         data = Dict(
             :entity_classes => [
                 ["country", [], nothing, nothing, true],
-                ["country__country", ["country", "country"], nothing, nothing, true]
+                ["country__country", ["country", "country"], nothing, nothing, true],
             ],
             :entities => [["country", "Finland", nothing]],
             :parameter_definitions => [ # NOTE! This structure was introduced in Spine-DB-API v0.36.4 or newer!
@@ -1318,7 +1320,13 @@ function _test_parse_db_dict()
                 ["country", "exists", "boolean", nothing, nothing, nothing],
             ],
             :parameter_values => [
-                ["country", "Finland", "array", Dict("type" => "array", "value_type" => "float", "data" => [1.0,2.0]), "Base"],
+                [
+                    "country",
+                    "Finland",
+                    "array",
+                    Dict("type" => "array", "value_type" => "float", "data" => [1.0, 2.0]),
+                    "Base",
+                ],
                 ["country", "Finland", "exists", true, "Base"],
             ],
             :parameter_value_lists => [["boolean", true]],

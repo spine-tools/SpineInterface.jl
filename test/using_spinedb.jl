@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
-db_url = "sqlite://"
+const db_url = "sqlite://"
 
 function _test_object_class()
     @testset "object_class" begin
@@ -89,7 +89,10 @@ function _test_relationship_class()
         @test Y.institution__country(institution=Y.institution(:KTH), country=Y.country(:France), _compact=false) ==
               [(institution=Y.institution(:KTH), country=Y.country(:France))] # Complete hit with _compact=false needs to return the ntuple
         @test Y.institution__country(institution=Y.institution(:KTH), country=anything, _compact=false) == # Check anything
-              [(institution=Y.institution(:KTH), country=Y.country(:France)), (institution=Y.institution(:KTH), country=Y.country(:Sweden))]
+              [
+            (institution=Y.institution(:KTH), country=Y.country(:France)),
+            (institution=Y.institution(:KTH), country=Y.country(:Sweden)),
+        ]
         @test Set((x.name, y.name) for (x, y) in Y.institution__country()) ==
               Set((Symbol(x), Symbol(y)) for (x, y) in institution_country_tuples)
         @test isempty(Y.institution__country(country=Y.country(:France), institution=Y.institution(:KTH)))
@@ -99,7 +102,8 @@ function _test_relationship_class()
             _compact=false,
             _default=10,
         ) == 10
-        @test Y.institution__country(country=[Y.country(:Finland), Y.country(:Sweden)]) == [Y.institution(:VTT), Y.institution(:KTH)]
+        @test Y.institution__country(country=[Y.country(:Finland), Y.country(:Sweden)]) ==
+              [Y.institution(:VTT), Y.institution(:KTH)]
         @test isempty(Y.institution__country(country=[])) # An empty selector should yield empty
         @test isempty(Y.institution__country(country=[], institution=anything, _compact=false))
         @test isempty(Y.institution__country(country=anything, institution=nothing, _compact=false))
@@ -116,21 +120,18 @@ function _test_parameter()
     @testset "parameter" begin
         obj_classes = ["institution", "country"]
         rel_classes = [
-                ["institution__country", ["institution", "country"]],
-                ["duplicate__institution__country", ["institution", "country"]],
-                ["country__country", ["country", "country"]]
-            ]
-        object_parameters = [
-            ["institution", "since_year"],
-            ["country", "bread", "knackebrod"],
-            ["country", "since_year", 0]
+            ["institution__country", ["institution", "country"]],
+            ["duplicate__institution__country", ["institution", "country"]],
+            ["country__country", ["country", "country"]],
         ]
+        object_parameters =
+            [["institution", "since_year"], ["country", "bread", "knackebrod"], ["country", "since_year", 0]]
         relationship_parameters = [
             ["institution__country", "people_count"],
             ["institution__country", "job", "research"],
             ["duplicate__institution__country", "job", "consultancy"],
             ["country__country", "is_different", true],
-            ["country__country", "job", false]
+            ["country__country", "job", false],
         ]
         institutions = ["KTH", "VTT"]
         countries = ["Sweden", "France"]
@@ -144,9 +145,9 @@ function _test_parameter()
             ["country__country", ["France", "France"]],
         ]
         object_parameter_values = [
-                ["institution", "KTH", "since_year", 1827],
-                ["country", "Sweden", "since_year", 1611],
-                ["country", "France", "bread", "baguette"]
+            ["institution", "KTH", "since_year", 1827],
+            ["country", "Sweden", "since_year", 1611],
+            ["country", "France", "bread", "baguette"],
         ]
         relationship_parameter_values = [
             ["institution__country", ["KTH", "Sweden"], "people_count", 3],
@@ -154,7 +155,7 @@ function _test_parameter()
             ["institution__country", ["KTH", "Sweden"], "job", "teaching"],
             ["country__country", ["Sweden", "Sweden"], "is_different", false],
             ["country__country", ["Sweden", "France"], "is_different", true],
-            ["country__country", ["France", "France"], "job", true]
+            ["country__country", ["France", "France"], "job", true],
         ]
         Y = Bind()
         with_connection_open(db_url) do
@@ -183,7 +184,8 @@ function _test_parameter()
         @test Y.bread(country=Y.country(:France)) == :baguette
         @test Y.bread(country=Y.country(:Sweden)) == :knackebrod
         @test Y.bread(country=Y.country(:Finland)) === nothing
-        @test Y.job(Y.duplicate__institution__country; institution=Y.institution(:KTH), country=Y.country(:Sweden)) == :consultancy # Correct default
+        @test Y.job(Y.duplicate__institution__country; institution=Y.institution(:KTH), country=Y.country(:Sweden)) ==
+              :consultancy # Correct default
         @test Y.job(Y.institution__country; institution=Y.institution(:KTH), country=Y.country(:Sweden)) == :teaching # Correct value
         # @test Y.job(Y.institution__country; institution=Y.institution(:KTH), country=Y.country(:Sweden)) == :teaching # FIXME Value prioritized over default?
         @test Y.job(institution=Y.institution(:KTH), country=Y.country(:France)) == :research
@@ -225,7 +227,7 @@ function _test_pv_type_true()
             Y = Bind()
             using_spinedb(db_url, Y)
             @test Y.apero_time(country=Y.country(:France))
-            @test Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds...)
+            @test Y.apero_time(; country=Y.country(:France), arbitrary_pv_inds...) === true
         end
     end
 end
@@ -240,7 +242,7 @@ function _test_pv_type_false()
             Y = Bind()
             using_spinedb(db_url, Y)
             @test !Y.apero_time(country=Y.country(:France))
-            @test !Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds...)
+            @test Y.apero_time(; country=Y.country(:France), arbitrary_pv_inds...) === false
         end
     end
 end
@@ -255,7 +257,7 @@ function _test_pv_type_string()
             Y = Bind()
             using_spinedb(db_url, Y)
             @test Y.apero_time(country=Y.country(:France)) == Symbol("now!")
-            @test Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds...) == Symbol("now!")
+            @test Y.apero_time(; country=Y.country(:France), arbitrary_pv_inds...) == Symbol("now!")
         end
     end
 end
@@ -272,9 +274,11 @@ function _test_pv_type_array()
             Y = Bind()
             using_spinedb(db_url, Y)
             @test Y.apero_time(country=Y.country(:France)) == data
-            @test Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds...) == data
+            @test Y.apero_time(; country=Y.country(:France), arbitrary_pv_inds...) == data
             @test all(Y.apero_time(country=Y.country(:France), i=i) == v for (i, v) in enumerate(data))
-            @test all(Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds..., i=i) == v for (i, v) in enumerate(data))
+            @test all(
+                Y.apero_time(; country=Y.country(:France), arbitrary_pv_inds..., i=i) == v for (i, v) in enumerate(data)
+            )
         end
     end
 end
@@ -291,7 +295,7 @@ function _test_pv_type_date_time()
             Y = Bind()
             using_spinedb(db_url, Y)
             @test Y.apero_time(country=Y.country(:France)) == DateTime(data)
-            @test Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds...) == DateTime(data)
+            @test Y.apero_time(; country=Y.country(:France), arbitrary_pv_inds...) == DateTime(data)
         end
     end
 end
@@ -301,14 +305,15 @@ function _test_pv_type_duration()
         _test_pv_type_setup()
         arbitrary_pv_inds = (a=1, b=:c, d=nothing)
         @testset "duration" begin
-            @testset for (k, (t, data)) in enumerate([(Minute, "m"), (Hour, "h"), (Day, "D"), (Month, "M"), (Year, "Y")])
+            @testset for (k, (t, data)) in
+                         enumerate([(Minute, "m"), (Hour, "h"), (Day, "D"), (Month, "M"), (Year, "Y")])
                 value = Dict("type" => "duration", "data" => string(k, data))
                 object_parameter_values = [["country", "France", "apero_time", value]]
                 import_data(db_url; object_parameter_values=object_parameter_values)
                 Y = Bind()
                 using_spinedb(db_url, Y)
                 @test Y.apero_time(country=Y.country(:France)) == t(k)
-                @test Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds...) == t(k)
+                @test Y.apero_time(; country=Y.country(:France), arbitrary_pv_inds...) == t(k)
             end
         end
     end
@@ -327,11 +332,13 @@ function _test_pv_type_time_pattern()
             using_spinedb(db_url, Y)
             France = Y.country(:France)
             @test Y.apero_time(country=France) isa SpineInterface.TimePattern
-            @test Y.apero_time(;country=France, arbitrary_pv_inds...) isa SpineInterface.TimePattern
+            @test Y.apero_time(; country=France, arbitrary_pv_inds...) isa SpineInterface.TimePattern
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == 300
-            @test Y.apero_time(;country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2)), arbitrary_pv_inds...) == 300
+            @test Y.apero_time(; country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2)), arbitrary_pv_inds...) ==
+                  300
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 5), DateTime(0, 8))) == 221.5
-            @test Y.apero_time(;country=France, arbitrary_pv_inds..., t=TimeSlice(DateTime(0, 5), DateTime(0, 8))) == 221.5
+            @test Y.apero_time(; country=France, arbitrary_pv_inds..., t=TimeSlice(DateTime(0, 5), DateTime(0, 8))) ==
+                  221.5
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 12))) == (221.5 + 300) / 2
             @test isnan(Y.apero_time(country=France, t=TimeSlice(DateTime(0, 11), DateTime(0, 12))))
         end
@@ -344,7 +351,8 @@ function _test_pv_type_std_time_series()
         arbitrary_pv_inds = (a=1, b=:c, d=nothing)
         @testset "std_time_series" begin
             data = [1.0, 4.0, 5.0, NaN, 7.0]
-            index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
+            index =
+                Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => false, "ignore_year" => true)
             value = Dict("type" => "time_series", "data" => data, "index" => index)
             object_parameter_values = [["country", "France", "apero_time", value]]
             import_data(db_url; object_parameter_values=object_parameter_values)
@@ -352,11 +360,13 @@ function _test_pv_type_std_time_series()
             using_spinedb(db_url, Y)
             France = Y.country(:France)
             @test Y.apero_time(country=France) isa TimeSeries
-            @test Y.apero_time(;country=France, arbitrary_pv_inds...) isa TimeSeries
+            @test Y.apero_time(; country=France, arbitrary_pv_inds...) isa TimeSeries
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == 1.0
-            @test Y.apero_time(;country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2)), arbitrary_pv_inds...) == 1.0
+            @test Y.apero_time(; country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2)), arbitrary_pv_inds...) ==
+                  1.0
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == (1.0 + 4.0) / 2
-            @test Y.apero_time(;country=France, arbitrary_pv_inds..., t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == (1.0 + 4.0) / 2
+            @test Y.apero_time(; country=France, arbitrary_pv_inds..., t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) ==
+                  (1.0 + 4.0) / 2
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == (4.0 + 5.0) / 2
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 3, 2), DateTime(0, 3, 3))) === 5.0
             @test isnan(Y.apero_time(country=France, t=TimeSlice(DateTime(0, 4), DateTime(0, 5))))
@@ -373,7 +383,8 @@ function _test_pv_type_repeating_time_series()
         arbitrary_pv_inds = (a=1, b=:c, d=nothing)
         @testset "repeating_time_series" begin
             data = [1, 4, 5, 3, 7]
-            index = Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => true, "ignore_year" => true)
+            index =
+                Dict("start" => "2000-01-01T00:00:00", "resolution" => "1M", "repeat" => true, "ignore_year" => true)
             value = Dict("type" => "time_series", "data" => data, "index" => index)
             object_parameter_values = [["country", "France", "apero_time", value]]
             import_data(db_url; object_parameter_values=object_parameter_values)
@@ -381,14 +392,17 @@ function _test_pv_type_repeating_time_series()
             using_spinedb(db_url, Y)
             France = Y.country(:France)
             @test Y.apero_time(country=France) isa TimeSeries
-            @test Y.apero_time(;country=France, arbitrary_pv_inds...) isa TimeSeries
+            @test Y.apero_time(; country=France, arbitrary_pv_inds...) isa TimeSeries
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2))) == data[1]
-            @test Y.apero_time(;country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2)), arbitrary_pv_inds...) == data[1]
+            @test Y.apero_time(; country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 2)), arbitrary_pv_inds...) ==
+                  data[1]
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
-            @test Y.apero_time(;country=France, arbitrary_pv_inds..., t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) == sum(data[1:2]) / 2
+            @test Y.apero_time(; country=France, arbitrary_pv_inds..., t=TimeSlice(DateTime(0, 1), DateTime(0, 3))) ==
+                  sum(data[1:2]) / 2
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 2), DateTime(0, 3, 15))) == sum(data[2:3]) / 2
             @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 6), DateTime(0, 7))) == sum(data[2:3]) / 2
-            @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 7))) == sum([data; data[1:3]]) / 8
+            @test Y.apero_time(country=France, t=TimeSlice(DateTime(0, 1), DateTime(0, 7))) ==
+                  sum([data; data[1:3]]) / 8
         end
     end
 end
@@ -498,7 +512,8 @@ function _test_pv_type_map()
             @test Y.apero_time_rel(; country1=France, country2=France, s=drunk, t0=t0, t=t1_3) == (4.0 + 5.6) / 2
             @test Y.apero_time_rel(; country1=France, country2=France, s=sober, t0=t0, t=t1_2) == 2.1
             @test Y.apero_time_rel(; country1=France, country2=France, s=sober, t0=t0, t=t1_3) == (2.1 + 1.8) / 2
-            @test Y.apero_time_rel(; country1=France, country2=France, s=drunk, whatever=:whatever, t0=t0, t=t2_3) == 5.6
+            @test Y.apero_time_rel(; country1=France, country2=France, s=drunk, whatever=:whatever, t0=t0, t=t2_3) ==
+                  5.6
             @test Y.apero_time_rel(; country1=France, country2=France, s=drunk, t0=t0, whocares=t0, t=t2_3) == 5.6
         end
     end
