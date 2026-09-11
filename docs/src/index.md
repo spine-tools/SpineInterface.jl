@@ -1,5 +1,17 @@
 # SpineInterface.jl
 
+This package provides access to the contenst of a Spine database
+and the ability to create, modify and manage data in Spine data model.
+The programming interface can be used in 'modern' and 'classic' styles.
+The modern style interface is perhaps a more traditional interface
+with emphasis on performance rather than convenience.
+It is the recommended style for new projects and scripts.
+The classic style is a backward-compatibility layer
+that uses the modern style behind the scenes.
+It allows the continued usage of `using_spinedb` and the convenience functions
+in projects and scripts that already use those.
+
+
 This package provides the ability to access the contents of a Spine database in a way
 that's convenient for writing algorithms.
 The functions `import_data` and `using_spinedb` are the main stars of the package:
@@ -14,13 +26,9 @@ This allows you to develop fully data-driven applications.
 One key example is the [`SpineOpt`](https://github.com/spine-tools/SpineOpt.jl) package,
 which uses the above technique to generate and run energy system integration models.
 
-## Compatibility
-
-This package requires Julia 1.6 or later.
-
 ## Installation
 
-You can install SpineInterface from as follows:
+You can install SpineInterface as follows:
 
 ```julia
 using Pkg
