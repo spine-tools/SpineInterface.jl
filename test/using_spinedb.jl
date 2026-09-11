@@ -208,7 +208,7 @@ function _test_pv_type_true()
         Y = Bind()
         using_spinedb(db_url, Y)
         @test Y.apero_time(country=Y.country(:France))
-        @test Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds...)
+        @test Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds...) === true
     end
 end
 
@@ -221,7 +221,7 @@ function _test_pv_type_false()
         Y = Bind()
         using_spinedb(db_url, Y)
         @test !Y.apero_time(country=Y.country(:France))
-        @test !Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds...)
+        @test !Y.apero_time(;country=Y.country(:France), arbitrary_pv_inds...) === true
     end
 end
 
