@@ -234,11 +234,6 @@ function _test_superclasses()
                     (node=Y.node(:n1), unit=Y.unit(:u2)),
                     (node=Y.node(:n2), unit=Y.unit(:u2)),
                 ]
-                #= Tasku: RelationshipClasses have no parameter value filters.
-                @test unit_flow(flow_capacity=0.0) == [(node=node(:n1), unit=unit(:u2))]
-                @test unit_flow(flow_capacity=4.0) == [(node=node(:n1), unit=unit(:u1))]
-                @test unit_flow(flow_capacity=1.0) == [(unit=unit(:u2), node=node(:n3))]
-                =#
                 # Tests for `unit_flow__unit_flow` and `ratio`
                 @test length(Y.unit_flow__unit_flow()) == 4
                 expected = [
@@ -306,30 +301,6 @@ function _test_superclasses()
                     (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
                     (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
                 ]
-                #= Tasku: Parameter value filtering for relationship classes is not a thing atm.
-                @test unit_flow__unit_flow(ratio=2.0) == [
-                    (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
-                    (unit1=unit(:u1), node1=node(:n3), unit2=unit(:u2), node2=node(:n3)),
-                ]
-                @test collect(unit_flow__unit_flow(node1=anything, unit1=anything, ratio=2.0, _compact=false)) == [
-                    (node1=node(:n1), unit1=unit(:u1), node2=node(:n2), unit2=unit(:u2)),
-                ]
-                @test unit_flow__unit_flow(ratio=7.0) == [
-                    (node1=node(:n1), unit1=unit(:u1), unit2=unit(:u1), node2=node(:n3))
-                ]
-                =#
-                # @test Y.unit_flow__unit_flow__node__unit__node__unit() == [
-                #     (node1=Y.node(:n1), unit1=Y.unit(:u1), node2=Y.node(:n2), unit2=Y.unit(:u2)),
-                # ]
-                # @test Y.unit_flow__unit_flow__unit__node__node__unit() == [
-                #     (unit1=Y.unit(:u1), node1=Y.node(:n3), node2=Y.node(:n1), unit2=Y.unit(:u1)),
-                # ]
-                # @test Y.unit_flow__unit_flow__node__unit__unit__node() == [
-                #     (node1=Y.node(:n1), unit1=Y.unit(:u1), unit2=Y.unit(:u1), node2=Y.node(:n3)),
-                # ]
-                # @test Y.unit_flow__unit_flow__unit__node__unit__node() == [
-                #     (unit1=Y.unit(:u1), node1=Y.node(:n3), unit2=Y.unit(:u2), node2=Y.node(:n3)),
-                # ]
                 # Test superclass database extension (to see if it errors)
                 using_spinedb(db_url, Y; extend=true)
             end
