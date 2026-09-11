@@ -1,26 +1,19 @@
 # SpineInterface.jl
 
-This package provides the ability to access the contents of a Spine database in a way
-that's convenient for writing algorithms.
-The functions `import_data` and `using_spinedb` are the main stars of the package:
-Given the url of a Spine database, `import_data` can write data to the (new) database
-and `using_spinedb` creates a series of convenience functions to retrieve the contents of that database 
-in the Julia module or session where it's called.
-In this way,
-with `import_data` you can populate a Spine database with that data for a system you want to study,
-call `using_spinedb` in your module to generate the convenience functions,
-and then use those functions to build, e.g., an optimisation model for that system.
-This allows you to develop fully data-driven applications.
-One key example is the [`SpineOpt`](https://github.com/Spine-project/SpineOpt.jl) package,
-which uses the above technique to generate and run energy system integration models.
-
-## Compatibility
-
-This package requires Julia 1.6 or later.
+This package provides access to the contenst of a Spine database
+and the ability to create, modify and manage Spine datasets.
+The programming interface can be used in 'modern' and 'classic' styles.
+The modern style interface is perhaps a more traditional interface
+with emphasis on performance rather than convenience.
+It is the recommended style for new projects and scripts.
+The classic style is a backward-compatibility layer
+that uses the modern style behind the scenes.
+It allows the continued usage of `using_spinedb` and the convenience functions
+in projects and scripts that already use those.
 
 ## Installation
 
-You can install SpineInterface from as follows:
+You can install SpineInterface as follows:
 
 ```julia
 using Pkg
@@ -51,42 +44,46 @@ where `<PATH_TO_SPINEINTERFACE>` is the path to the root folder of the SpineInte
 
 ## Usage
 
-Essentially, SpineInterface works just like any Julia module
+Essentially, SpineInterface works just like any Julia module.
+The main entry points are
+
+- `empty_entity_class_graph` which creates an empty dataset
+- `export_data` which loads data from Spine database
+  and `build_entity_class_graph` which converts the loaded data into a dataset
+- `data_to_import` which converts an existing dataset into importable data
+  and `import_data` which stores the data into Spine database
 
 ```julia
 using SpineInterface
 
+data = empty_entity_class_graph()
+add_entity_class!(data, :colors)
+for color in (:red, :blue)
+    add_entity!(data, :colors, color)
+end
+add_entity_class!(data, :shapes)
+for shape in (:square, :circle)
+    add_entity!(data, :shapes, shape)
+end
+
+for color in entities(data, :colors)
+    println(color)
+end
+
+blob = data_to_import(data)
 url = "sqlite:///quick_start.sqlite"
-commitmessage = "initial commit"
-
-import_data(url,commitmessage;
-	object_classes=["colors", "shapes"],
-	objects = [
-		["colors", "red"], 
-		["colors", "blue"], 
-		["shapes", "square"], 
-		["shapes", "circle"]
-	]
-)
-
-using_spinedb(url)
-
-colors()#returns all colors
-shapes("square")#returns the square
+commit_message = "initial commit"
+import_data(url, blob, commit_message)
 ```
-
-with `import_data` and `using_spinedb` being the key functions for interfacing a Spine Datastore.
-`import_data` is used to create a new Spine Datastore or write data to an existing Spine Datastore.
-`using_spinedb` creates the convenience functions to access the data in the Spine Datastore.
-
 
 ## Tutorials
 
 To get started with SpineInterface you can take a look at the tutorials:
-+ 'Tutorial spine database' shows the basic functionality of SpineInterface for general spine databases
-+ 'Tutorial SpineOpt database' shows the more specific functionality for [SpineOpt](https://github.com/Spine-tools/SpineOpt.jl) databases
++ 'SpineInterface basics' shows basic functionality of SpineInterface in modern style
++ 'Classic interface basics' shows basic functionality with the classic interface
++ 'Classic interface with SpineOpt database' shows the more specific functionality for [SpineOpt](https://github.com/spine-tools/SpineOpt.jl) databases with the classic interface
 
-The files corresponding to these tutorials can be found in the examples folder of the github repository [SpineInterface](https://github.com/Spine-tools/SpineInterface.jl).
+The files corresponding to these tutorials can be found in the examples folder of the github repository [SpineInterface](https://github.com/spine-tools/SpineInterface.jl).
 
 
 ## Library outline

@@ -18,6 +18,50 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+function _test_merge()
+    @testset "merge" begin
+        @testset "parameters" begin
+            @testset "merging object class parameters" begin
+                data = empty_entity_class_graph()
+                add_entity_class!(data, :class1)
+                add_parameter_definition!(data, :class1, :X)
+                add_entity_class!(data, :class2)
+                add_parameter_definition!(data, :class2, :X)
+                class1 = ObjectClass(:class1, data, Dict())
+                class2a = ObjectClass(:class2, data, Dict())
+                x1 = Parameter(:X, data, [class1, class2a])
+                add_entity_class!(data, :class2)
+                add_parameter_definition!(data, :class2, :X)
+                add_entity_class!(data, :class3)
+                add_parameter_definition!(data, :class3, :X)
+                class2b = ObjectClass(:class2, data, Dict())
+                class3 = ObjectClass(:class3, data, Dict())
+                x2 = Parameter(:X, data, [class2b, class3])
+                merge!(x1, x2)
+                @test classes(x1) == sort([class1, class2a, class3], by=SpineInterface.ClassSize(data), rev=true)
+            end
+            @testset "parameter's classes are kept sorted" begin
+                data = empty_entity_class_graph()
+                add_entity_class!(data, :A)
+                add_parameter_definition!(data, :A, :X)
+                classA = ObjectClass(:A, data, Dict())
+                x1 = Parameter(:A, data, [classA])
+                add_entity_class!(data, :B)
+                add_entity_class!(data, :C)
+                add_entity_class!(data, :B__C, :B, :C)
+                add_parameter_definition!(data, :B__C, :X)
+                classB = ObjectClass(:B, data, Dict())
+                classC = ObjectClass(:C, data, Dict())
+                object_classes = Dict([:A => classA, :B => classB, :C => classC])
+                classBC = RelationshipClass(:B__C, data, object_classes)
+                x2 = Parameter(:B__C, data, [classBC])
+                merge!(x1, x2)
+                @test classes(x1) == [classBC, classA]
+            end
+        end
+    end
+end
+
 @testset "base" begin
     # intersect
     @test intersect(anything, [1]) == [1]
@@ -58,8 +102,12 @@
     @test string(anything) === "anything"
     @test string(t1) === "0000-01-01T00:00~(52 weeks, 2 days)~>0001-01-01T00:00"
     @test string(p5) === "ParameterValue(5)"
-    duck = ObjectClass(:duck, [])
-    studio_duck = RelationshipClass(:studio_duck, [:studio, :duck], [])
+    graph = empty_entity_class_graph()
+    add_object_class!(graph, :duck)
+    duck = ObjectClass(:duck, graph)
+    object_classes = Dict(c.name => c for c in (duck,))
+    add_relationship_class!(graph, :studio_duck, :duck)
+    studio_duck = RelationshipClass(:studio_duck, graph, object_classes)
     @test string(duck) === "duck"
     @test string(studio_duck) === "studio_duck"
     id_call = Call(13)
@@ -82,27 +130,27 @@
     @test val_copy() === nothing
     val = parameter_value(10)
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.ParameterValue{T} where T<:Integer
+    @test val_copy isa SpineInterface.ParameterValue{T} where {T<:Integer}
     @test val_copy() === 10
     val = parameter_value([4, 5, 6])
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.ParameterValue{T} where T<:Array
+    @test val_copy isa SpineInterface.ParameterValue{T} where {T<:Array}
     @test val_copy(i=1) === 4
     @test val_copy(i=2) === 5
     @test val_copy(i=3) === 6
     val = parameter_value(Dict(tp1 => 14))
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.ParameterValue{T} where T<:TimePattern
+    @test val_copy isa SpineInterface.ParameterValue{T} where {T<:TimePattern}
     @test convert(Int64, val_copy(t=TimeSlice(DateTime(1), DateTime(4)))) === 14
     ts = TimeSeries([DateTime(4), DateTime(5)], [100, 8], false, false)
     val = parameter_value(ts)
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.ParameterValue{T} where T<:TimeSeries
+    @test val_copy isa SpineInterface.ParameterValue{T} where {T<:TimeSeries}
     @test convert(Int64, val_copy(t=TimeSlice(DateTime(4), DateTime(5)))) === 100
     ts = TimeSeries([DateTime(4), DateTime(5)], [100, 8], false, true)
     val = parameter_value(ts)
     val_copy = copy(val)
-    @test val_copy isa SpineInterface.ParameterValue{T} where T<:TimeSeries
+    @test val_copy isa SpineInterface.ParameterValue{T} where {T<:TimeSeries}
     @test val_copy(t=TimeSlice(DateTime(6), DateTime(7))) === (200 + 8) / 3
     call_copy = copy(id_call)
     @test call_copy isa Call
@@ -230,12 +278,11 @@
     @test +ts1 == ts1
     @test ts1 + 4.2 == 4.2 + ts1 == TimeSeries(ts1.indexes, ts1.values .+ 4.2, false, false)
     @test ts1 + ts1 == ts1 * 2.0 == 2.0 * ts1
-    @test ts1 + ts1_ignore_year == ts1_ignore_year + ts1 == TimeSeries(
-        ts1.indexes, ts1.values .+ ts1_ignore_year.values, false, false
-    )
-    @test ts1_ignore_year + ts1_ignore_year == TimeSeries(
-        ts1_ignore_year.indexes, ts1_ignore_year.values .+ ts1_ignore_year.values, true, false
-    )
+    @test ts1 + ts1_ignore_year ==
+          ts1_ignore_year + ts1 ==
+          TimeSeries(ts1.indexes, ts1.values .+ ts1_ignore_year.values, false, false)
+    @test ts1_ignore_year + ts1_ignore_year ==
+          TimeSeries(ts1_ignore_year.indexes, ts1_ignore_year.values .+ ts1_ignore_year.values, true, false)
     @test ts1 + ts1_repeat == ts1_repeat + ts1 == TimeSeries(ts1.indexes, [2.0, 4.0, 5.0], false, false)
     @test ts1_repeat + ts1_repeat == TimeSeries(ts1_repeat.indexes, [2.0, 4.0, 2.0], false, true)
     @test ts1 + ts2 == ts2 + ts1 == TimeSeries([DateTime(1, i) for i in 2:4], [4.0, 5.0, 8.0], false, false)
@@ -252,7 +299,7 @@
     @test ts1 - 4.2 == TimeSeries(ts1.indexes, ts1.values .- 4.2, false, false)
     @test 4.2 - ts1 == TimeSeries(ts1.indexes, 4.2 .- ts1.values, false, false)
     @test ts1 - ts1 == TimeSeries(ts1.indexes, ts1.values .- ts1.values, false, false)
-    @test tp1 - 4.2 ==Dict(k => v - 4.2 for (k, v) in tp1)
+    @test tp1 - 4.2 == Dict(k => v - 4.2 for (k, v) in tp1)
     @test 4.2 - tp1 == Dict(k => 4.2 - v for (k, v) in tp1)
     @test ts1 - tp1 == TimeSeries(ts1_dates[2:end], [2.0 - 2.0, 4.0 - 3.0], false, false)
     @test tp1 - ts1 == TimeSeries(ts1_dates[2:end], [2.0 - 2.0, 3.0 - 4.0], false, false)
@@ -352,16 +399,16 @@
     @test isnothing(iterate(m, 5))
     # AbstractParameterValue consistency
     @test parameter_value(ts1)() == ts1
-    @test parameter_value(ts1)(asd = :asd) == ts1
+    @test parameter_value(ts1)(asd=:asd) == ts1
     @test parameter_value(tp1)() == tp1
-    @test parameter_value(tp1)(asd = :asd) == tp1
+    @test parameter_value(tp1)(asd=:asd) == tp1
     @test parameter_value(m1)() == m1
-    @test parameter_value(m1)(asd = :asd) == m1
+    @test parameter_value(m1)(asd=:asd) == m1
     # isempty
     @test !isempty(ts1)
     @test !isempty(m)
-    @test isempty(TimeSeries([],[], false, false))
-    @test isempty(Map([],[]))
+    @test isempty(TimeSeries([], [], false, false))
+    @test isempty(Map([], []))
 end
 @testset "TimePattern-TimePattern arithmetic" begin
     month1to3or7to12 = SpineInterface.parse_time_period("M1-3,M7-12")
@@ -385,4 +432,6 @@ end
     observed = tp2 - tp3
     expected = Dict(SpineInterface.parse_time_period("WD3-5") => -9, SpineInterface.parse_time_period("WD6-6") => -8)
     @test observed == expected
+
+    _test_merge()
 end

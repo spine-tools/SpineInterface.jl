@@ -39,48 +39,23 @@ function _split_parameter_value_kwargs(p::Parameter; _strict=true, _default=noth
     _strict &= _default === nothing
     # The search stops when a parameter value is found in a class
     for class in sort(p.classes; by=_dimensionality, rev=true)
-        entity, new_kwargs = _split_kwargs(class, kwargs)
-        parameter_values = _get_pvals(class.parameter_values, entity)
+        entity, new_kwargs = _split_kwargs(class; kwargs...)
+        parameter_values = _get_pvals(class.vertex.parameter_values, entity)
         parameter_values === nothing && continue
-        return _get(parameter_values, p.name, class.parameter_defaults, _default), new_kwargs
+        return _get(parameter_values, p.name, class.vertex.parameter_defaults, _default), new_kwargs
     end
     _strict && @warn("can't find a value of $p for argument(s) $((; kwargs...))")
     nothing
 end
 
-"""
-    _split_kwargs(ec::EntityClass, kwargs::Base.Pairs)
-
-Splits `entity` off from the remaining `kwargs` to be passed separately.
-"""
-function _split_kwargs(oc::ObjectClass, kwargs::Base.Pairs)
-    ent = Vector{Any}(nothing, 1)
-    new_kwargs = []
-    for (kw, arg) in kwargs
-        if kw == oc.name
-            ent[1] = arg
-        else
-            push!(new_kwargs, kw => arg)
-        end
-    end
-    return only(ent), (; new_kwargs...)
+function _split_kwargs(oc::ObjectClass; kwargs...)
+    get(kwargs, oc.name, missing), (; (x for x in kwargs if first(x) != oc.name)...)
 end
-function _split_kwargs(rc::RelationshipClass, kwargs::Base.Pairs)
-    entity_objs = Vector{Any}(missing, length(rc.object_class_names))
-    new_kwargs = []
-    last_class_index = 0
-    for (kw, arg) in kwargs
-        i = findfirst(kw .== rc.object_class_names)
-        if isnothing(i)
-            push!(new_kwargs, kw => arg)
-            continue
-        elseif i <= last_class_index
-            return nothing, pairs(new_kwargs) # Enforce kwargs class order
-        end
-        last_class_index = i
-        entity_objs[i] = arg
-    end
-    return Tuple(entity_objs), (; new_kwargs...)
+function _split_kwargs(rc::RelationshipClass; kwargs...)
+    (
+        Tuple(get(kwargs, n, missing) for n in rc.object_class_names),
+        (; (x for x in kwargs if !(first(x) in rc.object_class_names))...),
+    )
 end
 
 _object_class_names(x::ObjectClass) = (x.name,)
@@ -233,24 +208,34 @@ function _add_update!(t::TimeSlice, timeout, upd)
     t.updates[upd] = timeout
 end
 
-function _append_relationships!(rc, rels)
-    isempty(rels) && return
-    delete!(rc.row_map, rc.name)  # delete memoized rows
-    offset = length(rc.relationships)
-    for cls_name in rc.object_class_names
-        oc_row_map = get!(rc.row_map, cls_name, Dict())
-        for (row, rel) in enumerate(rels)
-            obj = getproperty(rel, cls_name)
-            push!(get!(oc_row_map, obj, []), offset + row)
-        end
-    end
-    append!(rc.relationships, rels)
-    nothing
-end
-
 """
     _find_permutation(a::Vector, b::Vector)
 
 Return which permutation of `b` `a` is.
 """
 _find_permutation(a::Vector, b::Vector) = [findfirst(x .== b) for x in a]::Vector{<:Integer}
+
+"""
+    uniquefy_elements(elements::Vector{Symbol})
+
+Return a list of unique `Symbol`s based on `elements` differentiated by an increasing index.
+"""
+function uniquefy_elements(elements::Vector{Symbol})
+    uniques = Vector{Symbol}(undef, length(elements))
+    return _uniquefy!(uniques, elements)
+end
+function uniquefy_elements(elements::NTuple{N,Symbol} where N)
+    return Tuple(uniquefy_elements(collect(elements)))
+end
+
+function _uniquefy!(uniques::Vector, elements)
+    for (element_i, element) in enumerate(elements)
+        preceding_count = count(e -> e == element, elements[1:element_i - 1])
+        if preceding_count == 0 && count(e -> e == element, elements[element_i + 1: end]) == 0
+            uniques[element_i] = element
+        else
+            uniques[element_i] = Symbol(element, preceding_count + 1)
+        end
+    end
+    return uniques::Vector{Symbol}
+end

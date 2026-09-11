@@ -23,6 +23,26 @@ Object(name::AbstractString, args...) = Object(Symbol(name), args...)
 Object(name::AbstractString, class_name::AbstractString, args...) = Object(Symbol(name), Symbol(class_name), args...)
 Object(name::Symbol) = Object(name::Symbol, nothing)
 
+
+function ObjectClass(name, entity_class_graph)
+    class = ObjectClass(name, entity_class_graph, Dict())
+    make_legacy_objects!(class)
+    class
+end
+
+"""
+    RelationshipClass(time_slice_name::Symbol, slice_order::AbstractVector{Symbol}, slices::AbstractVector{Tuple{TimeSlice, TimeSlice}})
+
+Construct a time slice graph which replaces legacy time slice relationship classes.
+"""
+function RelationshipClass(time_slice_name::Symbol, slice_order::AbstractVector{Symbol}, slices::AbstractVector{Tuple{TimeSlice, TimeSlice}})
+    graph = empty_time_slice_graph()
+    for slice_pair in slices
+        add_time_slice_pair!(graph, slice_pair...)
+    end
+    TimeSliceRelationships(time_slice_name, slice_order[1], slice_order[2], graph)
+end
+
 """
     TimeSlice(start::DateTime, end_::DateTime)
 

@@ -2,7 +2,7 @@
 
 using SpineInterface
 
-const Y = Bind()
+Y = Bind()
 
 # initialize database
 # either use an existing database
