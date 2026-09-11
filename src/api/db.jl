@@ -834,7 +834,7 @@ function import_data(url, data::EntityClass, comment::String; upgrade=false)
     import_data(url, _to_dict(data), comment; upgrade=upgrade)
 end
 function import_data(url, data::Vector{EntityClass}, comment::String; upgrade=false)
-    import_data(url, merge(append!, _to_dict.(data)...), comment; upgrade=upgrade)
+    import_data(url, mergewith(append!, _to_dict.(data)...), comment; upgrade=upgrade)
 end
 function import_data(url, data::Bind, comment::String; upgrade=false)
     import_data(
