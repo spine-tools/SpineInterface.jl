@@ -64,7 +64,9 @@ julia> commodity(state_of_matter=:gas)
 """
 function (oc::ObjectClass)(; kwargs...)
     isempty(kwargs) && return collect(values(oc.objects))
-    collect(Iterators.filter(o -> value_filter_condition(oc.vertex, o.name, kwargs), values(oc.objects)))
+    vertex::ObjectClassVertex = oc.vertex
+    objects::Dict{Symbol, Object} = oc.objects
+    collect(Iterators.filter(o -> value_filter_condition(vertex, o.name, kwargs), values(objects)))
 end
 function (oc::ObjectClass)(name::Symbol)
     get(oc.objects, name, nothing)
