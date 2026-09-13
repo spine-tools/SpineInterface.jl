@@ -66,7 +66,7 @@ function (oc::ObjectClass)(; kwargs...)
     isempty(kwargs) && return collect(values(oc.objects))
     vertex::ObjectClassVertex = oc.vertex
     objects::Dict{Symbol, Object} = oc.objects
-    collect(Iterators.filter(o -> value_filter_condition(vertex, o.name, kwargs), values(objects)))
+    collect(Iterators.filter(o -> value_filter_condition(vertex, o.name, kwargs...), values(objects)))
 end
 function (oc::ObjectClass)(name::Symbol)
     get(oc.objects, name, nothing)
@@ -91,8 +91,13 @@ end
 const Selector = Union{Atom, AnyAtomInClass, MultiAtomSelector, Anything}
 
 struct EntitySelectors
-    class::RelationshipClass
+    vertex::RelationshipClassVertex
+    dimension_combinations::Vector{Vector{Symbol}}
+    intact_dimension_combinations::Vector{Vector{Symbol}}
     legacy_selector
+    function EntitySelectors(class::RelationshipClass, legacy_selector)
+        new(class.vertex, class.dimension_combinations, class.intact_dimension_combinations, legacy_selector)
+    end
 end
 
 function Base.eltype(::Type{EntitySelectors})
@@ -104,11 +109,11 @@ function Base.IteratorSize(::Type{EntitySelectors})
 end
 
 function Base.iterate(iter::EntitySelectors, state=1)
-    if state > length(iter.class.dimension_combinations)
+    if state > length(iter.dimension_combinations)
         return nothing
     end
-    combination = iter.class.dimension_combinations[state]
-    selector::Vector{Selector} = [anything for _ in 1:atomic_dimensionality(iter.class.vertex)]
+    combination = iter.dimension_combinations[state]
+    selector::Vector{Selector} = [anything for _ in 1:atomic_dimensionality(iter.vertex)]
     combination_start = 1
     problem = false
     for (class_label, objects) in iter.legacy_selector
@@ -122,7 +127,7 @@ function Base.iterate(iter::EntitySelectors, state=1)
             problem = true
             break # Break if a selector is nothing or empty, needs to be after dimension check to accommodate parameter value kwargs
         end
-        intact_class_label = iter.class.intact_dimension_combinations[state][dimension_i]
+        intact_class_label = iter.intact_dimension_combinations[state][dimension_i]
         selector[dimension_i] = objects_to_selector(intact_class_label, objects)
         combination_start = dimension_i + 1
     end
@@ -191,19 +196,25 @@ julia> node__commodity(commodity=commodity(:gas), _default=:nogas)
 ```
 """
 function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=EntityLike[], kwargs...)
+    vertex::RelationshipClassVertex = rc.vertex
+    atom_cache = Vector{Atom}(undef, atomic_dimensionality(vertex))
     if isempty(kwargs)
-        return collect(
-            NamedTuple(AtomsAsObjects(rc.object_classes, atoms))
-            for atoms in all_atom_tuples(rc.vertex.relationship_graph, rc.vertex.entities)
-        )
+        object_classes = rc.object_classes
+        relationships = Vector{RelationshipLike}(undef, length(vertex.entities))
+        atoms = Vector{Atom}(undef, atomic_dimensionality(vertex))
+        for (i, entity) in enumerate(vertex.entities)
+            fill_atoms!(atoms, vertex.relationship_graph, entity)
+            relationships[i] = NamedTuple(AtomsAsObjects(object_classes, atoms))
+        end
+        return relationships
     end
     relationships = Vector{Union{Object, RelationshipLike}}()
-    atom_cache = Vector{Atom}(undef, atomic_dimensionality(rc.vertex))
     recycled_class_names = Vector{Symbol}(undef, length(atom_cache))
+    object_classes = rc.object_classes
     for selector in Set(EntitySelectors(rc, kwargs))
-        for atoms in find_relationships(rc.vertex, selector...)
+        for atoms in find_relationships(vertex, selector...)
             copyto!(atom_cache, atoms)
-            object_tuple = NamedTuple(AtomsAsObjects(rc.object_classes, atom_cache, recycled_class_names))
+            object_tuple = NamedTuple(AtomsAsObjects(object_classes, atom_cache, recycled_class_names))
             if _compact
                 object_tuple = (; (class_name => object for (class_name, object) in pairs(object_tuple) if !in(class_name, keys(kwargs)))...)
             end
@@ -281,7 +292,8 @@ function fix_legacy_class_selector(class::ObjectClass, legacy_selector)
 end
 function fix_legacy_class_selector(class::RelationshipClass, legacy_selector)
     selector = Vector{LegacySelector}()
-    sizehint!(selector, atomic_dimensionality(class.vertex))
+    sizehint!(selector, atomic_dimensionality(vertex))
+    vertex::RelationshipClassVertex = class.vertex
     current_i = 1
     for (class_label, object) in legacy_selector
         i = findnext(labels -> class_label in labels, class.vertex.atomic_dimension_choices, current_i)
@@ -294,7 +306,7 @@ function fix_legacy_class_selector(class::RelationshipClass, legacy_selector)
                 continue
             end
             intact_label = Symbol(class_name[1:end-1])
-            i = findnext(labels -> intact_label in labels, class.vertex.atomic_dimension_choices, current_i)
+            i = findnext(labels -> intact_label in labels, vertex.atomic_dimension_choices, current_i)
             if !isnothing(i)
                 current_i = i
                 push!(selector, class_label => object)
@@ -377,9 +389,11 @@ end
 function parameter_entity_label(vertex::RelationshipClassVertex, selector)
     if any(s === anything || s.second === anything for s in selector)
         unique_label = nothing
+        atoms = Vector{Atom}(undef, atomic_dimensionality(vertex))
         for relationship_label in keys(vertex.parameter_values)
             hit = false
-            for (s, atom) in zip(selector, RelationshipAtoms(vertex.relationship_graph, relationship_label))
+            fill_atoms!(atoms, vertex.relationship_graph, relationship_label)
+            for (s, atom) in zip(selector, atoms)
                 if s === anything || s.second === Anything
                     continue
                 end
@@ -467,12 +481,13 @@ function unique_value_instance(parameter_name, classes, _default, kwargs)
     max_selector_hits = 0
     selector_hit_duplicity = 0
     for class in classes
+        vertex = class.vertex
         for selector in entity_selectors(class, kwargs)
             selector_hits = selector_hit_count(selector)
             if selector_hits < max_selector_hits
                 continue
             end
-            selected_value = find_value_instance(parameter_name, class.vertex, selector, _default)
+            selected_value = find_value_instance(parameter_name, vertex, selector, _default)
             if !isnothing(selected_value)
                 if selector_hits > max_selector_hits
                     max_selector_hits = selector_hits
@@ -959,17 +974,19 @@ function indices(p::Parameter; kwargs...)
     (ent for class in classes(p) for ent in indices(p, class; kwargs...) if is_legacy_selector_compatible(kwargs, class.vertex))
 end
 function indices(p::Parameter, class::ObjectClass; kwargs...)
+    vertex::ObjectClassVertex = class.vertex
     (
         ent
         for ent in values(class.objects)
-        if _get(class.vertex.parameter_values[ent.name], p.name, class.vertex.parameter_defaults)() !== nothing
+        if _get(vertex.parameter_values[ent.name], p.name, vertex.parameter_defaults)() !== nothing
     )
 end
 function indices(p::Parameter, class::RelationshipClass; kwargs...)
+    vertex::RelationshipClassVertex = class.vertex
     (
         ent
         for ent in class(; _compact=false, kwargs...)
-        if _get(class.vertex.parameter_values[relationship_label(class, ent)], p.name, class.vertex.parameter_defaults)() !== nothing
+        if _get(vertex.parameter_values[relationship_label(class, ent)], p.name, vertex.parameter_defaults)() !== nothing
     )
 end
 
@@ -982,10 +999,11 @@ function indices_as_tuples(p::Parameter; kwargs...)
     (ent for class in classes(p) for ent in indices_as_tuples(p, class; kwargs...))
 end
 function indices_as_tuples(p::Parameter, class::ObjectClass; kwargs...)
+    vertex::ObjectClassVertex = class.vertex
     (
         (; class.name => ent)
         for ent in values(class.objects)
-        if _get(class.vertex.parameter_values[ent.name], p.name, class.vertex.parameter_defaults)() !== nothing
+        if _get(vertex.parameter_values[ent.name], p.name, vertex.parameter_defaults)() !== nothing
     )
 end
 function indices_as_tuples(p::Parameter, class::RelationshipClass; kwargs...)
@@ -1179,8 +1197,10 @@ end
 
 function merge_relationship_parameter_values!(target_vertex::RelationshipClassVertex, source_vertex::RelationshipClassVertex; merge_values=false)
     do_merge! = merge_values ? mergewith!(merge!) : merge!
+    atoms = Vector{Atom}(undef, atomic_dimensionality(source_vertex))
     for (source_label, values) in source_vertex.parameter_values
-        target_label = relationship_label(target_vertex.relationship_graph, RelationshipAtoms(source_vertex.relationship_graph, source_label)...)
+        fill_atoms!(atoms, source_vertex.relationship_graph, source_label)
+        target_label = relationship_label(target_vertex.relationship_graph, atoms...)
         do_merge!(target_vertex.parameter_values[target_label], values)
     end
 end

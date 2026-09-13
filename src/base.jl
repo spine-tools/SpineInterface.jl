@@ -412,8 +412,9 @@ end
 function Base.merge!(a::RelationshipClass, b::RelationshipClass)
     relationship_labels_to_remove = Vector{Symbol}()
     sizehint!(relationship_labels_to_remove, length(b.vertex.entities))
+    atoms = Vector{Atom}(undef, atomic_dimensionality(b.vertex))
     for label in b.vertex.entities
-        atoms = Tuple(RelationshipAtoms(b.vertex.relationship_graph, label))
+        fill_atoms!(atoms, b.vertex.relationship_graph, label)
         if !has_relationship(a.vertex.relationship_graph, atoms...)
             add_entity!(a.vertex, atoms...)
         end

@@ -58,7 +58,12 @@ See also [`add_object_class!`](@ref), [`add_relationship_class!`](@ref), [`add_s
 function add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol)
     add_object_class!(entity_class_graph, class_label)
 end
-function add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, first_dimension::Symbol, dimensions::Symbol...)
+function add_entity_class!(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class_label::Symbol,
+    first_dimension::Symbol,
+    dimensions::Symbol...,
+)
     add_relationship_class!(entity_class_graph, class_label, first_dimension, dimensions...)
 end
 
@@ -417,7 +422,12 @@ function atomic_dimensionality(vertex::SuperclassVertex)
     atomic_dimensionality(vertex.entity_class_graph[subclass_label])
 end
 
-function has_entity(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+function has_entity(
+    entity_class_graph::MetaGraphsNext.MetaGraph,
+    class::Symbol,
+    entity_or_atom::Union{Atom,Symbol},
+    atoms::Atom...,
+)
     has_entity(entity_class_graph[class], entity_or_atom, atoms...)
 end
 function has_entity(vertex::ClassVertexWithEntities, entity_label::Symbol)
@@ -426,7 +436,7 @@ end
 function has_entity(vertex::RelationshipClassVertex, first_atom::Atom, atoms::Atom...)
     has_relationship(vertex.relationship_graph, first_atom, atoms...)
 end
-function has_entity(vertex::SuperclassVertex, entity_or_atom::Union{Atom, Symbol}, atoms::Atom...)
+function has_entity(vertex::SuperclassVertex, entity_or_atom::Union{Atom,Symbol}, atoms::Atom...)
     for subclass in MetaGraphsNext.inneighbor_labels(vertex.entity_class_graph, vertex.class_label)
         if has_entity(vertex.entity_class_graph[subclass], entity_or_atom, atoms...)
             return true
@@ -498,7 +508,7 @@ function entities(vertex::ObjectClassVertex)
     vertex.entities
 end
 function entities(vertex::RelationshipClassVertex)
-    all_atom_tuples(vertex.relationship_graph, vertex.entities)
+    Iterators.map(Tuple, AllAtoms(vertex.relationship_graph, vertex.entities))
 end
 function entities(vertex::SuperclassVertex)
     Iterators.flatten(
@@ -745,9 +755,14 @@ function set_parameter_value!(
     entity_class_graph::MetaGraphsNext.MetaGraph,
     class_label::Symbol,
     parameter_label::Symbol,
-    args...
+    args...,
 )
-    set_parameter_value!(entity_class_graph[class_label], parameter_label, parameter_value(args[end]), args[1:end-1]...)
+    set_parameter_value!(
+        entity_class_graph[class_label],
+        parameter_label,
+        parameter_value(args[end]),
+        args[1:(end - 1)]...,
+    )
 end
 function set_parameter_value!(
     class_vertex::RelationshipClassVertex,
@@ -866,7 +881,7 @@ function find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label:
     if isempty(parameter_filters)
         return class_vertex.entities
     end
-    filter(label -> value_filter_condition(class_vertex, label, parameter_filters), class_vertex.entities)
+    filter(label -> value_filter_condition(class_vertex, label, parameter_filters...), class_vertex.entities)
 end
 
 """
@@ -979,19 +994,19 @@ function find_relationships(class_vertex::RelationshipClassVertex, entity_select
     end
     if !isempty(parameter_filters)
         relationship_labels = Iterators.filter(
-            label -> value_filter_condition(class_vertex, label, parameter_filters),
+            label -> value_filter_condition(class_vertex, label, parameter_filters...),
             relationship_labels,
         )
     end
     if !all(selector === anything for selector in entity_selector)
         selection = SelectedRelationships(relationship_graph, relationship_labels, entity_selector)
     else
-        selection = (RelationshipAtoms(relationship_graph, label) for label in relationship_labels)
+        selection = AllAtoms(relationship_graph, relationship_labels)
     end
     selection
 end
 
-function value_filter_condition(class_vertex::ClassVertexWithEntities, entity_label::Symbol, parameter_filters)
+function value_filter_condition(class_vertex::ClassVertexWithEntities, entity_label::Symbol, parameter_filters...)
     for (p, v) in parameter_filters
         value = get(class_vertex.parameter_values[entity_label], p, get(class_vertex.parameter_defaults, p, nothing))
         (value !== nothing && value() === v) || return false
@@ -1327,30 +1342,57 @@ function add_relationship!(relationship_graph::MetaGraphsNext.MetaGraph, atoms::
     return relationship_label
 end
 
-struct RelationshipAtoms
-    relationship_graph::MetaGraphsNext.MetaGraph
-    relationship_label::Symbol
-end
-
-function Base.eltype(::Type{RelationshipAtoms})
-    Atom
-end
-
-function Base.length(iter::RelationshipAtoms)
-    iter.relationship_graph[].atomic_dimensionality
-end
-
-function Base.iterate(iter::RelationshipAtoms, state::Int=1)
-    for atom in MetaGraphsNext.inneighbor_labels(iter.relationship_graph, iter.relationship_label)
-        if state in iter.relationship_graph[atom, iter.relationship_label]
-            return atom, state + 1
+function fill_atoms!(atoms::AbstractVector{Atom}, relationship_graph::MetaGraphsNext.MetaGraph, entity::Symbol)
+    for atom in MetaGraphsNext.inneighbor_labels(relationship_graph, entity)
+        for dimension in relationship_graph[atom, entity]
+            atoms[dimension] = atom
         end
+    end
+end
+
+struct AllAtoms{T}
+    relationship_graph::MetaGraphsNext.MetaGraph
+    relationship_label_iterator::T
+    cache::Vector{Atom}
+    function AllAtoms(relationship_graph, relationship_label_iterator::T) where {T}
+        cache = Vector{Atom}(undef, relationship_graph[].atomic_dimensionality)
+        new{T}(relationship_graph, relationship_label_iterator, cache)
+    end
+end
+
+function Base.eltype(::Type{AllAtoms})
+    Tuple{Atom,Vararg{Atom}}
+end
+
+function Base.IteratorSize(::Type{AllAtoms{T}}) where {T}
+    Base.IteratorSize(T)
+end
+
+function Base.size(iter::AllAtoms, dim=1)
+    Base.size(iter.relationship_label_iterator, dim)
+end
+
+function Base.length(iter::AllAtoms)
+    length(iter.relationship_label_iterator)
+end
+
+function Base.iterate(iter::AllAtoms, state)
+    current = iterate(iter.relationship_label_iterator, state)
+    if !isnothing(current)
+        current_label, next_state = current
+        fill_atoms!(iter.cache, iter.relationship_graph, current_label)
+        return Tuple(iter.cache), next_state
     end
     nothing
 end
-
-function all_atom_tuples(relationship_graph::MetaGraphsNext.MetaGraph, relationship_label_iterator)
-    (Tuple(RelationshipAtoms(relationship_graph, label)) for label in relationship_label_iterator)
+function Base.iterate(iter::AllAtoms)
+    current = iterate(iter.relationship_label_iterator)
+    if !isnothing(current)
+        current_label, next_state = current
+        fill_atoms!(iter.cache, iter.relationship_graph, current_label)
+        return iter.cache, next_state
+    end
+    nothing
 end
 
 function atom_passes_selection(atom::Atom, atom_selector::Anything)
@@ -1370,10 +1412,15 @@ struct SelectedRelationships
     relationship_graph::MetaGraphsNext.MetaGraph
     relationship_label_iterator::Any
     entity_selector::Any
+    cache::Vector{Atom}
+    function SelectedRelationships(relationship_graph, relationship_label_iterator, entity_selector)
+        cache = Vector{Atom}(undef, relationship_graph[].atomic_dimensionality)
+        new(relationship_graph, relationship_label_iterator, entity_selector, cache)
+    end
 end
 
 function Base.eltype(::Type{SelectedRelationships})
-    RelationshipAtoms
+    Vector{Atom}
 end
 
 function Base.IteratorSize(::Type{SelectedRelationships})
@@ -1384,12 +1431,9 @@ function Base.iterate(iter::SelectedRelationships, current)
     while !isnothing(current)
         (current_label, label_iterator_state) = current
         current = iterate(iter.relationship_label_iterator, label_iterator_state)
-        atom_iter = RelationshipAtoms(iter.relationship_graph, current_label)
-        if all(
-            x -> atom_passes_selection(x...),
-            zip(atom_iter, iter.entity_selector),
-        )
-            return atom_iter, current
+        fill_atoms!(iter.cache, iter.relationship_graph, current_label)
+        if all(x -> atom_passes_selection(x...), zip(iter.cache, iter.entity_selector))
+            return iter.cache, current
         end
     end
 end
@@ -1436,7 +1480,7 @@ end
 
 struct GroupEntities
     entity_group_graph::MetaGraphsNext.MetaGraph
-    vertex_iterator
+    vertex_iterator::Any
     function GroupEntities(entity_group_graph)
         new(entity_group_graph, MetaGraphsNext.labels(entity_group_graph))
     end

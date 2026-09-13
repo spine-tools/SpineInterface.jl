@@ -169,8 +169,9 @@ function make_parameter_definitions!(entity_class_graph::MetaGraphsNext.MetaGrap
 end
 
 function resolve_relationship_label(vertex::RelationshipClassVertex, entity_byname)
+    atoms = Vector{Atom}(undef, atomic_dimensionality(vertex))
     for relationship_label in vertex.entities
-        atoms = RelationshipAtoms(vertex.relationship_graph, relationship_label)
+        fill_atoms!(atoms, vertex.relationship_graph, relationship_label)
         if all(atom.second == Symbol(byname) for (atom, byname) in zip(atoms, entity_byname))
             return relationship_label
         end
@@ -647,8 +648,10 @@ function data_to_import(entity_class_graph::MetaGraphsNext.MetaGraph)
             end
         elseif is_relationship_class(vertex)
             push!(entity_classes, [class, [Dimensions(entity_class_graph, class)...]])
+            atoms = Vector{Atom}(undef, atomic_dimensionality(vertex))
             for entity in vertex.entities
-                elements = [atom.second for atom in RelationshipAtoms(vertex.relationship_graph, entity)]
+                fill_atoms!(atoms, vertex.relationship_graph, entity)
+                elements = [atom.second for atom in atoms]
                 push!(entities, [class, elements])
                 for (parameter_definition, value) in SpineInterface.parameter_values(vertex, entity)
                     push!(parameter_values, [class, elements, parameter_definition, unparse_db_value(value)])
@@ -1046,25 +1049,33 @@ function _to_dict(obj_cls::ObjectClass)
     )
 end
 function _to_dict(rel_cls::RelationshipClass)
-    object_classes = Iterators.flatten(rel_cls.vertex.atomic_dimension_choices)
-    relationship_graph = rel_cls.vertex.relationship_graph
+    vertex = rel_cls.vertex
+    object_classes = Iterators.flatten(vertex.atomic_dimension_choices)
+    relationship_graph = vertex.relationship_graph
     objects = [[label.first, label.second] for label in MetaGraphsNext.labels(relationship_graph) if label isa Pair]
+    relationships = []
+    atoms = Vector{Atom}(undef, atomic_dimensionality(vertex))
+    for entity in vertex.entities
+        fill_atoms!(atoms, relationship_graph, entity)
+        push!(relationships, [rel_cls.name, [atom.second for atom in atoms]])
+    end
+    relationship_parameter_values = []
+    for (entity_label, parameter_values) in vertex.parameter_values
+        for (parameter_name, parameter_value) in parameter_values
+            fill_atoms!(atoms, relationship_graph, entity_label)
+            push!(relationship_parameter_values, [rel_cls.name, [atom.second for atom in atoms], parameter_name, unparse_db_value(parameter_value)])
+        end
+    end
     Dict(
         :object_classes => unique(object_classes),
         :objects => objects,
         :relationship_classes => [[rel_cls.name, [label for label in Dimensions(rel_cls.entity_class_graph, rel_cls.name)]]],
         :relationship_parameters => [
             [rel_cls.name, parameter_name, unparse_db_value(parameter_default_value)]
-            for (parameter_name, parameter_default_value) in rel_cls.vertex.parameter_defaults
+            for (parameter_name, parameter_default_value) in vertex.parameter_defaults
         ],
-        :relationships => [
-            [rel_cls.name, [atom.second for atom in RelationshipAtoms(relationship_graph, entity_label)]] for entity_label in rel_cls.vertex.entities
-        ],
-        :relationship_parameter_values => [
-            [rel_cls.name, [atom.second for atom in RelationshipAtoms(relationship_graph, entity_label)], parameter_name, unparse_db_value(parameter_value)]
-            for (entity_label, parameter_values) in rel_cls.vertex.parameter_values
-            for (parameter_name, parameter_value) in parameter_values
-        ]
+        :relationships => relationships,
+        :relationship_parameter_values => relationship_parameter_values,
     )
 end
 function _to_dict(sc::Superclass)
