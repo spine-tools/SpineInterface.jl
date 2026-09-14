@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+import MetaGraphsNext
 
 """
     Anything
@@ -24,6 +25,13 @@
 A type with no fields that is the type of [`anything`](@ref).
 """
 struct Anything end
+
+"""
+    UndefSpineItem
+
+A type for indicating yet undefined Spine Items for [`write_interface`](@ref).
+"""
+struct UndefSpineItem end
 
 """
     ParameterValue
@@ -70,8 +78,8 @@ A type for representing an object from a Spine db; an instance of an object clas
 struct Object
     name::Symbol
     class_name::Union{Symbol,Nothing}
-    members::Array{Object,1}
-    groups::Array{Object,1}
+    members::Vector{Object} # Consider using a `Set`?
+    groups::Vector{Object} # Consider using a `Set`?
     id::UInt64
     function Object(name, class_name, members, groups)
         id = objectid((name, class_name))
@@ -106,20 +114,66 @@ end
 const ObjectLike = Union{Object,TimeSlice,Int64}
 const ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
 const RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
-abstract type EntityClass end
 const EntityLike = Union{ObjectLike,RelationshipLike}
 
-struct _ObjectClass
+struct _TimeSliceNetwork
+    time_slice_graph::MetaGraphsNext.MetaGraph
+end
+
+struct TimeSliceNetwork
     name::Symbol
-    objects::Vector{ObjectLike}
-    parameter_values::Dict{ObjectLike,Dict{Symbol,ParameterValue}}
-    parameter_defaults::Dict{Symbol,ParameterValue}
-    subclasses::Vector{Union{Symbol,EntityClass}} # Tasku: This is effectively `Vector{EntityClass}`, but needs to accommodate Symbols for now due to how subclasses are resolved in `_generate_convenience_functions`
-    original_intact_class_names::Vector{Symbol} # Tasku: Need to store original dimensions of automatically dissected compound relationship classes for writing back into DBs.
-    function _ObjectClass(
-        name, objects=[], vals=Dict(), defaults=Dict(), subclasses=[], orig_classes=[]
-    )
-        new(name, objects, vals, defaults, subclasses, orig_classes)
+    env_dict::Dict{Symbol, _TimeSliceNetwork}
+    function TimeSliceNetwork(name, time_slice_graph=empty_time_slice_graph())
+        env_dict = Dict(_active_env() => _TimeSliceNetwork(time_slice_graph))
+        new(name, env_dict)
+    end
+end
+
+const Atom = Pair{Symbol, Symbol}
+const AnyAtomInClass = Pair{Symbol, Anything}
+const MultiAtomSelector = Tuple{Union{Atom, AnyAtomInClass}, Vararg{Union{Atom, AnyAtomInClass}}}
+
+abstract type ClassVertexWithEntities end
+
+struct ObjectClassVertex <: ClassVertexWithEntities
+    entities::Set{Symbol}
+    entity_group_graph::MetaGraphsNext.MetaGraph
+    parameter_values::Dict{Symbol, Dict{Symbol, ParameterValue}}
+    parameter_defaults::Dict{Symbol, ParameterValue}
+    function ObjectClassVertex()
+        new(Set(), empty_entity_group_graph(), Dict(), Dict())
+    end
+end
+
+struct RelationshipClassVertex <: ClassVertexWithEntities
+    entities::Set{Symbol}
+    atomic_dimension_choices::Vector{Vector{Symbol}}
+    relationship_graph::MetaGraphsNext.MetaGraph
+    parameter_values::Dict{Symbol, Dict{Symbol, ParameterValue}}
+    parameter_defaults::Dict{Symbol, ParameterValue}
+    function RelationshipClassVertex(atomic_dimension_choices)
+        new(Set(), atomic_dimension_choices, empty_relationship_graph(length(atomic_dimension_choices)), Dict(), Dict())
+    end
+end
+
+struct SuperclassVertex
+    parameter_defaults::Dict{Symbol, ParameterValue}
+    entity_class_graph::MetaGraphsNext.MetaGraph
+    class_label::Symbol
+    function SuperclassVertex(entity_class_graph, class_label)
+        new(Dict(), entity_class_graph, class_label)
+    end
+end
+
+abstract type EntityClass end
+
+struct ObjectClassData
+    entity_class_graph::MetaGraphsNext.MetaGraph
+    vertex::ObjectClassVertex
+    objects::Dict{Symbol, Object}
+    parameter_defaults::Dict{Symbol, ParameterValue} # SpineOpt needs direct access
+    function ObjectClassData(graph, vertex, objects)
+        new(graph, vertex, objects, vertex.parameter_defaults)
     end
 end
 
@@ -130,41 +184,26 @@ A type for representing an object class from a Spine db.
 """
 struct ObjectClass <: EntityClass
     name::Symbol
-    env_dict::Dict{Symbol,_ObjectClass}
-    function ObjectClass(name, args...)
-        env_dict = isempty(args) ? Dict() : Dict(_active_env() => _ObjectClass(name, args...))
+    env_dict::Dict{Symbol, ObjectClassData}
+    function ObjectClass(name, entity_class_graph, objects)
+        vertex = entity_class_graph[name]
+        env_dict = Dict(_active_env() => ObjectClassData(entity_class_graph, vertex, objects))
         new(name, env_dict)
     end
 end
 
-struct _RelationshipClass
-    name::Symbol
-    intact_object_class_names::Vector{Symbol}
-    object_class_names::Vector{Symbol}
-    relationships::Vector{RelationshipLike}
-    parameter_values::Dict{ObjectTupleLike,Dict{Symbol,ParameterValue}}
-    parameter_defaults::Dict{Symbol,ParameterValue}
-    row_map::Dict
-    row_map_lock::ReentrantLock
-    autogenerated::Bool # Tasku: A flag to distinguish autogenerated subrelationship classes, these should not be written into DBs.
-    function _RelationshipClass(
-        name, intact_cls_names, object_tuples=[], vals=Dict(), defaults=Dict(), autogenerated=false
-    )
-        cls_names = _fix_name_ambiguity(intact_cls_names)
-        rc = new(
-            name,
-            intact_cls_names,
-            cls_names,
-            [],
-            vals,
-            defaults,
-            Dict(),
-            ReentrantLock(),
-            autogenerated
-        )
-        rels = [(; zip(cls_names, objects)...) for objects in object_tuples]
-        _append_relationships!(rc, rels)
-        rc
+struct RelationshipClassData
+    entity_class_graph::MetaGraphsNext.MetaGraph
+    vertex::RelationshipClassVertex
+    object_classes::Dict{Symbol, ObjectClass}
+    intact_dimension_combinations::Vector{Vector{Symbol}}
+    dimension_combinations::Vector{Vector{Symbol}}
+    parameter_defaults::Dict{Symbol, ParameterValue} # SpineOpt needs direct access
+    function RelationshipClassData(graph, label, object_classes)
+        vertex = graph[label]
+        intact_combinations = atomic_dimensions(graph, label)
+        unique_combinations = [uniquefy_elements(c) for c in intact_combinations]
+        new(graph, vertex, object_classes, intact_combinations, unique_combinations, vertex.parameter_defaults)
     end
 end
 
@@ -175,49 +214,37 @@ A type for representing a relationship class from a Spine db.
 """
 struct RelationshipClass <: EntityClass
     name::Symbol
-    env_dict::Dict{Symbol,_RelationshipClass}
-    function RelationshipClass(name, args...)
-        env_dict = isempty(args) ? Dict() : Dict(_active_env() => _RelationshipClass(name, args...))
+    env_dict::Dict{Symbol, RelationshipClassData}
+    function RelationshipClass(name, entity_class_graph, object_classes)
+        env_dict = Dict(_active_env() => RelationshipClassData(entity_class_graph, name, object_classes))
         new(name, env_dict)
     end
 end
 
-"""
-    _fix_name_ambiguity(intact_name_list::Vector{Symbol})
-
-Append an increasing integer to each repeated element in `name_list`, and return a new modified `name_list`.
-
-See also [`_fix_name_ambiguity!`](@ref).
-"""
-function _fix_name_ambiguity(intact_name_list::Vector{Symbol})
-    name_list = copy(intact_name_list)
-    for ambiguous in Iterators.filter(name -> count(name_list .== name) > 1, unique(name_list))
-        for (k, index) in enumerate(findall(name_list .== ambiguous))
-            name_list[index] = Symbol(name_list[index], k)
-        end
-    end
-    name_list
+struct SuperclassData
+    entity_class_graph::MetaGraphsNext.MetaGraph
+    vertex::SuperclassVertex
+    object_classes::Dict{Symbol, ObjectClass} # TODO: Check the contents! They seem to contain EVERY class when processed through SpineOpt!
+    relationship_classes::Dict{Symbol, RelationshipClass}  # TODO: See above
 end
 
 """
-    _fix_name_ambiguity!(name_list::Vector{Symbol}, intact_name_list::Vector{Symbol})
+    Superclass
 
-Replace `name_list` by `_fix_name_ambiguity(intact_name_list)`.
-
-See also [`_fix_name_ambiguity!`](@ref).
+A type for representing a superclass from a Spine db.
 """
-function _fix_name_ambiguity!(name_list::Vector{Symbol}, intact_name_list::Vector{Symbol})
-    new_name_list = _fix_name_ambiguity(intact_name_list)
-    for (i, new_name) in enumerate(new_name_list)
-        name_list[i] = new_name
+struct Superclass <: EntityClass
+    name::Symbol
+    env_dict::Dict{Symbol, SuperclassData}
+    function Superclass(name, entity_class_graph, object_classes, relationship_classes)
+        vertex = entity_class_graph[name]
+        env_dict = Dict(_active_env() => SuperclassData(entity_class_graph, vertex, object_classes, relationship_classes))
+        new(name, env_dict)
     end
-    name_list
 end
 
 struct _Parameter
-    name::Symbol
-    classes::Vector{EntityClass}
-    _Parameter(name, classes=[]) = new(name, classes)
+    sorted_classes::Vector{EntityClass}
 end
 
 """
@@ -228,10 +255,17 @@ A type for representing a parameter related to an object class or a relationship
 struct Parameter
     name::Symbol
     env_dict::Dict{Symbol,_Parameter}
-    function Parameter(name, args...)
-        env_dict = isempty(args) ? Dict() : Dict(_active_env() => _Parameter(name, args...))
+    function Parameter(name, entity_class_graph, classes=[])
+        env_dict = Dict(_active_env() => _Parameter(sort(classes, by=ClassSize(entity_class_graph),rev=true)))
         new(name, env_dict)
     end
+end
+
+struct TimeSliceRelationships
+    name::Symbol
+    preceding::Symbol
+    succeeding::Symbol
+    time_slice_graph::MetaGraphsNext.MetaGraph
 end
 
 """
