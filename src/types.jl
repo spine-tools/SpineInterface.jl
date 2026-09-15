@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
+import Graphs
 import MetaGraphsNext
 
 """
@@ -41,14 +42,14 @@ A type for representing a parameter value from a Spine db.
 struct ParameterValue{T}
     value::T
     metadata::Dict{Symbol,Any}
-    ParameterValue(value::T) where T = new{T}(value, _parameter_value_metadata(value))
+    ParameterValue(value::T) where {T} = new{T}(value, _parameter_value_metadata(value))
 end
 
 struct Call
     func::Union{Nothing,ParameterValue,Function}
     args::Vector
     kwargs::NamedTuple
-    caller
+    caller::Any
     root_node::Ref{Any}
     function Call(func, args, kwargs, caller)
         new(func, args, kwargs, caller, nothing)
@@ -56,7 +57,7 @@ struct Call
 end
 
 struct _CallNode
-    call
+    call::Any
     parent::Union{_CallNode,Nothing}
     child_number::Int64
     children::Vector{_CallNode}
@@ -116,30 +117,73 @@ const ObjectTupleLike = Tuple{ObjectLike,Vararg{ObjectLike}}
 const RelationshipLike{K} = NamedTuple{K,V} where {K,V<:ObjectTupleLike}
 const EntityLike = Union{ObjectLike,RelationshipLike}
 
+function union_weight(edge_data)
+    1.0
+end
+
+mutable struct RelationshipGraphData
+    atomic_dimensionality::Int # This needs to be mutable for new dimensions to be added in SpineOpt
+    next_relationship_label::Int
+    function RelationshipGraphData(atomic_dimensionality)
+        new(atomic_dimensionality, 1)
+    end
+end
+
+const TimeSliceGraph = MetaGraphsNext.MetaGraph{
+    Int64,
+    Graphs.SimpleGraphs.SimpleDiGraph{Int64},
+    TimeSlice,
+    Nothing,
+    Nothing,
+    Nothing,
+    typeof(union_weight),
+    Float64,
+}
+const EntityGroupGraph = MetaGraphsNext.MetaGraph{
+    Int64,
+    Graphs.SimpleGraphs.SimpleDiGraph{Int64},
+    Symbol,
+    Nothing,
+    Nothing,
+    Nothing,
+    typeof(union_weight),
+    Float64,
+}
+const RelationshipGraph = MetaGraphsNext.MetaGraph{
+    Int64,
+    Graphs.SimpleGraphs.SimpleDiGraph{Int64},
+    Union{Pair{Symbol,Symbol},Symbol},
+    Nothing,
+    Vector{Int64},
+    RelationshipGraphData,
+    typeof(union_weight),
+    Float64,
+}
+
 struct _TimeSliceNetwork
-    time_slice_graph::MetaGraphsNext.MetaGraph
+    time_slice_graph::TimeSliceGraph
 end
 
 struct TimeSliceNetwork
     name::Symbol
-    env_dict::Dict{Symbol, _TimeSliceNetwork}
+    env_dict::Dict{Symbol,_TimeSliceNetwork}
     function TimeSliceNetwork(name, time_slice_graph=empty_time_slice_graph())
         env_dict = Dict(_active_env() => _TimeSliceNetwork(time_slice_graph))
         new(name, env_dict)
     end
 end
 
-const Atom = Pair{Symbol, Symbol}
-const AnyAtomInClass = Pair{Symbol, Anything}
-const MultiAtomSelector = Tuple{Union{Atom, AnyAtomInClass}, Vararg{Union{Atom, AnyAtomInClass}}}
+const Atom = Pair{Symbol,Symbol}
+const AnyAtomInClass = Pair{Symbol,Anything}
+const MultiAtomSelector = Tuple{Union{Atom,AnyAtomInClass},Vararg{Union{Atom,AnyAtomInClass}}}
 
 abstract type ClassVertexWithEntities end
 
 struct ObjectClassVertex <: ClassVertexWithEntities
     entities::Set{Symbol}
-    entity_group_graph::MetaGraphsNext.MetaGraph
-    parameter_values::Dict{Symbol, Dict{Symbol, ParameterValue}}
-    parameter_defaults::Dict{Symbol, ParameterValue}
+    entity_group_graph::EntityGroupGraph
+    parameter_values::Dict{Symbol,Dict{Symbol,ParameterValue}}
+    parameter_defaults::Dict{Symbol,ParameterValue}
     function ObjectClassVertex()
         new(Set(), empty_entity_group_graph(), Dict(), Dict())
     end
@@ -148,30 +192,40 @@ end
 struct RelationshipClassVertex <: ClassVertexWithEntities
     entities::Set{Symbol}
     atomic_dimension_choices::Vector{Vector{Symbol}}
-    relationship_graph::MetaGraphsNext.MetaGraph
-    parameter_values::Dict{Symbol, Dict{Symbol, ParameterValue}}
-    parameter_defaults::Dict{Symbol, ParameterValue}
+    relationship_graph::RelationshipGraph
+    parameter_values::Dict{Symbol,Dict{Symbol,ParameterValue}}
+    parameter_defaults::Dict{Symbol,ParameterValue}
     function RelationshipClassVertex(atomic_dimension_choices)
         new(Set(), atomic_dimension_choices, empty_relationship_graph(length(atomic_dimension_choices)), Dict(), Dict())
     end
 end
 
-struct SuperclassVertex
-    parameter_defaults::Dict{Symbol, ParameterValue}
-    entity_class_graph::MetaGraphsNext.MetaGraph
+struct SuperclassVertex{T}
+    parameter_defaults::Dict{Symbol,ParameterValue}
+    entity_class_graph::T
     class_label::Symbol
-    function SuperclassVertex(entity_class_graph, class_label)
-        new(Dict(), entity_class_graph, class_label)
+    function SuperclassVertex(entity_class_graph::T, class_label) where {T}
+        new{T}(Dict(), entity_class_graph, class_label)
     end
 end
 
 abstract type EntityClass end
+const EntityClassGraph = MetaGraphsNext.MetaGraph{
+    Int64,
+    Graphs.SimpleGraphs.SimpleDiGraph{Int64},
+    Symbol,
+    Union{ObjectClassVertex,RelationshipClassVertex,SuperclassVertex},
+    Vector{Int64},
+    Nothing,
+    typeof(union_weight),
+    Float64,
+}
 
 struct ObjectClassData
-    entity_class_graph::MetaGraphsNext.MetaGraph
+    entity_class_graph::EntityClassGraph
     vertex::ObjectClassVertex
-    objects::Dict{Symbol, Object}
-    parameter_defaults::Dict{Symbol, ParameterValue} # SpineOpt needs direct access
+    objects::Dict{Symbol,Object}
+    parameter_defaults::Dict{Symbol,ParameterValue} # SpineOpt needs direct access
     function ObjectClassData(graph, vertex, objects)
         new(graph, vertex, objects, vertex.parameter_defaults)
     end
@@ -184,7 +238,7 @@ A type for representing an object class from a Spine db.
 """
 struct ObjectClass <: EntityClass
     name::Symbol
-    env_dict::Dict{Symbol, ObjectClassData}
+    env_dict::Dict{Symbol,ObjectClassData}
     function ObjectClass(name, entity_class_graph, objects)
         vertex = entity_class_graph[name]
         env_dict = Dict(_active_env() => ObjectClassData(entity_class_graph, vertex, objects))
@@ -193,12 +247,12 @@ struct ObjectClass <: EntityClass
 end
 
 struct RelationshipClassData
-    entity_class_graph::MetaGraphsNext.MetaGraph
+    entity_class_graph::EntityClassGraph
     vertex::RelationshipClassVertex
-    object_classes::Dict{Symbol, ObjectClass}
+    object_classes::Dict{Symbol,ObjectClass}
     intact_dimension_combinations::Vector{Vector{Symbol}}
     dimension_combinations::Vector{Vector{Symbol}}
-    parameter_defaults::Dict{Symbol, ParameterValue} # SpineOpt needs direct access
+    parameter_defaults::Dict{Symbol,ParameterValue} # SpineOpt needs direct access
     function RelationshipClassData(graph, label, object_classes)
         vertex = graph[label]
         intact_combinations = atomic_dimensions(graph, label)
@@ -214,7 +268,7 @@ A type for representing a relationship class from a Spine db.
 """
 struct RelationshipClass <: EntityClass
     name::Symbol
-    env_dict::Dict{Symbol, RelationshipClassData}
+    env_dict::Dict{Symbol,RelationshipClassData}
     function RelationshipClass(name, entity_class_graph, object_classes)
         env_dict = Dict(_active_env() => RelationshipClassData(entity_class_graph, name, object_classes))
         new(name, env_dict)
@@ -222,10 +276,10 @@ struct RelationshipClass <: EntityClass
 end
 
 struct SuperclassData
-    entity_class_graph::MetaGraphsNext.MetaGraph
+    entity_class_graph::EntityClassGraph
     vertex::SuperclassVertex
-    object_classes::Dict{Symbol, ObjectClass} # TODO: Check the contents! They seem to contain EVERY class when processed through SpineOpt!
-    relationship_classes::Dict{Symbol, RelationshipClass}  # TODO: See above
+    object_classes::Dict{Symbol,ObjectClass} # TODO: Check the contents! They seem to contain EVERY class when processed through SpineOpt!
+    relationship_classes::Dict{Symbol,RelationshipClass}  # TODO: See above
 end
 
 """
@@ -235,10 +289,11 @@ A type for representing a superclass from a Spine db.
 """
 struct Superclass <: EntityClass
     name::Symbol
-    env_dict::Dict{Symbol, SuperclassData}
+    env_dict::Dict{Symbol,SuperclassData}
     function Superclass(name, entity_class_graph, object_classes, relationship_classes)
         vertex = entity_class_graph[name]
-        env_dict = Dict(_active_env() => SuperclassData(entity_class_graph, vertex, object_classes, relationship_classes))
+        env_dict =
+            Dict(_active_env() => SuperclassData(entity_class_graph, vertex, object_classes, relationship_classes))
         new(name, env_dict)
     end
 end
@@ -256,7 +311,7 @@ struct Parameter
     name::Symbol
     env_dict::Dict{Symbol,_Parameter}
     function Parameter(name, entity_class_graph, classes=[])
-        env_dict = Dict(_active_env() => _Parameter(sort(classes, by=ClassSize(entity_class_graph),rev=true)))
+        env_dict = Dict(_active_env() => _Parameter(sort(classes, by=ClassSize(entity_class_graph), rev=true)))
         new(name, env_dict)
     end
 end
@@ -265,7 +320,7 @@ struct TimeSliceRelationships
     name::Symbol
     preceding::Symbol
     succeeding::Symbol
-    time_slice_graph::MetaGraphsNext.MetaGraph
+    time_slice_graph::TimeSliceGraph
 end
 
 """
@@ -333,10 +388,10 @@ function _sort_unique!(inds, vals; merge_ok=false)
     val_count = length(vals)
     if ind_count > val_count
         @warn("too many indices, taking only first $val_count")
-        deleteat!(inds, val_count + 1 : ind_count)
+        deleteat!(inds, (val_count + 1):ind_count)
     elseif val_count > ind_count
         @warn("too many values, taking only first $ind_count")
-        deleteat!(vals, ind_count + 1 : val_count)
+        deleteat!(vals, (ind_count + 1):val_count)
     end
     if !issorted(inds)
         p = sortperm(inds)
@@ -350,7 +405,7 @@ function _sort_unique!(inds, vals; merge_ok=false)
     nonunique = _nonunique_positions_sorted(inds)
     if !merge_ok && !isempty(nonunique)
         n = length(nonunique)
-        dupes = [inds[i] => vals[i] for i in nonunique[1 : min(n, 5)]]
+        dupes = [inds[i] => vals[i] for i in nonunique[1:min(n, 5)]]
         tail = n > 5 ? "... plus $(n - 5) more" : ""
         @warn("repeated indices, taking only last one: $dupes, $tail")
     end
@@ -365,7 +420,7 @@ Non unique positions in a sorted Array.
 function _nonunique_positions_sorted(arr)
     nonunique = []
     sizehint!(nonunique, length(arr))
-    for (i, (x, y)) in enumerate(zip(arr[1 : end - 1], arr[2:end]))
+    for (i, (x, y)) in enumerate(zip(arr[1:(end - 1)], arr[2:end]))
         isequal(x, y) && push!(nonunique, i)
     end
     nonunique

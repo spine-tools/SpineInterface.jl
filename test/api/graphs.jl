@@ -1107,7 +1107,9 @@ function _test_find_relationships_compact()
             found = SpineInterface.find_relationships_compact(graph, :Class__, anything, Parameter=2.3)
             @test collect(map(Tuple, found)) == [(:Class => :Object,)]
             @test isempty(
-                collect(map(Tuple, SpineInterface.find_relationships_compact(graph, :Class__, anything, Parameter=3.2))),
+                collect(
+                    map(Tuple, SpineInterface.find_relationships_compact(graph, :Class__, anything, Parameter=3.2)),
+                ),
             )
         end
     end

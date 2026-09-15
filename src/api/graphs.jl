@@ -41,6 +41,7 @@ function empty_entity_class_graph()
         label_type=Symbol,
         vertex_data_type=Union{ObjectClassVertex,RelationshipClassVertex,SuperclassVertex},
         edge_data_type=Vector{Int},
+        weight_function=union_weight,
     )
 end
 
@@ -59,7 +60,7 @@ function add_entity_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_l
     add_object_class!(entity_class_graph, class_label)
 end
 function add_entity_class!(
-    entity_class_graph::MetaGraphsNext.MetaGraph,
+    entity_class_graph::EntityClassGraph,
     class_label::Symbol,
     first_dimension::Symbol,
     dimensions::Symbol...,
@@ -296,7 +297,7 @@ function dimensionality(entity_class_graph::MetaGraphsNext.MetaGraph, class_labe
 end
 
 struct Dimensions
-    entity_class_graph::MetaGraphsNext.MetaGraph
+    entity_class_graph::EntityClassGraph
     label::Symbol
     dimensionality::Int
     function Dimensions(entity_class_graph, label)
@@ -784,7 +785,7 @@ function set_parameter_value!(
 end
 
 struct ConcreteSubclassLabels
-    entity_class_graph::MetaGraphsNext.MetaGraph
+    entity_class_graph::EntityClassGraph
     superclass_label::Symbol
 end
 
@@ -1263,14 +1264,6 @@ function remove_entity!(vertex::SuperclassVertex, entity_or_atom::Union{Atom,Sym
     remove_entity!(subclass_vertex, entity_or_atom, atoms...)
 end
 
-mutable struct RelationshipGraphData
-    atomic_dimensionality::Int # This needs to be mutable for new dimensions to be added in SpineOpt
-    next_relationship_label::Int
-    function RelationshipGraphData(atomic_dimensionality)
-        new(atomic_dimensionality, 1)
-    end
-end
-
 function new_relationship_label!(relationship_graph::MetaGraphsNext.MetaGraph)
     label = relationship_graph[].next_relationship_label
     relationship_graph[].next_relationship_label += 1
@@ -1284,6 +1277,7 @@ function empty_relationship_graph(atomic_dimensionality)
         vertex_data_type=Nothing,
         edge_data_type=Vector{Int},
         graph_data=RelationshipGraphData(atomic_dimensionality),
+        weight_function=union_weight,
     )
 end
 
@@ -1356,7 +1350,7 @@ function fill_atoms!(atoms::AbstractVector{Atom}, relationship_graph::MetaGraphs
 end
 
 struct AllAtoms{T}
-    relationship_graph::MetaGraphsNext.MetaGraph
+    relationship_graph::RelationshipGraph
     relationship_label_iterator::T
     cache::Vector{Atom}
     function AllAtoms(relationship_graph, relationship_label_iterator::T) where {T}
@@ -1365,7 +1359,7 @@ struct AllAtoms{T}
     end
 end
 
-function Base.eltype(::Type{AllAtoms{T}}) where T
+function Base.eltype(::Type{AllAtoms{T}}) where {T}
     Vector{Atom}
 end
 
@@ -1413,22 +1407,22 @@ function atom_passes_selection(atom::Atom, atom_selector::MultiAtomSelector)
     any(atom_passes_selection(atom, selector) for selector in atom_selector)
 end
 
-struct SelectedRelationships
-    relationship_graph::MetaGraphsNext.MetaGraph
-    relationship_label_iterator::Any
-    entity_selector::Any
+struct SelectedRelationships{T,U}
+    relationship_graph::RelationshipGraph
+    relationship_label_iterator::T
+    entity_selector::U
     cache::Vector{Atom}
-    function SelectedRelationships(relationship_graph, relationship_label_iterator, entity_selector)
+    function SelectedRelationships(relationship_graph, relationship_label_iterator::T, entity_selector::U) where {T,U}
         cache = Vector{Atom}(undef, relationship_graph[].atomic_dimensionality)
-        new(relationship_graph, relationship_label_iterator, entity_selector, cache)
+        new{T,U}(relationship_graph, relationship_label_iterator, entity_selector, cache)
     end
 end
 
-function Base.eltype(::Type{SelectedRelationships})
+function Base.eltype(::Type{SelectedRelationships{T,U}}) where {T,U}
     Vector{Atom}
 end
 
-function Base.IteratorSize(::Type{SelectedRelationships})
+function Base.IteratorSize(::Type{SelectedRelationships{T,U}}) where {T,U}
     Base.SizeUnknown()
 end
 
@@ -1453,7 +1447,8 @@ function empty_time_slice_graph()
         label_type=TimeSlice,
         vertex_data_type=Nothing,
         edge_data_type=Nothing,
-        graph_data=Nothing,
+        graph_data=nothing,
+        weight_function=union_weight,
     )
 end
 
@@ -1469,33 +1464,34 @@ function empty_entity_group_graph()
         label_type=Symbol,
         vertex_data_type=Nothing,
         edge_data_type=Nothing,
-        graph_data=Nothing,
+        graph_data=nothing,
+        weight_function=union_weight,
     )
 end
 
-function add_entity_group_member!(
-    entity_group_graph::MetaGraphsNext.MetaGraph,
-    group_entity::Symbol,
-    member_entity::Symbol,
-)
+function add_entity_group_member!(entity_group_graph::EntityGroupGraph, group_entity::Symbol, member_entity::Symbol)
     entity_group_graph[group_entity] = nothing
     entity_group_graph[member_entity] = nothing
     entity_group_graph[member_entity, group_entity] = nothing
 end
 
-struct GroupEntities
-    entity_group_graph::MetaGraphsNext.MetaGraph
-    vertex_iterator::Any
-    function GroupEntities(entity_group_graph)
-        new(entity_group_graph, MetaGraphsNext.labels(entity_group_graph))
+struct GroupEntities{T}
+    entity_group_graph::EntityGroupGraph
+    vertex_iterator::T
+    function GroupEntities(entity_group_graph, vertex_iterator::T) where {T}
+        new{T}(entity_group_graph, vertex_iterator)
     end
 end
 
-function Base.IteratorSize(::Type{GroupEntities})
+function GroupEntities(entity_group_graph)
+    GroupEntities(entity_group_graph, MetaGraphsNext.labels(entity_group_graph))
+end
+
+function Base.IteratorSize(::Type{GroupEntities{T}}) where {T}
     Base.SizeUnknown()
 end
 
-function Base.eltype(::Type{GroupEntities})
+function Base.eltype(::Type{GroupEntities{T}}) where {T}
     Symbol
 end
 
