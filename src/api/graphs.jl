@@ -881,7 +881,7 @@ function find_objects(entity_class_graph::MetaGraphsNext.MetaGraph, class_label:
     if isempty(parameter_filters)
         return class_vertex.entities
     end
-    filter(label -> value_filter_condition(class_vertex, label, parameter_filters...), class_vertex.entities)
+    filter(label -> value_filter_condition(class_vertex, label; parameter_filters...), class_vertex.entities)
 end
 
 """
@@ -994,7 +994,7 @@ function find_relationships(class_vertex::RelationshipClassVertex, entity_select
     end
     if !isempty(parameter_filters)
         relationship_labels = Iterators.filter(
-            label -> value_filter_condition(class_vertex, label, parameter_filters...),
+            label -> value_filter_condition(class_vertex, label; parameter_filters...),
             relationship_labels,
         )
     end
@@ -1006,10 +1006,15 @@ function find_relationships(class_vertex::RelationshipClassVertex, entity_select
     selection
 end
 
-function value_filter_condition(class_vertex::ClassVertexWithEntities, entity_label::Symbol, parameter_filters...)
+function value_filter_condition(class_vertex::ClassVertexWithEntities, entity_label::Symbol; parameter_filters...)
+    values = class_vertex.parameter_values[entity_label]
     for (p, v) in parameter_filters
-        value = get(class_vertex.parameter_values[entity_label], p, get(class_vertex.parameter_defaults, p, nothing))
-        (value !== nothing && value() === v) || return false
+        value = get(values, p) do
+            get(class_vertex.parameter_defaults, p, nothing)
+        end
+        if isnothing(value) || value() !== v
+            return false
+        end
     end
     true
 end
@@ -1360,8 +1365,8 @@ struct AllAtoms{T}
     end
 end
 
-function Base.eltype(::Type{AllAtoms})
-    Tuple{Atom,Vararg{Atom}}
+function Base.eltype(::Type{AllAtoms{T}}) where T
+    Vector{Atom}
 end
 
 function Base.IteratorSize(::Type{AllAtoms{T}}) where {T}

@@ -66,7 +66,7 @@ function (oc::ObjectClass)(; kwargs...)
     isempty(kwargs) && return collect(values(oc.objects))
     vertex::ObjectClassVertex = oc.vertex
     objects::Dict{Symbol, Object} = oc.objects
-    collect(Iterators.filter(o -> value_filter_condition(vertex, o.name, kwargs...), values(objects)))
+    collect(Iterators.filter(o -> value_filter_condition(vertex, o.name; kwargs...), values(objects)))
 end
 function (oc::ObjectClass)(name::Symbol)
     get(oc.objects, name, nothing)
@@ -90,30 +90,38 @@ end
 
 const Selector = Union{Atom, AnyAtomInClass, MultiAtomSelector, Anything}
 
-struct EntitySelectors
+struct EntitySelectors{T}
     vertex::RelationshipClassVertex
     dimension_combinations::Vector{Vector{Symbol}}
     intact_dimension_combinations::Vector{Vector{Symbol}}
-    legacy_selector
-    function EntitySelectors(class::RelationshipClass, legacy_selector)
-        new(class.vertex, class.dimension_combinations, class.intact_dimension_combinations, legacy_selector)
+    legacy_selector::T
+    selector::Vector{Selector}
+    previous_selectors::Set{Vector{Selector}}
+    function EntitySelectors(class::RelationshipClass, legacy_selector::T) where T
+        vertex = class.vertex
+        selector = Vector{Selector}(undef, atomic_dimensionality(vertex))
+        fill!(selector, anything)
+        new{T}(vertex, class.dimension_combinations, class.intact_dimension_combinations, legacy_selector, selector, Set())
     end
 end
 
-function Base.eltype(::Type{EntitySelectors})
+function Base.eltype(::Type{EntitySelectors{T}}) where T
     Vector{Selector}
 end
 
-function Base.IteratorSize(::Type{EntitySelectors})
+function Base.IteratorSize(::Type{EntitySelectors{T}}) where T
     Base.SizeUnknown()
 end
 
-function Base.iterate(iter::EntitySelectors, state=1)
+function Base.iterate(iter::EntitySelectors, state=1, store_selector=true)
     if state > length(iter.dimension_combinations)
         return nothing
     end
     combination = iter.dimension_combinations[state]
-    selector::Vector{Selector} = [anything for _ in 1:atomic_dimensionality(iter.vertex)]
+    if store_selector && state > 1
+        push!(iter.previous_selectors, copy(iter.selector))
+    end
+    fill!(iter.selector, anything)
     combination_start = 1
     problem = false
     for (class_label, objects) in iter.legacy_selector
@@ -128,13 +136,13 @@ function Base.iterate(iter::EntitySelectors, state=1)
             break # Break if a selector is nothing or empty, needs to be after dimension check to accommodate parameter value kwargs
         end
         intact_class_label = iter.intact_dimension_combinations[state][dimension_i]
-        selector[dimension_i] = objects_to_selector(intact_class_label, objects)
+        iter.selector[dimension_i] = objects_to_selector(intact_class_label, objects)
         combination_start = dimension_i + 1
     end
-    if !all(s -> s === anything, selector) && !problem
-        selector, state + 1
+    if !problem && !all(s -> s === anything, iter.selector) && !in(iter.selector, iter.previous_selectors)
+        iter.selector, state + 1
     else
-        iterate(iter, state + 1)
+        iterate(iter, state + 1, false)
     end
 end
 
@@ -211,10 +219,9 @@ function (rc::RelationshipClass)(; _compact::Bool=true, _default::Any=EntityLike
     relationships = Vector{Union{Object, RelationshipLike}}()
     recycled_class_names = Vector{Symbol}(undef, length(atom_cache))
     object_classes = rc.object_classes
-    for selector in Set(EntitySelectors(rc, kwargs))
+    for selector in EntitySelectors(rc, kwargs)
         for atoms in find_relationships(vertex, selector...)
-            copyto!(atom_cache, atoms)
-            object_tuple = NamedTuple(AtomsAsObjects(object_classes, atom_cache, recycled_class_names))
+            object_tuple = NamedTuple(AtomsAsObjects(object_classes, atoms, recycled_class_names))
             if _compact
                 object_tuple = (; (class_name => object for (class_name, object) in pairs(object_tuple) if !in(class_name, keys(kwargs)))...)
             end
@@ -243,7 +250,7 @@ end
 
 struct AtomsAsObjects
     object_classes::Dict{Symbol, ObjectClass}
-    atoms
+    atoms::Vector{Atom}
     unambiguous_class_names::Vector{Symbol}
     function AtomsAsObjects(object_classes, atoms, recycled_class_names)
         for (i, atom) in enumerate(atoms)
@@ -375,15 +382,7 @@ function (superclass::Superclass)(; _compact::Bool=true, _default::Any=EntityLik
     entities
 end
 
-function entity_selectors(class::ObjectClass, legacy_selector)
-    sel = get(legacy_selector, class.name, nothing) # Handle shared parameter names across classes.
-    isnothing(sel) ? tuple() : (sel.name,)
-end
-function entity_selectors(class::RelationshipClass, legacy_selector)
-    EntitySelectors(class, legacy_selector)
-end
-
-function parameter_entity_label(vertex::ObjectClassVertex, selector)
+function parameter_entity_label(::ObjectClassVertex, selector)
     selector
 end
 function parameter_entity_label(vertex::RelationshipClassVertex, selector)
@@ -433,13 +432,13 @@ function find_value_instance(parameter_name, vertex, entity_selector, _default)
 end
 
 struct LegacySelectorKeys
-    class::RelationshipClass
+    dimension_combinations::Vector{Vector{Symbol}}
     selector_i::Int
     selector_length::Int
     function LegacySelectorKeys(class, entity_selector)
         for (selector_i, combination) in enumerate(class.intact_dimension_combinations)
             if all(s !== anything ? s.first == c : true for (s, c) in zip(entity_selector, combination))
-                return new(class, selector_i, length(entity_selector))
+                return new(class.dimension_combinations, selector_i, length(entity_selector))
             end
         end
         error("this should be unreachable")
@@ -458,52 +457,98 @@ function Base.iterate(iter::LegacySelectorKeys, state=1)
     if state > iter.selector_length
         return nothing
     end
-    iter.class.dimension_combinations[iter.selector_i][state], state + 1
+    iter.dimension_combinations[iter.selector_i][state], state + 1
 end
 
-function legacy_selector_keys(class::ObjectClass, entity_selector)
-    (class.name,)
-end
-function legacy_selector_keys(class::RelationshipClass, entity_selector)
-    LegacySelectorKeys(class, entity_selector)
+mutable struct SelectorHits
+    max::Int
+    duplicity::Int
+    function SelectorHits()
+        new(0, 0)
+    end
 end
 
-function selector_hit_count(selector)
-    count(s !== anything for s in selector)
+function instance_in_class!(hits::SelectorHits, class::ObjectClass, parameter_name::Symbol, _default, kwargs)
+    if hits.max == 0
+        selector = get(kwargs, class.name, nothing)
+        if !isnothing(selector)
+            selected_value = find_value_instance(parameter_name, class.vertex, selector.name, _default)
+            if !isnothing(selected_value)
+                hits.max = 1
+                hits.duplicity = 1
+                instance_kwargs = (k => v for (k, v) in pairs(kwargs) if v != class.name)
+                return selected_value, instance_kwargs
+            end
+        end
+    end
+    nothing, nothing
 end
-function selector_hit_count(selector::Symbol)
-    1
+function instance_in_class(class::ObjectClass, parameter_name::Symbol, _default, kwargs)
+    selector = get(kwargs, class.name, nothing)
+    if !isnothing(selector)
+        selected_value = find_value_instance(parameter_name, class.vertex, selector.name, _default)
+        if !isnothing(selected_value)
+            instance_kwargs = (k => v for (k, v) in pairs(kwargs) if v != class.name)
+            return selected_value, instance_kwargs
+        end
+    end
+    nothing, nothing
+end
+function instance_in_class!(hits::SelectorHits, class::RelationshipClass, parameter_name::Symbol, _default, kwargs)
+    instance = nothing
+    instance_kwargs = nothing
+    vertex = class.vertex
+    for selector in EntitySelectors(class, kwargs)
+        selector_hits = count(s !== anything for s in selector)
+        if selector_hits < hits.max
+            continue
+        end
+        selected_value = find_value_instance(parameter_name, vertex, selector, _default)
+        if !isnothing(selected_value)
+            if selector_hits > hits.max
+                hits.max = selector_hits
+                hits.duplicity = 1
+                instance = selected_value
+                instance_kwargs = (k => v for (k, v) in pairs(kwargs) if !in(v, LegacySelectorKeys(class, selector)))
+            else
+                hits.duplicity += 1
+            end
+        end
+    end
+    instance, instance_kwargs
+end
+function instance_in_class(class::RelationshipClass, parameter_name::Symbol, _default, kwargs)
+    instance = nothing
+    instance_kwargs = nothing
+    vertex = class.vertex
+    for selector in EntitySelectors(class, kwargs)
+        selected_value = find_value_instance(parameter_name, vertex, selector, _default)
+        if !isnothing(selected_value)
+            instance_kwargs = (k => v for (k, v) in pairs(kwargs) if !in(v, LegacySelectorKeys(class, selector)))
+            return selected_value, instance_kwargs
+        end
+    end
+    nothing, nothing
 end
 
 function unique_value_instance(parameter_name, classes, _default, kwargs)
     instance = nothing
     instance_kwargs = nothing
-    max_selector_hits = 0
-    selector_hit_duplicity = 0
+    hits = SelectorHits()
     for class in classes
-        vertex = class.vertex
-        for selector in entity_selectors(class, kwargs)
-            selector_hits = selector_hit_count(selector)
-            if selector_hits < max_selector_hits
-                continue
-            end
-            selected_value = find_value_instance(parameter_name, vertex, selector, _default)
-            if !isnothing(selected_value)
-                if selector_hits > max_selector_hits
-                    max_selector_hits = selector_hits
-                    selector_hit_duplicity = 1
-                    instance = selected_value
-                    instance_kwargs = (k => v for (k, v) in pairs(kwargs) if !in(v, legacy_selector_keys(class, selector)))
-                else
-                    selector_hit_duplicity += 1
-                end
-            end
+        new_instance, new_kwargs = instance_in_class!(hits, class, parameter_name, _default, kwargs)
+        if !isnothing(new_instance)
+            instance = new_instance
+            instance_kwargs = new_kwargs
         end
     end
-    if selector_hit_duplicity > 1
+    if hits.duplicity > 1
         return nothing, nothing
     end
     instance, instance_kwargs
+end
+function unique_value_instance(parameter_name, class::EntityClass, _default, kwargs)
+    instance_in_class(class, parameter_name, _default, kwargs)
 end
 
 function is_suspect_to_misorder(classes; parameter_kwargs...)
@@ -596,7 +641,23 @@ function (p::Parameter)(classes::Vector{<:EntityClass}=classes(p); _strict=true,
         _default
     end
 end
-(p::Parameter)(class::EntityClass; kwargs...) = p([class]; kwargs...)
+function (p::Parameter)(class::EntityClass; _strict=true, _default=nothing, kwargs...)
+    value = nothing
+    value_instance, value_kwargs = unique_value_instance(p.name, class, _default, kwargs)
+    if !isnothing(value_instance)
+        value = value_instance(; value_kwargs...)
+    end
+    if !isnothing(value)
+        value
+    else
+        if is_suspect_to_misorder(class; kwargs...)
+            @warn("can't find a value of $p for arguments $((; kwargs...)); check the order of arguments")
+        elseif _strict
+            @warn("can't find a value of $p for argument(s) $((; kwargs...))")
+        end
+        _default
+    end
+end
 
 const __value_translator = Ref{Union{Nothing,Function}}(nothing)
 
