@@ -1499,6 +1499,57 @@ function _test_group_entities_iterator()
     end
 end
 
+function _test_indices()
+    @testset "indices" begin
+        @testset "object parameter indices" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_parameter_definition!(graph, :A, :P)
+            @test isempty(collect(indices(graph, :A, :P)))
+            add_entity!(graph, :A, :a)
+            @test isempty(collect(indices(graph, :A, :P)))
+            set_parameter_value!(graph, :A, :P, :a, 2.3)
+            @test collect(indices(graph, :A, :P)) == [:a]
+        end
+        @testset "2D relationship indices" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_entity!(graph, :A, :a)
+            add_entity_class!(graph, :B)
+            add_entity!(graph, :B, :a)
+            add_entity_class!(graph, :A__B, :A, :B)
+            add_parameter_definition!(graph, :A__B, :X)
+            @test isempty(collect(indices(graph, :A__B, :X)))
+            add_entity!(graph, :A__B, :A => :a, :B => :b)
+            @test isempty(collect(indices(graph, :A__B, :X)))
+            set_parameter_value!(graph, :A__B, :X, :A => :a, :B => :b, 2.3)
+            @test collect(indices(graph, :A__B, :X)) == [[:A => :a, :B => :b]]
+        end
+        @testset "superclass indices" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_parameter_definition!(graph, :A, :X)
+            add_entity!(graph, :A, :a)
+            add_entity_class!(graph, :B)
+            add_parameter_definition!(graph, :B, :X)
+            add_parameter_definition!(graph, :B, :Y)
+            add_entity!(graph, :B, :b)
+            add_superclass!(graph, :Any, :A, :B)
+            @test isempty(collect(indices(graph, :Any, :X)))
+            @test isempty(collect(indices(graph, :Any, :Y)))
+            set_parameter_value!(graph, :A, :X, :a, 2.3)
+            @test collect(indices(graph, :Any, :X)) == [:a]
+            @test isempty(collect(indices(graph, :Any, :Y)))
+            set_parameter_value!(graph, :B, :Y, :b, 3.2)
+            @test collect(indices(graph, :Any, :X)) == [:a]
+            @test collect(indices(graph, :Any, :Y)) == [:b]
+            set_parameter_value!(graph, :B, :X, :b, 5.0)
+            @test sort(collect(indices(graph, :Any, :X))) == sort([:a, :b])
+            @test collect(indices(graph, :Any, :Y)) == [:b]
+        end
+    end
+end
+
 @testset "graphs" begin
     _test_empty_entity_class_graph()
     _test_add_entity_class()
@@ -1544,4 +1595,5 @@ end
     _test_value_or_default()
     _test_is_group_entity()
     _test_group_entities_iterator()
+    _test_indices()
 end

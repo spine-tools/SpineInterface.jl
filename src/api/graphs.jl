@@ -788,6 +788,9 @@ struct ConcreteSubclassLabels
     entity_class_graph::EntityClassGraph
     superclass_label::Symbol
 end
+function ConcreteSubclassLabels(vertex::SuperclassVertex)
+    ConcreteSubclassLabels(vertex.entity_class_graph, vertex.class_label)
+end
 
 function Base.eltype(::Type{ConcreteSubclassLabels})
     Symbol
@@ -1533,6 +1536,90 @@ end
 
 function groups(entity_group_graph::MetaGraphsNext.MetaGraph, member_entity::Symbol)
     MetaGraphsNext.outneighbor_labels(entity_group_graph, member_entity)
+end
+
+function has_value(vertex::ClassVertexWithEntities, parameter::Symbol, entity::Symbol)
+    parameter in keys(vertex.parameter_values[entity])
+end
+
+"""
+    indices(entity_class_graph::EntityClassGraph, class::Symbol, parameter::Symbol)
+
+Return an iterator over entities that have a value for the given parameter.
+
+If the class is 0D, the entities will be symbols. Otherwise, an iterable over `Atom`s is returned.
+In case the class is a superclass, the iterator will iterate over entities in concrete subclasses.
+
+The order in which the entities are iterated over is unspecified.
+
+# Examples
+
+```jldoctest
+julia> graph = empty_entity_class_graph();
+
+julia> add_entity_class!(graph, :unit);
+
+julia> add_parameter_definition!(graph, :unit, :X);
+
+julia> add_entity!(graph, :unit, :fusion);
+
+julia> set_parameter_value!(graph, :unit, :X, :fusion, -3.2);
+
+julia> collect(indices(graph, :unit, :X))
+1-element Vector{Symbol}:
+ :fusion
+
+julia> add_entity_class!(graph, :node);
+
+julia> add_parameter_definition!(graph, :node, :X);
+
+julia> add_parameter_definition!(graph, :node, :Y);
+
+julia> add_entity!(graph, :node, :black_mesa);
+
+julia> set_parameter_value!(graph, :node, :X, :black_mesa, 2.3);
+
+julia> set_parameter_value!(graph, :node, :Y, :black_mesa, 5.5);
+
+julia> add_entity_class!(graph, :unit__node, :unit, :node);
+
+julia> add_parameter_definition!(graph, :unit__node, :Z);
+
+julia> add_entity!(graph, :unit__node, :unit => :fusion, :node => :black_mesa);
+
+julia> set_parameter_value!(graph, :unit__node, :Z, :unit => :fusion, :node => :black_mesa, 99.9);
+
+julia> collect(Tuple.(indices(graph, :unit__node, :Z)))
+1-element Vector{Tuple{Pair{Symbol, Symbol}, Pair{Symbol, Symbol}}}:
+ (:unit => :fusion, :node => :black_mesa)
+
+julia> add_superclass!(graph, :unit_or_node, :unit, :node);
+
+julia> collect(indices(graph, :unit_or_node, :X))
+2-element Vector{Symbol}:
+ :fusion
+ :black_mesa
+
+julia> collect(indices(graph, :unit_or_node, :Y))
+1-element Vector{Symbol}:
+ :black_mesa
+```
+"""
+function indices(entity_class_graph::EntityClassGraph, class::Symbol, parameter::Symbol)
+    indices(entity_class_graph[class], parameter)
+end
+function indices(vertex::ObjectClassVertex, parameter::Symbol)
+    Iterators.filter(entity -> has_value(vertex, parameter, entity), vertex.entities)
+end
+function indices(vertex::RelationshipClassVertex, parameter::Symbol)
+    AllAtoms(
+        vertex.relationship_graph,
+        Iterators.filter(entity -> has_value(vertex, parameter, entity), vertex.entities),
+    )
+end
+function indices(vertex::SuperclassVertex, parameter::Symbol)
+    entity_class_graph = vertex.entity_class_graph
+    Iterators.flatten(indices(entity_class_graph[subclass], parameter) for subclass in ConcreteSubclassLabels(vertex))
 end
 
 function parameter_values(

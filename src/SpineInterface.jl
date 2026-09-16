@@ -63,6 +63,7 @@ export before
 export Bind
 export blocks
 export build_entity_class_graph
+export build_entity_class_graph!
 export Call
 export class_labels
 export classes
@@ -80,6 +81,7 @@ export duration
 export empty_entity_class_graph
 export end_
 export entities
+export EntityClassGraph
 export entity_group_members
 export export_data
 export find_objects

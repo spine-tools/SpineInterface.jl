@@ -71,7 +71,7 @@ function _import_superclass_test_data(db_url::String)
     )
 end
 
-function _test_indices()
+function _test_classic_indices()
     @testset "indices" begin
         object_classes = ["institution", "country"]
         relationship_classes = [["institution__country", ["institution", "country"]]]
@@ -1315,7 +1315,7 @@ function _test_parse_db_dict()
 end
 
 @testset "api" begin
-    _test_indices()
+    _test_classic_indices()
     _test_indices_as_tuples()
     _test_object_class_relationship_class_parameter()
     _test_superclasses()

@@ -390,20 +390,23 @@ function add_parameter_definitions_to_graph!(entity_class_graph::MetaGraphsNext.
     end
 end
 
-function build_entity_class_graph(data)
+function build_entity_class_graph!(entity_class_graph::EntityClassGraph, data)
     entity_class_data = get(data, "entity_classes", [])
     superclass_subclass_data = get(data, "superclass_subclasses", [])
     entity_data = get(data, "entities", [])
     entity_group_data = get(data, "entity_groups", [])
     parameter_definition_data = get(data, "parameter_definitions", [])
     parameter_value_data = get(data, "parameter_values", [])
-    entity_class_graph = empty_entity_class_graph()
     add_entity_classes_to_graph!(entity_class_graph, entity_class_data, superclass_subclass_data)
     add_entities_to_graph!(entity_class_graph, entity_data)
     add_entity_groups_to_graph!(entity_class_graph, entity_group_data)
     add_parameter_definitions_to_graph!(entity_class_graph, entity_class_data, parameter_definition_data)
     add_parameter_values_to_graph!(entity_class_graph, parameter_value_data)
-    entity_class_graph
+end
+function build_entity_class_graph(data)
+    graph = empty_entity_class_graph()
+    build_entity_class_graph!(graph, data)
+    graph
 end
 
 function write_interface(io::IO, template)

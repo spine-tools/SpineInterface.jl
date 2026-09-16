@@ -24,6 +24,7 @@ add_relationship_class!(entity_class_graph::MetaGraphsNext.MetaGraph, class_labe
 add_superclass!(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, subclasses::Symbol...)
 class_labels(entity_class_graph::MetaGraphsNext.MetaGraph)
 subclasses(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
+indices(entity_class_graph::EntityClassGraph, class::Symbol, parameter::Symbol)
 is_object_class(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
 is_relationship_class(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
 is_superclass(entity_class_graph::MetaGraphsNext.MetaGraph, label::Symbol)
@@ -45,7 +46,7 @@ default_value(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, param
 value_or_default(entity_class_graph::MetaGraphsNext.MetaGraph, class::Symbol, parameter_definition::Symbol, entity::Symbol)
 ```
 
-## Types in classic interface
+## Types in the classic interface
 
 ```@docs
 ObjectClass
@@ -58,7 +59,7 @@ Map
 Anything
 ```
 
-## Functions in classic interface
+## Functions in the classic interface
 
 ```@docs
 using_spinedb(::String)
