@@ -95,6 +95,7 @@ export import_data
 export indexed_values
 export indices
 export indices_as_tuples
+export is_group_entity
 export is_object_class
 export is_relationship_class
 export is_subclass_of

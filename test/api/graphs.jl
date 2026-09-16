@@ -1480,10 +1480,24 @@ end
 
 function _test_is_group_entity()
     @testset "is_group_entity" begin
-        graph = SpineInterface.empty_entity_group_graph()
-        add_entity_group_member!(graph, :group, :member)
-        @test SpineInterface.is_group_entity(graph, :group)
-        @test !SpineInterface.is_group_entity(graph, :member)
+        @testset "directly with entity group graph" begin
+            graph = SpineInterface.empty_entity_group_graph()
+            add_entity_group_member!(graph, :group, :member)
+            @test SpineInterface.is_group_entity(graph, :group)
+            @test !SpineInterface.is_group_entity(graph, :member)
+            @test !SpineInterface.is_group_entity(graph, :non_member)
+        end
+        @testset "with entity class graph" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_entity!(graph, :A, :group)
+            add_entity!(graph, :A, :member)
+            add_entity!(graph, :A, :no_member)
+            add_entity_group_member!(graph, :A, :group, :member)
+            @test is_group_entity(graph, :A, :group)
+            @test !is_group_entity(graph, :A, :member)
+            @test !is_group_entity(graph, :A, :no_group)
+        end
     end
 end
 

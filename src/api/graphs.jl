@@ -632,6 +632,18 @@ function group_entities(vertex::ObjectClassVertex)
 end
 
 """
+    is_group_entity(entity_class_graph::EntityClassGraph, class::Symbol, entity::Symbol)
+
+Return true if given entity is a group entity.
+"""
+function is_group_entity(entity_class_graph::EntityClassGraph, class::Symbol, entity::Symbol)
+    is_group_entity(entity_class_graph[class], entity)
+end
+function is_group_entity(vertex::ObjectClassVertex, entity::Symbol)
+    is_group_entity(vertex.entity_group_graph, entity)
+end
+
+"""
     entity_group_members(entity_class_graph::MetaGraphsNext.MetaGraph, class_label::Symbol, group_label::Symbol)
 
 Return an iterator to the members of an entity group.
