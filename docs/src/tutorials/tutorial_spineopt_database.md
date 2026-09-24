@@ -1,4 +1,4 @@
-# Tutorial SpineOpt database
+# Classic interface with SpineOpt database
 
 The optimization model [SpineOpt](https://github.com/Spine-tools/SpineOpt.jl) uses SpineOpt databases as its input. A SpineOpt database is a specific form of the spine database. In other words a SpineOpt database is a spine database but a spine database is not necessarily a SpineOpt database.
 
