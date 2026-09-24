@@ -29,6 +29,8 @@ using URIs
 using Requires
 using Test
 
+import JuMP
+
 include("types.jl")
 include("util.jl")
 include("base.jl")
@@ -38,6 +40,7 @@ include("api/core.jl")
 include("api/parameter_value.jl")
 include("api/time_slice.jl")
 include("api/tests.jl")
+include("update_model.jl")
 
 export add_dimension!
 export add_object_parameter_values!
@@ -100,6 +103,7 @@ export RelationshipClass
 export RelationshipLike
 export roll!
 export run_request
+export set_expr_bound
 export set_value_translator
 export start
 export startref
@@ -124,12 +128,5 @@ export without_filters
 export write_parameters
 export write_interface
 export add_roll_hook!
-
-function __init__()
-	@require JuMP="4076af6c-e467-56ae-b986-b466b2749572" begin
-		include("update_model.jl")
-		export set_expr_bound
-	end
-end
 
 end # module
