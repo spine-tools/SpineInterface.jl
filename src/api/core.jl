@@ -518,8 +518,6 @@ function instance_in_class!(hits::SelectorHits, class::RelationshipClass, parame
     instance, instance_kwargs
 end
 function instance_in_class(class::RelationshipClass, parameter_name::Symbol, _default, kwargs)
-    instance = nothing
-    instance_kwargs = nothing
     vertex = class.vertex
     for selector in EntitySelectors(class, kwargs)
         selected_value = find_value_instance(parameter_name, vertex, selector, _default)
@@ -583,6 +581,16 @@ function is_suspect_to_misorder(class::RelationshipClass; parameter_kwargs...)
     false
 end
 
+function value_instance_no_warn(::Symbol, ::Dict{Symbol, ParameterValue}, value_instance, ::T) where {T}
+    value_instance
+end
+function value_instance_no_warn(::Symbol, ::Dict{Symbol, ParameterValue}, ::Nothing, _default)
+    parameter_value(_default)
+end
+function value_instance_no_warn(parameter::Symbol, parameter_defaults::Dict{Symbol, ParameterValue}, ::Nothing, ::Nothing)
+    return parameter_defaults[parameter]
+end
+
 """
     (<p>::Parameter)(classes=classes(p);<keyword arguments>)
 
@@ -624,16 +632,16 @@ julia> demand(node=node(:Sthlm), i=2)
 17.0
 ```
 """
-function (p::Parameter)(classes::Vector{<:EntityClass}=classes(p); _strict=true, _default=nothing, kwargs...)
+function (p::Parameter)(class_or_classes::Union{AbstractVector{EntityClass}, EntityClass}=classes(p); _strict=true, _default=nothing, kwargs...)
     value = nothing
-    value_instance, value_kwargs = unique_value_instance(p.name, classes, _default, kwargs)
+    value_instance, value_kwargs = unique_value_instance(p.name, class_or_classes, _default, kwargs)
     if !isnothing(value_instance)
         value = value_instance(; value_kwargs...)
     end
     if !isnothing(value)
         value
     else
-        if is_suspect_to_misorder(classes; kwargs...)
+        if is_suspect_to_misorder(class_or_classes; kwargs...)
             @warn("can't find a value of $p for arguments $((; kwargs...)); check the order of arguments")
         elseif _strict
             @warn("can't find a value of $p for argument(s) $((; kwargs...))")
@@ -641,22 +649,16 @@ function (p::Parameter)(classes::Vector{<:EntityClass}=classes(p); _strict=true,
         _default
     end
 end
-function (p::Parameter)(class::EntityClass; _strict=true, _default=nothing, kwargs...)
-    value = nothing
-    value_instance, value_kwargs = unique_value_instance(p.name, class, _default, kwargs)
-    if !isnothing(value_instance)
-        value = value_instance(; value_kwargs...)
-    end
-    if !isnothing(value)
-        value
-    else
-        if is_suspect_to_misorder(class; kwargs...)
-            @warn("can't find a value of $p for arguments $((; kwargs...)); check the order of arguments")
-        elseif _strict
-            @warn("can't find a value of $p for argument(s) $((; kwargs...))")
-        end
-        _default
-    end
+function (p::Parameter)(class::ObjectClass, object::Object; _strict=true, _default=nothing, kwargs...)
+    vertex = class.vertex
+    value_instance = get(vertex.parameter_values[object.name], p.name, nothing)
+    value_instance_no_warn(p.name, vertex.parameter_defaults, value_instance, _default)(;kwargs...)
+end
+function (p::Parameter)(class::RelationshipClass, selector::NTuple{N, Object}; _strict=true, _default=nothing, kwargs...) where {N}
+    vertex = class.vertex
+    entity = relationship_label(vertex.relationship_graph, (o.class_name => o.name for o in selector)...)
+    value_instance = get(vertex.parameter_values[entity], p.name, nothing)
+    value_instance_no_warn(p.name, vertex.parameter_defaults, value_instance, _default)(;kwargs...)
 end
 
 const __value_translator = Ref{Union{Nothing,Function}}(nothing)

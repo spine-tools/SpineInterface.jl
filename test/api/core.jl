@@ -65,6 +65,50 @@ function _test_parameter_call()
                 @test_nowarn isnothing(Y.X(; B=Y.B(:b), A=Y.A(:a), _strict=false))
             end
         end
+        @testset "class and selector method" begin
+            @testset "object class parameter" begin
+                graph = empty_entity_class_graph()
+                add_entity_class!(graph, :A)
+                add_parameter_definition!(graph, :A, :X)
+                add_entity!(graph, :A, :a)
+                set_parameter_value!(graph, :A, :X, :a, 2.3)
+                Y = Bind()
+                SpineInterface.make_bindings!(Y, graph)
+                @test Y.X(Y.A, Y.A(:a)) == 2.3
+            end
+            @testset "missing object class parameter returns default value" begin
+                graph = empty_entity_class_graph()
+                add_entity_class!(graph, :A)
+                add_parameter_definition!(graph, :A, :X, 3.2)
+                add_entity!(graph, :A, :a)
+                Y = Bind()
+                SpineInterface.make_bindings!(Y, graph)
+                @test Y.X(Y.A, Y.A(:a)) == 3.2
+            end
+            @testset "_default overwites parameter defaults" begin
+                graph = empty_entity_class_graph()
+                add_entity_class!(graph, :A)
+                add_parameter_definition!(graph, :A, :X, 3.2)
+                add_entity!(graph, :A, :a)
+                Y = Bind()
+                SpineInterface.make_bindings!(Y, graph)
+                @test Y.X(Y.A, Y.A(:a); _default=2.3) == 2.3
+            end
+            @testset "relationship class parameter" begin
+                graph = empty_entity_class_graph()
+                add_entity_class!(graph, :A)
+                add_entity!(graph, :A, :a)
+                add_entity_class!(graph, :B)
+                add_entity!(graph, :B, :b)
+                add_entity_class!(graph, :A__B, :A, :B)
+                add_parameter_definition!(graph, :A__B, :X)
+                add_entity!(graph, :A__B, :A => :a, :B => :b)
+                set_parameter_value!(graph, :A__B, :X, :A => :a, :B => :b, 2.3)
+                Y = Bind()
+                SpineInterface.make_bindings!(Y, graph)
+                @test Y.X(Y.A__B, (Y.A(:a), Y.B(:b))) == 2.3
+            end
+        end
     end
 end
 
@@ -92,7 +136,7 @@ function _test_make_bindings()
             @test members(Y.B(:b_member)) == [Y.B(:b_member)]
             @test groups(Y.B(:b_member)) == [Y.B(:b_group)]
             @test isempty(groups(Y.B(:b_group)))
-            @test collect(Y.A__B()) == [(; A = Y.A(:a), B = Y.B(:b))]
+            @test collect(Y.A__B()) == [(; A=Y.A(:a), B=Y.B(:b))]
             @test sort(collect(Y.Any())) == sort([Y.A(:a), Y.B(:b), Y.B(:b_group), Y.B(:b_member)])
         end
     end
