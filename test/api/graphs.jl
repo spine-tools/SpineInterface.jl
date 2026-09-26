@@ -1564,6 +1564,41 @@ function _test_indices()
     end
 end
 
+function _test_value_filter_condition()
+    @testset "value_filter_condition" begin
+        @testset "accept entity value" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_parameter_definition!(graph, :A, :X, 5.5)
+            add_entity!(graph, :A, :a)
+            set_parameter_value!(graph, :A, :X, :a, 2.3)
+            @test SpineInterface.value_filter_condition(graph[:A], :a, X=2.3)
+        end
+        @testset "accept default value" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_parameter_definition!(graph, :A, :X, 2.3)
+            add_entity!(graph, :A, :a)
+            @test SpineInterface.value_filter_condition(graph[:A], :a, X=2.3)
+        end
+        @testset "reject entity value" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_parameter_definition!(graph, :A, :X, 2.3)
+            add_entity!(graph, :A, :a)
+            set_parameter_value!(graph, :A, :X, :a, 5.5)
+            @test !SpineInterface.value_filter_condition(graph[:A], :a, X=2.3)
+        end
+        @testset "reject default value" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_parameter_definition!(graph, :A, :X, 5.5)
+            add_entity!(graph, :A, :a)
+            @test !SpineInterface.value_filter_condition(graph[:A], :a, X=2.3)
+        end
+    end
+end
+
 @testset "graphs" begin
     _test_empty_entity_class_graph()
     _test_add_entity_class()
@@ -1610,4 +1645,5 @@ end
     _test_is_group_entity()
     _test_group_entities_iterator()
     _test_indices()
+    _test_value_filter_condition()
 end

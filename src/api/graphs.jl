@@ -1026,7 +1026,7 @@ function value_filter_condition(class_vertex::ClassVertexWithEntities, entity_la
     values = class_vertex.parameter_values[entity_label]
     for (p, v) in parameter_filters
         value = get(values, p) do
-            get(class_vertex.parameter_defaults, p, nothing)
+            class_vertex.parameter_defaults[p]
         end
         if isnothing(value) || value() !== v
             return false
