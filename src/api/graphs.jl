@@ -1533,13 +1533,10 @@ function Base.iterate(iter::GroupEntities, state)
 end
 
 function is_group_entity(entity_group_graph::MetaGraphsNext.MetaGraph, entity::Symbol)
-    member = try
-        member = Iterators.peel(MetaGraphsNext.inneighbor_labels(entity_group_graph, entity))
-    catch
-        # peel() throws when iterator is empty in Julia < 1.7
-        nothing
+    if !MetaGraphsNext.haskey(entity_group_graph, entity)
+        return false
     end
-    !isnothing(member)
+    Graphs.indegree(entity_group_graph, MetaGraphsNext.code_for(entity_group_graph, entity)) != 0
 end
 
 function members(entity_group_graph::MetaGraphsNext.MetaGraph, group_entity::Symbol)
