@@ -1052,22 +1052,22 @@ function is_compact(selector::Atom)
     true
 end
 
-struct CompactDimensions
-    atom_iter::Any
+struct CompactDimensions{T}
+    atom_iter::T
     compact_atomic_dimensions::Tuple{Vararg{Int}}
 end
 
-function Base.eltype(::Type{CompactDimensions})
+function Base.eltype(::Type{CompactDimensions{T}}) where {T}
     Atom
 end
 
-function Base.length(iter::CompactDimensions)
+function Base.length(iter::CompactDimensions{T}) where {T}
     length(iter.atom_iter) - length(iter.compact_atomic_dimensions)
 end
 
-struct CompactDimensionState
+struct CompactDimensionState{T}
     atom::Atom
-    atom_iter_state::Any
+    atom_iter_state::T
     atom_i::Int
     compact_dimension_i::Int
 end
@@ -1075,9 +1075,6 @@ end
 function Base.iterate(iter::CompactDimensions, state)
     current = state
     while !isnothing(current)
-        if current.atom_i > length(iter.atom_iter)
-            return nothing
-        end
         if current.compact_dimension_i > length(iter.compact_atomic_dimensions)
             compact_dimension = nothing
         else
@@ -1112,9 +1109,6 @@ function Base.iterate(iter::CompactDimensions, state)
 end
 function Base.iterate(iter::CompactDimensions)
     result = iterate(iter.atom_iter)
-    if isnothing(result)
-        return nothing
-    end
     atom, atom_iter_state = result
     state = CompactDimensionState(atom, atom_iter_state, 1, 1)
     iterate(iter, state)
@@ -1296,11 +1290,8 @@ function empty_relationship_graph(atomic_dimensionality)
     )
 end
 
-is_relationship(::Symbol) = true
-is_relationship(::Atom) = false
-
 function has_relationship(relationship_graph::MetaGraphsNext.MetaGraph, atom::Atom)
-    MetaGraphsNext.MetaGraph.haskey(relationship_graph, atom)
+    MetaGraphsNext.haskey(relationship_graph, atom)
 end
 function has_relationship(relationship_graph::MetaGraphsNext.MetaGraph, atom::Atom, atoms::Atom...)
     !isnothing(relationship_label(relationship_graph, atom, atoms...))
@@ -1310,10 +1301,7 @@ function relationship_label(relationship_graph::MetaGraphsNext.MetaGraph, atom::
     if !MetaGraphsNext.haskey(relationship_graph, atom)
         return nothing
     end
-    for relationship_label in MetaGraphsNext.outneighbor_labels(relationship_graph, atom)
-        return relationship_label
-    end
-    nothing
+    first(MetaGraphsNext.outneighbor_labels(relationship_graph, atom))
 end
 function relationship_label(relationship_graph::MetaGraphsNext.MetaGraph, first_atom::Atom, atoms::Atom...)
     if !MetaGraphsNext.haskey(relationship_graph, first_atom)

@@ -191,8 +191,11 @@ function _test_is_object_class()
         add_relationship_class!(graph, :A__, :A)
         add_superclass!(graph, :super, :A)
         @test is_object_class(graph, :A)
+        @test is_object_class(graph[:A])
         @test !is_object_class(graph, :A__)
+        @test !is_object_class(graph[:A__])
         @test !is_object_class(graph, :super)
+        @test !is_object_class(graph[:super])
     end
 end
 
@@ -203,8 +206,11 @@ function _test_is_relationship_class()
         add_relationship_class!(graph, :A__, :A)
         add_superclass!(graph, :super, :A)
         @test !is_relationship_class(graph, :A)
+        @test !is_relationship_class(graph[:A])
         @test is_relationship_class(graph, :A__)
+        @test is_relationship_class(graph[:A__])
         @test !is_relationship_class(graph, :super)
+        @test !is_relationship_class(graph[:super])
     end
 end
 
@@ -427,6 +433,7 @@ function _test_atomic_dimensionality()
             graph = empty_entity_class_graph()
             add_object_class!(graph, :Object)
             @test SpineInterface.atomic_dimensionality(graph, :Object) == 0
+            @test SpineInterface.atomic_dimensionality(graph[:Object]) == 0
         end
         @testset "relationship class" begin
             graph = empty_entity_class_graph()
@@ -438,8 +445,11 @@ function _test_atomic_dimensionality()
             add_relationship_class!(graph, :C__D, :C, :D)
             add_relationship_class!(graph, :AB__CD, :A__B, :C__D)
             @test SpineInterface.atomic_dimensionality(graph, :A__B) == 2
+            @test SpineInterface.atomic_dimensionality(graph[:A__B]) == 2
             @test SpineInterface.atomic_dimensionality(graph, :C__D) == 2
+            @test SpineInterface.atomic_dimensionality(graph[:C__D]) == 2
             @test SpineInterface.atomic_dimensionality(graph, :AB__CD) == 4
+            @test SpineInterface.atomic_dimensionality(graph[:AB__CD]) == 4
         end
         @testset "superclass of relationship classes" begin
             graph = empty_entity_class_graph()
@@ -451,6 +461,7 @@ function _test_atomic_dimensionality()
             add_relationship_class!(graph, :C__D, :C, :D)
             add_superclass!(graph, :Any__Any, :A__B, :C__D)
             @test SpineInterface.atomic_dimensionality(graph, :Any__Any) == 2
+            @test SpineInterface.atomic_dimensionality(graph[:Any__Any]) == 2
         end
     end
 end
@@ -950,6 +961,16 @@ end
 
 function _test_find_relationships_compact()
     @testset "find_relationships_compact" begin
+        @testset "empty relationship class" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :ObjectA)
+            add_entity!(graph, :ObjectA, :A)
+            add_entity_class!(graph, :ObjectB)
+            add_entity!(graph, :ObjectB, :B)
+            add_entity_class!(graph, :A__B, :ObjectA, :ObjectB)
+            found = SpineInterface.find_relationships_compact(graph, :A__B, anything, anything)
+            @test isempty(collect(found))
+        end
         @testset "simple relationship" begin
             graph = empty_entity_class_graph()
             add_object_class!(graph, :ObjectA)
@@ -1236,6 +1257,10 @@ function _test_has_relationship()
             @test !SpineInterface.has_relationship(graph, :cat => :garfield, :fish => :nemo)
         end
         @testset "simple cases" begin
+            graph_1D = SpineInterface.empty_relationship_graph(1)
+            @test !SpineInterface.has_relationship(graph_1D, :Class => :Object)
+            SpineInterface.add_relationship!(graph_1D, :Class => :Object)
+            @test SpineInterface.has_relationship(graph_1D, :Class => :Object)
             graph = SpineInterface.empty_relationship_graph(2)
             SpineInterface.add_relationship!(graph, :Class1 => :Object11, :Class2 => :Object21)
             @test SpineInterface.has_relationship(graph, :Class1 => :Object11, :Class2 => :Object21)
@@ -1394,6 +1419,19 @@ function _test_find_value()
             @test isnothing(find_value(graph, :Object, :no_such_parameter, :spoon))
             @test_throws KeyError find_value(graph, :Object, :weight, :no_such_entity)
         end
+        @testset "1D relationship parameter value" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_entity!(graph, :A, :a)
+            add_entity_class!(graph, :A__, :A)
+            add_parameter_definition!(graph, :A__, :weight, 2.3)
+            add_entity!(graph, :A__, :A => :a)
+            @test isnothing(find_value(graph, :A__, :weight, :A => :a))
+            set_parameter_value!(graph, :A__, :weight, :A => :a, 3.2)
+            @test find_value(graph, :A__, :weight, :A => :a) == parameter_value(3.2)
+            @test isnothing(find_value(graph, :A__, :no_such_parameter, :A => :a))
+            @test_throws KeyError find_value(graph, :A__, :weight, :A => :no_such_entity)
+        end
         @testset "relationship parameter value" begin
             graph = empty_entity_class_graph()
             add_object_class!(graph, :A)
@@ -1501,6 +1539,21 @@ function _test_is_group_entity()
     end
 end
 
+function _test_group_entities()
+    @testset "group_entities" begin
+        graph = empty_entity_class_graph()
+        add_entity_class!(graph, :A)
+        add_entity!(graph, :A, :groupA)
+        add_entity!(graph, :A, :member1)
+        add_entity_group_member!(graph, :A, :groupA, :member1)
+        add_entity!(graph, :A, :groupB)
+        add_entity!(graph, :A, :member2)
+        add_entity_group_member!(graph, :A, :groupB, :member2)
+        add_entity!(graph, :A, :nogroup)
+        @test sort(collect(group_entities(graph, :A))) == sort([:groupA, :groupB])
+    end
+end
+
 function _test_group_entities_iterator()
     @testset "GroupEntities" begin
         graph = SpineInterface.empty_entity_group_graph()
@@ -1599,6 +1652,54 @@ function _test_value_filter_condition()
     end
 end
 
+function _test_parameters()
+    @testset "parameters" begin
+        graph = empty_entity_class_graph()
+        add_entity_class!(graph, :A)
+        @test isempty(collect(parameters(graph, :A)))
+        add_parameter_definition!(graph, :A, :X)
+        @test collect(parameters(graph, :A)) == [:X]
+    end
+end
+
+function _test_is_compact()
+    @testset "is_compact" begin
+        @test !SpineInterface.is_compact(anything)
+        @test !SpineInterface.is_compact(:Class => anything)
+        @test !SpineInterface.is_compact((:Class1 => :entity1, :Class2 => :entity2))
+        @test SpineInterface.is_compact(:Class => :entity)
+        @test SpineInterface.is_compact((:Class => :entity,))
+    end
+end
+
+function _test_parameter_values()
+    @testset "parameter_values" begin
+        @testset "for object" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_parameter_definition!(graph, :A, :X)
+            add_entity!(graph, :A, :a)
+            @test isempty(collect(SpineInterface.parameter_values(graph, :A, :a)))
+            set_parameter_value!(graph, :A, :X, :a, 2.3)
+            @test collect(SpineInterface.parameter_values(graph, :A, :a)) == [:X => parameter_value(2.3)]
+        end
+        @testset "for relationship" begin
+            graph = empty_entity_class_graph()
+            add_entity_class!(graph, :A)
+            add_entity!(graph, :A, :a)
+            add_entity_class!(graph, :B)
+            add_entity!(graph, :B, :b)
+            add_entity_class!(graph, :A__B, :A, :B)
+            add_parameter_definition!(graph, :A__B, :X)
+            add_entity!(graph, :A__B, :A => :a, :B => :b)
+            @test isempty(collect(SpineInterface.parameter_values(graph, :A__B, :A => :a, :B => :b)))
+            set_parameter_value!(graph, :A__B, :X, :A => :a, :B => :b, 2.3)
+            @test collect(SpineInterface.parameter_values(graph, :A__B, :A => :a, :B => :b)) ==
+                  [:X => parameter_value(2.3)]
+        end
+    end
+end
+
 @testset "graphs" begin
     _test_empty_entity_class_graph()
     _test_add_entity_class()
@@ -1643,7 +1744,11 @@ end
     _test_find_value()
     _test_value_or_default()
     _test_is_group_entity()
+    _test_group_entities()
     _test_group_entities_iterator()
     _test_indices()
     _test_value_filter_condition()
+    _test_parameters()
+    _test_is_compact()
+    _test_parameter_values()
 end
