@@ -499,6 +499,8 @@ function Base.getindex(x::Union{TimeSeries,Map}, key)
 end
 # Override `getindex` for `Parameter` so we can call `parameter[...]` and get a `Call`
 Base.getindex(p::Parameter, inds::Union{Iterators.Pairs,NamedTuple}) = _getindex(p; inds...)
+Base.getindex(p::Parameter, class, selector, kwargs) = _getindex(p, class, selector; kwargs...)
+
 function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
     value = nothing
     if !any(isnothing, values(kwargs))
@@ -513,6 +515,29 @@ function _getindex(p::Parameter; _strict=true, _default=nothing, kwargs...)
         end
         Call(nothing, p)
     end
+end
+function _getindex(p::Parameter, class::ObjectClass, object; _strict=true, _default=nothing, kwargs...)
+    vertex = class.vertex
+    value_instance = get(vertex.parameter_values[object.name], p.name, nothing)
+    value_callable(p, value_instance, vertex.parameter_defaults, _default, kwargs)
+end
+function _getindex(p::Parameter, class::RelationshipClass, selector; _strict=true, _default=nothing, kwargs...)
+    vertex = class.vertex
+    entity = relationship_label(vertex.relationship_graph, (o.class_name => o.name for o in selector)...)
+    value_instance = get(vertex.parameter_values[entity], p.name, nothing)
+    value_callable(p, value_instance, vertex.parameter_defaults, _default, kwargs)
+end
+
+function value_callable(p, value, ::Dict{Symbol, ParameterValue}, ::T, kwargs) where{T}
+    caller = (p, kwargs)
+    Call(value, NamedTuple(kwargs), caller)
+end
+function value_callable(p, ::Nothing, ::Dict{Symbol, ParameterValue}, default, kwargs)
+    Call(default, p)
+end
+function value_callable(p, ::Nothing, parameter_defaults::Dict{Symbol, ParameterValue}, ::Nothing, kwargs)
+    caller = (p, kwargs)
+    Call(parameter_defaults[p.name], NamedTuple(kwargs), caller)
 end
 
 function Base.get!(x::Union{TimeSeries,Map}, key, default)

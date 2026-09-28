@@ -62,6 +62,83 @@ function _test_merge()
     end
 end
 
+function _test_getindex()
+    @testset "parameter value call" begin
+        data = empty_entity_class_graph()
+        add_entity_class!(data, :A)
+        add_parameter_definition!(data, :A, :X)
+        add_entity!(data, :A, :a)
+        set_parameter_value!(data, :A, :X, :a, 2.3)
+        Y = Bind()
+        SpineInterface.make_bindings!(Y, data)
+        @test realize(Y.X[(; A=Y.A(:a))]) == 2.3
+        @test realize(Y.X[Y.A, Y.A(:a), NamedTuple()]) == 2.3
+    end
+    @testset "parameter default value call" begin
+        data = empty_entity_class_graph()
+        add_entity_class!(data, :A)
+        add_parameter_definition!(data, :A, :X, 2.3)
+        add_entity!(data, :A, :a)
+        Y = Bind()
+        SpineInterface.make_bindings!(Y, data)
+        @test realize(Y.X[(; A=Y.A(:a))]) == 2.3
+        @test realize(Y.X[Y.A, Y.A(:a), NamedTuple()]) == 2.3
+    end
+    @testset "given default overrides parameter default" begin
+        data = empty_entity_class_graph()
+        add_entity_class!(data, :A)
+        add_parameter_definition!(data, :A, :X, 5.5)
+        add_entity!(data, :A, :a)
+        Y = Bind()
+        SpineInterface.make_bindings!(Y, data)
+        @test realize(Y.X[(; A=Y.A(:a), _default=2.3)]) == 2.3
+        @test realize(Y.X[Y.A, Y.A(:a), (; _default=2.3)]) == 2.3
+    end
+    @testset "relationship parameter value call" begin
+        data = empty_entity_class_graph()
+        add_entity_class!(data, :A)
+        add_entity!(data, :A, :a)
+        add_entity_class!(data, :B)
+        add_entity!(data, :B, :b)
+        add_entity_class!(data, :A__B, :A, :B)
+        add_parameter_definition!(data, :A__B, :X)
+        add_entity!(data, :A__B, :A => :a, :B => :b)
+        set_parameter_value!(data, :A__B, :X, :A => :a, :B => :b, 2.3)
+        Y = Bind()
+        SpineInterface.make_bindings!(Y, data)
+        @test realize(Y.X[(; A=Y.A(:a), B=Y.B(:b))]) == 2.3
+        @test realize(Y.X[Y.A__B, (; A=Y.A(:a), B=Y.B(:b)), NamedTuple()]) == 2.3
+    end
+    @testset "relationship parameter default value call" begin
+        data = empty_entity_class_graph()
+        add_entity_class!(data, :A)
+        add_entity!(data, :A, :a)
+        add_entity_class!(data, :B)
+        add_entity!(data, :B, :b)
+        add_entity_class!(data, :A__B, :A, :B)
+        add_parameter_definition!(data, :A__B, :X, 2.3)
+        add_entity!(data, :A__B, :A => :a, :B => :b)
+        Y = Bind()
+        SpineInterface.make_bindings!(Y, data)
+        @test realize(Y.X[(; A=Y.A(:a), B=Y.B(:b))]) == 2.3
+        @test realize(Y.X[Y.A__B, (; A=Y.A(:a), B=Y.B(:b)), NamedTuple()]) == 2.3
+    end
+    @testset "given default overrides relationship parameter default" begin
+        data = empty_entity_class_graph()
+        add_entity_class!(data, :A)
+        add_entity!(data, :A, :a)
+        add_entity_class!(data, :B)
+        add_entity!(data, :B, :b)
+        add_entity_class!(data, :A__B, :A, :B)
+        add_parameter_definition!(data, :A__B, :X, 5.5)
+        add_entity!(data, :A__B, :A => :a, :B => :b)
+        Y = Bind()
+        SpineInterface.make_bindings!(Y, data)
+        @test realize(Y.X[(; A=Y.A(:a), B=Y.B(:b), _default=2.3)]) == 2.3
+        @test realize(Y.X[Y.A__B, (; A=Y.A(:a), B=Y.B(:b)), (; _default=2.3)]) == 2.3
+    end
+end
+
 @testset "base" begin
     # intersect
     @test intersect(anything, [1]) == [1]
@@ -409,7 +486,11 @@ end
     @test !isempty(m)
     @test isempty(TimeSeries([], [], false, false))
     @test isempty(Map([], []))
+
+    _test_merge()
+    _test_getindex()
 end
+
 @testset "TimePattern-TimePattern arithmetic" begin
     month1to3or7to12 = SpineInterface.parse_time_period("M1-3,M7-12")
     month4to6 = SpineInterface.parse_time_period("M4-6")
@@ -432,6 +513,4 @@ end
     observed = tp2 - tp3
     expected = Dict(SpineInterface.parse_time_period("WD3-5") => -9, SpineInterface.parse_time_period("WD6-6") => -8)
     @test observed == expected
-
-    _test_merge()
 end
