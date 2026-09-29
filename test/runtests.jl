@@ -18,14 +18,20 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
+# Tasku: Uncomment these lines to run this test script locally.
+#using Pkg
+#Pkg.activate(@__DIR__)
+
 using SpineInterface
 import SpineInterface.parse_time_period
-using Test
-using PyCall
 using Dates
+import Graphs
+using HiGHS
+import MetaGraphsNext
+using PyCall
 using JSON
 using JuMP
-using HiGHS
+using Test
 
 # Handle JuMP and SpineInterface `Parameter` and `parameter_value` conflicts.
 import SpineInterface: Parameter, parameter_value
@@ -35,9 +41,9 @@ SpineInterface.import_data(db_url::String; kwargs...) = SpineInterface.import_da
 
 # Convenience function for overwriting in-memory Database with test data.
 function import_test_data(db_url::String; kwargs...)
-    SpineInterface.close_connection(db_url)
-    SpineInterface.open_connection(db_url)
-    import_data(db_url; kwargs...)
+    with_connection_open(db_url) do
+        import_data(db_url; kwargs...)
+    end
 end
 
 # Convenience for temporary DB-urls
@@ -49,12 +55,16 @@ end
 @testset begin
     include("using_spinedb.jl")
     include("api.jl")
+    include("api/core.jl")
+    include("api/db.jl")
+    include("api/graphs.jl")
     include("constructors.jl")
     include("base.jl")
+    include("types.jl")
     include("util.jl")
     include("update_model.jl")
-    @testset "examples" begin 
+    @testset "examples" begin
         include("../examples/tutorial_spine_database/tutorial_spine_database.jl")
         include("../examples/tutorial_spineopt_database/tutorial_spineopt_database.jl")
     end
-end;
+end
