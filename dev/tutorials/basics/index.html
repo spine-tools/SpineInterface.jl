@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>SpineInterface basics · SpineInterface.jl</title><meta name="title" content="SpineInterface basics · SpineInterface.jl"/><meta property="og:title" content="SpineInterface basics · SpineInterface.jl"/><meta property="twitter:title" content="SpineInterface basics · SpineInterface.jl"/><meta name="description" content="Documentation for SpineInterface.jl."/><meta property="og:description" content="Documentation for SpineInterface.jl."/><meta property="twitter:description" content="Documentation for SpineInterface.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.63.2/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">SpineInterface.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Tutorials</span><ul><li class="is-active"><a class="tocitem" href>SpineInterface basics</a></li><li><a class="tocitem" href="../tutorial_spine_database/">Classic interface basics</a></li><li><a class="tocitem" href="../tutorial_spineopt_database/">Classic interface with SpineOpt database</a></li></ul></li><li><a class="tocitem" href="../../library/">Library</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>SpineInterface basics</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>SpineInterface basics</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/spine-tools/SpineInterface.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/spine-tools/SpineInterface.jl/blob/master/docs/src/tutorials/basics.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="SpineInterface-basics"><a class="docs-heading-anchor" href="#SpineInterface-basics">SpineInterface basics</a><a id="SpineInterface-basics-1"></a><a class="docs-heading-anchor-permalink" href="#SpineInterface-basics" title="Permalink"></a></h1><p>This tutorial introduces some basic concepts of SpineInterface. We will use the modern graph-based interface here. For the classic interface (<code>using_spinedb</code> + convenience functions), see the classic tutorials.</p><p>Once you have installed SpineInterface, and activated and instatiated the Julia environment, we can start by creating an empty dataset:</p><pre><code class="language-julia hljs">julia&gt; using SpineInterface
+[...]
+julia&gt; data = empty_entity_class_graph();</code></pre><p>Now, <code>data</code> holds an empty entity class graph, more precisely, an instance of MetaGraph. It holds all necessary information to start modelling: entity classes, entities, parameter definitions and parameter values.</p><p>Generally, it is not necessary know the details of the graph or even that <code>data</code> is a graph at all. SpineInterface offers high-level functions to work with the graph without this knowledge. However, if you want to dive into the details, you can use the low-level functions from the <a href="https://juliagraphs.org/MetaGraphsNext.jl/stable/">MetaGraphsNext</a> and <a href="https://juliagraphs.org/Graphs.jl/stable/">Graphs</a> libraries.</p><p>Let&#39;s add some data to our dataset:</p><pre><code class="language-julia hljs">julia&gt; add_entity_class!(data, :actor);
+
+julia&gt; add_entity_class!(data, :film);</code></pre><p>The above will add two object classes called &quot;actor&quot; and &quot;film&quot; to out dataset. Note, how we use symbols for names in SpineInterface. Next, let&#39;s add some concrete actors and films:</p><pre><code class="language-julia hljs">julia&gt; add_entity!(data, :actor, :Phoenix);
+
+julia&gt; add_entity!(data, :actor, :Johansson);
+
+julia&gt; add_entity!(data, :film, :Her);
+
+julia&gt; add_entity!(data, :film, :Joker);</code></pre><p>We can use the <code>entities</code> iterator to check the contents of the newly created classes:</p><pre><code class="language-julia hljs">julia&gt; collect(entities(data, :actor))
+2-element Vector{Symbol}:
+ :Johansson
+ :Phoenix
+
+julia&gt; collect(entities(data, :film))
+2-element Vector{Symbol}:
+ :Her
+ :Joker</code></pre><p>To make things more interesting, let&#39;s add relationships that record which actor has acted in which film:</p><pre><code class="language-julia hljs">julia&gt; add_entity_class!(data, :actor__film, :actor, :film);
+
+julia&gt; add_entity!(data, :actor__film, :actor =&gt; :Phoenix, :film =&gt; :Joker);
+
+julia&gt; add_entity!(data, :actor__film, :actor =&gt; :Phoenix, :film =&gt; :Her);
+
+julia&gt; add_entity!(data, :actor__film, :actor =&gt; :Johansson, :film =&gt; :Her);</code></pre><p>Notice, how we specify the relationship using pairs: the first element in the pair is the object class, the second is the object. These pairs are called atoms of the relationship.</p><p>We can use the <code>entities</code> iterator above to get all the atoms we just added:</p><pre><code class="language-julia hljs">julia&gt; collect(entities(data, :actor__film))
+3-element Vector{Tuple{Pair{Symbol, Symbol}, Pair{Symbol, Symbol}}}:
+ (:actor =&gt; :Phoenix, :film =&gt; :Joker)
+ (:actor =&gt; :Phoenix, :film =&gt; :Her)
+ (:actor =&gt; :Johansson, :film =&gt; :Her)</code></pre><p>Note, that the order in which <code>entities</code> returns its results is not specified. The latest relationship that was added is not necessarily the last on the list.</p><p>SpineInterface offers some powerful methods to find specific relationships in a class. Let&#39;s first have a look at how <code>find_relationships</code> works:</p><pre><code class="language-julia hljs">julia&gt; collect(collect(atoms) for atoms in find_relationships(data, :actor__film))
+3-element Vector{Vector{Pair{Symbol, Symbol}}}:
+ [:actor =&gt; :Phoenix, :film =&gt; :Joker]
+ [:actor =&gt; :Phoenix, :film =&gt; :Her]
+ [:actor =&gt; :Johansson, :film =&gt; :Her]
+
+julia&gt; collect(collect(atoms) for atoms in find_relationships(data, :actor__film, :actor =&gt; :Phoenix, anything))
+2-element Vector{Vector{Pair{Symbol, Symbol}}}:
+ [:actor =&gt; :Phoenix, :film =&gt; :Joker]
+ [:actor =&gt; :Phoenix, :film =&gt; :Her]
+
+julia&gt; collect(collect(atoms) for atoms in find_relationships(data, :actor__film, anything, :film =&gt; :Her))
+2-element Vector{Vector{Pair{Symbol, Symbol}}}:
+ [:actor =&gt; :Phoenix, :film =&gt; :Her]
+ [:actor =&gt; :Johansson, :film =&gt; :Her]
+
+julia&gt; collect(collect(atoms) for atoms in find_relationships(data, :actor__film, :actor =&gt; anything, :film =&gt; :Her))
+2-element Vector{Vector{Pair{Symbol, Symbol}}}:
+ [:actor =&gt; :Phoenix, :film =&gt; :Her]
+ [:actor =&gt; :Johansson, :film =&gt; :Her]
+
+ julia&gt; collect(collect(atoms) for atoms in find_relationships(data, :actor__film, (:actor =&gt; :Phoenix, :actor =&gt; :Johansson), :film =&gt; :Her))
+ 2-element Vector{Vector{Pair{Symbol, Symbol}}}:
+  [:actor =&gt; :Phoenix, :film =&gt; :Her]
+  [:actor =&gt; :Johansson, :film =&gt; :Her]</code></pre><p>The first thing to note in the code above is that <code>find_relationships</code> returns iterators. This is to avoid memory allocations if you just want to loop over the relationships and their atoms. Otherwise, we are responsible for allocating the required data structures e.g. by calling <code>collect</code> like we did above.</p><p>Secondly, we can use the <code>anything</code> singleton as a &quot;wild card&quot;. The <code>&lt;class&gt; =&gt; anything</code> form that we used in the last example above is useful in the case where any of the dimensions of the relationship class are superclasses. This form forces <code>find_relationships</code> to find relationships with the specific class, and not consider other subclasses.</p><p>Thirdly, we can use a tuple atoms to find relationships that contain the given atoms.</p><p>There is an alternative to <code>find_relationships</code> that only returns dimensions that are set to <code>anything</code> in the call. It is called <code>find_relationships_compact</code> and works otherwise just like <code>find_relationships</code>:</p><pre><code class="language-julia hljs">julia&gt; collect(Tuple.(find_relationships_compact(data, :actor__film)))
+3-element Vector{Tuple{Pair{Symbol, Symbol}, Pair{Symbol, Symbol}}}:
+ (:actor =&gt; :Phoenix, :film =&gt; :Joker)
+ (:actor =&gt; :Phoenix, :film =&gt; :Her)
+ (:actor =&gt; :Johansson, :film =&gt; :Her)
+
+julia&gt; collect(Tuple.(find_relationships_compact(data, :actor__film, :actor =&gt; :Phoenix, anything)))
+2-element Vector{Tuple{Pair{Symbol, Symbol}}}:
+ (:film =&gt; :Joker,)
+ (:film =&gt; :Her,)
+
+julia&gt; collect(Tuple.(find_relationships_compact(data, :actor__film, anything, :film =&gt; :Her)))
+2-element Vector{Tuple{Pair{Symbol, Symbol}}}:
+ (:actor =&gt; :Phoenix,)
+ (:actor =&gt; :Johansson,)
+
+julia&gt; collect(collect(atoms) for atoms in find_relationships_compact(data, :actor__film, :actor =&gt; anything, :film =&gt; :Her))
+2-element Vector{Vector{Pair{Symbol, Symbol}}}:
+ [:actor =&gt; :Phoenix]
+ [:actor =&gt; :Johansson]
+
+julia&gt; collect(Tuple.(find_relationships_compact(data, :actor__film, :actor =&gt; anything, :film =&gt; :Her)))
+2-element Vector{Tuple{Pair{Symbol, Symbol}}}:
+ (:actor =&gt; :Phoenix,)
+ (:actor =&gt; :Johansson,)
+
+julia&gt; collect(Tuple.(find_relationships_compact(data, :actor__film, (:actor =&gt; :Phoenix, :actor =&gt; :Johansson), :film =&gt; :Her)))
+2-element Vector{Tuple{Pair{Symbol, Symbol}}}:
+ (:actor =&gt; :Phoenix,)
+ (:actor =&gt; :Johansson,)</code></pre><p>Let&#39;s add some parameters to the dataset:</p><pre><code class="language-julia hljs">julia&gt; add_parameter_definition!(data, :film, :release_year, &quot;not given&quot;);
+
+julia&gt; set_parameter_value!(data, :film, :release_year, :Joker, 2019);
+
+julia&gt; add_parameter_definition!(data, :actor__film, :character_name);
+
+julia&gt; set_parameter_value!(data, :actor__film, :character_name, :actor =&gt; :Phoenix, :film =&gt; :Joker, &quot;Arthur&quot;);
+
+julia&gt; set_parameter_value!(data, :actor__film, :character_name, :actor =&gt; :Phoenix, :film =&gt; :Her, &quot;Theodore&quot;);
+
+julia&gt; set_parameter_value!(data, :actor__film, :character_name, :actor =&gt; :Johansson, :film =&gt; :Her, &quot;Samantha&quot;);</code></pre><p>We can use <code>find_value</code> and <code>value_or_default</code>to access the parameters:</p><pre><code class="language-julia hljs">julia&gt; find_value(data, :film, :release_year, :Joker)
+ParameterValue(2019)
+
+julia&gt; isnothing(find_value(data, :film, :release_year, :Her))
+true
+
+julia&gt; value_or_default(data, :film, :release_year, :Her)
+ParameterValue(not given)
+
+julia&gt; find_value(data, :actor__film, :character_name, :actor =&gt; :Phoenix, :film =&gt; :Joker)
+ParameterValue(Arthur)</code></pre><p>In the above, <code>find_value</code> returns <code>nothing</code> for the release year of Her because the value is not set. <code>value_or_default</code>, on the other hand, returns the default value that is set when the parameter is introduced by <code>add_parameter_definition!</code>.</p><p>Finally, let&#39;s store the dataset to a Spine database, so it can be accessed later for example in <a href="https://github.com/spine-tools/Spine-Toolbox">Spine Toolbox</a>:</p><pre><code class="language-julia hljs">julia&gt; url = &quot;sqlite:///$(@__DIR__)/example.sqlite&quot;;
+
+julia&gt; commit_message = &quot;Initial commit of films and actors.&quot;;
+
+julia&gt; import_data(url, data_to_import(data), commit_message);</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Home</a><a class="docs-footer-nextpage" href="../tutorial_spine_database/">Classic interface basics »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Tuesday 29 September 2026 06:18">Tuesday 29 September 2026</span>. Using Julia version 1.13.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
