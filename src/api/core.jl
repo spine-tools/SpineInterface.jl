@@ -529,11 +529,37 @@ function instance_in_class(class::RelationshipClass, parameter_name::Symbol, _de
     nothing, nothing
 end
 
+"""
+    _dimension_mask(class, kwargs)
+
+A bitmask with bit `i` set if the `i`-th keyword in `kwargs` is a dimension of `class`.
+Keywords beyond the 64th are ignored.
+"""
+function _dimension_mask(class::EntityClass, kwargs)
+    # Fetch once, `dimension_combinations` is looked up in the class environment (and isn't inferred)
+    combinations = class isa RelationshipClass ? class.dimension_combinations::Vector{Vector{Symbol}} : nothing
+    mask = zero(UInt64)
+    for (i, key) in enumerate(keys(kwargs))
+        i > 64 && break
+        is_dimension = isnothing(combinations) ? key === class.name : any(c -> key in c, combinations)
+        if is_dimension
+            mask |= one(UInt64) << (i - 1)
+        end
+    end
+    mask
+end
+
 function unique_value_instance(parameter_name, classes, _default, kwargs)
     instance = nothing
     instance_kwargs = nothing
     hits = SelectorHits()
+    all_dimensions = length(classes) == 1 ? zero(UInt64) : mapreduce(c -> _dimension_mask(c, kwargs), |, classes)
     for class in classes
+        # Skip classes the call doesn't target, i.e. the keywords name a dimension of another class but not of this one.
+        # Otherwise a partial (wildcard) selector could match an entity of this class.
+        if !iszero(all_dimensions) && !iszero(all_dimensions & ~_dimension_mask(class, kwargs))
+            continue
+        end
         new_instance, new_kwargs = instance_in_class!(hits, class, parameter_name, _default, kwargs)
         if !isnothing(new_instance)
             instance = new_instance
