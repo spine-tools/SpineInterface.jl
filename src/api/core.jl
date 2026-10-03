@@ -553,7 +553,7 @@ function unique_value_instance(parameter_name, classes, _default, kwargs)
     instance = nothing
     instance_kwargs = nothing
     hits = SelectorHits()
-    all_dimensions = length(classes) == 1 ? zero(UInt64) : mapreduce(c -> _dimension_mask(c, kwargs), |, classes)
+    all_dimensions = length(classes) <= 1 ? zero(UInt64) : mapreduce(c -> _dimension_mask(c, kwargs), |, classes)
     for class in classes
         # Skip classes the call doesn't target, i.e. the keywords name a dimension of another class but not of this one.
         # Otherwise a partial (wildcard) selector could match an entity of this class.
