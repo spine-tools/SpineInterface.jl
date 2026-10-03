@@ -559,26 +559,16 @@ function is_suspect_to_misorder(class::RelationshipClass; parameter_kwargs...)
     if atomic_dimensionality(class.vertex) == 1
         return false
     end
-    for (i, key) in enumerate(keys(parameter_kwargs))
-        key_found = false
-        matched = false
-        match = isequal(key)
-        for combinations in class.dimension_combinations
-            j = findfirst(match, combinations)
-            if isnothing(j)
-                continue
-            end
-            key_found = true
-            if i == j
-                matched = true
-                break
-            end
-        end
-        if key_found && !matched
-            return true
-        end
+    kwarg_keys = collect(keys(parameter_kwargs))
+    targeted = false
+    for combination in class.dimension_combinations
+        # Skip combinations the call cannot target, i.e. not all dimensions are given as keywords
+        all(in(kwarg_keys), combination) || continue
+        targeted = true
+        # Compare positions only among keywords that are dimension names (ignore e.g. analysis_time, t)
+        filter(in(combination), kwarg_keys) == combination && return false
     end
-    false
+    targeted
 end
 
 function value_instance_no_warn(::Symbol, ::Dict{Symbol, ParameterValue}, value_instance, ::T) where {T}

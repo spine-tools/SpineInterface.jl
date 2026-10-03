@@ -64,6 +64,47 @@ function _test_parameter_call()
                 @test_logs (:warn, warning) isnothing(Y.X(; B=Y.B(:b), A=Y.A(:a)))
                 @test_nowarn isnothing(Y.X(; B=Y.B(:b), A=Y.A(:a), _strict=false))
             end
+            @testset "non-dimension keywords before the dimensions" begin
+                graph = empty_entity_class_graph()
+                add_entity_class!(graph, :A)
+                add_entity!(graph, :A, :a)
+                add_entity!(graph, :A, :a2)
+                add_entity_class!(graph, :B)
+                add_entity!(graph, :B, :b)
+                add_entity_class!(graph, :A__B, :A, :B)
+                add_parameter_definition!(graph, :A__B, :X)
+                add_entity!(graph, :A__B, :A => :a, :B => :b)
+                add_entity!(graph, :A__B, :A => :a2, :B => :b)
+                set_parameter_value!(graph, :A__B, :X, :A => :a, :B => :b, 2.3)
+                Y = Bind()
+                SpineInterface.make_bindings!(Y, graph)
+                @test Y.X(; analysis_time=1, A=Y.A(:a), B=Y.B(:b)) == 2.3
+                warning = "can't find a value of X for argument(s) (analysis_time = 1, A = a2, B = b)"
+                @test_logs (:warn, warning) isnothing(Y.X(; analysis_time=1, A=Y.A(:a2), B=Y.B(:b)))
+                @test_nowarn isnothing(Y.X(; analysis_time=1, A=Y.A(:a2), B=Y.B(:b), _strict=false))
+                warning = "can't find a value of X for arguments (analysis_time = 1, B = b, A = a2); check the order of arguments"
+                @test_logs (:warn, warning) isnothing(Y.X(; analysis_time=1, B=Y.B(:b), A=Y.A(:a2), _strict=false))
+            end
+            @testset "parameter shared by several relationship classes" begin
+                graph = empty_entity_class_graph()
+                add_entity_class!(graph, :A)
+                add_entity!(graph, :A, :a)
+                add_entity_class!(graph, :B)
+                add_entity!(graph, :B, :b)
+                add_entity_class!(graph, :C)
+                add_entity!(graph, :C, :c)
+                add_entity_class!(graph, :A__B, :A, :B)
+                add_entity_class!(graph, :C__B, :C, :B)
+                add_parameter_definition!(graph, :A__B, :X)
+                add_parameter_definition!(graph, :C__B, :X)
+                add_entity!(graph, :A__B, :A => :a, :B => :b)
+                add_entity!(graph, :C__B, :C => :c, :B => :b)
+                set_parameter_value!(graph, :C__B, :X, :C => :c, :B => :b, 2.3)
+                Y = Bind()
+                SpineInterface.make_bindings!(Y, graph)
+                @test Y.X(; analysis_time=1, C=Y.C(:c), B=Y.B(:b)) == 2.3
+                @test_nowarn isnothing(Y.X(; analysis_time=1, A=Y.A(:a), B=Y.B(:b), _strict=false))
+            end
         end
         @testset "class and selector method" begin
             @testset "object class parameter" begin
