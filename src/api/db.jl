@@ -756,8 +756,16 @@ function open_connection(db_url, upgrade=false)
         end
         cached_handler = CachedHandler(db_url, upgrade)
         _handlers[db_url] = cached_handler
+        atexit(() -> force_close_handler(db_url))
     else
         cached_handler.n_users += 1
+    end
+end
+
+function force_close_handler(db_url)
+    cached_handler = get(_handlers, db_url, nothing)
+    if !isnothing(cached_handler)
+        _close_db_handler(cached_handler.handler)
     end
 end
 
