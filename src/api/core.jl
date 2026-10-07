@@ -90,26 +90,35 @@ end
 
 const Selector = Union{Atom, AnyAtomInClass, MultiAtomSelector, Anything}
 
-struct EntitySelectors{T}
+struct EntitySelectors{T,M}
     vertex::RelationshipClassVertex
     dimension_combinations::Vector{Vector{Symbol}}
     intact_dimension_combinations::Vector{Vector{Symbol}}
     legacy_selector::T
+    dimension_keywords::M
     selector::Vector{Selector}
     previous_selectors::Set{Vector{Selector}}
-    function EntitySelectors(class::RelationshipClass, legacy_selector::T) where T
+    function EntitySelectors(class::RelationshipClass, legacy_selector::T, dimension_keywords::M=zero(UInt64)) where {T,M}
         vertex = class.vertex
         selector = Vector{Selector}(undef, atomic_dimensionality(vertex))
         fill!(selector, anything)
-        new{T}(vertex, class.dimension_combinations, class.intact_dimension_combinations, legacy_selector, selector, Set())
+        new{T,M}(
+            vertex,
+            class.dimension_combinations,
+            class.intact_dimension_combinations,
+            legacy_selector,
+            dimension_keywords,
+            selector,
+            Set(),
+        )
     end
 end
 
-function Base.eltype(::Type{EntitySelectors{T}}) where T
+function Base.eltype(::Type{EntitySelectors{T,M}}) where {T,M}
     Vector{Selector}
 end
 
-function Base.IteratorSize(::Type{EntitySelectors{T}}) where T
+function Base.IteratorSize(::Type{EntitySelectors{T,M}}) where {T,M}
     Base.SizeUnknown()
 end
 
@@ -120,6 +129,9 @@ function Base.iterate(iter::EntitySelectors, state=1, store_selector=true)
     combination = iter.dimension_combinations[state]
     if store_selector && state > 1
         push!(iter.previous_selectors, copy(iter.selector))
+    end
+    if !_is_eligible(combination, iter.legacy_selector, iter.dimension_keywords)
+        return iterate(iter, state + 1, false)
     end
     fill!(iter.selector, anything)
     combination_start = 1
@@ -468,7 +480,71 @@ mutable struct SelectorHits
     end
 end
 
-function instance_in_class!(hits::SelectorHits, class::ObjectClass, parameter_name::Symbol, _default, kwargs)
+# Integer type for bitmasks over the keywords of a call: UInt64, or BigInt for calls with more than 64 keywords
+_mask_type(kwargs) = length(kwargs) <= 64 ? UInt64 : BigInt
+
+"""
+    _keyword_mask(dimensions, kwargs)
+
+A bitmask with bit `i` set if the `i`-th keyword in `kwargs` is in `dimensions`.
+"""
+function _keyword_mask(dimensions, kwargs)
+    T = _mask_type(kwargs)
+    mask = zero(T)
+    for (i, key) in enumerate(keys(kwargs))
+        if key in dimensions
+            mask |= one(T) << (i - 1)
+        end
+    end
+    mask
+end
+
+# `dimension_combinations` is looked up in the class environment and isn't inferred
+_dimension_combinations(class::RelationshipClass) = class.dimension_combinations::Vector{Vector{Symbol}}
+
+"""
+    _dimension_keywords(classes, kwargs)
+
+A bitmask of the keywords in `kwargs` that are a dimension in any dimension combination of any of `classes`.
+Zero (no requirement) if there's only one class with a single dimension combination, which is then always eligible.
+"""
+function _dimension_keywords(classes, kwargs)
+    mask = zero(_mask_type(kwargs))
+    if length(classes) == 1
+        class = only(classes)
+        (!(class isa RelationshipClass) || length(_dimension_combinations(class)) == 1) && return mask
+    end
+    for class in classes
+        if class isa RelationshipClass
+            for combination in _dimension_combinations(class)
+                mask |= _keyword_mask(combination, kwargs)
+            end
+        else
+            mask |= _keyword_mask((class.name,), kwargs)
+        end
+    end
+    mask
+end
+
+"""
+    _is_eligible(dimensions, kwargs, dimension_keywords)
+
+Whether `dimensions` include all the `dimension_keywords` of the call.
+Selectors are only built from eligible dimension combinations: in others, a partial (wildcard) selector
+could match an entity the call doesn't target.
+"""
+function _is_eligible(dimensions, kwargs, dimension_keywords)
+    iszero(dimension_keywords) || iszero(dimension_keywords & ~_keyword_mask(dimensions, kwargs))
+end
+
+function _has_eligible_combination(class::RelationshipClass, kwargs, dimension_keywords)
+    iszero(dimension_keywords) || any(c -> _is_eligible(c, kwargs, dimension_keywords), _dimension_combinations(class))
+end
+
+function instance_in_class!(
+    hits::SelectorHits, class::ObjectClass, parameter_name::Symbol, _default, kwargs, dimension_keywords=zero(UInt64)
+)
+    _is_eligible((class.name,), kwargs, dimension_keywords) || return nothing, nothing
     if hits.max == 0
         selector = get(kwargs, class.name, nothing)
         if !isnothing(selector)
@@ -483,7 +559,8 @@ function instance_in_class!(hits::SelectorHits, class::ObjectClass, parameter_na
     end
     nothing, nothing
 end
-function instance_in_class(class::ObjectClass, parameter_name::Symbol, _default, kwargs)
+function instance_in_class(class::ObjectClass, parameter_name::Symbol, _default, kwargs, dimension_keywords=zero(UInt64))
+    _is_eligible((class.name,), kwargs, dimension_keywords) || return nothing, nothing
     selector = get(kwargs, class.name, nothing)
     if !isnothing(selector)
         selected_value = find_value_instance(parameter_name, class.vertex, selector.name, _default)
@@ -494,11 +571,14 @@ function instance_in_class(class::ObjectClass, parameter_name::Symbol, _default,
     end
     nothing, nothing
 end
-function instance_in_class!(hits::SelectorHits, class::RelationshipClass, parameter_name::Symbol, _default, kwargs)
+function instance_in_class!(
+    hits::SelectorHits, class::RelationshipClass, parameter_name::Symbol, _default, kwargs, dimension_keywords=zero(UInt64)
+)
+    _has_eligible_combination(class, kwargs, dimension_keywords) || return nothing, nothing
     instance = nothing
     instance_kwargs = nothing
     vertex = class.vertex
-    for selector in EntitySelectors(class, kwargs)
+    for selector in EntitySelectors(class, kwargs, dimension_keywords)
         selector_hits = count(s !== anything for s in selector)
         if selector_hits < hits.max
             continue
@@ -517,9 +597,12 @@ function instance_in_class!(hits::SelectorHits, class::RelationshipClass, parame
     end
     instance, instance_kwargs
 end
-function instance_in_class(class::RelationshipClass, parameter_name::Symbol, _default, kwargs)
+function instance_in_class(
+    class::RelationshipClass, parameter_name::Symbol, _default, kwargs, dimension_keywords=zero(UInt64)
+)
+    _has_eligible_combination(class, kwargs, dimension_keywords) || return nothing, nothing
     vertex = class.vertex
-    for selector in EntitySelectors(class, kwargs)
+    for selector in EntitySelectors(class, kwargs, dimension_keywords)
         selected_value = find_value_instance(parameter_name, vertex, selector, _default)
         if !isnothing(selected_value)
             instance_kwargs = (k => v for (k, v) in pairs(kwargs) if !in(v, LegacySelectorKeys(class, selector)))
@@ -533,8 +616,9 @@ function unique_value_instance(parameter_name, classes, _default, kwargs)
     instance = nothing
     instance_kwargs = nothing
     hits = SelectorHits()
+    dimension_keywords = _dimension_keywords(classes, kwargs)
     for class in classes
-        new_instance, new_kwargs = instance_in_class!(hits, class, parameter_name, _default, kwargs)
+        new_instance, new_kwargs = instance_in_class!(hits, class, parameter_name, _default, kwargs, dimension_keywords)
         if !isnothing(new_instance)
             instance = new_instance
             instance_kwargs = new_kwargs
@@ -546,7 +630,7 @@ function unique_value_instance(parameter_name, classes, _default, kwargs)
     instance, instance_kwargs
 end
 function unique_value_instance(parameter_name, class::EntityClass, _default, kwargs)
-    instance_in_class(class, parameter_name, _default, kwargs)
+    instance_in_class(class, parameter_name, _default, kwargs, _dimension_keywords((class,), kwargs))
 end
 
 function is_suspect_to_misorder(classes; parameter_kwargs...)
