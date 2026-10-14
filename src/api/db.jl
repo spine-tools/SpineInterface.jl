@@ -723,6 +723,34 @@ end
     run_request(url::String, request::String, args, kwargs; upgrade=false)
 
 Run the given request on the given url, using the given args.
+
+The request is forwarded to the Python package `spinedb_api` (Spine-Database-API) and handled there by
+`HandleDBRequestMixin` in `spinedb_api/spine_db_server.py`. That is the place to look up valid options;
+the exact set depends on the installed `spinedb_api` version.
+
+# Arguments
+  - `request::String`: one of the keys of the handler dictionary in `HandleDBRequestMixin`, e.g.
+    `"query"`, `"filtered_query"`, `"import_data"`, `"export_data"`, `"call_method"`, `"apply_filters"`,
+    `"clear_filters"`.
+  - `args::Tuple` and `kwargs::Dict`: passed as positional and keyword arguments to the handler of `request`
+    (the `_do_<request>` method of `SpineDBServerBase` in the same file):
+      - `"query"`: names of subquery properties of `DatabaseMapping` (e.g. `"parameter_value_sq"`), see
+        `spinedb_api/db_mapping_query_mixin.py`.
+      - `"import_data"`: `(data::Dict, comment::String)`, where `data` follows the keyword arguments of
+        `import_data` in `spinedb_api/import_functions.py`.
+      - `"export_data"`: keyword arguments of `export_data` in `spinedb_api/export_functions.py`.
+      - `"call_method"`: the name of a `DatabaseMapping` method as the first element of `args`, followed by that
+        method's positional arguments; `kwargs` are its keyword arguments. Available methods (e.g. `get_item`,
+        `update_item`, `add_update_item`, `remove_items`, `commit_session`, and the per-item-type convenience
+        methods such as `get_parameter_value_items` or `add_update_parameter_value_item`) are documented in
+        `spinedb_api/db_mapping.py` and the online docs at https://spine-database-api.readthedocs.io.
+
+# Example
+```julia
+run_request(
+    url, "call_method", ("get_item", "parameter_definition"), Dict("entity_class_name" => "node", "name" => "demand")
+)
+```
 """
 function run_request(url, request::String; upgrade=false)
     run_request(url, request, (), Dict(); upgrade=upgrade)
